@@ -1,0 +1,1000 @@
+/*
+ * backstage.css — Dotty Homes Design System
+ * Master stylesheet for all Backstage tools.
+ * Link this ONCE; each tool keeps only its own layout rules.
+ *
+ * Fonts loaded via <link> in each HTML (or the shell):
+ *   https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap
+ */
+
+
+/* ================================================================
+   1. DESIGN TOKENS
+   ================================================================ */
+:root {
+  /* Backgrounds */
+  --bg:       #ffffff;
+  --bg-page:  #F8F8F7;
+  --bg-alt:   #F2F1EF;
+  --bg-inset: #EBEAE7;
+  --bg-deep:  #E2E1DD;
+
+  /* Borders */
+  --border:       #E2E1DD;
+  --border-hover: #CCCBC6;
+  --border-strong:#B0AFA8;
+
+  /* Text */
+  --text:       #1A1A18;
+  --text-2:     #3A3A35;
+  --text-3:     #5C5C55;
+  --text-4:     #85857E;
+
+  /* Accent — gold */
+  --accent:     #9C7C3C;
+  --accent-hover:#B08E48;
+  --accent-dim: rgba(156,124,60,.06);
+  --accent-dim2:rgba(156,124,60,.13);
+
+  /* Semantic */
+  --green:    #2D8A4E;
+  --green-bg: #E8F5EC;
+  --red:      #C0392B;
+  --red-bg:   #FBEAEA;
+  --blue:     #2B6CB0;
+  --blue-bg:  #E8F0FB;
+  --amber:    #B8651A;
+  --amber-bg: #FDF0E2;
+  --purple:   #6D28D9;
+  --purple-bg:#F3EFFF;
+
+  /* Typography */
+  --sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', 'SF Mono', monospace;
+
+  /* Radius */
+  --radius:    8px;
+  --radius-sm: 5px;
+  --radius-lg: 12px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.06);
+  --shadow-md: 0 4px 16px rgba(0,0,0,.08);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,.10);
+}
+
+
+/* ================================================================
+   2. RESET + BASE
+   ================================================================ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 450;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+input, select, textarea, button { font-family: var(--sans); }
+
+
+/* ================================================================
+   3. SCROLLBAR
+   ================================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
+
+
+/* ================================================================
+   4. TYPOGRAPHY SCALE
+   ================================================================
+   11px  — micro labels, uppercase headers
+   12px  — secondary text, table helpers
+   13px  — body (base)
+   14px  — form inputs, emphasized body
+   15px  — subheadings
+   18px  — section headings
+   22px  — hero numbers / stat values
+   ================================================================ */
+.text-xs    { font-size: 11px; }
+.text-sm    { font-size: 12px; }
+.text-base  { font-size: 13px; }
+.text-md    { font-size: 14px; }
+.text-lg    { font-size: 15px; }
+.text-xl    { font-size: 18px; }
+.text-2xl   { font-size: 22px; }
+
+.text-dim   { color: var(--text-2); }
+.text-muted { color: var(--text-3); }
+.text-faint { color: var(--text-4); }
+.text-accent{ color: var(--accent); }
+
+.font-mono  { font-family: var(--mono); }
+.font-bold  { font-weight: 600; }
+
+.uppercase  { text-transform: uppercase; letter-spacing: .5px; }
+
+/* Section label — "ACQUISITIONS", "DATA", etc. */
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-4);
+  text-transform: uppercase;
+  letter-spacing: .6px;
+}
+
+
+/* ================================================================
+   5. BUTTONS
+   ================================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text-2);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s ease;
+}
+.btn:hover {
+  border-color: var(--border-hover);
+  color: var(--text);
+  background: var(--bg-page);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+}
+
+.btn-danger {
+  color: var(--red);
+  border-color: rgba(192,57,43,.25);
+}
+.btn-danger:hover {
+  background: var(--red-bg);
+  border-color: var(--red);
+}
+
+.btn-success {
+  background: var(--green);
+  color: #fff;
+  border-color: var(--green);
+  font-weight: 600;
+}
+.btn-success:hover {
+  opacity: .9;
+}
+
+.btn-secondary {
+  background: var(--bg-alt);
+  color: var(--text-3);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover {
+  border-color: var(--border-hover);
+  color: var(--text);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.btn-ghost:hover {
+  background: var(--bg-alt);
+  border-color: transparent;
+}
+
+/* Active / toggle state */
+.btn.active,
+.btn-on {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+
+/* ================================================================
+   6. TABS
+   ================================================================ */
+.tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-page);
+}
+
+.tab {
+  padding: 11px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-3);
+  cursor: pointer;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-family: var(--sans);
+  transition: all .15s;
+}
+.tab:hover { color: var(--text-2); }
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.panel { display: none; padding: 24px; }
+.panel.active { display: block; }
+
+
+/* ================================================================
+   7. TABLES
+   ================================================================ */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+thead { position: sticky; top: 0; z-index: 10; }
+
+th {
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+th:hover { color: var(--text-3); }
+th.sorted { color: var(--accent); }
+th .arr { font-size: 8px; margin-left: 3px; opacity: .4; }
+th.sorted .arr { opacity: 1; }
+
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--bg-alt);
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+tr { transition: background .1s; }
+tr:hover { background: var(--accent-dim); }
+tr.selected { background: var(--accent-dim2); }
+
+/* Table cell helpers */
+.c-addr  { font-weight: 600; white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.c-price { font-family: var(--mono); font-weight: 700; color: var(--accent); white-space: nowrap; }
+.c-num   { font-family: var(--mono); font-size: 12px; font-weight: 500; text-align: center; color: var(--text-2); }
+.c-dim   { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--text-2); }
+.c-date  { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--text-2); white-space: nowrap; }
+.c-mls   { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+.c-city  { font-size: 12px; font-weight: 500; color: var(--text-2); white-space: nowrap; }
+
+.price   { font-family: var(--mono); font-weight: 600; color: var(--green); }
+.ppsf    { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--text-2); }
+
+.tbl-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 160px);
+}
+
+.results-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+
+/* ================================================================
+   8. FORMS
+   ================================================================ */
+.field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 6px;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-family: var(--sans);
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  outline: none;
+  transition: border-color .15s;
+}
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--accent);
+  background: var(--bg);
+}
+
+.field textarea {
+  min-height: 80px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.search-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+/* Filter select (toolbar-style) */
+select.flt {
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 7px 28px 7px 10px;
+  color: var(--text-3);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='%23a0a098'%3E%3Cpath d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+}
+select.flt:focus { outline: none; border-color: var(--accent); }
+select.flt.on { border-color: var(--accent); color: var(--accent); }
+
+/* Search bar */
+.search { position: relative; flex: 1; min-width: 200px; max-width: 400px; }
+.search input {
+  width: 100%;
+  font-size: 13px;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px 8px 34px;
+  color: var(--text);
+}
+.search input:focus { outline: none; border-color: var(--accent); background: var(--bg); }
+.search input::placeholder { color: var(--text-4); }
+.search svg {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-4);
+  width: 14px;
+  height: 14px;
+}
+
+/* Toolbar */
+.toolbar {
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+.toolbar-r { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+/* Edit grid (modal inline editing) */
+.edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.edit-field { display: flex; flex-direction: column; gap: 3px; }
+.edit-field.full { grid-column: 1 / -1; }
+.edit-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-4);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.edit-field input,
+.edit-field select,
+.edit-field textarea {
+  font-size: 13px;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  color: var(--text);
+  transition: border .15s;
+}
+.edit-field input:focus,
+.edit-field select:focus,
+.edit-field textarea:focus { outline: none; border-color: var(--accent); }
+.edit-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+
+input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; width: 14px; height: 14px; }
+input[type="range"]    { accent-color: var(--accent); }
+
+
+/* ================================================================
+   9. TAGS + BADGES
+   ================================================================ */
+.tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  white-space: nowrap;
+}
+
+.tag-green, .tag-vacant  { background: var(--green-bg); color: var(--green); }
+.tag-amber, .tag-owner   { background: var(--amber-bg); color: var(--amber); }
+.tag-red,   .tag-tenant  { background: var(--red-bg);   color: var(--red); }
+.tag-blue,  .tag-trust   { background: var(--blue-bg);  color: var(--blue); }
+.tag-purple              { background: var(--purple-bg); color: var(--purple); }
+.tag-muted, .tag-std     { background: var(--bg-inset);  color: var(--text-4); }
+
+/* DOM badges */
+.dom-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+.dom-low  { background: rgba(45,138,78,.1);  color: var(--green); }
+.dom-mid  { background: rgba(156,124,60,.1);  color: var(--accent); }
+.dom-high { background: rgba(192,57,43,.1);  color: var(--red); }
+
+/* Comp type badge */
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 700;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+.type-dotty { background: rgba(45,138,78,.12); color: var(--green); }
+.type-flips { background: rgba(43,108,176,.12); color: var(--blue); }
+
+
+/* ================================================================
+   10. SCHOOL RATINGS
+   ================================================================ */
+.school-rating {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--mono);
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+.sr-high, .rating-high { background: rgba(45,138,78,.12); color: var(--green); }
+.sr-mid,  .rating-mid  { background: rgba(156,124,60,.12); color: var(--accent); }
+.sr-low,  .rating-low  { background: rgba(192,57,43,.12); color: var(--red); }
+
+/* School pill — compact version for rows */
+.school-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+.school-pill .lv { font-size: 8px; font-weight: 700; opacity: .7; }
+.school-pill.sh { background: var(--green-bg); color: var(--green); }
+.school-pill.sm { background: var(--amber-bg); color: var(--amber); }
+.school-pill.sl { background: var(--red-bg);   color: var(--red); }
+
+.school-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 4px;
+}
+.school-label {
+  font-size: 11px;
+  color: var(--text-4);
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  width: 34px;
+  flex-shrink: 0;
+}
+
+
+/* ================================================================
+   11. SUMMARY CARDS
+   ================================================================ */
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.summary-card {
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.summary-card .label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 4px;
+}
+.summary-card .value {
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--mono);
+  color: var(--accent);
+}
+.summary-card .sub { font-size: 11px; color: var(--text-4); margin-top: 2px; }
+
+
+/* ================================================================
+   12. IMPORT / DROP ZONES
+   ================================================================ */
+.import-zone {
+  border: 2px dashed var(--border-hover);
+  border-radius: var(--radius-lg);
+  padding: 48px 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  margin-bottom: 20px;
+}
+.import-zone:hover,
+.import-zone.dragover,
+.import-zone.over {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.import-zone h3 { font-size: 15px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+.import-zone p  { font-size: 13px; color: var(--text-4); line-height: 1.5; }
+.import-zone input[type="file"] { display: none; }
+
+.import-log {
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  max-height: 280px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+.log-success { color: var(--green); }
+.log-error   { color: var(--red); }
+.log-info    { color: var(--blue); }
+
+/* Geocode progress bar */
+.geocode-progress {
+  background: var(--bg-alt);
+  border-radius: var(--radius);
+  overflow: hidden;
+  height: 6px;
+  margin: 12px 0;
+}
+.geocode-bar {
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width .3s;
+}
+
+/* Comp type selector cards */
+.comp-type-btn {
+  background: var(--bg-page);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .15s;
+  font-family: var(--sans);
+  color: var(--text);
+}
+.comp-type-btn:hover { border-color: var(--border-hover); }
+.comp-type-btn.active { border-color: var(--accent); background: var(--accent-dim); }
+.ct-label { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.ct-desc  { font-size: 12px; color: var(--text-3); }
+
+
+/* ================================================================
+   13. MODALS + OVERLAYS
+   ================================================================ */
+.overlay,
+.modal-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0,0,0,.22);
+  backdrop-filter: blur(3px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.overlay.show,
+.modal-bg.open { display: flex; }
+
+.modal {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 860px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+
+.mod-hdr {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.mod-title { font-size: 18px; font-weight: 700; }
+.mod-sub   { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.mod-body  { padding: 18px 20px; }
+
+.mod-x {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 16px;
+}
+.mod-x:hover { color: var(--text); border-color: var(--border-hover); }
+
+/* Modal stat grid */
+.mod-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.mod-stat {
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  text-align: center;
+}
+.mod-stat .n { font-family: var(--mono); font-size: 16px; font-weight: 700; }
+.mod-stat .l { font-size: 11px; color: var(--text-4); text-transform: uppercase; margin-top: 2px; }
+
+/* Modal sections */
+.mod-sections { display: flex; flex-direction: column; gap: 12px; }
+.mod-sec {
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.mod-sec h4 {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-4);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 6px;
+}
+.mod-sec p { font-size: 13px; color: var(--text-2); line-height: 1.7; }
+
+/* Key-value pairs */
+.kv { display: flex; flex-direction: column; gap: 1px; }
+.kv .k { font-size: 11px; color: var(--text-4); text-transform: uppercase; letter-spacing: .3px; }
+.kv .v { font-size: 13px; color: var(--text); font-weight: 500; }
+
+
+/* ================================================================
+   14. TOAST NOTIFICATIONS
+   ================================================================ */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 600;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(80px);
+  opacity: 0;
+  transition: all .3s;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.ok   { border-color: rgba(45,138,78,.4); color: var(--green); }
+.toast.err  { border-color: rgba(192,57,43,.4); color: var(--red); }
+
+
+/* ================================================================
+   15. EMPTY STATES
+   ================================================================ */
+.empty-state,
+.empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-4);
+}
+.empty-state h3,
+.empty h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-3);
+  margin-bottom: 6px;
+}
+.empty-state p { font-size: 13px; color: var(--text-3); }
+
+/* Loading */
+.loading { text-align: center; padding: 40px; color: var(--text-3); font-size: 13px; }
+
+/* Pool indicators */
+.pool-yes { color: var(--blue); font-weight: 600; }
+.pool-no  { color: var(--text-4); }
+
+/* Backward-compat aliases (old class names → new tokens) */
+.btn-gold { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+.btn-gold:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn-red  { color: var(--red); border-color: rgba(192,57,43,.25); }
+.btn-red:hover { background: var(--red-bg); border-color: var(--red); }
+.btn-grn  { background: var(--green); color: #fff; border-color: var(--green); font-weight: 600; }
+
+/* Import history table */
+.hist-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+.hist-table th { font-size: 11px; text-align: left; padding: 6px 8px; color: var(--text-4); border-bottom: 1px solid var(--border); cursor: default; }
+.hist-table td { padding: 6px 8px; border-bottom: 1px solid var(--bg-alt); }
+.hist-table .mono { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+.hist-empty { font-size: 12px; color: var(--text-4); }
+
+/* Import preview */
+.import-preview { margin-top: 20px; }
+.import-preview h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.import-preview .meta { font-size: 12px; color: var(--text-3); margin-bottom: 12px; }
+.import-actions { display: flex; gap: 8px; margin-top: 16px; align-items: center; }
+
+/* CSV column mapper */
+.col-map { background: var(--bg-page); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; margin-top: 12px; }
+.col-map h4 { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }
+.col-map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }
+.col-map-row { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.col-map-row .csv-col { font-family: var(--mono); font-size: 11px; color: var(--text-2); min-width: 120px; background: var(--bg-inset); padding: 3px 6px; border-radius: 4px; }
+.col-map-row .arrow { color: var(--text-4); font-size: 11px; }
+.col-map-row .db-col { font-family: var(--mono); font-size: 11px; color: var(--green); }
+.col-map-row .db-col.miss { color: var(--red); }
+
+
+/* ================================================================
+   16. SELECTION BAR
+   ================================================================ */
+.sel-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 50;
+  background: var(--bg-page);
+  border-top: 1px solid var(--border);
+  padding: 8px 24px;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.sel-bar.show { display: flex; }
+.sel-bar .count { font-weight: 600; color: var(--accent); }
+
+
+/* ================================================================
+   17. ADDRESS LINKS (Zillow / Redfin mini icons)
+   ================================================================ */
+.addr-links {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.addr-links a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-decoration: none;
+  opacity: .4;
+  transition: opacity .15s;
+}
+.addr-links a:hover { opacity: 1; text-decoration: none; }
+.addr-links .zl { background: rgba(43,108,176,.1); color: var(--blue); }
+.addr-links .rf { background: rgba(192,57,43,.1); color: var(--red); }
+
+
+/* ================================================================
+   18. INFO BLOCKS (agent, showing, property details)
+   ================================================================ */
+.info-block {
+  font-size: 13px;
+  color: var(--text-2);
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.info-block b { color: var(--text); }
+
+/* Collapsible sections */
+.toggle-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-top: 0;
+}
+.toggle-hdr {
+  padding: 10px 14px;
+  background: var(--bg);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: .3px;
+  user-select: none;
+}
+.toggle-hdr:hover { background: var(--bg-page); }
+.toggle-body { padding: 12px 14px; display: none; }
+.toggle-section.open .toggle-body { display: block; }
+
+/* Read-only block */
+.rb {
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.6;
+  margin-bottom: 4px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.rb b { color: var(--text); font-weight: 600; }
+
+
+/* ================================================================
+   19. CONNECTION STATUS DOT
+   ================================================================ */
+.conn-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+  flex-shrink: 0;
+}
+.conn-dot.on {
+  background: var(--green);
+  box-shadow: 0 0 6px rgba(45,138,78,.4);
+}
+
+
+/* ================================================================
+   20. SEMANTIC HELPERS
+   ================================================================ */
+.color-green  { color: var(--green); }
+.color-red    { color: var(--red); }
+.color-amber  { color: var(--amber); }
+.color-blue   { color: var(--blue); }
+.color-accent { color: var(--accent); }
+
+.bg-green  { background: var(--green-bg); }
+.bg-red    { background: var(--red-bg); }
+.bg-amber  { background: var(--amber-bg); }
+.bg-blue   { background: var(--blue-bg); }
+
+.dn { color: var(--green);  font-weight: 500; }  /* positive number */
+.do { color: var(--red);    font-weight: 500; }  /* negative number */
+.dm { color: var(--text-2); font-weight: 500; }  /* neutral number */
+
+.mono  { font-family: var(--mono); }
+.tr    { text-align: right; }
+.tc    { text-align: center; }
+.hidden { display: none; }
+
+
+/* ================================================================
+   21. RESPONSIVE
+   ================================================================ */
+@media (max-width: 768px) {
+  .toolbar { padding: 8px 12px; }
+  .tabs    { padding: 0 12px; }
+  .panel   { padding: 16px; }
+  .search-grid { grid-template-columns: 1fr; }
+  .edit-grid   { grid-template-columns: 1fr; }
+  .mod-stats   { grid-template-columns: repeat(2, 1fr); }
+}

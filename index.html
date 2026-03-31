@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backstage — Dotty Homes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #ffffff;
+  --bg-page: #FAFAF8;
+  --bg-alt: #F2F1EF;
+  --border: #E8E7E4;
+  --border-hover: #D4D3CF;
+  --text: #1A1A18;
+  --text-2: #3A3A35;
+  --text-3: #5C5C55;
+  --text-4: #85857E;
+  --accent: #9C7C3C;
+  --accent-hover: #B08E48;
+  --green: #2D8A4E;
+  --red: #C0392B;
+  --blue: #2B6CB0;
+  --purple: #6D28D9;
+  --radius: 8px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--bg-page);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ========== LOGIN ========== */
+.login-wrap {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-page);
+}
+.login-box {
+  width: 360px;
+  text-align: center;
+}
+.login-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 36px;
+}
+.login-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--text);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+}
+.login-brand span {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+.login-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+  letter-spacing: -0.5px;
+}
+.login-sub {
+  font-size: 14px;
+  color: var(--text-4);
+  margin-bottom: 32px;
+}
+.login-input {
+  width: 100%;
+  padding: 14px 18px;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  text-align: center;
+  letter-spacing: 4px;
+  outline: none;
+  transition: border-color .2s;
+}
+.login-input:focus { border-color: var(--text-3); }
+.login-input::placeholder { letter-spacing: 1px; color: var(--text-4); font-size: 13px; }
+.login-btn {
+  width: 100%;
+  margin-top: 14px;
+  padding: 14px;
+  background: var(--text);
+  border: none;
+  border-radius: var(--radius);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .2s;
+}
+.login-btn:hover { opacity: .85; }
+.login-error {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--red);
+  height: 18px;
+}
+.login-footer {
+  margin-top: 32px;
+  font-size: 12px;
+  color: var(--text-4);
+}
+
+/* ========== APP SHELL ========== */
+.app { display: none; height: 100vh; }
+.app.active { display: flex; }
+
+/* Sidebar */
+.sidebar {
+  width: 230px;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+.side-brand {
+  padding: 20px 20px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.side-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--text);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 11px;
+  color: #fff;
+  flex-shrink: 0;
+}
+.side-brand span {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.2px;
+}
+
+/* Nav sections */
+.side-section {
+  padding: 18px 14px 0;
+}
+.side-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: var(--text-4);
+  padding: 0 10px;
+  margin-bottom: 6px;
+}
+.side-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all .12s;
+  margin-bottom: 1px;
+}
+.side-item:hover { background: var(--bg-page); }
+.side-item.active { background: var(--bg-alt); }
+.side-item.active .side-icon svg { stroke: var(--text); }
+.side-item.active .side-label { color: var(--text); font-weight: 600; }
+
+.side-icon {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.side-icon svg { width: 16px; height: 16px; stroke: var(--text-4); stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+.side-label { font-size: 13px; font-weight: 500; color: var(--text-3); }
+
+.side-item.disabled { opacity: .35; cursor: default; pointer-events: none; }
+
+/* Sidebar footer */
+.side-footer {
+  margin-top: auto;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.side-user {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.side-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bg-alt);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.side-user-name { font-size: 13px; font-weight: 500; color: var(--text-3); }
+.lock-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--text-4);
+  transition: color .15s;
+}
+.lock-btn:hover { color: var(--text); }
+
+/* Main content */
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg-page);
+}
+
+/* Tool bar at top */
+.tool-bar {
+  height: 46px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg);
+  flex-shrink: 0;
+}
+.tool-bar-icon svg { width: 15px; height: 15px; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tool-bar-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.tool-bar-cat { font-size: 12px; font-weight: 500; color: var(--text-4); margin-left: 4px; }
+
+/* Iframe */
+.tool-frame {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: var(--bg);
+}
+
+/* Welcome screen (no tool selected) */
+.welcome {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.welcome-inner h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+  letter-spacing: -0.3px;
+}
+.welcome-inner p {
+  font-size: 14px;
+  color: var(--text-4);
+  line-height: 1.6;
+}
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN ===== -->
+<div class="login-wrap" id="loginScreen">
+  <div class="login-box">
+    <div class="login-brand">
+      <div class="login-mark">D</div>
+      <span>Dotty Homes</span>
+    </div>
+    <div class="login-title">Welcome back</div>
+    <div class="login-sub">Enter your passcode to continue</div>
+    <input type="password" class="login-input" id="pwInput" placeholder="Enter passcode" autocomplete="off" autofocus>
+    <button class="login-btn" onclick="tryLogin()">Continue</button>
+    <div class="login-error" id="pwError"></div>
+    <div class="login-footer">Internal access only</div>
+  </div>
+</div>
+
+<!-- ===== APP SHELL ===== -->
+<div class="app" id="appShell">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="side-brand">
+      <div class="side-mark">D</div>
+      <span>Backstage</span>
+    </div>
+
+    <div class="side-section">
+      <div class="side-section-label">Acquisitions</div>
+      <div class="side-item" data-tool="deal-machine" onclick="openTool(this)">
+        <div class="side-icon"><svg viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg></div>
+        <span class="side-label">Deal Machine</span>
+      </div>
+      <div class="side-item" data-tool="flip-analyzer" onclick="openTool(this)">
+        <div class="side-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></div>
+        <span class="side-label">FlipAnalyzer</span>
+      </div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-section-label">Data</div>
+      <div class="side-item" data-tool="comp-db" onclick="openTool(this)">
+        <div class="side-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
+        <span class="side-label">Comp Database</span>
+      </div>
+      <div class="side-item" data-tool="listings-db" onclick="openTool(this)">
+        <div class="side-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></div>
+        <span class="side-label">Listings DB</span>
+      </div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-section-label">Coming soon</div>
+      <div class="side-item disabled">
+        <div class="side-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg></div>
+        <span class="side-label">Portfolio</span>
+      </div>
+      <div class="side-item disabled">
+        <div class="side-icon"><svg viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/><circle cx="12" cy="6" r="2"/></svg></div>
+        <span class="side-label">Lead Scoring</span>
+      </div>
+    </div>
+
+    <div class="side-footer">
+      <div class="side-user">
+        <div class="side-avatar">P</div>
+        <span class="side-user-name">Patty</span>
+      </div>
+      <button class="lock-btn" onclick="logout()" title="Lock">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main area -->
+  <div class="main-area" id="mainArea">
+    <div class="tool-bar" id="toolBar" style="display:none">
+      <span class="tool-bar-icon" id="toolBarIcon"></span>
+      <span class="tool-bar-title" id="toolBarTitle"></span>
+      <span class="tool-bar-cat" id="toolBarCat"></span>
+    </div>
+    <div class="welcome" id="welcomeScreen">
+      <div class="welcome-inner">
+        <h2>Backstage</h2>
+        <p>Select a tool from the sidebar to get started.</p>
+      </div>
+    </div>
+    <iframe class="tool-frame" id="toolFrame" style="display:none"></iframe>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// AUTH — SHA-256 on HTTPS, plain text fallback on file://
+// ============================================================
+const HASH = '4abdb0e498e145ee4b28eb1d2e85de2e1e3e62bfb18d62fcaee245c2b40ed88c';
+const PW_FALLBACK = '103191';
+
+async function sha256(str) {
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch(e) { return null; }
+}
+
+async function tryLogin() {
+  const pw = document.getElementById('pwInput').value;
+  const hash = await sha256(pw);
+  const ok = hash ? (hash === HASH) : (pw === PW_FALLBACK);
+  if (ok) {
+    sessionStorage.setItem('backstage_auth', '1');
+    showApp();
+  } else {
+    document.getElementById('pwError').textContent = 'Incorrect passcode';
+    document.getElementById('pwInput').value = '';
+    document.getElementById('pwInput').focus();
+    setTimeout(() => document.getElementById('pwError').textContent = '', 2000);
+  }
+}
+
+document.getElementById('pwInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') tryLogin();
+});
+
+function logout() {
+  sessionStorage.removeItem('backstage_auth');
+  document.getElementById('appShell').classList.remove('active');
+  document.getElementById('loginScreen').style.display = '';
+  document.getElementById('pwInput').value = '';
+  document.getElementById('pwInput').focus();
+}
+
+function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appShell').classList.add('active');
+}
+
+// ============================================================
+// TOOL ROUTING
+// ============================================================
+const TOOLS = {
+  'deal-machine':  { file: 'deal-machine-v2.html',  title: 'Deal Machine',   cat: 'Acquisitions', icon: '<svg viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>' },
+  'flip-analyzer': { file: 'flip-analyzer.html',     title: 'FlipAnalyzer',   cat: 'Acquisitions', icon: '<svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>' },
+  'comp-db':       { file: 'comp-db-v52.html',       title: 'Comp Database',  cat: 'Data',         icon: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>' },
+  'listings-db':   { file: 'listings-db-v2.html',    title: 'Listings DB',    cat: 'Data',         icon: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>' }
+};
+
+let currentTool = null;
+
+function openTool(el) {
+  const id = el.dataset.tool;
+  const tool = TOOLS[id];
+  if (!tool) return;
+
+  // Update sidebar active state
+  document.querySelectorAll('.side-item').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+
+  // Update toolbar
+  const bar = document.getElementById('toolBar');
+  bar.style.display = 'flex';
+  document.getElementById('toolBarIcon').innerHTML = tool.icon;
+  document.getElementById('toolBarTitle').textContent = tool.title;
+  document.getElementById('toolBarCat').textContent = tool.cat;
+
+  // Style the icon
+  const svg = document.getElementById('toolBarIcon').querySelector('svg');
+  if (svg) {
+    svg.style.width = '15px';
+    svg.style.height = '15px';
+    svg.style.stroke = 'var(--accent)';
+    svg.style.strokeWidth = '2';
+    svg.style.fill = 'none';
+    svg.style.strokeLinecap = 'round';
+  }
+
+  // Show iframe, hide welcome
+  document.getElementById('welcomeScreen').style.display = 'none';
+  const frame = document.getElementById('toolFrame');
+  frame.style.display = 'block';
+
+  // Only reload if switching tools
+  if (currentTool !== id) {
+    frame.src = tool.file;
+    currentTool = id;
+  }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+if (sessionStorage.getItem('backstage_auth') === '1') {
+  showApp();
+}
+</script>
+</body>
+</html>
