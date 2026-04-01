@@ -301,12 +301,19 @@ async function runSearch(){
   const mapDiv=document.getElementById('search-map');
   
   if(addr){
-    // Use Google Maps Geocoding API
+    // Try Google Maps Geocoding API first
     try{const r=await fetch('https://maps.googleapis.com/maps/api/geocode/json?address='+encodeURIComponent(addr)+'&key='+GOOGLE_GEO_KEY);
       const d=await r.json();
       if(d.status==='OK'&&d.results?.length){sLat=d.results[0].geometry.location.lat;sLng=d.results[0].geometry.location.lng;}
-      else{el.innerHTML='<div class="empty-state"><h3>Address not found</h3></div>';return;}
-    }catch(e){el.innerHTML=`<div class="empty-state"><h3>Geocoding Error</h3><p>${e.message}</p></div>`;return;}
+    }catch(e){}
+    // Fallback: US Census Geocoder
+    if(!sLat){
+      try{const r=await fetch('https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address='+encodeURIComponent(addr)+'&benchmark=Public_AR_Current&format=json');
+        const d=await r.json();const m=d?.result?.addressMatches;
+        if(m?.length){sLat=m[0].coordinates.y;sLng=m[0].coordinates.x;}
+      }catch(e){}
+    }
+    if(!sLat){el.innerHTML='<div class="empty-state"><h3>Address not found</h3><p>Try including city and state, e.g. "13353 Beach St, Cerritos CA"</p></div>';return;}
   }
   
   let q=sb.from('properties').select('*').eq('change_type','sold');
