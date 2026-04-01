@@ -559,6 +559,8 @@ async function runImport(){
   var rows=parsedCSV.map(function(r){
     var c={};
     TEXT_COLS.forEach(function(k){if(r[k]){var v=r[k].trim();if(v)c[k]=v;}});
+    // Clean address: collapse multiple spaces
+    if(c.address)c.address=c.address.replace(/\s+/g,' ').trim();
     Object.keys(INT_COLS).forEach(function(k){if(r[k]){var v=parseInt(String(r[k]).replace(/[$,]/g,''));if(!isNaN(v))c[k]=v;}});
     Object.keys(FLOAT_COLS).forEach(function(k){if(r[k]){var v=parseFloat(String(r[k]).replace(/[$,]/g,''));if(!isNaN(v))c[k]=Math.round(v*100)/100;}});
     // lot_size special: "5,251" or "5251/sf"
@@ -734,7 +736,7 @@ async function startGeocoding(){
   for(var i=0;i<allRows.length;i++){
     if(!geocodingActive)break;
     var r=allRows[i];
-    var addr=r.address+', '+(r.city||'')+', CA'+(r.zip?' '+r.zip:'');
+    var addr=(r.address||'').replace(/\s+/g,' ').trim()+', '+(r.city||'')+', CA'+(r.zip?' '+r.zip:'');
     var success=false;
 
     // Strategy 1: Google Maps
@@ -746,8 +748,10 @@ async function startGeocoding(){
         await sb.from(TABLE).update({latitude:loc.lat,longitude:loc.lng}).eq('id',r.id);
         log.textContent+='✓ '+r.address+' → '+loc.lat.toFixed(4)+', '+loc.lng.toFixed(4)+'\n';
         found++;success=true;
+      } else if(d.status){
+        if(i===0)log.textContent+='⚠ Google API status: '+d.status+(d.error_message?' — '+d.error_message:'')+'\n';
       }
-    }catch(e){}
+    }catch(e){if(i===0)log.textContent+='⚠ Google fetch error: '+e.message+'\n';}
 
     // Strategy 2: Census fallback
     if(!success){
@@ -761,7 +765,7 @@ async function startGeocoding(){
           log.textContent+='✓ '+r.address+' → '+lat.toFixed(4)+', '+lon.toFixed(4)+' (Census)\n';
           found++;success=true;
         }
-      }catch(e){}
+      }catch(e){if(i===0)log.textContent+='⚠ Census fetch error: '+e.message+'\n';}
     }
 
     if(!success){failed++;log.textContent+='✗ '+r.address+' — not found\n';}
