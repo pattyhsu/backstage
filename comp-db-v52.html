@@ -150,7 +150,7 @@ async function updateStats(){
 async function populateDropdowns(){
   try {
     // Get cities - use a separate focused query
-    const{data:cityRows}=await sb.rpc('get_distinct_cities').catch(()=>({data:null}));
+    let cityRows=null;try{const r=await sb.rpc('get_distinct_cities');cityRows=r.data;}catch(e){cityRows=null;}
     let uc;
     if(cityRows){
       uc=cityRows.map(r=>r.city).filter(Boolean).sort();
@@ -171,7 +171,7 @@ async function populateDropdowns(){
     // Schools - these are fewer, single query is fine
     const{data:schoolData}=await sb.from('properties').select('elementary_school,elementary_rating,middle_school,middle_rating,high_school,high_rating').eq('change_type','sold').not('elementary_school','is',null).limit(1000);
     const addS=(sid,col,rcol)=>{
-      const el=document.getElementById(sid);const seen=new Set();el.innerHTML='<option value="">All</option>';
+      const el=document.getElementById(sid);if(!el)return;const seen=new Set();el.innerHTML='<option value="">All</option>';
       (schoolData||[]).forEach(r=>{if(!r[col]||seen.has(r[col]))return;seen.add(r[col]);const o=document.createElement('option');o.value=r[col];o.textContent=(r[rcol]?`(${r[rcol]}) `:'')+r[col];el.appendChild(o);});
     };
     addS('s-high','high_school','high_rating');
