@@ -22,6 +22,9 @@
   .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
   .import-log.visible { display: block; }
 
+  /* Fix Google Places autocomplete dropdown z-index */
+  .pac-container { z-index: 99999 !important; }
+
   /* === BACKSTAGE SHELL === */
   html, body { height: 100vh; overflow: hidden; }
   .login-wrap { height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg-page); }
