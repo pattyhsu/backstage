@@ -488,7 +488,6 @@ var CSV_COL_MAP={
   'list date':'list_date','list_date':'list_date',
   'lot sz':'lot_size','lot_size':'lot_size','lot size':'lot_size',
   'yb':'year_built','year_built':'year_built','year built':'year_built',
-  'apn #':'apn','apn':'apn',
   'pool':'pool',
   'remarks':'remarks','public remarks':'remarks',
   'agent remarks':'agent_remarks','agent_remarks':'agent_remarks',
@@ -551,7 +550,7 @@ async function runImport(){
   // Numeric fields that need parseFloat then round
   var FLOAT_COLS={baths:1,ppsf:1,sold_ppsf:1};
   // Text fields to trim
-  var TEXT_COLS=['mls','address','city','zip','apn','pool','list_date','remarks','agent_remarks','showing_remarks',
+  var TEXT_COLS=['mls','address','city','zip','pool','list_date','remarks','agent_remarks','showing_remarks',
     'occupant_type','sale_type','agent_name','agent_broker','agent_email','agent_phone','agent_dre','broker_dre','agent_office_phone',
     'contact_name','contact_phone','lockbox_type','lockbox_location','gate_code',
     'change_date','change_type',
