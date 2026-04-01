@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Comp Database — Dotty Homes</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCxTeIuN4tLIrAApAf8t4fIQ3fCvIix0a8"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCxTeIuN4tLIrAApAf8t4fIQ3fCvIix0a8&libraries=places"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="backstage.css">
@@ -241,7 +241,7 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 let currentImportType='general',geocodingActive=false;
 
-async function init(){await updateStats();await populateDropdowns();setupTabs();setupDragDrop();await updateGeoStats();await loadImportHistory();}
+async function init(){await updateStats();await populateDropdowns();setupTabs();setupDragDrop();await updateGeoStats();await loadImportHistory();initAutocomplete();}
 
 async function updateStats(){
   const{count:total}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold');
@@ -302,23 +302,31 @@ async function runSearch(){
   
   if(addr){
     console.log('[runSearch] geocoding address:',addr);
-    // Try Google Maps Geocoding API first
-    try{const r=await fetch('https://maps.googleapis.com/maps/api/geocode/json?address='+encodeURIComponent(addr)+'&key='+GOOGLE_GEO_KEY);
-      const d=await r.json();
-      console.log('[runSearch] Google geocode status:',d.status);
-      if(d.status==='OK'&&d.results?.length){sLat=d.results[0].geometry.location.lat;sLng=d.results[0].geometry.location.lng;console.log('[runSearch] Google geocoded:',sLat,sLng);}
-      else console.log('[runSearch] Google failed:',d.status,d.error_message||'');
-    }catch(e){console.log('[runSearch] Google error:',e.message);}
-    // Fallback: US Census Geocoder
+    // Strategy 0: Use Places Autocomplete coords if user selected from dropdown
+    if(autocompleteLat){sLat=autocompleteLat;sLng=autocompleteLng;console.log('[runSearch] using Autocomplete coords:',sLat,sLng);}
+    // Strategy 1: Look up in our own database
     if(!sLat){
-      console.log('[runSearch] trying Census geocoder...');
+      try{
+        const streetAddr=addr.split(',')[0].trim();
+        const{data:dbMatch}=await sb.from('properties').select('latitude,longitude').ilike('address','%'+streetAddr+'%').not('latitude','is',null).limit(1);
+        if(dbMatch?.length&&dbMatch[0].latitude){sLat=dbMatch[0].latitude;sLng=dbMatch[0].longitude;console.log('[runSearch] DB lookup matched:',sLat,sLng);}
+      }catch(e){}
+    }
+    // Strategy 2: Google Maps Geocoding API
+    if(!sLat){
+      try{const r=await fetch('https://maps.googleapis.com/maps/api/geocode/json?address='+encodeURIComponent(addr)+'&key='+GOOGLE_GEO_KEY);
+        const d=await r.json();
+        if(d.status==='OK'&&d.results?.length){sLat=d.results[0].geometry.location.lat;sLng=d.results[0].geometry.location.lng;}
+      }catch(e){}
+    }
+    // Strategy 3: US Census Geocoder (HTTPS only)
+    if(!sLat){
       try{const r=await fetch('https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address='+encodeURIComponent(addr)+'&benchmark=Public_AR_Current&format=json');
         const d=await r.json();const m=d?.result?.addressMatches;
-        if(m?.length){sLat=m[0].coordinates.y;sLng=m[0].coordinates.x;console.log('[runSearch] Census geocoded:',sLat,sLng);}
-        else console.log('[runSearch] Census: no matches');
-      }catch(e){console.log('[runSearch] Census error:',e.message);}
+        if(m?.length){sLat=m[0].coordinates.y;sLng=m[0].coordinates.x;}
+      }catch(e){}
     }
-    if(!sLat){el.innerHTML='<div class="empty-state"><h3>Address not found</h3><p>Try including city and state, e.g. "13353 Beach St, Cerritos CA"</p></div>';return;}
+    if(!sLat){el.innerHTML='<div class="empty-state"><h3>Address not found</h3><p>Select an address from the autocomplete dropdown, or try a different format.</p></div>';return;}
   }
   
   let q=sb.from('properties').select('*').eq('change_type','sold');
@@ -584,6 +592,24 @@ async function clearDatabase(){if(!confirm('Delete ALL sold comps? (Listings wil
 async function updateGeoStats(){const{count:t}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold');const{count:d}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold').not('latitude','is',null);const rem=(t||0)-(d||0);document.getElementById('geo-total').textContent=t||0;document.getElementById('geo-done').textContent=d||0;document.getElementById('geo-remaining').textContent=rem;const mins=Math.ceil(rem*0.1/60);document.getElementById('geo-eta').textContent=rem>0?(mins<1?'<1m':`~${mins}m`):'✓';document.getElementById('geoBar').style.width=t>0?((d/t)*100)+'%':'0%';}
 
 const GOOGLE_GEO_KEY='AIzaSyCxTeIuN4tLIrAApAf8t4fIQ3fCvIix0a8';
+
+// Places Autocomplete for address search
+let autocompleteLat=null, autocompleteLng=null;
+function initAutocomplete(){
+  const input=document.getElementById('f-address');
+  if(!window.google?.maps?.places)return;
+  const ac=new google.maps.places.Autocomplete(input,{types:['address'],componentRestrictions:{country:'us'},fields:['geometry','formatted_address']});
+  ac.addListener('place_changed',()=>{
+    const place=ac.getPlace();
+    if(place.geometry){
+      autocompleteLat=place.geometry.location.lat();
+      autocompleteLng=place.geometry.location.lng();
+      console.log('[Autocomplete] selected:',place.formatted_address,autocompleteLat,autocompleteLng);
+    }
+  });
+  // Clear stored coords when user manually edits the address
+  input.addEventListener('input',()=>{autocompleteLat=null;autocompleteLng=null;});
+}
 
 async function startGeocoding(){geocodingActive=true;document.getElementById('geoStartBtn').style.display='none';document.getElementById('geoStopBtn').style.display='';const log=document.getElementById('geoLog');log.classList.add('visible');
 let allRows=[];for(let p=0;p<20;p++){const{data}=await sb.from('properties').select('id,address,city').eq('change_type','sold').is('latitude',null).range(p*1000,(p+1)*1000-1);if(!data?.length)break;allRows=allRows.concat(data);}
