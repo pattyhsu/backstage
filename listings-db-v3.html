@@ -339,6 +339,13 @@ html, body { height: 100vh; overflow: hidden; }
     </div>
 
     <div class="import-log" id="geoLog" style="display:none;margin-top:16px;max-height:300px"></div>
+
+    <div style="margin-top:28px;border-top:1px solid var(--border);padding-top:20px">
+      <h3 style="font-size:15px;font-weight:600;margin-bottom:4px">Manual Geocode</h3>
+      <p style="font-size:12px;color:var(--text-4);margin-bottom:12px">Listings missing lat/lng. Paste coordinates or use the Google Maps link to look up.</p>
+      <button class="btn btn-sm" onclick="loadUngeocodedList()" style="margin-bottom:12px">Load Un-geocoded</button>
+      <div id="manualGeoList"></div>
+    </div>
   </div>
 </div>
 
@@ -791,6 +798,47 @@ function stopGeocoding(){
   geocodingActive=false;
   document.getElementById('geoStartBtn').style.display='';
   document.getElementById('geoStopBtn').style.display='none';
+}
+
+async function loadUngeocodedList(){
+  if(!sb)return toast('Not connected','err');
+  var el=document.getElementById('manualGeoList');
+  el.innerHTML='<p style="font-size:12px;color:var(--text-4)">Loading…</p>';
+  var allRows=[];
+  for(var p=0;p<20;p++){
+    var res=await sb.from(TABLE).select('id,address,city,zip').is('latitude',null).not('address','is',null).range(p*1000,(p+1)*1000-1);
+    if(!res.data||!res.data.length)break;
+    allRows=allRows.concat(res.data);
+  }
+  if(!allRows.length){el.innerHTML='<p style="font-size:12px;color:var(--green)">All listings are geocoded!</p>';return;}
+  var h='<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="text-align:left;border-bottom:1px solid var(--border)"><th style="padding:6px 8px">Address</th><th style="padding:6px 8px">City</th><th style="padding:6px 8px;width:90px">Latitude</th><th style="padding:6px 8px;width:90px">Longitude</th><th style="padding:6px 8px;width:110px"></th></tr></thead><tbody>';
+  allRows.forEach(function(r){
+    var addr=encodeURIComponent((r.address||'')+', '+(r.city||'')+', CA '+(r.zip||''));
+    h+='<tr id="mgr_'+r.id+'" style="border-bottom:1px solid var(--border)">'
+      +'<td style="padding:6px 8px">'+esc(r.address||'')+'</td>'
+      +'<td style="padding:6px 8px">'+esc(r.city||'')+(r.zip?' '+r.zip:'')+'</td>'
+      +'<td style="padding:4px 4px"><input type="text" id="mglat_'+r.id+'" placeholder="lat" style="width:82px;padding:4px 6px;font-size:11px;font-family:var(--mono);border:1px solid var(--border);border-radius:4px"></td>'
+      +'<td style="padding:4px 4px"><input type="text" id="mglng_'+r.id+'" placeholder="lng" style="width:82px;padding:4px 6px;font-size:11px;font-family:var(--mono);border:1px solid var(--border);border-radius:4px"></td>'
+      +'<td style="padding:4px 4px;display:flex;gap:4px;align-items:center">'
+      +'<a href="https://www.google.com/maps/search/'+addr+'" target="_blank" title="Look up on Google Maps" style="font-size:11px;color:var(--accent);text-decoration:none">Maps ↗</a>'
+      +'<button class="btn btn-sm btn-gold" onclick="saveManualGeo('+r.id+')" style="font-size:10px;padding:3px 8px">Save</button>'
+      +'</td></tr>';
+  });
+  h+='</tbody></table>';
+  el.innerHTML=h;
+}
+
+async function saveManualGeo(id){
+  if(!sb)return toast('Not connected','err');
+  var lat=parseFloat(document.getElementById('mglat_'+id).value);
+  var lng=parseFloat(document.getElementById('mglng_'+id).value);
+  if(isNaN(lat)||isNaN(lng))return toast('Enter valid lat/lng','err');
+  var res=await sb.from(TABLE).update({latitude:lat,longitude:lng}).eq('id',id);
+  if(res.error)return toast('Save failed: '+res.error.message,'err');
+  var row=document.getElementById('mgr_'+id);
+  if(row)row.style.opacity='0.3';
+  toast('Saved ✓','ok');
+  updateGeoStats();
 }
 
 function exportCSV(){
