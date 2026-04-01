@@ -577,9 +577,10 @@ async function runImport(){
     return c;
   }).filter(function(r){return r.mls;});
   // Count new vs duplicate
-  var newCount=0,dupeCount=0;
-  rows.forEach(function(r){if(existingMLS.has(r.mls))dupeCount++;else newCount++;});
+  var newCount=0,dupeCount=0,updatedMLS=[];
+  rows.forEach(function(r){if(existingMLS.has(r.mls)){dupeCount++;updatedMLS.push(r.mls);}else newCount++;});
   log.textContent+='Cleaned: '+rows.length+' valid rows ('+newCount+' new, '+dupeCount+' updates)\n';
+  if(updatedMLS.length)log.textContent+='Updates: '+updatedMLS.join(', ')+'\n';
   var CHUNK=50,ins=0,errs=0;
   for(var i=0;i<rows.length;i+=CHUNK){
     var chunk=rows.slice(i,i+CHUNK);
