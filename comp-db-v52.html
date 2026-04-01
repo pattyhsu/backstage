@@ -221,8 +221,10 @@ async function runSearch(){
   if(v('f-comp-type'))q=q.eq('comp_type',v('f-comp-type'));
   q=q.order('sold_date',{ascending:false}).limit(1000);
   const{data:rows,error}=await q;
+  console.log('[runSearch] query done. error=',error,'rows=',rows?.length);
   if(error){el.innerHTML=`<div class="empty-state"><p>${error.message}</p>`;return;}
   let filtered=rows||[];const showDist=sLat!==null;
+  console.log('[runSearch] filtered=',filtered.length,'showDist=',showDist,'sLat=',sLat);
   if(showDist){const toR=d=>d*Math.PI/180;const hav=(a,b,c,d)=>{const dl=toR(c-a),dn=toR(d-b);const x=Math.sin(dl/2)**2+Math.cos(toR(a))*Math.cos(toR(c))*Math.sin(dn/2)**2;return 3959*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));};filtered=filtered.filter(r=>r.latitude).map(r=>{r.distance=hav(sLat,sLng,r.latitude,r.longitude);return r;}).filter(r=>r.distance<=miles);}
   // Sort by newest first
   filtered.sort((a,b)=>(b.sold_date||'').localeCompare(a.sold_date||''));
@@ -231,6 +233,7 @@ async function runSearch(){
   const nomapDiv=document.getElementById('search-results-nomap');
   
   if(sLat&&filtered.length){
+    console.log('[runSearch] rendering WITH map, comps=',filtered.length);
     // Split layout: table left, map right
     splitDiv.style.display='flex';
     nomapDiv.innerHTML='';
@@ -251,6 +254,7 @@ async function runSearch(){
     map.fitBounds(bounds);
     if(filtered.length<=2)map.setZoom(15);
   } else {
+    console.log('[runSearch] rendering WITHOUT map, comps=',filtered.length);
     // No map — full width results
     splitDiv.style.display='none';
     renderResults(filtered,'search-results-nomap','search-summary',showDist);
