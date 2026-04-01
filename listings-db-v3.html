@@ -473,10 +473,64 @@ document.addEventListener('DOMContentLoaded',function(){
   ldz.addEventListener('dragleave',function(){ldz.classList.remove('over');});
   ldz.addEventListener('drop',function(e){e.preventDefault();ldz.classList.remove('over');if(e.dataTransfer.files[0])handleLotFile(e.dataTransfer.files[0]);});
 });
+// CSV header → Supabase column (only real table columns)
+var CSV_COL_MAP={
+  'address':'address','addr':'address',
+  'city':'city','zip':'zip','zipcode':'zip',
+  'br':'beds','beds':'beds',
+  'baths':'baths','ba':'baths',
+  'sqft':'sqft','sq ft':'sqft','gla':'sqft',
+  'lp':'list_price','list price':'list_price','price':'list_price','list_price':'list_price',
+  'sp':'sold_price','sold price':'sold_price','sold_price':'sold_price','close price':'sold_price',
+  'lp $/sqft':'ppsf','ppsf':'ppsf','$/sqft':'ppsf',
+  'sp $/sqft':'sold_ppsf','sold_ppsf':'sold_ppsf',
+  'mls':'mls','mls#':'mls','mls #':'mls',
+  'list date':'list_date','list_date':'list_date',
+  'lot sz':'lot_size','lot_size':'lot_size','lot size':'lot_size',
+  'yb':'year_built','year_built':'year_built','year built':'year_built',
+  'apn #':'apn','apn':'apn',
+  'pool':'pool',
+  'remarks':'remarks','public remarks':'remarks',
+  'agent remarks':'agent_remarks','agent_remarks':'agent_remarks',
+  'show remarks':'showing_remarks','showing_remarks':'showing_remarks',
+  'occupant type':'occupant_type','occupant_type':'occupant_type',
+  'sale type':'sale_type','sale_type':'sale_type',
+  "seller's agent 1 name":'agent_name','agent_name':'agent_name','agent name':'agent_name',
+  "seller's agent 1 email":'agent_email','agent_email':'agent_email',
+  "seller's agent 1 phone":'agent_phone','agent_phone':'agent_phone',
+  "seller's agent 1 cell":'agent_phone',
+  "seller's brokerage firm1 name":'agent_broker','agent_broker':'agent_broker',
+  "seller's brokerage firm1 phone":'agent_office_phone','agent_office_phone':'agent_office_phone',
+  'broker_dre':'broker_dre','agent_dre':'agent_dre',
+  "seller's agent 2 name":'agent2_name','agent2_name':'agent2_name',
+  "seller's agent 2 email":'agent2_email','agent2_email':'agent2_email',
+  "seller's agent 2 phone":'agent2_phone','agent2_phone':'agent2_phone',
+  "seller's agent 2 cell":'agent2_phone',
+  "seller's brokerage firm2 name":'agent2_broker','agent2_broker':'agent2_broker',
+  "seller's brokerage firm2 phone":'agent2_office_phone','agent2_office_phone':'agent2_office_phone',
+  'agent2_broker_dre':'agent2_broker_dre','agent2_dre':'agent2_dre',
+  'change date':'change_date','change_date':'change_date',
+  'change type':'change_type','change_type':'change_type',
+  'gate code':'gate_code','gate_code':'gate_code',
+  'lockbox loc.':'lockbox_location','lockbox_location':'lockbox_location',
+  'lockbox type':'lockbox_type','lockboxtype':'lockbox_type',
+  'showing contact name':'contact_name','contact_name':'contact_name',
+  'showing contact phone':'contact_phone','contact_phone':'contact_phone',
+  'elementary_school':'elementary_school','middle_school':'middle_school','high_school':'high_school',
+  'elementary_rating':'elementary_rating','middle_rating':'middle_rating','high_rating':'high_rating'
+};
+function normalizeRow(r){
+  var out={};
+  Object.keys(r).forEach(function(k){
+    var mapped=CSV_COL_MAP[k.trim().toLowerCase()];
+    if(mapped&&!out[mapped])out[mapped]=r[k]; // only mapped cols, first wins
+  });
+  return out;
+}
 function handleFile(file){
   if(!file)return;
   Papa.parse(file,{header:true,skipEmptyLines:true,complete:function(res){
-    parsedCSV=res.data.filter(function(r){return(r.mls&&r.mls.trim())||(r.address&&r.address.trim());});
+    parsedCSV=res.data.map(normalizeRow).filter(function(r){return(r.mls&&r.mls.trim())||(r.address&&r.address.trim());});
     document.getElementById('importFileName').textContent=file.name;
     document.getElementById('importRowCount').textContent=parsedCSV.length+' rows';
     document.getElementById('importMeta').textContent=parsedCSV.length+' listings ready to import';
@@ -488,27 +542,30 @@ function resetImport(){parsedCSV=null;document.getElementById('importPreview').s
 async function runImport(){
   if(!sb)return toast('Not connected','err');if(!parsedCSV||!parsedCSV.length)return toast('No data','err');
   var log=document.getElementById('importLog');log.style.display='block';log.textContent='Importing '+parsedCSV.length+' rows...\n';
-  // Get count before import
   var beforeCount=0;
   try{var cr=await sb.from(TABLE).select('*',{count:'exact',head:true});beforeCount=cr.count||0;}catch(e){}
-  // Also get existing MLS numbers to identify duplicates
   var existingMLS=new Set();
   try{var mr=await sb.from(TABLE).select('mls');if(mr.data)mr.data.forEach(function(r){if(r.mls)existingMLS.add(r.mls);});}catch(e){}
+  // Numeric fields that need parseInt
+  var INT_COLS={beds:1,sqft:1,list_price:1,sold_price:1,lot_size:1,year_built:1,elementary_rating:1,middle_rating:1,high_rating:1};
+  // Numeric fields that need parseFloat then round
+  var FLOAT_COLS={baths:1,ppsf:1,sold_ppsf:1};
+  // Text fields to trim
+  var TEXT_COLS=['mls','address','city','zip','apn','pool','list_date','remarks','agent_remarks','showing_remarks',
+    'occupant_type','sale_type','agent_name','agent_broker','agent_email','agent_phone','agent_dre','broker_dre','agent_office_phone',
+    'contact_name','contact_phone','lockbox_type','lockbox_location','gate_code',
+    'change_date','change_type',
+    'agent2_name','agent2_broker','agent2_email','agent2_phone','agent2_dre','agent2_broker_dre','agent2_office_phone',
+    'elementary_school','middle_school','high_school'];
   var rows=parsedCSV.map(function(r){
     var c={};
-    if(r.address)c.address=r.address.trim();
-    if(r.city){var raw=r.city.trim();if(raw.includes(' CA ')){var p=raw.split(' CA ');c.city=p[0].trim();c.zip=p[1]?p[1].trim():null;}else c.city=raw;}
-    if(r.beds)c.beds=parseInt(r.beds)||null;
-    if(r.baths){var b=r.baths.trim();var bv=parseFloat(b.split(/\s/)[0]);c.baths=isNaN(bv)?null:Math.round(bv*100)/100;}
-    if(r.sqft)c.sqft=parseInt(String(r.sqft).replace(/,/g,''))||null;
-    if(r.price)c.list_price=parseInt(String(r.price).replace(/[$,]/g,''))||null;
-    if(r.ppsf){var pv=parseFloat(String(r.ppsf).replace(/[$,]/g,''));c.ppsf=isNaN(pv)?null:Math.round(pv);}
-    if(r.mls)c.mls=r.mls.trim();
-    if(r.list_date)c.list_date=r.list_date.trim();
-    if(r.lot_size)c.lot_size=parseInt(String(r.lot_size).split('/')[0].replace(/[^0-9]/g,''))||null;
-    if(r.year_built)c.year_built=parseInt(r.year_built)||null;
-    ['pool','remarks','agent_remarks','showing_remarks','occupant_type','occupancy','contact_name','contact_phone','sale_type','agent_name','agent_broker','agent_email','agent_phone','broker_dre','agent_dre','agent_office_phone','lockbox_location','lockbox_type','gate_code','change_date','change_type','agent2_name','agent2_broker','agent2_broker_dre','agent2_dre','agent2_phone','agent2_email','agent2_office_phone','elementary_school','middle_school','high_school'].forEach(function(k){if(r[k])c[k]=r[k].trim()||null;});
-    ['elementary_rating','middle_rating','high_rating'].forEach(function(k){if(r[k]){var v=parseInt(r[k]);c[k]=isNaN(v)?null:v;}});
+    TEXT_COLS.forEach(function(k){if(r[k]){var v=r[k].trim();if(v)c[k]=v;}});
+    Object.keys(INT_COLS).forEach(function(k){if(r[k]){var v=parseInt(String(r[k]).replace(/[$,]/g,''));if(!isNaN(v))c[k]=v;}});
+    Object.keys(FLOAT_COLS).forEach(function(k){if(r[k]){var v=parseFloat(String(r[k]).replace(/[$,]/g,''));if(!isNaN(v))c[k]=Math.round(v*100)/100;}});
+    // lot_size special: "5,251" or "5251/sf"
+    if(r.lot_size){var lv=parseInt(String(r.lot_size).split('/')[0].replace(/[^0-9]/g,''));if(!isNaN(lv)&&lv>0)c.lot_size=lv;}
+    // City may contain "CITY CA ZIP"
+    if(c.city&&c.city.includes(' CA ')){var p=c.city.split(' CA ');c.city=p[0].trim();if(!c.zip&&p[1])c.zip=p[1].trim();}
     return c;
   }).filter(function(r){return r.mls;});
   // Count new vs duplicate
@@ -610,7 +667,7 @@ var lotParsed=null;
 function handleLotFile(file){
   if(!file)return;
   Papa.parse(file,{header:true,skipEmptyLines:true,complete:function(res){
-    lotParsed=res.data.filter(function(r){return r.mls&&r.mls.trim()&&r.lot_size&&r.lot_size.trim();}).map(function(r){
+    lotParsed=res.data.map(normalizeRow).filter(function(r){return r.mls&&r.mls.trim()&&r.lot_size&&r.lot_size.trim();}).map(function(r){
       return{mls:r.mls.trim(),lot_size:parseInt(String(r.lot_size).split('/')[0].replace(/[^0-9]/g,''))||null};
     }).filter(function(r){return r.lot_size;});
     document.getElementById('lotInfo').textContent=lotParsed.length+' listings with lot_size found in '+file.name;
