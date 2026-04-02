@@ -267,7 +267,7 @@ function haversine(lat1,lon1,lat2,lon2){
 async function findComps(listing){
   const sqft=listing.sqft||0;
   if(!sqft)return{comps:[],hp:0,arv:0,listingLat:null,listingLng:null};
-  const sqftRange=listing.sqftRange||300,radius=listing.radius||0.5,months=listing.months||12;
+  const sqftRange=listing.sqftRange||200,radius=listing.radius||0.25,months=listing.months||12;
   const sqftMin=sqft-sqftRange,sqftMax=sqft+sqftRange;
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()-months*30);
   const cutoffStr=cutoff.toISOString().split('T')[0];
@@ -310,7 +310,7 @@ async function findComps(listing){
     if(lat&&lon&&comp.latitude&&comp.longitude){dist=haversine(lat,lon,comp.latitude,comp.longitude);if(dist>radius)continue;}
     else{if((comp.city||'').toLowerCase().trim()!==(listing.city||'').toLowerCase().trim())continue;}
     const cHsR=comp.high_rating||0;
-    if(listingHsR&&cHsR&&Math.abs(listingHsR-cHsR)>=4)continue;
+    // School rating filter removed — show all comps regardless of school zone
     const cHs=(comp.high_school||'').toLowerCase().trim();
     const schoolMatch=!!(listingHs&&cHs&&(listingHs.includes(cHs)||cHs.includes(listingHs)));
     const isUnsoldFlip=comp.stage==='unsold_flip'&&!comp.sale_price;
@@ -428,8 +428,8 @@ function compsPanel(l){
   let h=`<div style="font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:.5px;margin-bottom:4px">NOTES</div>
     <textarea id="notes2-${mid}" onblur="updateNotes('${l.mls}')" placeholder="Add notes..." style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;font-family:inherit;min-height:40px;resize:vertical;background:var(--bg);color:var(--text);box-sizing:border-box;margin-bottom:10px">${l.notes||''}</textarea>`;
   h+=`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;align-items:center">
-    <select id="comp-radius-${mid}" onchange="refetchComps('${l.mls}')" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:inherit;background:var(--bg)"><option value="0.15">0.15mi</option><option value="0.25">0.25mi</option><option value="0.5" selected>0.5mi</option><option value="0.75">0.75mi</option><option value="1">1mi</option></select>
-    <select id="comp-sqft-${mid}" onchange="refetchComps('${l.mls}')" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:inherit;background:var(--bg)"><option value="150">±150sf</option><option value="200">±200sf</option><option value="250">±250sf</option><option value="300" selected>±300sf</option><option value="400">±400sf</option><option value="500">±500sf</option></select>
+    <select id="comp-radius-${mid}" onchange="refetchComps('${l.mls}')" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:inherit;background:var(--bg)"><option value="0.15">0.15mi</option><option value="0.25" selected>0.25mi</option><option value="0.5">0.5mi</option><option value="0.75">0.75mi</option><option value="1">1mi</option></select>
+    <select id="comp-sqft-${mid}" onchange="refetchComps('${l.mls}')" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:inherit;background:var(--bg)"><option value="150">±150sf</option><option value="200" selected>±200sf</option><option value="250">±250sf</option><option value="300">±300sf</option><option value="400">±400sf</option><option value="500">±500sf</option></select>
     <select id="comp-months-${mid}" onchange="refetchComps('${l.mls}')" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:inherit;background:var(--bg)"><option value="1">1mo</option><option value="3">3mo</option><option value="6">6mo</option><option value="9">9mo</option><option value="12" selected>12mo</option><option value="24">24mo</option><option value="36">36mo</option></select></div>`;
   h+=`<div id="comp-summary-${mid}">`;
   if(cm.comps.length>0){const avg=arr=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;const prices=cm.comps.map(c=>c.price).filter(Boolean);const ppsfs=cm.comps.map(c=>c.psf).filter(Boolean);const sqfts=cm.comps.map(c=>c.sqft).filter(Boolean);
