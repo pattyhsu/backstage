@@ -88,12 +88,12 @@ body{overflow:hidden;height:100vh}
 .det-full{grid-column:1/-1}
 
 /* List header + rows */
-.th-p{display:grid;grid-template-columns:1fr 100px 68px 80px 36px 70px 50px;align-items:center;padding:8px 10px;background:var(--bg-alt);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.4px;gap:4px;position:sticky;top:0;z-index:10}
+.th-p{display:grid;grid-template-columns:1fr 100px 90px 80px 36px 70px 50px;align-items:center;padding:8px 10px;background:var(--bg-alt);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.4px;gap:4px;position:sticky;top:0;z-index:10}
 .rw{border-bottom:1px solid var(--border);cursor:pointer;transition:background .08s}
 .rw:hover{background:var(--bg-alt)}
 .rw.act,.rw.sel{background:var(--accent-dim)}
 .rw.archived{display:none}
-.rm-p{display:grid;grid-template-columns:1fr 100px 68px 80px 36px 70px 50px;align-items:center;padding:8px 10px;font-size:13px;font-weight:500;gap:4px}
+.rm-p{display:grid;grid-template-columns:1fr 100px 90px 80px 36px 70px 50px;align-items:center;padding:8px 10px;font-size:13px;font-weight:500;gap:4px}
 
 /* Address + subtext */
 .at{font-weight:700;color:var(--text);font-size:13px}
@@ -544,11 +544,11 @@ function getSorted(){let d=[...listings];if(cityFilter)d=d.filter(l=>l.city.toLo
 
 function render(){
   const data=getSorted();
-  document.getElementById('lh').innerHTML=`<div class="th-p"><span>ADDRESS</span><span>CITY</span><span class="tr">LISTING</span><span>SCHOOLS</span><span class="tr">DOM</span><span class="tr">ARV</span><span class="tr">GAP</span></div>`;
+  document.getElementById('lh').innerHTML=`<div class="th-p"><span>ADDRESS</span><span>CITY</span><span class="tr">LISTING PRICE</span><span>SCHOOLS</span><span class="tr">DOM</span><span class="tr">ARV</span><span class="tr">GAP</span></div>`;
   let h='';data.forEach(l=>{const d=dom(l.listDate),dc=d<=7?'dn':d>=30?'do':'dm';
     h+=`<div class="rw ${active===l.mls?'act':''}" onclick="opn('${l.mls}')"><div class="rm-p">
       <div><div class="at">${l.address} <a href="https://www.google.com/search?q=redfin+${encodeURIComponent(l.address+' '+l.city+' CA')}&btnI=1" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;vertical-align:middle"><img src="https://www.redfin.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a> <a href="https://www.zillow.com/homes/${encodeURIComponent(l.address+', '+l.city+', CA '+l.zip)}_rb/" target="_blank" onclick="event.stopPropagation()" style="vertical-align:middle"><img src="https://www.zillow.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div><div class="as">${l.beds}bd/${l.baths}ba · ${l.sqft.toLocaleString()} sf</div>${l.tags.map(tg).join('')}</div>
-      <span style="color:var(--text-3);font-size:11px">${(l.city||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}</span>
+      <span style="color:var(--text-3);font-weight:600;font-size:12px">${(l.city||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}</span>
       <span class="tr" style="font-weight:600;font-size:12px">${FK(l.price)}</span>
       <span style="white-space:nowrap">${l.elem?`<span class="sp ${l.elem.r>=7?'sh':l.elem.r>=5?'sm':'sl'}"><span class="lv">E</span>${l.elem.r}</span>`:''} ${l.mid?`<span class="sp ${l.mid.r>=7?'sh':l.mid.r>=5?'sm':'sl'}"><span class="lv">M</span>${l.mid.r}</span>`:''} ${l.high?`<span class="sp ${l.high.r>=7?'sh':l.high.r>=5?'sm':'sl'}"><span class="lv">H</span>${l.high.r}</span>`:''}</span>
       <span class="tr ${dc}" style="font-weight:600;font-size:12px">${d}d</span>
