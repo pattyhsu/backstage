@@ -397,7 +397,7 @@ let currentFilter='unread',cityFilter='';
 const td_=new Date();
 const F=n=>'$'+Math.round(n).toLocaleString();
 const FK=n=>n>=1e6?'$'+(n/1e6).toFixed(2)+'M':'$'+Math.round(n/1e3)+'K';
-const dom=d=>{if(!d)return 0;try{const p=d.split('-');if(p.length===3){const dt=p[2].length===4?new Date(p[2]+'-'+p[0]+'-'+p[1]):new Date(d);return Math.max(1,Math.round((td_-dt)/864e5));}return 0;}catch(e){return 0;}};
+const dom=d=>{if(!d)return 0;try{const s=d.replace(/\//g,'-');const p=s.split('-');if(p.length===3){const dt=p[0].length===4?new Date(s):p[2].length===4?new Date(p[2]+'-'+p[0]+'-'+p[1]):new Date(s);if(isNaN(dt))return 0;return Math.max(1,Math.round((td_-dt)/864e5));}return 0;}catch(e){return 0;}};
 function tg(t){const m={'Already flipped':['var(--accent-dim)','var(--accent)'],'Estate / Trust':['var(--purple-bg)','var(--purple)'],'TLC / Fixer':['var(--amber-bg)','var(--amber)'],'First time on market':['var(--green-bg)','var(--green)'],'Investor / Flip':['var(--blue-bg)','var(--blue)'],'Price reduced':['var(--red-bg)','var(--red)']};const c=m[t]||['var(--bg-alt)','var(--text-3)'];return`<span class="tag" style="background:${c[0]};color:${c[1]};border:none">★ ${t}</span>`;}
 
 function getArvLabel(l){
@@ -687,7 +687,7 @@ async function loadListings(status){
         high:r.high_rating||r.high_school?{r:r.high_rating||0,n:r.high_school||''}:null,
         tags,status:r.stage||'unread',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null};});
     active=null;sel.clear();render();
-    const cities=[...new Set(listings.map(l=>l.city).filter(Boolean))].sort();
+    const cities=[...new Set(listings.map(l=>(l.city||'').toUpperCase().trim()).filter(Boolean))].sort();
     const cf=document.getElementById('cf');cf.innerHTML='<option value="">All Cities ('+cities.length+')</option>'+cities.map(c=>'<option value="'+c+'">'+c+'</option>').join('');
     if(cityFilter)cf.value=cityFilter;
     batchFetchComps();
