@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Listings DB — Dotty Homes</title>
+<title>Listings DB — Backstage</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -121,9 +121,9 @@ html, body { height: 100vh; overflow: hidden; }
   <div class="side-brand"><div class="side-mark">D</div><span>Backstage</span></div>
   <div class="side-section">
     <div class="side-section-label">Acquisitions</div>
-    <a class="side-item" href="deal-machine-v2.html">
+    <a class="side-item" href="mls-deals.html">
       <div class="side-icon"><svg viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg></div>
-      <span class="side-label">Deal Machine</span>
+      <span class="side-label">MLS Deals</span>
     </a>
     <a class="side-item" href="flip-analyzer.html">
       <div class="side-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></div>
@@ -132,11 +132,11 @@ html, body { height: 100vh; overflow: hidden; }
   </div>
   <div class="side-section">
     <div class="side-section-label">Data</div>
-    <a class="side-item" href="comp-db-v54.html">
+    <a class="side-item" href="comps-db.html">
       <div class="side-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
-      <span class="side-label">Comp Database</span>
+      <span class="side-label">Comps DB</span>
     </a>
-    <a class="side-item active" href="listings-db-v3.html">
+    <a class="side-item active" href="listings-db.html">
       <div class="side-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></div>
       <span class="side-label">Listings DB</span>
     </a>
@@ -160,17 +160,14 @@ html, body { height: 100vh; overflow: hidden; }
 
 <div class="hdr">
   <div class="hdr-l">
-    <div class="logo"><span class="logo-d">D</span>Listings DB — Dotty Homes</div>
+    <div class="logo">Listings DB</div>
     <div class="hdr-stats">
-      <span class="conn-dot" id="connDot"></span>
-      <span id="connLabel">Connecting…</span>
-      <span>·</span>
       <span><span class="n" id="totalCount">0</span> listings</span>
     </div>
   </div>
   <div class="hdr-r">
     <button class="btn" onclick="loadListings()">↻ Refresh</button>
-    <button class="btn" onclick="exportCSV()">↓ Export</button>
+    <span class="conn-dot" id="connDot"></span>
   </div>
 </div>
 <div class="tabs">
@@ -365,11 +362,7 @@ async function connect(){
     sb=supabase.createClient(SB_URL,SB_KEY);
     await loadListings();
     document.getElementById('connDot').classList.add('on');
-    document.getElementById('connLabel').textContent='Connected';
-    document.getElementById('connLabel').style.color='var(--green)';
   }catch(e){
-    document.getElementById('connLabel').textContent='Offline';
-    document.getElementById('connLabel').style.color='var(--red)';
     toast('Connection failed: '+(e.message||e),'err');
   }
 }
