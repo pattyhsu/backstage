@@ -546,14 +546,20 @@ async function runImport(){
   try{var cr=await sb.from(TABLE).select('*',{count:'exact',head:true});beforeCount=cr.count||0;}catch(e){}
   // Fetch existing records to check current stage
   var existingMLS=new Map();
+  var existingAddr=new Map(); // address+city → {id, stage, comp_type} for records without MLS
   try{
     var allExisting=[];
     for(var p=0;p<20;p++){
-      var mr=await sb.from(TABLE).select('mls,stage,comp_type').range(p*1000,(p+1)*1000-1);
+      var mr=await sb.from(TABLE).select('id,mls,address,city,stage,comp_type').range(p*1000,(p+1)*1000-1);
       if(!mr.data||!mr.data.length)break;
       allExisting=allExisting.concat(mr.data);
     }
-    allExisting.forEach(function(r){if(r.mls)existingMLS.set(r.mls,{stage:r.stage,comp_type:r.comp_type});});
+    allExisting.forEach(function(r){
+      if(r.mls)existingMLS.set(r.mls,{stage:r.stage,comp_type:r.comp_type});
+      // Build normalized address key for matching records without MLS
+      var addrKey=((r.address||'').replace(/\s+/g,' ').trim().toUpperCase()+'|'+(r.city||'').trim().toUpperCase());
+      if(!existingAddr.has(addrKey))existingAddr.set(addrKey,{id:r.id,mls:r.mls,stage:r.stage,comp_type:r.comp_type});
+    });
   }catch(e){}
   // Numeric fields that need parseInt
   var INT_COLS={beds:1,sqft:1,list_price:1,sale_price:1,lot_size:1,year_built:1,dom:1,elementary_rating:1,middle_rating:1,high_rating:1};
@@ -577,6 +583,16 @@ async function runImport(){
     if(r.lot_size){var lv=parseInt(String(r.lot_size).split('/')[0].replace(/[^0-9]/g,''));if(!isNaN(lv)&&lv>0)c.lot_size=lv;}
     // City may contain "CITY CA ZIP"
     if(c.city&&c.city.includes(' CA ')){var p=c.city.split(' CA ');c.city=p[0].trim();if(!c.zip&&p[1])c.zip=p[1].trim();}
+    // Normalize dates to YYYY-MM-DD
+    ['list_date','sold_date','change_date'].forEach(function(dk){
+      if(c[dk]){
+        var d=c[dk].replace(/\//g,'-');var parts=d.split('-');
+        if(parts.length===3){
+          if(parts[2].length===4)c[dk]=parts[2]+'-'+parts[0].padStart(2,'0')+'-'+parts[1].padStart(2,'0');
+          else if(parts[0].length===4)c[dk]=d;
+        }
+      }
+    });
     return c;
   }).filter(function(r){return r.mls;});
 
@@ -591,6 +607,16 @@ async function runImport(){
   rows.forEach(function(r){
     var ct=(r.change_type||'').toLowerCase().trim();
     var existing=existingMLS.get(r.mls);
+    // Also check by normalized address+city (catches old records without MLS#)
+    var addrKey=((r.address||'').toUpperCase()+'|'+(r.city||'').toUpperCase());
+    var existingByAddr=existingAddr.get(addrKey);
+    if(!existing&&existingByAddr){
+      existing=existingByAddr;
+      // If the old record has no MLS but we now have one, update it instead of inserting
+      if(!existingByAddr.mls&&r.mls){
+        existingMLS.set(r.mls,existing); // treat as existing for the insert/update split
+      }
+    }
     var isNew=!existing;
     
     if(SOLD_TYPES.indexOf(ct)>=0){
@@ -648,8 +674,23 @@ async function runImport(){
   
   var CHUNK=50;
   // Split into new inserts vs existing updates
-  var newRows=rows.filter(function(r){return !existingMLS.has(r.mls);});
-  var updateRows=rows.filter(function(r){return existingMLS.has(r.mls);});
+  // Check both MLS and address match
+  var newRows=[];
+  var updateRows=[];
+  rows.forEach(function(r){
+    var addrKey=((r.address||'').toUpperCase()+'|'+(r.city||'').toUpperCase());
+    if(existingMLS.has(r.mls)){
+      r._updateBy='mls';
+      updateRows.push(r);
+    } else if(existingAddr.has(addrKey)){
+      // Matched by address — update the existing record by id, and add MLS to it
+      r._updateBy='id';
+      r._updateId=existingAddr.get(addrKey).id;
+      updateRows.push(r);
+    } else {
+      newRows.push(r);
+    }
+  });
   
   var ins=0,upd=0,errs=0;
   
@@ -674,18 +715,28 @@ async function runImport(){
     log.textContent+='Updating '+updateRows.length+' existing listings...\n';
     for(var j=0;j<updateRows.length;j++){
       var r=updateRows[j];
-      var mls=r.mls;
       // Build update object: only include non-empty fields
       var upObj={};
       Object.keys(r).forEach(function(k){
-        if(k==='mls')return; // don't update the key itself
+        if(k==='mls'&&r._updateBy==='id'){}// include mls so it gets added to the record
+        else if(k==='mls')return; // don't update the key itself when matching by mls
+        if(k.charAt(0)==='_')return; // skip internal fields
         if(r[k]!=null&&r[k]!=='')upObj[k]=r[k];
       });
+      // For address-matched records, also set the MLS number on the old record
+      if(r._updateBy==='id'&&r.mls)upObj.mls=r.mls;
       // For sold records, clear the stage so they don't show as listings
       if(upObj.stage==='sold_comp'){upObj.stage=null;}
       upObj.updated_at=new Date().toISOString();
-      try{var res=await sb.from(TABLE).update(upObj).eq('mls',mls);if(res.error)throw res.error;upd++;}
-      catch(e){errs++;log.textContent+='✗ Update '+mls+': '+e.message+'\n';}
+      try{
+        var res;
+        if(r._updateBy==='id'){
+          res=await sb.from(TABLE).update(upObj).eq('id',r._updateId);
+        } else {
+          res=await sb.from(TABLE).update(upObj).eq('mls',r.mls);
+        }
+        if(res.error)throw res.error;upd++;
+      }catch(e){errs++;log.textContent+='✗ Update '+(r.mls||r.address)+': '+e.message+'\n';}
       // Log progress every 25
       if((j+1)%25===0||j===updateRows.length-1)log.textContent+='✓ Updated '+(j+1)+'/'+updateRows.length+'\n';
       log.scrollTop=log.scrollHeight;
