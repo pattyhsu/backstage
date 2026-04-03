@@ -499,14 +499,15 @@ async function startGeocoding(){
     if(!res.data||!res.data.length)break;allRows=allRows.concat(res.data);
   }
   if(!allRows.length){log.textContent+='All properties are geocoded!\n';stopGeocoding();return;}
-  log.textContent+='Found '+allRows.length+' to geocode (using Nominatim)...\n';
-  var found=0,failed=0;
+  
+  // ═══ PASS 1: Nominatim ═══
+  log.textContent+='══ Pass 1: Nominatim ('+allRows.length+' addresses) ══\n';
+  var found=0,failedRows=[];
   for(var i=0;i<allRows.length;i++){
     if(!geocodingActive)break;
     var r=allRows[i];
     var addr=(r.address||'').replace(/\s+/g,' ').trim()+', '+(r.city||'')+', CA'+(r.zip?' '+r.zip:'');
     var success=false;
-    // Nominatim (OpenStreetMap) — free, no key needed, 1 req/sec
     try{
       var resp=await fetch('https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&limit=1&q='+encodeURIComponent(addr),{headers:{'User-Agent':'DottyHomes-Backstage'}});
       var d=await resp.json();
@@ -517,15 +518,48 @@ async function startGeocoding(){
         found++;success=true;
       }
     }catch(e){if(i===0)log.textContent+='⚠ Nominatim error: '+e.message+'\n';}
-    if(!success){failed++;log.textContent+='✗ '+r.address+' — not found\n';}
+    if(!success)failedRows.push(r);
     log.scrollTop=log.scrollHeight;
-    var pct=((i+1)/allRows.length*100).toFixed(1);
-    document.getElementById('geoBar').style.width=pct+'%';
+    document.getElementById('geoBar').style.width=((i+1)/allRows.length*100).toFixed(1)+'%';
     document.getElementById('geoRemaining').textContent=(allRows.length-i-1);
-    // Nominatim requires 1 second between requests
     await new Promise(function(x){setTimeout(x,1100);});
   }
-  log.textContent+='\n━━━ Done: '+found+' geocoded · '+failed+' failed ━━━\n';
+  log.textContent+='\n━━━ Pass 1 done: '+found+' geocoded · '+failedRows.length+' failed ━━━\n\n';
+  
+  // ═══ PASS 2: Photon (Komoot) fallback ═══
+  if(failedRows.length&&geocodingActive){
+    log.textContent+='══ Pass 2: Photon fallback ('+failedRows.length+' remaining) ══\n';
+    var found2=0,failed2=0;
+    for(var j=0;j<failedRows.length;j++){
+      if(!geocodingActive)break;
+      var r2=failedRows[j];
+      var addr2=(r2.address||'').replace(/\s+/g,' ').trim()+', '+(r2.city||'')+', CA'+(r2.zip?' '+r2.zip:'');
+      var success2=false;
+      try{
+        var resp2=await fetch('https://photon.komoot.io/api/?q='+encodeURIComponent(addr2)+'&limit=1&lat=33.9&lon=-118.1');
+        var d2=await resp2.json();
+        if(d2&&d2.features&&d2.features.length){
+          var coords=d2.features[0].geometry.coordinates;
+          var lat2=coords[1],lon2=coords[0];
+          // Sanity check: should be in SoCal area (roughly)
+          if(lat2>32&&lat2<35&&lon2>-119&&lon2<-117){
+            await sb.from(TABLE).update({latitude:lat2,longitude:lon2}).eq('id',r2.id);
+            log.textContent+='✓ '+r2.address+' → '+lat2.toFixed(4)+', '+lon2.toFixed(4)+' (Photon)\n';
+            found2++;success2=true;
+          }
+        }
+      }catch(e){if(j===0)log.textContent+='⚠ Photon error: '+e.message+'\n';}
+      if(!success2){failed2++;log.textContent+='✗ '+r2.address+' — not found\n';}
+      log.scrollTop=log.scrollHeight;
+      document.getElementById('geoRemaining').textContent=(failedRows.length-j-1);
+      // Photon has no official rate limit but be polite — 500ms between requests
+      await new Promise(function(x){setTimeout(x,500);});
+    }
+    log.textContent+='\n━━━ Pass 2 done: '+found2+' geocoded · '+failed2+' still missing ━━━\n';
+    found+=found2;
+  }
+  
+  log.textContent+='\n══ Total: '+found+' geocoded ══\n';
   stopGeocoding();updateGeoStats();
 }
 function stopGeocoding(){geocodingActive=false;document.getElementById('geoStartBtn').style.display='';document.getElementById('geoStopBtn').style.display='none';}
