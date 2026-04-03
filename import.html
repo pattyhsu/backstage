@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Import Hub — Backstage</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<link rel="stylesheet" href="backstage.css">
+<style>
+html, body { height: 100vh; overflow: hidden; }
+.hdr{position:sticky;top:0;z-index:200;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);height:52px;padding:0 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;color:var(--accent);letter-spacing:-.3px}
+
+/* Login */
+.login-wrap{height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg-page)}
+.login-box{width:360px;text-align:center}
+.login-brand{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:36px}
+.login-mark{width:32px;height:32px;border-radius:8px;background:var(--text);display:grid;place-items:center;font-weight:700;font-size:14px;color:#fff}
+.login-brand span{font-size:15px;font-weight:600;color:var(--text)}
+.login-title{font-size:24px;font-weight:600;color:var(--text);margin-bottom:6px;letter-spacing:-0.5px}
+.login-sub{font-size:14px;color:var(--text-4);margin-bottom:32px}
+.login-input{width:100%;padding:14px 18px;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:16px;text-align:center;letter-spacing:4px;outline:none}
+.login-input:focus{border-color:var(--text-3)}
+.login-input::placeholder{letter-spacing:1px;color:var(--text-4);font-size:13px}
+.login-btn{width:100%;margin-top:14px;padding:14px;background:var(--text);border:none;border-radius:var(--radius);color:#fff;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.login-btn:hover{opacity:.85}
+.login-error{margin-top:12px;font-size:13px;color:var(--red);height:18px}
+
+/* Shell */
+.app-shell{display:none;height:100vh}
+.app-shell.active{display:flex}
+.sidebar{width:230px;background:var(--bg);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;transition:width .2s}
+.sidebar.collapsed{width:56px}
+.sidebar.collapsed .side-brand span,.sidebar.collapsed .side-section-label,.sidebar.collapsed .side-label,.sidebar.collapsed .side-user-name,.sidebar.collapsed .lock-btn{display:none}
+.sidebar.collapsed .side-brand{justify-content:center;padding:20px 0 18px}
+.sidebar.collapsed .side-item{justify-content:center;padding:10px 0;margin:0 8px 1px}
+.sidebar.collapsed .side-section{padding:12px 0 0}
+.sidebar.collapsed .side-footer{justify-content:center;padding:16px 0}
+.sidebar.collapsed .side-user{justify-content:center}
+.side-brand{padding:20px 20px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.side-mark{width:26px;height:26px;border-radius:7px;background:var(--text);display:grid;place-items:center;font-weight:700;font-size:11px;color:#fff}
+.side-brand span{font-size:14px;font-weight:600;color:var(--text)}
+.side-section{padding:18px 14px 0}
+.side-section-label{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-4);padding:0 10px;margin-bottom:6px}
+.side-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius);cursor:pointer;transition:all .12s;margin-bottom:1px;text-decoration:none}
+.side-item:hover{background:var(--bg-page);text-decoration:none}
+.side-item.active{background:var(--bg-alt)}
+.side-item.active .side-icon svg{stroke:var(--text)}
+.side-item.active .side-label{color:var(--text);font-weight:600}
+.side-icon{width:18px;height:18px;display:grid;place-items:center}
+.side-icon svg{width:16px;height:16px;stroke:var(--text-4);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.side-label{font-size:13px;font-weight:500;color:var(--text-3)}
+.side-item.disabled{opacity:.35;pointer-events:none}
+.side-footer{margin-top:auto;padding:16px 20px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.side-user{display:flex;align-items:center;gap:9px}
+.side-avatar{width:26px;height:26px;border-radius:50%;background:var(--bg-alt);display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--text-3)}
+.side-user-name{font-size:13px;font-weight:500;color:var(--text-3)}
+.lock-btn{background:none;border:none;cursor:pointer;padding:4px;color:var(--text-4)}
+.lock-btn:hover{color:var(--text)}
+.collapse-btn{background:none;border:none;cursor:pointer;padding:6px 12px;color:var(--text-4);font-size:14px}
+.collapse-btn:hover{color:var(--text)}
+.main-content{flex:1;overflow-y:auto;min-width:0}
+
+/* Import-specific */
+.drop-zone{border:2px dashed var(--border-hover);border-radius:var(--radius-lg);padding:52px 24px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg-page);margin:24px;max-width:900px}
+.drop-zone:hover,.drop-zone.over{border-color:var(--accent);background:var(--accent-dim)}
+.drop-zone h3{font-size:15px;font-weight:600;color:var(--text-2);margin-bottom:6px}
+.drop-zone p{font-size:12px;color:var(--text-4);line-height:1.5}
+.drop-zone input{display:none}
+.preview-box{margin:0 24px;max-width:900px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:20px;display:none}
+.preview-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px}
+.preview-row .label{color:var(--text-3)}
+.preview-row .count{font-family:var(--mono);font-weight:600}
+.import-log{background:var(--bg-inset);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;font-family:var(--mono);font-size:11px;line-height:1.6;white-space:pre-wrap;max-height:300px;overflow-y:auto;display:none;margin:12px 24px;max-width:900px}
+.section{margin:24px;max-width:900px}
+.section h3{font-size:15px;font-weight:600;margin-bottom:12px}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="loginScreen">
+  <div class="login-box">
+    <div class="login-brand"><div class="login-mark">D</div><span>Dotty Homes</span></div>
+    <div class="login-title">Welcome back</div>
+    <div class="login-sub">Enter your passcode to continue</div>
+    <input type="password" class="login-input" id="pwInput" placeholder="Enter passcode" autocomplete="off" autofocus>
+    <button class="login-btn" onclick="bsLogin()">Continue</button>
+    <div class="login-error" id="pwError"></div>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div class="app-shell" id="appShell">
+<div class="sidebar" id="sidebar">
+  <div class="side-brand"><div class="side-mark">D</div><span>Backstage</span></div>
+  <div class="side-section">
+    <div class="side-section-label">Acquisitions</div>
+    <a class="side-item" href="mls-deals.html"><div class="side-icon"><svg viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg></div><span class="side-label">MLS Deals</span></a>
+    <a class="side-item" href="flip-analyzer.html"><div class="side-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></div><span class="side-label">FlipAnalyzer</span></a>
+  </div>
+  <div class="side-section">
+    <div class="side-section-label">Data</div>
+    <a class="side-item" href="comps-db.html"><div class="side-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div><span class="side-label">Comps DB</span></a>
+    <a class="side-item active" href="import.html"><div class="side-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div><span class="side-label">Import Hub</span></a>
+  </div>
+  <div class="side-section">
+    <div class="side-section-label">Coming soon</div>
+    <div class="side-item disabled"><div class="side-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg></div><span class="side-label">Portfolio</span></div>
+  </div>
+  <div class="side-footer">
+    <div class="side-user"><div class="side-avatar">P</div><span class="side-user-name">Patty</span></div>
+    <button class="collapse-btn" onclick="document.getElementById('sidebar').classList.toggle('collapsed')" title="Collapse">◀</button>
+    <button class="lock-btn" onclick="sessionStorage.removeItem('backstage_auth');location.reload()" title="Lock">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="main-content">
+<div class="hdr">
+  <div class="logo">Import Hub</div>
+  <span style="font-size:12px;color:var(--text-4)" id="dbStatus"></span>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="import" onclick="switchTab('import')">Import CSV</div>
+  <div class="tab" data-tab="geocode" onclick="switchTab('geocode')">Geocode</div>
+  <div class="tab" data-tab="schools" onclick="switchTab('schools')">Missing Schools</div>
+  <div class="tab" data-tab="manual" onclick="switchTab('manual')">Add Comp</div>
+  <div class="tab" data-tab="dupes" onclick="switchTab('dupes')">Find Duplicates</div>
+</div>
+
+<!-- IMPORT CSV TAB -->
+<div class="panel active" id="panel-import">
+  <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <h3>Drop CSV here or click to browse</h3>
+    <p>Supports theMLS exports. Auto-detects listings, sold comps, status changes.</p>
+    <input type="file" id="fileInput" accept=".csv" onchange="handleFile(this.files[0])">
+  </div>
+  <div class="preview-box" id="previewBox">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="font-size:15px;font-weight:600" id="previewTitle">Preview</h3>
+      <button class="btn btn-sm" onclick="resetImport()">Clear</button>
+    </div>
+    <div id="previewBreakdown"></div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="runImport()">Import All</button>
+    </div>
+  </div>
+  <div class="import-log" id="importLog"></div>
+  <div class="section" style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
+    <h3>Import History</h3>
+    <div id="histBody" style="font-size:13px;color:var(--text-3)"></div>
+  </div>
+</div>
+
+<!-- GEOCODE TAB -->
+<div class="panel" id="panel-geocode" style="display:none">
+  <div class="section">
+    <h3>Batch Geocode</h3>
+    <p style="font-size:13px;color:var(--text-3);margin-bottom:16px">Geocode all properties missing lat/lng using Nominatim (OpenStreetMap).</p>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+      <div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center"><div style="font-size:9px;color:var(--text-4);text-transform:uppercase;letter-spacing:.5px">Total</div><div style="font-family:var(--mono);font-size:18px;font-weight:700" id="geoTotal">0</div></div>
+      <div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center"><div style="font-size:9px;color:var(--text-4);text-transform:uppercase;letter-spacing:.5px">Geocoded</div><div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--green)" id="geoDone">0</div></div>
+      <div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center"><div style="font-size:9px;color:var(--text-4);text-transform:uppercase;letter-spacing:.5px">Remaining</div><div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--amber)" id="geoRemaining">0</div></div>
+      <div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center"><div style="font-size:9px;color:var(--text-4);text-transform:uppercase;letter-spacing:.5px">Est. Time</div><div style="font-family:var(--mono);font-size:18px;font-weight:700" id="geoEta">—</div></div>
+    </div>
+    <div style="background:var(--bg-alt);border-radius:var(--radius);overflow:hidden;height:6px;margin-bottom:16px"><div id="geoBar" style="height:100%;background:var(--accent);width:0%;transition:width .3s"></div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-primary" id="geoStartBtn" onclick="startGeocoding()">Start Geocoding</button>
+      <button class="btn btn-red" id="geoStopBtn" onclick="stopGeocoding()" style="display:none">Stop</button>
+    </div>
+    <div class="import-log" id="geoLog" style="margin:12px 0;max-width:100%"></div>
+  </div>
+</div>
+
+<!-- MISSING SCHOOLS TAB -->
+<div class="panel" id="panel-schools" style="display:none">
+  <div class="section">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3>Missing Schools <span id="msCount" style="color:var(--text-3);font-weight:400"></span></h3>
+      <select id="msCity" onchange="loadMissingSchools()" style="padding:8px 12px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)"><option value="">All Cities</option></select>
+    </div>
+    <div id="msList"></div>
+  </div>
+</div>
+
+<!-- ADD COMP TAB -->
+<div class="panel" id="panel-manual" style="display:none">
+  <div class="section">
+    <h3>Add Comp Manually</h3>
+    <p style="font-size:13px;color:var(--text-3);margin-bottom:16px">For Dotty flips or one-off entries.</p>
+    <div class="search-grid">
+      <div class="field"><label>Address</label><input type="text" id="m-address" placeholder="e.g. 13202 Carolyn"></div>
+      <div class="field"><label>City</label><input type="text" id="m-city" placeholder="e.g. CERRITOS"></div>
+      <div class="field"><label>Bedrooms</label><input type="number" id="m-beds" placeholder="3"></div>
+      <div class="field"><label>Bathrooms</label><input type="number" id="m-baths" step="0.5" placeholder="2"></div>
+      <div class="field"><label>SqFt</label><input type="number" id="m-sqft" placeholder="1500"></div>
+      <div class="field"><label>Sale Price</label><input type="number" id="m-price" placeholder="1100000"></div>
+      <div class="field"><label>Lot Size</label><input type="number" id="m-lot" placeholder="5000"></div>
+      <div class="field"><label>Pool</label><select id="m-pool"><option value="0">No</option><option value="1">Yes</option></select></div>
+      <div class="field"><label>Sold Date</label><input type="date" id="m-sold"></div>
+      <div class="field"><label>DOM</label><input type="number" id="m-dom" placeholder="7"></div>
+      <div class="field"><label>Coordinates</label><input type="text" id="m-coords" placeholder="33.8570, -118.0733"></div>
+      <div class="field"><label>Comp Type</label><select id="m-type"><option value="dotty">Dotty</option><option value="flips">Flips</option><option value="general">General</option></select></div>
+    </div>
+    <div class="btn-row"><button class="btn btn-primary" onclick="addManualComp()">Add Comp</button></div>
+    <div id="manualLog"></div>
+  </div>
+</div>
+
+<!-- FIND DUPLICATES TAB -->
+<div class="panel" id="panel-dupes" style="display:none">
+  <div class="section">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
+      <button class="btn btn-primary" onclick="findDuplicates()">Find Duplicates</button>
+      <button class="btn btn-secondary" id="autoRemoveBtn" onclick="autoRemoveDupes()" style="display:none">Auto Remove True Dupes</button>
+    </div>
+    <div id="dupeResults"></div>
+  </div>
+</div>
+
+</div><!-- /main-content -->
+</div><!-- /app-shell -->
+
+<script>
+const SB_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const TABLE='properties';
+const sb=window.supabase.createClient(SB_URL,SB_KEY);
+let parsedCSV=null;
+let importHistory=JSON.parse(localStorage.getItem('dh_import_hist')||'[]');
+
+// ═══ TABS ═══
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===t));
+  document.querySelectorAll('.panel').forEach(el=>el.style.display=el.id==='panel-'+t?'':'none');
+  if(t==='geocode')updateGeoStats();
+  if(t==='schools')loadMissingSchools();
+}
+
+// ═══ CSV COLUMN MAP ═══
+var CSV_COL_MAP={
+  'address':'address','addr':'address',
+  'city':'city','zip':'zip','zipcode':'zip',
+  'br':'beds','beds':'beds',
+  'baths':'baths','ba':'baths',
+  'sqft':'sqft','sq ft':'sqft','gla':'sqft',
+  'lp':'list_price','list price':'list_price','price':'list_price','list_price':'list_price',
+  'sp':'sale_price','sold price':'sale_price','sold_price':'sale_price','close price':'sale_price',
+  'lp $/sqft':'ppsf','ppsf':'ppsf','$/sqft':'ppsf',
+  'mls':'mls','mls#':'mls','mls #':'mls',
+  'list date':'list_date','list_date':'list_date',
+  'sd':'sold_date','sold date':'sold_date','sold_date':'sold_date',
+  'dom':'dom',
+  'lot sz':'lot_size','lot_size':'lot_size','lot size':'lot_size',
+  'yb':'year_built','year_built':'year_built','year built':'year_built',
+  'pool':'pool',
+  'remarks':'remarks','public remarks':'remarks',
+  'agent remarks':'agent_remarks','agent_remarks':'agent_remarks',
+  'show remarks':'showing_remarks','showing_remarks':'showing_remarks',
+  'occupant type':'occupant_type','occupant_type':'occupant_type',
+  'sale type':'sale_type','sale_type':'sale_type',
+  "seller's agent 1 name":'agent_name','agent_name':'agent_name','agent name':'agent_name',
+  "seller's agent 1 email":'agent_email','agent_email':'agent_email',
+  "seller's agent 1 phone":'agent_phone','agent_phone':'agent_phone',
+  "seller's agent 1 cell":'agent_phone',
+  "seller's brokerage firm1 name":'agent_broker','agent_broker':'agent_broker',
+  "seller's brokerage firm1 phone":'agent_office_phone','agent_office_phone':'agent_office_phone',
+  'broker_dre':'broker_dre','agent_dre':'agent_dre',
+  "seller's agent 2 name":'agent2_name','agent2_name':'agent2_name',
+  "seller's agent 2 email":'agent2_email','agent2_email':'agent2_email',
+  "seller's agent 2 phone":'agent2_phone','agent2_phone':'agent2_phone',
+  "seller's agent 2 cell":'agent2_phone',
+  "seller's brokerage firm2 name":'agent2_broker','agent2_broker':'agent2_broker',
+  "seller's brokerage firm2 phone":'agent2_office_phone','agent2_office_phone':'agent2_office_phone',
+  'agent2_broker_dre':'agent2_broker_dre','agent2_dre':'agent2_dre',
+  'change date':'change_date','change_date':'change_date',
+  'change type':'change_type','change_type':'change_type',
+  'gate code':'gate_code','gate_code':'gate_code',
+  'lockbox loc.':'lockbox_location','lockbox_location':'lockbox_location',
+  'lockbox type':'lockbox_type','lockboxtype':'lockbox_type',
+  'showing contact name':'contact_name','contact_name':'contact_name',
+  'showing contact phone':'contact_phone','contact_phone':'contact_phone',
+  'elementary_school':'elementary_school','middle_school':'middle_school','high_school':'high_school',
+  'elementary_rating':'elementary_rating','middle_rating':'middle_rating','high_rating':'high_rating',
+  'occ/show':'occupancy','occupancy':'occupancy'
+};
+function normalizeRow(r){var out={};Object.keys(r).forEach(function(k){var mapped=CSV_COL_MAP[k.trim().toLowerCase()];if(mapped&&!out[mapped])out[mapped]=r[k];});return out;}
+
+// ═══ FILE HANDLING ═══
+function handleFile(file){
+  if(!file)return;
+  Papa.parse(file,{header:true,skipEmptyLines:true,complete:function(res){
+    parsedCSV=res.data.map(normalizeRow).filter(function(r){return(r.mls&&r.mls.trim())||(r.address&&r.address.trim());});
+    showPreview(file.name);
+  },error:function(err){alert('Parse error: '+err.message);}});
+}
+function showPreview(filename){
+  var box=document.getElementById('previewBox');box.style.display='block';
+  document.getElementById('previewTitle').textContent=filename+' — '+parsedCSV.length+' rows';
+  // Count by change type
+  var counts={};
+  parsedCSV.forEach(function(r){var ct=(r.change_type||'').trim()||'(no status)';counts[ct]=(counts[ct]||0)+1;});
+  // Categorize
+  var ACTIVE=['Active','New Listing','Coming Soon','MLS Exclusive','Back On Market','Price Change'];
+  var ARCHIVE=['Active Under Contract','Pending','Hold'];
+  var SOLD=['Sold'];
+  var OFFMARKET=['Expired','Canceled','Withdrawn'];
+  var activeN=0,archiveN=0,soldN=0,offN=0,otherN=0;
+  Object.keys(counts).forEach(function(ct){
+    if(SOLD.indexOf(ct)>=0)soldN+=counts[ct];
+    else if(ARCHIVE.indexOf(ct)>=0)archiveN+=counts[ct];
+    else if(OFFMARKET.indexOf(ct)>=0)offN+=counts[ct];
+    else if(ACTIVE.indexOf(ct)>=0)activeN+=counts[ct];
+    else otherN+=counts[ct];
+  });
+  var h='<div style="margin-bottom:12px">';
+  h+='<div class="preview-row"><span class="label">Active / New Listings → MLS Deals</span><span class="count" style="color:var(--green)">'+activeN+'</span></div>';
+  h+='<div class="preview-row"><span class="label">Sold → Comps DB</span><span class="count" style="color:var(--accent)">'+soldN+'</span></div>';
+  h+='<div class="preview-row"><span class="label">Under Contract / Pending → Archive</span><span class="count" style="color:var(--text-4)">'+archiveN+'</span></div>';
+  h+='<div class="preview-row"><span class="label">Expired / Canceled / Withdrawn → Off-Market Leads</span><span class="count" style="color:var(--purple)">'+offN+'</span></div>';
+  if(otherN)h+='<div class="preview-row"><span class="label">Other / Unknown</span><span class="count">'+otherN+'</span></div>';
+  h+='<div class="preview-row" style="border-top:1px solid var(--border);padding-top:8px;margin-top:8px;font-weight:600"><span>Total</span><span class="count">'+parsedCSV.length+'</span></div>';
+  h+='</div>';
+  document.getElementById('previewBreakdown').innerHTML=h;
+}
+function resetImport(){parsedCSV=null;document.getElementById('previewBox').style.display='none';document.getElementById('importLog').style.display='none';document.getElementById('fileInput').value='';}
+
+// ═══ DROP ZONE ═══
+var dz=document.getElementById('dropZone');
+if(dz){dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('over');});dz.addEventListener('dragleave',function(){dz.classList.remove('over');});dz.addEventListener('drop',function(e){e.preventDefault();dz.classList.remove('over');handleFile(e.dataTransfer.files[0]);});}
+
+// ═══ SMART IMPORT ═══
+async function runImport(){
+  if(!parsedCSV||!parsedCSV.length)return alert('No data');
+  var log=document.getElementById('importLog');log.style.display='block';log.textContent='Importing '+parsedCSV.length+' rows...\n';
+
+  // Fetch existing records
+  var existingMLS=new Map();
+  var existingAddr=new Map();
+  try{
+    var allExisting=[];
+    for(var p=0;p<20;p++){
+      var mr=await sb.from(TABLE).select('id,mls,address,city,stage,comp_type').range(p*1000,(p+1)*1000-1);
+      if(!mr.data||!mr.data.length)break;
+      allExisting=allExisting.concat(mr.data);
+    }
+    allExisting.forEach(function(r){
+      if(r.mls)existingMLS.set(r.mls,{stage:r.stage,comp_type:r.comp_type});
+      var addrKey=((r.address||'').replace(/\s+/g,' ').trim().toUpperCase()+'|'+(r.city||'').trim().toUpperCase());
+      if(!existingAddr.has(addrKey))existingAddr.set(addrKey,{id:r.id,mls:r.mls,stage:r.stage,comp_type:r.comp_type});
+    });
+  }catch(e){log.textContent+='⚠ Error fetching existing: '+e.message+'\n';}
+
+  var INT_COLS={beds:1,sqft:1,list_price:1,sale_price:1,lot_size:1,year_built:1,dom:1,elementary_rating:1,middle_rating:1,high_rating:1};
+  var FLOAT_COLS={baths:1,ppsf:1};
+  var TEXT_COLS=['mls','address','city','zip','pool','list_date','sold_date','remarks','agent_remarks','showing_remarks',
+    'occupant_type','sale_type','agent_name','agent_broker','agent_email','agent_phone','agent_dre','broker_dre','agent_office_phone',
+    'contact_name','contact_phone','lockbox_type','lockbox_location','gate_code','change_date','change_type',
+    'agent2_name','agent2_broker','agent2_email','agent2_phone','agent2_dre','agent2_broker_dre','agent2_office_phone',
+    'elementary_school','middle_school','high_school','occupancy'];
+
+  var rows=parsedCSV.map(function(r){
+    var c={};
+    TEXT_COLS.forEach(function(k){if(r[k]){var v=r[k].trim();if(v)c[k]=v;}});
+    if(c.address)c.address=c.address.replace(/\s+/g,' ').trim();
+    Object.keys(INT_COLS).forEach(function(k){if(r[k]){var v=parseInt(String(r[k]).replace(/[$,]/g,''));if(!isNaN(v))c[k]=v;}});
+    Object.keys(FLOAT_COLS).forEach(function(k){if(r[k]){var v=parseFloat(String(r[k]).replace(/[$,]/g,''));if(!isNaN(v))c[k]=Math.round(v*100)/100;}});
+    if(r.lot_size){var lv=parseInt(String(r.lot_size).split('/')[0].replace(/[^0-9]/g,''));if(!isNaN(lv)&&lv>0)c.lot_size=lv;}
+    if(c.city&&c.city.includes(' CA ')){var p=c.city.split(' CA ');c.city=p[0].trim();if(!c.zip&&p[1])c.zip=p[1].trim();}
+    // Normalize dates to YYYY-MM-DD
+    ['list_date','sold_date','change_date'].forEach(function(dk){
+      if(c[dk]){var d=c[dk].replace(/\//g,'-');var parts=d.split('-');
+        if(parts.length===3){if(parts[2].length===4)c[dk]=parts[2]+'-'+parts[0].padStart(2,'0')+'-'+parts[1].padStart(2,'0');else if(parts[0].length===4)c[dk]=d;}}
+    });
+    return c;
+  }).filter(function(r){return r.mls;});
+
+  // Smart stage assignment
+  var ACTIVE_TYPES=['active','new listing','coming soon','mls exclusive','back on market','price change'];
+  var ARCHIVE_TYPES=['active under contract','pending','hold'];
+  var SOLD_TYPES=['sold'];
+  var OFF_MARKET_TYPES=['expired','canceled','withdrawn'];
+  var newCount=0,dupeCount=0,soldCount=0,archivedCount=0,offMarketCount=0,priceUpdated=0;
+
+  rows.forEach(function(r){
+    var ct=(r.change_type||'').toLowerCase().trim();
+    var existing=existingMLS.get(r.mls);
+    var addrKey=((r.address||'').toUpperCase()+'|'+(r.city||'').toUpperCase());
+    var existingByAddr=existingAddr.get(addrKey);
+    if(!existing&&existingByAddr){existing=existingByAddr;if(!existingByAddr.mls&&r.mls)existingMLS.set(r.mls,existing);}
+    var isNew=!existing;
+
+    if(SOLD_TYPES.indexOf(ct)>=0){
+      r.change_type='sold';r.stage='sold_comp';
+      if(existing&&existing.stage==='unsold_flip')r.comp_type='flips';
+      else if(existing&&existing.comp_type)r.comp_type=existing.comp_type;
+      else r.comp_type='general';
+      if(r.sale_price&&r.sqft)r.ppsf=Math.round(r.sale_price/r.sqft*100)/100;
+      soldCount++;
+    } else if(ARCHIVE_TYPES.indexOf(ct)>=0){
+      r.stage='archived';archivedCount++;
+    } else if(OFF_MARKET_TYPES.indexOf(ct)>=0){
+      r.stage='off_market_lead';offMarketCount++;
+    } else if(ACTIVE_TYPES.indexOf(ct)>=0){
+      if(isNew){r.stage='unread';newCount++;}
+      else{if(ct==='price change'||ct==='back on market')priceUpdated++;dupeCount++;}
+    } else {
+      if(isNew){r.stage='unread';newCount++;}else dupeCount++;
+    }
+  });
+
+  log.textContent+='  New listings: '+newCount+'\n';
+  log.textContent+='  Updates: '+dupeCount+(priceUpdated?' ('+priceUpdated+' price changes)':'')+'\n';
+  log.textContent+='  → Sold (moved to comps): '+soldCount+'\n';
+  log.textContent+='  → Archived: '+archivedCount+'\n';
+  log.textContent+='  → Off-Market Leads: '+offMarketCount+'\n\n';
+
+  // Split new vs update
+  var CHUNK=50;
+  var newRows=[],updateRows=[];
+  rows.forEach(function(r){
+    var addrKey=((r.address||'').toUpperCase()+'|'+(r.city||'').toUpperCase());
+    if(existingMLS.has(r.mls)){r._updateBy='mls';updateRows.push(r);}
+    else if(existingAddr.has(addrKey)){r._updateBy='id';r._updateId=existingAddr.get(addrKey).id;updateRows.push(r);}
+    else newRows.push(r);
+  });
+
+  var ins=0,upd=0,errs=0;
+  newRows.forEach(function(r){if(r.stage==='sold_comp')r.stage=null;});
+
+  if(newRows.length){
+    log.textContent+='Inserting '+newRows.length+' new rows...\n';
+    for(var i=0;i<newRows.length;i+=CHUNK){
+      var chunk=newRows.slice(i,i+CHUNK);
+      try{var res=await sb.from(TABLE).insert(chunk);if(res.error)throw res.error;ins+=chunk.length;log.textContent+='✓ Insert '+(Math.floor(i/CHUNK)+1)+': '+chunk.length+'\n';}
+      catch(e){errs+=chunk.length;log.textContent+='✗ Insert: '+e.message+'\n';}
+      log.scrollTop=log.scrollHeight;
+    }
+  }
+  if(updateRows.length){
+    log.textContent+='Updating '+updateRows.length+' existing...\n';
+    for(var j=0;j<updateRows.length;j++){
+      var r=updateRows[j];
+      var upObj={};
+      Object.keys(r).forEach(function(k){if(k==='mls'&&r._updateBy!=='id')return;if(k.charAt(0)==='_')return;if(r[k]!=null&&r[k]!=='')upObj[k]=r[k];});
+      if(r._updateBy==='id'&&r.mls)upObj.mls=r.mls;
+      if(upObj.stage==='sold_comp')upObj.stage=null;
+      upObj.updated_at=new Date().toISOString();
+      try{
+        var res=r._updateBy==='id'?await sb.from(TABLE).update(upObj).eq('id',r._updateId):await sb.from(TABLE).update(upObj).eq('mls',r.mls);
+        if(res.error)throw res.error;upd++;
+      }catch(e){errs++;log.textContent+='✗ '+(r.mls||r.address)+': '+e.message+'\n';}
+      if((j+1)%25===0||j===updateRows.length-1)log.textContent+='✓ Updated '+(j+1)+'/'+updateRows.length+'\n';
+      log.scrollTop=log.scrollHeight;
+    }
+  }
+  log.textContent+='\n━━━ Done: '+ins+' inserted · '+upd+' updated · '+errs+' errors ━━━\n';
+  importHistory.unshift({date:new Date().toISOString(),file:document.getElementById('previewTitle').textContent,rows:rows.length,newRows:ins,updated:upd,sold:soldCount,archived:archivedCount,offMarket:offMarketCount,errors:errs});
+  if(importHistory.length>20)importHistory=importHistory.slice(0,20);
+  localStorage.setItem('dh_import_hist',JSON.stringify(importHistory));renderHistory();
+}
+function renderHistory(){
+  var el=document.getElementById('histBody');if(!importHistory.length){el.innerHTML='<p style="color:var(--text-4)">No imports yet.</p>';return;}
+  el.innerHTML=importHistory.map(function(h,i){var d=new Date(h.date);return'<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--bg-alt);font-size:12px"><span style="font-family:var(--mono);color:var(--text-3);min-width:130px">'+d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</span><span style="flex:1">'+h.file+'</span><span style="color:var(--green)">+'+(h.newRows||0)+'</span><span style="color:var(--text-3)">↻'+(h.updated||0)+'</span>'+(h.sold?'<span style="color:var(--accent)">sold:'+h.sold+'</span>':'')+'<button style="background:none;border:none;color:var(--text-4);cursor:pointer" onclick="importHistory.splice('+i+',1);localStorage.setItem(\'dh_import_hist\',JSON.stringify(importHistory));renderHistory()">×</button></div>';}).join('');
+}
+
+// ═══ GEOCODING (Nominatim) ═══
+var geocodingActive=false;
+async function updateGeoStats(){
+  var{count:total}=await sb.from(TABLE).select('*',{count:'exact',head:true}).not('address','is',null);
+  var{count:done}=await sb.from(TABLE).select('*',{count:'exact',head:true}).not('latitude','is',null);
+  var remaining=(total||0)-(done||0);
+  document.getElementById('geoTotal').textContent=total||0;
+  document.getElementById('geoDone').textContent=done||0;
+  document.getElementById('geoRemaining').textContent=remaining;
+  document.getElementById('geoEta').textContent=remaining>0?Math.ceil(remaining*1.1)+'s':'✓';
+  document.getElementById('geoBar').style.width=total>0?((done/total)*100)+'%':'0%';
+}
+async function startGeocoding(){
+  geocodingActive=true;
+  document.getElementById('geoStartBtn').style.display='none';
+  document.getElementById('geoStopBtn').style.display='';
+  var log=document.getElementById('geoLog');log.style.display='block';
+  var allRows=[];
+  for(var p=0;p<20;p++){
+    var res=await sb.from(TABLE).select('id,address,city,zip').is('latitude',null).not('address','is',null).range(p*1000,(p+1)*1000-1);
+    if(!res.data||!res.data.length)break;allRows=allRows.concat(res.data);
+  }
+  if(!allRows.length){log.textContent+='All properties are geocoded!\n';stopGeocoding();return;}
+  log.textContent+='Found '+allRows.length+' to geocode (using Nominatim)...\n';
+  var found=0,failed=0;
+  for(var i=0;i<allRows.length;i++){
+    if(!geocodingActive)break;
+    var r=allRows[i];
+    var addr=(r.address||'').replace(/\s+/g,' ').trim()+', '+(r.city||'')+', CA'+(r.zip?' '+r.zip:'');
+    var success=false;
+    // Nominatim (OpenStreetMap) — free, no key needed, 1 req/sec
+    try{
+      var resp=await fetch('https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&limit=1&q='+encodeURIComponent(addr),{headers:{'User-Agent':'DottyHomes-Backstage'}});
+      var d=await resp.json();
+      if(d&&d.length&&d[0].lat&&d[0].lon){
+        var lat=parseFloat(d[0].lat),lon=parseFloat(d[0].lon);
+        await sb.from(TABLE).update({latitude:lat,longitude:lon}).eq('id',r.id);
+        log.textContent+='✓ '+r.address+' → '+lat.toFixed(4)+', '+lon.toFixed(4)+'\n';
+        found++;success=true;
+      }
+    }catch(e){if(i===0)log.textContent+='⚠ Nominatim error: '+e.message+'\n';}
+    if(!success){failed++;log.textContent+='✗ '+r.address+' — not found\n';}
+    log.scrollTop=log.scrollHeight;
+    var pct=((i+1)/allRows.length*100).toFixed(1);
+    document.getElementById('geoBar').style.width=pct+'%';
+    document.getElementById('geoRemaining').textContent=(allRows.length-i-1);
+    // Nominatim requires 1 second between requests
+    await new Promise(function(x){setTimeout(x,1100);});
+  }
+  log.textContent+='\n━━━ Done: '+found+' geocoded · '+failed+' failed ━━━\n';
+  stopGeocoding();updateGeoStats();
+}
+function stopGeocoding(){geocodingActive=false;document.getElementById('geoStartBtn').style.display='';document.getElementById('geoStopBtn').style.display='none';}
+
+// ═══ MISSING SCHOOLS ═══
+async function loadMissingSchools(){
+  var city=document.getElementById('msCity').value;
+  var el=document.getElementById('msList');el.innerHTML='<div class="loading">Loading...</div>';
+  var q=sb.from(TABLE).select('id,address,city,elementary_school,elementary_rating,middle_school,middle_rating,high_school,high_rating').eq('change_type','sold').is('elementary_school',null);
+  if(city)q=q.eq('city',city);
+  var{data,error}=await q.order('city').order('address').limit(200);
+  if(error){el.innerHTML='Error: '+error.message;return;}
+  if(!data||!data.length){el.innerHTML='<p style="color:var(--green)">All comps have school data!</p>';document.getElementById('msCount').textContent='';return;}
+  document.getElementById('msCount').textContent='('+data.length+' missing)';
+  // Populate city dropdown
+  var{count}=await sb.from(TABLE).select('*',{count:'exact',head:true}).eq('change_type','sold').is('elementary_school',null);
+  var h='';data.forEach(function(r){
+    h+='<div id="ms-row-'+r.id+'" style="display:grid;grid-template-columns:1fr repeat(6,auto);gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--bg-alt);font-size:12px">';
+    h+='<span style="font-weight:500">'+r.address+', '+r.city+'</span>';
+    h+='<input type="text" placeholder="Elementary" id="ms-elem-'+r.id+'" value="'+(r.elementary_school||'')+'" style="padding:7px 10px;font-size:12px;font-family:inherit;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none;width:120px">';
+    h+='<input type="number" placeholder="#" id="ms-elemr-'+r.id+'" value="'+(r.elementary_rating||'')+'" style="padding:7px 6px;font-size:12px;font-family:var(--mono);background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--accent);outline:none;width:42px;text-align:center">';
+    h+='<input type="text" placeholder="Middle" id="ms-mid-'+r.id+'" value="'+(r.middle_school||'')+'" style="padding:7px 10px;font-size:12px;font-family:inherit;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none;width:120px">';
+    h+='<input type="number" placeholder="#" id="ms-midr-'+r.id+'" value="'+(r.middle_rating||'')+'" style="padding:7px 6px;font-size:12px;font-family:var(--mono);background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--accent);outline:none;width:42px;text-align:center">';
+    h+='<input type="text" placeholder="High" id="ms-high-'+r.id+'" value="'+(r.high_school||'')+'" style="padding:7px 10px;font-size:12px;font-family:inherit;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none;width:120px">';
+    h+='<input type="number" placeholder="#" id="ms-highr-'+r.id+'" value="'+(r.high_rating||'')+'" style="padding:7px 6px;font-size:12px;font-family:var(--mono);background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--accent);outline:none;width:42px;text-align:center">';
+    h+='<button onclick="saveSchool('+r.id+')" class="btn btn-primary" style="padding:7px 14px;font-size:12px">Save</button>';
+    h+='</div>';
+  });
+  el.innerHTML=h;
+}
+async function saveSchool(id){
+  var g=function(i){return document.getElementById(i).value.trim();};
+  var upd={};
+  if(g('ms-elem-'+id))upd.elementary_school=g('ms-elem-'+id);
+  if(g('ms-elemr-'+id))upd.elementary_rating=parseInt(g('ms-elemr-'+id));
+  if(g('ms-mid-'+id))upd.middle_school=g('ms-mid-'+id);
+  if(g('ms-midr-'+id))upd.middle_rating=parseInt(g('ms-midr-'+id));
+  if(g('ms-high-'+id))upd.high_school=g('ms-high-'+id);
+  if(g('ms-highr-'+id))upd.high_rating=parseInt(g('ms-highr-'+id));
+  var{error}=await sb.from(TABLE).update(upd).eq('id',id);
+  var row=document.getElementById('ms-row-'+id);
+  if(error){row.style.borderColor='var(--red)';return;}
+  row.style.transition='all 0.3s';row.style.opacity='0.3';row.style.borderColor='var(--green)';
+  setTimeout(function(){row.remove();},500);
+}
+
+// ═══ ADD COMP MANUALLY ═══
+async function addManualComp(){
+  var g=function(i){return document.getElementById(i).value.trim();};
+  if(!g('m-address')||!g('m-city')){alert('Address and City required');return;}
+  var lat=null,lng=null;
+  if(g('m-coords')){var p=g('m-coords').split(/[,\s]+/).filter(Boolean);if(p.length>=2){lat=parseFloat(p[0]);lng=parseFloat(p[1]);}}
+  var price=g('m-price')?parseInt(g('m-price')):null,sqft=g('m-sqft')?parseInt(g('m-sqft')):null,ppsf=(price&&sqft)?Math.round((price/sqft)*100)/100:null;
+  var{error}=await sb.from(TABLE).insert({address:g('m-address'),city:g('m-city').toUpperCase(),beds:g('m-beds')?parseInt(g('m-beds')):null,baths:g('m-baths')?parseFloat(g('m-baths')):null,sqft:sqft,ppsf:ppsf,sale_price:price,lot_size:g('m-lot')?parseInt(g('m-lot')):null,pool:parseInt(g('m-pool'))?'Yes':'No',sold_date:g('m-sold')||null,dom:g('m-dom')?parseInt(g('m-dom')):null,latitude:lat,longitude:lng,comp_type:g('m-type'),change_type:'sold'});
+  var log=document.getElementById('manualLog');
+  if(error)log.innerHTML='<p style="color:var(--red);margin-top:8px">'+error.message+'</p>';
+  else{log.innerHTML='<p style="color:var(--green);margin-top:8px">✓ Added '+g('m-address')+', '+g('m-city')+'</p>';['m-address','m-city','m-beds','m-baths','m-sqft','m-price','m-lot','m-sold','m-dom','m-coords'].forEach(function(id){document.getElementById(id).value='';});}
+}
+
+// ═══ FIND DUPLICATES ═══
+async function findDuplicates(){
+  var c=document.getElementById('dupeResults');c.innerHTML='<div class="loading">Checking...</div>';
+  var allData=[];for(var p=0;p<20;p++){var{data}=await sb.from(TABLE).select('id,address,city,sale_price,sold_date,sqft,comp_type,dom').eq('change_type','sold').order('city').order('address').range(p*1000,(p+1)*1000-1);if(!data||!data.length)break;allData=allData.concat(data);}
+  if(!allData.length){c.innerHTML='<p style="color:var(--green)">No comps to check.</p>';return;}
+  var groups={};allData.forEach(function(r){var k=(r.address||'').toUpperCase().replace(/\s+/g,' ').trim()+'|'+(r.city||'').toUpperCase().trim();if(!groups[k])groups[k]=[];groups[k].push(r);});
+  var repeats=Object.entries(groups).filter(function(e){return e[1].length>1;});
+  if(!repeats.length){c.innerHTML='<p style="color:var(--green)">No duplicates found!</p>';document.getElementById('autoRemoveBtn').style.display='none';return;}
+  var trueDupes=[],possibleFlips=[];
+  repeats.forEach(function(e){var key=e[0],comps=e[1];
+    var pg={};comps.forEach(function(r){var pk=(r.sale_price||0)+'|'+(r.sold_date||'');if(!pg[pk])pg[pk]=[];pg[pk].push(r);});
+    if(Object.values(pg).some(function(g){return g.length>1;}))trueDupes.push([key,comps,pg]);
+    if(Object.keys(pg).length>1)possibleFlips.push([key,comps]);
+  });
+  var h='<p style="font-size:13px;margin-bottom:12px">Found '+repeats.length+' groups with duplicates</p>';
+  if(trueDupes.length){
+    h+='<h4 style="color:var(--red);margin:12px 0 8px">True Duplicates ('+trueDupes.length+')</h4>';
+    trueDupes.forEach(function(e){var key=e[0],comps=e[1];var parts=key.split('|');
+      h+='<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+parts[0]+', '+parts[1]+' <span style="color:var(--red)">('+comps.length+')</span></div>';
+      comps.forEach(function(r,i){h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;font-size:12px" id="dupe-row-'+r.id+'"><span style="min-width:90px">'+( r.sold_date||'—')+'</span><span style="font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="color:var(--text-4)">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px">delete</button></div>';});
+      h+='</div>';
+    });
+  }
+  if(possibleFlips.length){
+    h+='<h4 style="color:var(--amber);margin:12px 0 8px">Possible Flips ('+possibleFlips.length+')</h4>';
+    possibleFlips.forEach(function(e){var key=e[0],comps=e[1];var parts=key.split('|');
+      h+='<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+parts[0]+', '+parts[1]+' <span style="color:var(--amber)">('+comps.length+' sales)</span></div>';
+      comps.forEach(function(r){h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;font-size:12px" id="dupe-row-'+r.id+'"><span style="min-width:90px">'+(r.sold_date||'—')+'</span><span style="font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="color:var(--text-4)">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px">delete</button></div>';});
+      h+='</div>';
+    });
+  }
+  c.innerHTML=h;
+  if(trueDupes.length)document.getElementById('autoRemoveBtn').style.display='';
+}
+async function deleteDupe(id){await sb.from(TABLE).delete().eq('id',id);var r=document.getElementById('dupe-row-'+id);if(r){r.style.transition='opacity .3s';r.style.opacity='0';setTimeout(function(){r.remove();},300);}}
+async function autoRemoveDupes(){
+  if(!confirm('Remove true duplicates only (same address+price+date)? Possible flips will NOT be touched.'))return;
+  var allData=[];for(var p=0;p<20;p++){var{data}=await sb.from(TABLE).select('id,address,city,sale_price,sold_date').eq('change_type','sold').range(p*1000,(p+1)*1000-1);if(!data||!data.length)break;allData=allData.concat(data);}
+  var groups={};allData.forEach(function(r){var k=(r.address||'').toUpperCase().replace(/\s+/g,' ').trim()+'|'+(r.city||'').toUpperCase().trim()+'|'+(r.sale_price||0)+'|'+(r.sold_date||'');if(!groups[k])groups[k]=[];groups[k].push(r);});
+  var del=[];Object.values(groups).forEach(function(g){if(g.length>1)g.slice(1).forEach(function(r){del.push(r.id);});});
+  if(!del.length){alert('No true duplicates to remove.');return;}
+  for(var i=0;i<del.length;i+=100){await sb.from(TABLE).delete().in('id',del.slice(i,i+100));}
+  alert('Removed '+del.length+' duplicates.');findDuplicates();
+}
+
+// ═══ AUTH ═══
+const BS_HASH='c6f13722e2ec174320e4936445dbd16dbaced57f8df8794b83429293cf64e00d';
+async function bsSha(s){try{var b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0');}).join('');}catch(e){return null;}}
+async function bsLogin(){var pw=document.getElementById('pwInput').value;var h=await bsSha(pw);var ok=h?(h===BS_HASH):(pw==='103191');if(ok){sessionStorage.setItem('backstage_auth','1');bsShow();}else{document.getElementById('pwError').textContent='Incorrect passcode';document.getElementById('pwInput').value='';setTimeout(function(){document.getElementById('pwError').textContent='';},2000);}}
+document.getElementById('pwInput').addEventListener('keydown',function(e){if(e.key==='Enter')bsLogin();});
+function bsShow(){document.getElementById('loginScreen').style.display='none';document.getElementById('appShell').classList.add('active');}
+if(sessionStorage.getItem('backstage_auth')==='1')bsShow();
+
+// ═══ INIT ═══
+(async function(){
+  try{var{error}=await sb.from(TABLE).select('id').limit(1);document.getElementById('dbStatus').innerHTML=error?'<span style="color:var(--red)">●</span>':'<span style="color:var(--green)">●</span>';}
+  catch(e){document.getElementById('dbStatus').innerHTML='<span style="color:var(--red)">●</span>';}
+  renderHistory();
+})();
+</script>
+</div><!-- /main-content -->
+</div><!-- /app-shell -->
+</body>
+</html>
