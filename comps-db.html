@@ -526,8 +526,8 @@ async function findDuplicates(){const c=document.getElementById('dupeResults');c
 let allData=[];for(let p=0;p<20;p++){const{data}=await sb.from('properties').select('id,address,city,sale_price,sold_date,sqft,comp_type,dom,reviewed').eq('change_type','sold').order('city').order('address').range(p*1000,(p+1)*1000-1);if(!data?.length)break;allData=allData.concat(data);}
 if(!allData.length){c.innerHTML='<p style="color:var(--green)">No duplicates!</p>';return;}
 
-// Group by address+city
-const groups={};allData.forEach(r=>{const k=(r.address||'').toUpperCase().trim()+'|'+(r.city||'').toUpperCase().trim();if(!groups[k])groups[k]=[];groups[k].push(r);});
+// Group by address+city (normalize spaces)
+const groups={};allData.forEach(r=>{const k=(r.address||'').toUpperCase().replace(/\s+/g,' ').trim()+'|'+(r.city||'').toUpperCase().trim();if(!groups[k])groups[k]=[];groups[k].push(r);});
 const repeats=Object.entries(groups).filter(([,v])=>v.length>1);
 if(!repeats.length){c.innerHTML='<p style="font-size:13px;color:var(--green)">No duplicates found!</p>';return;}
 
