@@ -368,7 +368,7 @@ async function connect(){
 }
 async function loadListings(){
   if(!sb)return;
-  const{data,error}=await sb.from(TABLE).select('*').not('mls','is',null).order('id',{ascending:false});
+  const{data,error}=await sb.from(TABLE).select('*').not('mls','is',null).neq('change_type','sold').order('id',{ascending:false});
   if(error){toast('Load error: '+error.message,'err');return;}
   listings=data||[];
   // Map unified table columns to local names
@@ -481,9 +481,8 @@ var CSV_COL_MAP={
   'baths':'baths','ba':'baths',
   'sqft':'sqft','sq ft':'sqft','gla':'sqft',
   'lp':'list_price','list price':'list_price','price':'list_price','list_price':'list_price',
-  'sp':'sold_price','sold price':'sold_price','sold_price':'sold_price','close price':'sold_price',
+  'sp':'sale_price','sold price':'sale_price','sold_price':'sale_price','close price':'sale_price',
   'lp $/sqft':'ppsf','ppsf':'ppsf','$/sqft':'ppsf',
-  'sp $/sqft':'sold_ppsf','sold_ppsf':'sold_ppsf',
   'mls':'mls','mls#':'mls','mls #':'mls',
   'list date':'list_date','list_date':'list_date',
   'lot sz':'lot_size','lot_size':'lot_size','lot size':'lot_size',
@@ -508,6 +507,8 @@ var CSV_COL_MAP={
   "seller's brokerage firm2 name":'agent2_broker','agent2_broker':'agent2_broker',
   "seller's brokerage firm2 phone":'agent2_office_phone','agent2_office_phone':'agent2_office_phone',
   'agent2_broker_dre':'agent2_broker_dre','agent2_dre':'agent2_dre',
+  'sd':'sold_date','sold date':'sold_date','sold_date':'sold_date',
+  'dom':'dom',
   'change date':'change_date','change_date':'change_date',
   'change type':'change_type','change_type':'change_type',
   'gate code':'gate_code','gate_code':'gate_code',
@@ -543,14 +544,23 @@ async function runImport(){
   var log=document.getElementById('importLog');log.style.display='block';log.textContent='Importing '+parsedCSV.length+' rows...\n';
   var beforeCount=0;
   try{var cr=await sb.from(TABLE).select('*',{count:'exact',head:true});beforeCount=cr.count||0;}catch(e){}
-  var existingMLS=new Set();
-  try{var mr=await sb.from(TABLE).select('mls');if(mr.data)mr.data.forEach(function(r){if(r.mls)existingMLS.add(r.mls);});}catch(e){}
+  // Fetch existing records to check current stage
+  var existingMLS=new Map();
+  try{
+    var allExisting=[];
+    for(var p=0;p<20;p++){
+      var mr=await sb.from(TABLE).select('mls,stage,comp_type').range(p*1000,(p+1)*1000-1);
+      if(!mr.data||!mr.data.length)break;
+      allExisting=allExisting.concat(mr.data);
+    }
+    allExisting.forEach(function(r){if(r.mls)existingMLS.set(r.mls,{stage:r.stage,comp_type:r.comp_type});});
+  }catch(e){}
   // Numeric fields that need parseInt
-  var INT_COLS={beds:1,sqft:1,list_price:1,sold_price:1,lot_size:1,year_built:1,elementary_rating:1,middle_rating:1,high_rating:1};
+  var INT_COLS={beds:1,sqft:1,list_price:1,sale_price:1,lot_size:1,year_built:1,dom:1,elementary_rating:1,middle_rating:1,high_rating:1};
   // Numeric fields that need parseFloat then round
-  var FLOAT_COLS={baths:1,ppsf:1,sold_ppsf:1};
+  var FLOAT_COLS={baths:1,ppsf:1};
   // Text fields to trim
-  var TEXT_COLS=['mls','address','city','zip','pool','list_date','remarks','agent_remarks','showing_remarks',
+  var TEXT_COLS=['mls','address','city','zip','pool','list_date','sold_date','remarks','agent_remarks','showing_remarks',
     'occupant_type','sale_type','agent_name','agent_broker','agent_email','agent_phone','agent_dre','broker_dre','agent_office_phone',
     'contact_name','contact_phone','lockbox_type','lockbox_location','gate_code',
     'change_date','change_type',
@@ -569,23 +579,123 @@ async function runImport(){
     if(c.city&&c.city.includes(' CA ')){var p=c.city.split(' CA ');c.city=p[0].trim();if(!c.zip&&p[1])c.zip=p[1].trim();}
     return c;
   }).filter(function(r){return r.mls;});
-  // Count new vs duplicate
-  var newCount=0,dupeCount=0,updatedMLS=[];
-  rows.forEach(function(r){if(existingMLS.has(r.mls)){dupeCount++;updatedMLS.push(r.mls);}else newCount++;});
-  log.textContent+='Cleaned: '+rows.length+' valid rows ('+newCount+' new, '+dupeCount+' updates)\n';
-  if(updatedMLS.length)log.textContent+='Updates: '+updatedMLS.join(', ')+'\n';
-  var CHUNK=50,ins=0,errs=0;
-  for(var i=0;i<rows.length;i+=CHUNK){
-    var chunk=rows.slice(i,i+CHUNK);
-    try{var res=await sb.from(TABLE).upsert(chunk,{onConflict:'mls',ignoreDuplicates:false});if(res.error)throw res.error;ins+=chunk.length;log.textContent+='✓ Batch '+(Math.floor(i/CHUNK)+1)+': '+chunk.length+' rows\n';}
-    catch(e){errs+=chunk.length;log.textContent+='✗ Batch '+(Math.floor(i/CHUNK)+1)+': '+e.message+'\n';}
-    log.scrollTop=log.scrollHeight;
+
+  // === SMART STAGE ASSIGNMENT ===
+  var ACTIVE_TYPES=['active','new listing','coming soon','mls exclusive','back on market','price change'];
+  var ARCHIVE_TYPES=['active under contract','pending','hold'];
+  var SOLD_TYPES=['sold'];
+  var OFF_MARKET_TYPES=['expired','canceled','withdrawn'];
+  
+  var newCount=0,dupeCount=0,soldCount=0,archivedCount=0,offMarketCount=0,priceUpdated=0;
+  
+  rows.forEach(function(r){
+    var ct=(r.change_type||'').toLowerCase().trim();
+    var existing=existingMLS.get(r.mls);
+    var isNew=!existing;
+    
+    if(SOLD_TYPES.indexOf(ct)>=0){
+      // === SOLD: convert to comp ===
+      r.change_type='sold';
+      r.stage='sold_comp'; // special marker so update logic knows to clear stage
+      // Set comp_type: 'flips' if was unsold_flip, otherwise 'general'
+      if(existing&&existing.stage==='unsold_flip'){
+        r.comp_type='flips';
+      } else if(existing&&existing.comp_type){
+        r.comp_type=existing.comp_type;
+      } else {
+        r.comp_type='general';
+      }
+      // Set sale_price and update ppsf
+      if(r.sale_price){
+        if(r.sqft)r.ppsf=Math.round(r.sale_price/r.sqft*100)/100;
+      }
+      soldCount++;
+    } else if(ARCHIVE_TYPES.indexOf(ct)>=0){
+      // === UNDER CONTRACT / PENDING / HOLD: archive regardless of current tag ===
+      r.stage='archived';
+      archivedCount++;
+    } else if(OFF_MARKET_TYPES.indexOf(ct)>=0){
+      // === EXPIRED / CANCELED / WITHDRAWN: off-market lead ===
+      r.stage='off_market_lead';
+      offMarketCount++;
+    } else if(ACTIVE_TYPES.indexOf(ct)>=0){
+      // === ACTIVE LISTING ===
+      if(isNew){
+        r.stage='unread'; // new listing defaults to unread
+        newCount++;
+      } else {
+        // Existing: preserve manual tag (contacted, potential, unsold_flip)
+        // But update price if it changed
+        if(ct==='price change'||ct==='back on market'){
+          priceUpdated++;
+        }
+        // Don't overwrite stage for existing active listings
+        dupeCount++;
+      }
+    } else {
+      // Unknown change type — treat as update, preserve existing stage
+      if(isNew){r.stage='unread';newCount++;}
+      else dupeCount++;
+    }
+  });
+  
+  log.textContent+='Cleaned: '+rows.length+' valid rows\n';
+  log.textContent+='  New listings: '+newCount+'\n';
+  log.textContent+='  Updates: '+dupeCount+(priceUpdated?' ('+priceUpdated+' price changes)':'')+'\n';
+  log.textContent+='  → Sold (moved to comps): '+soldCount+'\n';
+  log.textContent+='  → Archived (under contract): '+archivedCount+'\n';
+  log.textContent+='  → Off-Market Leads: '+offMarketCount+'\n';
+  
+  var CHUNK=50;
+  // Split into new inserts vs existing updates
+  var newRows=rows.filter(function(r){return !existingMLS.has(r.mls);});
+  var updateRows=rows.filter(function(r){return existingMLS.has(r.mls);});
+  
+  var ins=0,upd=0,errs=0;
+  
+  // Fix sold_comp markers in new rows before insert
+  newRows.forEach(function(r){
+    if(r.stage==='sold_comp')r.stage=null;
+  });
+  
+  // Insert new rows in chunks
+  if(newRows.length){
+    log.textContent+='Inserting '+newRows.length+' new listings...\n';
+    for(var i=0;i<newRows.length;i+=CHUNK){
+      var chunk=newRows.slice(i,i+CHUNK);
+      try{var res=await sb.from(TABLE).insert(chunk);if(res.error)throw res.error;ins+=chunk.length;log.textContent+='✓ Insert batch '+(Math.floor(i/CHUNK)+1)+': '+chunk.length+' rows\n';}
+      catch(e){errs+=chunk.length;log.textContent+='✗ Insert batch '+(Math.floor(i/CHUNK)+1)+': '+e.message+'\n';}
+      log.scrollTop=log.scrollHeight;
+    }
   }
-  log.textContent+='\n━━━ Done: '+ins+' imported ('+newCount+' new · '+dupeCount+' updated) · '+errs+' errors ━━━\n';
-  importHistory.unshift({date:new Date().toISOString(),file:document.getElementById('importFileName').textContent,rows:rows.length,newRows:newCount,updated:dupeCount,errors:errs});
+  
+  // Update existing rows one-by-one, only setting fields that have values (preserves geocode, schools, etc.)
+  if(updateRows.length){
+    log.textContent+='Updating '+updateRows.length+' existing listings...\n';
+    for(var j=0;j<updateRows.length;j++){
+      var r=updateRows[j];
+      var mls=r.mls;
+      // Build update object: only include non-empty fields
+      var upObj={};
+      Object.keys(r).forEach(function(k){
+        if(k==='mls')return; // don't update the key itself
+        if(r[k]!=null&&r[k]!=='')upObj[k]=r[k];
+      });
+      // For sold records, clear the stage so they don't show as listings
+      if(upObj.stage==='sold_comp'){upObj.stage=null;}
+      upObj.updated_at=new Date().toISOString();
+      try{var res=await sb.from(TABLE).update(upObj).eq('mls',mls);if(res.error)throw res.error;upd++;}
+      catch(e){errs++;log.textContent+='✗ Update '+mls+': '+e.message+'\n';}
+      // Log progress every 25
+      if((j+1)%25===0||j===updateRows.length-1)log.textContent+='✓ Updated '+(j+1)+'/'+updateRows.length+'\n';
+      log.scrollTop=log.scrollHeight;
+    }
+  }
+  log.textContent+='\n━━━ Done: '+ins+' inserted · '+upd+' updated · '+errs+' errors ━━━\n';
+  importHistory.unshift({date:new Date().toISOString(),file:document.getElementById('importFileName').textContent,rows:rows.length,newRows:ins,updated:upd,sold:soldCount,archived:archivedCount,offMarket:offMarketCount,errors:errs});
   if(importHistory.length>20)importHistory=importHistory.slice(0,20);
   localStorage.setItem('dh_import_hist',JSON.stringify(importHistory));renderHistory();
-  toast(newCount+' new · '+dupeCount+' updated',ins>0?'ok':'err');await loadListings();
+  toast(ins+' new · '+upd+' updated · '+soldCount+' sold',(ins+upd)>0?'ok':'err');await loadListings();
 }
 function renderHistory(){
   var el=document.getElementById('histBody');
