@@ -174,6 +174,14 @@ html, body { height: 100vh; overflow: hidden; }
       <button class="btn btn-red" id="geoStopBtn" onclick="stopGeocoding()" style="display:none">Stop</button>
     </div>
     <div class="import-log" id="geoLog" style="margin:12px 0;max-width:100%"></div>
+    <div style="margin-top:28px;border-top:1px solid var(--border);padding-top:20px">
+      <h3>Manual Coordinates</h3>
+      <p style="font-size:13px;color:var(--text-3);margin-bottom:12px">Paste from <a href="https://www.google.com/maps" target="_blank" style="color:var(--accent)">Google Maps</a> (right-click → copy coordinates).</p>
+      <div id="ungeocodedList"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-secondary" onclick="loadUngeocoded()">Load Missing Addresses</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -476,7 +484,8 @@ async function updateGeoStats(){
   document.getElementById('geoTotal').textContent=total||0;
   document.getElementById('geoDone').textContent=done||0;
   document.getElementById('geoRemaining').textContent=remaining;
-  document.getElementById('geoEta').textContent=remaining>0?Math.ceil(remaining*1.1)+'s':'✓';
+  var eta=Math.ceil(remaining*1.1);
+  document.getElementById('geoEta').textContent=remaining>0?(eta>=60?Math.ceil(eta/60)+'m':eta+'s'):'✓';
   document.getElementById('geoBar').style.width=total>0?((done/total)*100)+'%':'0%';
 }
 async function startGeocoding(){
@@ -521,6 +530,31 @@ async function startGeocoding(){
 }
 function stopGeocoding(){geocodingActive=false;document.getElementById('geoStartBtn').style.display='';document.getElementById('geoStopBtn').style.display='none';}
 
+async function loadUngeocoded(){
+  var c=document.getElementById('ungeocodedList');c.innerHTML='<div class="loading">Loading...</div>';
+  var allRows=[];
+  for(var p=0;p<20;p++){
+    var res=await sb.from(TABLE).select('id,address,city').is('latitude',null).not('address','is',null).range(p*1000,(p+1)*1000-1);
+    if(!res.data||!res.data.length)break;allRows=allRows.concat(res.data);
+  }
+  if(!allRows.length){c.innerHTML='<p style="color:var(--green)">All geocoded!</p>';return;}
+  var h='<div style="display:flex;flex-direction:column;gap:8px">';
+  allRows.forEach(function(r){
+    var mapsUrl='https://www.google.com/maps/search/'+encodeURIComponent(r.address+', '+r.city+', CA');
+    h+='<div style="display:grid;grid-template-columns:1fr 280px auto;gap:8px;align-items:center" id="geo-row-'+r.id+'"><span style="font-size:13px">'+r.address+', '+r.city+' <a href="'+mapsUrl+'" target="_blank" style="font-size:11px;color:var(--accent);margin-left:8px">📍 Open in Maps</a></span><input type="text" placeholder="Paste coords, e.g. 33.8570, -118.0733" id="geo-coords-'+r.id+'" style="padding:8px 10px;font-size:13px;font-family:var(--mono);background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);outline:none"><button class="btn btn-primary" style="padding:8px 14px;font-size:12px" onclick="saveManualGeo('+r.id+')">Save</button></div>';
+  });
+  c.innerHTML=h+'</div>';
+}
+async function saveManualGeo(id){
+  var raw=document.getElementById('geo-coords-'+id).value.trim(),parts=raw.split(/[,\s]+/).filter(Boolean);
+  if(parts.length<2){alert('Paste like: 33.8570, -118.0733');return;}
+  var lat=parseFloat(parts[0]),lng=parseFloat(parts[1]);
+  if(isNaN(lat)||isNaN(lng)){alert('Invalid coordinates');return;}
+  await sb.from(TABLE).update({latitude:lat,longitude:lng}).eq('id',id);
+  updateGeoStats();
+  document.getElementById('geo-row-'+id).innerHTML='<span style="color:var(--green)">✓ Saved ('+lat.toFixed(4)+', '+lng.toFixed(4)+')</span>';
+}
+
 // ═══ MISSING SCHOOLS ═══
 async function loadMissingSchools(){
   var city=document.getElementById('msCity').value;
@@ -544,21 +578,21 @@ async function loadMissingSchools(){
   if(error){el.innerHTML='Error: '+error.message;return;}
   if(!data||!data.length){el.innerHTML='<p style="color:var(--green)">All comps have school data!</p>';document.getElementById('msCount').textContent='';return;}
   document.getElementById('msCount').textContent='('+data.length+' missing)';
-  // Populate city dropdown
-  var{count}=await sb.from(TABLE).select('*',{count:'exact',head:true}).eq('change_type','sold').is('elementary_school',null);
-  var h='';data.forEach(function(r){
-    h+='<div id="ms-row-'+r.id+'" style="display:grid;grid-template-columns:1fr repeat(6,auto);gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--bg-alt);font-size:12px">';
-    h+='<span style="font-weight:500">'+r.address+', '+r.city+'</span>';
-    h+='<input type="text" placeholder="Elementary" id="ms-elem-'+r.id+'" value="'+(r.elementary_school||'')+'" style="padding:7px 10px;font-size:12px;font-family:inherit;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none;width:120px">';
+  var h='<div style="display:flex;flex-direction:column;gap:10px">';
+  data.forEach(function(r){
+    h+='<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:14px" id="ms-row-'+r.id+'">';
+    h+='<div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text)">'+r.address+', '+r.city+'</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto auto;gap:8px;align-items:center">';
+    h+='<input type="text" placeholder="Elementary School" id="ms-elem-'+r.id+'" value="'+(r.elementary_school||'')+'" style="padding:7px 10px;font-size:12px;font-family:inherit;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none">';
     h+='<input type="number" placeholder="#" id="ms-elemr-'+r.id+'" value="'+(r.elementary_rating||'')+'" style="padding:7px 6px;font-size:12px;font-family:var(--mono);background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--accent);outline:none;width:42px;text-align:center">';
-    h+='<input type="text" placeholder="Middle" id="ms-mid-'+r.id+'" value="'+(r.middle_school||'')+'" style="padding:7px 10px;font-size:12px;font-family:inherit;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none;width:120px">';
+    h+='<input type="text" placeholder="Middle School" id="ms-mid-'+r.id+'" value="'+(r.middle_school||'')+'" style="padding:7px 10px;font-size:12px;font-family:inherit;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none">';
     h+='<input type="number" placeholder="#" id="ms-midr-'+r.id+'" value="'+(r.middle_rating||'')+'" style="padding:7px 6px;font-size:12px;font-family:var(--mono);background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--accent);outline:none;width:42px;text-align:center">';
-    h+='<input type="text" placeholder="High" id="ms-high-'+r.id+'" value="'+(r.high_school||'')+'" style="padding:7px 10px;font-size:12px;font-family:inherit;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none;width:120px">';
+    h+='<input type="text" placeholder="High School" id="ms-high-'+r.id+'" value="'+(r.high_school||'')+'" style="padding:7px 10px;font-size:12px;font-family:inherit;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none">';
     h+='<input type="number" placeholder="#" id="ms-highr-'+r.id+'" value="'+(r.high_rating||'')+'" style="padding:7px 6px;font-size:12px;font-family:var(--mono);background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--accent);outline:none;width:42px;text-align:center">';
     h+='<button onclick="saveSchool('+r.id+')" class="btn btn-primary" style="padding:7px 14px;font-size:12px">Save</button>';
-    h+='</div>';
+    h+='</div></div>';
   });
-  el.innerHTML=h;
+  el.innerHTML=h+'</div>';
 }
 async function saveSchool(id){
   var g=function(i){return document.getElementById(i).value.trim();};
@@ -592,43 +626,77 @@ async function addManualComp(){
 // ═══ FIND DUPLICATES ═══
 async function findDuplicates(){
   var c=document.getElementById('dupeResults');c.innerHTML='<div class="loading">Checking...</div>';
-  var allData=[];for(var p=0;p<20;p++){var{data}=await sb.from(TABLE).select('id,address,city,sale_price,sold_date,sqft,comp_type,dom').eq('change_type','sold').order('city').order('address').range(p*1000,(p+1)*1000-1);if(!data||!data.length)break;allData=allData.concat(data);}
+  var allData=[];for(var p=0;p<20;p++){var res=await sb.from(TABLE).select('id,address,city,sale_price,sold_date,sqft,comp_type,dom,reviewed').eq('change_type','sold').order('city').order('address').range(p*1000,(p+1)*1000-1);if(!res.data||!res.data.length)break;allData=allData.concat(res.data);}
   if(!allData.length){c.innerHTML='<p style="color:var(--green)">No comps to check.</p>';return;}
   var groups={};allData.forEach(function(r){var k=(r.address||'').toUpperCase().replace(/\s+/g,' ').trim()+'|'+(r.city||'').toUpperCase().trim();if(!groups[k])groups[k]=[];groups[k].push(r);});
   var repeats=Object.entries(groups).filter(function(e){return e[1].length>1;});
   if(!repeats.length){c.innerHTML='<p style="color:var(--green)">No duplicates found!</p>';document.getElementById('autoRemoveBtn').style.display='none';return;}
+
   var trueDupes=[],possibleFlips=[];
   repeats.forEach(function(e){var key=e[0],comps=e[1];
     var pg={};comps.forEach(function(r){var pk=(r.sale_price||0)+'|'+(r.sold_date||'');if(!pg[pk])pg[pk]=[];pg[pk].push(r);});
-    if(Object.values(pg).some(function(g){return g.length>1;}))trueDupes.push([key,comps,pg]);
-    if(Object.keys(pg).length>1)possibleFlips.push([key,comps]);
+    var hasTrueDupes=Object.values(pg).some(function(g){return g.length>1;});
+    var hasDiffSales=Object.keys(pg).length>1;
+    var allSameType=new Set(comps.map(function(r){return r.comp_type||'general';})).size===1;
+    if(hasTrueDupes)trueDupes.push([key,comps,pg]);
+    if(hasDiffSales&&allSameType&&!comps.every(function(r){return r.reviewed;}))possibleFlips.push([key,comps]);
   });
-  var h='<p style="font-size:13px;margin-bottom:12px">Found '+repeats.length+' groups with duplicates</p>';
+
+  var h='';
+
+  // TRUE DUPLICATES
   if(trueDupes.length){
-    h+='<h4 style="color:var(--red);margin:12px 0 8px">True Duplicates ('+trueDupes.length+')</h4>';
-    trueDupes.forEach(function(e){var key=e[0],comps=e[1];var parts=key.split('|');
-      h+='<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+parts[0]+', '+parts[1]+' <span style="color:var(--red)">('+comps.length+')</span></div>';
-      comps.forEach(function(r,i){h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;font-size:12px" id="dupe-row-'+r.id+'"><span style="min-width:90px">'+( r.sold_date||'—')+'</span><span style="font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="color:var(--text-4)">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px">delete</button></div>';});
-      h+='</div>';
-    });
+    var tdCount=trueDupes.reduce(function(s,e){return s+Object.values(e[2]).reduce(function(ss,g){return ss+g.length-1;},0);},0);
+    h+='<div style="margin-bottom:24px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h4 style="color:var(--red)">🗑 True Duplicates ('+tdCount+') <span style="color:var(--text-3);font-weight:400;font-size:12px">— same address, price, and date</span></h4></div>';
+    document.getElementById('autoRemoveBtn').style.display='';
+    trueDupes.forEach(function(e){var key=e[0],comps=e[1],pg=e[2];var parts=key.split('|');
+      h+='<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+parts[0]+', '+parts[1]+' <a href="https://www.zillow.com/homes/'+encodeURIComponent(parts[0]+', '+parts[1]+', CA')+'" target="_blank" style="opacity:0.5;margin-left:4px"><img src="https://www.zillow.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a> <span style="color:var(--red)">('+comps.length+')</span></div>';
+      comps.forEach(function(r){var isDupe=Object.values(pg).some(function(g){return g.length>1&&g.indexOf(r)>0;});
+        h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;border-radius:6px;'+(isDupe?'':'background:var(--accent-dim)')+'" id="dupe-row-'+r.id+'"><span style="font-size:12px;font-family:var(--mono);color:'+(isDupe?'var(--red)':'var(--green)')+';min-width:55px">'+(isDupe?'dupe':'★ keep')+'</span><span style="font-size:12px;min-width:90px">'+(r.sold_date||'—')+'</span><span style="font-size:12px;font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="font-size:12px;color:var(--text-4)">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-family:inherit">delete</button></div>';
+      });h+='</div>';
+    });h+='</div>';
   }
+
+  // POSSIBLE FLIPS
   if(possibleFlips.length){
-    h+='<h4 style="color:var(--amber);margin:12px 0 8px">Possible Flips ('+possibleFlips.length+')</h4>';
-    possibleFlips.forEach(function(e){var key=e[0],comps=e[1];var parts=key.split('|');
-      h+='<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+parts[0]+', '+parts[1]+' <span style="color:var(--amber)">('+comps.length+' sales)</span></div>';
-      comps.forEach(function(r){h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;font-size:12px" id="dupe-row-'+r.id+'"><span style="min-width:90px">'+(r.sold_date||'—')+'</span><span style="font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="color:var(--text-4)">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px">delete</button></div>';});
-      h+='</div>';
+    // Calculate months apart and sort
+    possibleFlips.forEach(function(pf){
+      var dates=pf[1].map(function(r){return r.sold_date;}).filter(Boolean).sort();
+      if(dates.length>=2){var d1=new Date(dates[0]),d2=new Date(dates[dates.length-1]);pf[2]=Math.round((d2-d1)/(1000*60*60*24*30));}
+      else pf[2]=999;
+    });
+    possibleFlips.sort(function(a,b){return a[2]-b[2];});
+
+    h+='<h4 style="color:var(--amber);margin:12px 0 8px">🔄 Possible Flips ('+possibleFlips.length+') <span style="color:var(--text-3);font-weight:400;font-size:12px">— same address, different price/date</span></h4>';
+    possibleFlips.forEach(function(e){var key=e[0],comps=e[1],monthsApart=e[2];var parts=key.split('|');var ids=comps.map(function(r){return r.id;});
+      var isHighly=monthsApart<=8;
+      var prices=comps.map(function(r){return r.sale_price;}).filter(Boolean).sort(function(a,b){return a-b;});
+      var priceDiff=prices.length>=2?prices[prices.length-1]-prices[0]:0;
+      var diffStr=priceDiff>0?'+'+Math.ceil(priceDiff/1000)+'k':'';
+      var borderColor=isHighly?'var(--red)':'var(--blue)';
+      var latestDate=comps.reduce(function(max,r){return r.sold_date>max?r.sold_date:max;},'');
+      var latestComp=comps.find(function(r){return r.sold_date===latestDate;});
+
+      h+='<div style="background:var(--bg-page);border:1px solid var(--border);border-left:3px solid '+borderColor+';border-radius:var(--radius);padding:14px;margin-bottom:8px" id="flip-group-'+ids[0]+'">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:13px;font-weight:600">'+parts[0]+', '+parts[1]+' <a href="https://www.zillow.com/homes/'+encodeURIComponent(parts[0]+', '+parts[1]+', CA')+'" target="_blank" style="opacity:0.5;margin-left:4px"><img src="https://www.zillow.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a> <span style="color:var(--blue)">('+comps.length+' sales)</span>'+(isHighly?'<span style="background:var(--red);color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;margin-left:8px">HIGHLY LIKELY</span>':'')+(diffStr?'<span style="font-size:11px;font-weight:600;color:var(--green);margin-left:8px">'+diffStr+'</span>':'')+'<span style="font-size:11px;color:var(--text-4);margin-left:8px">'+(monthsApart<999?monthsApart+'mo apart':'')+'</span></span>';
+      h+='<div style="display:flex;gap:6px"><button onclick="markAsFlip('+(latestComp?latestComp.id:0)+',['+ids+'])" style="background:var(--accent);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;padding:4px 10px;font-family:inherit;font-weight:600">Is Flip ↗</button><button onclick="dismissFlip(['+ids+'])" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-3);cursor:pointer;font-size:11px;padding:4px 10px;font-family:inherit">Not a flip ✓</button></div></div>';
+
+      comps.forEach(function(r){var isLatest=r.sold_date===latestDate;
+        h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;border-radius:6px;'+(isLatest?'background:var(--accent-dim)':'')+'" id="dupe-row-'+r.id+'"><span style="font-size:12px;min-width:20px;color:var(--accent)">'+(isLatest?'★':'')+'</span><span style="font-size:12px;min-width:90px">'+(r.sold_date||'—')+'</span><span style="font-size:12px;font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="font-size:12px;color:'+(r.comp_type==='flips'?'var(--blue)':r.comp_type==='dotty'?'var(--green)':'var(--text-4)')+';font-weight:600;min-width:60px">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-family:inherit">delete</button></div>';
+      });h+='</div>';
     });
   }
+
+  if(!trueDupes.length&&!possibleFlips.length)h='<p style="color:var(--green)">No duplicates found!</p>';
   c.innerHTML=h;
-  if(trueDupes.length)document.getElementById('autoRemoveBtn').style.display='';
 }
 async function deleteDupe(id){await sb.from(TABLE).delete().eq('id',id);var r=document.getElementById('dupe-row-'+id);if(r){r.style.transition='opacity .3s';r.style.opacity='0';setTimeout(function(){r.remove();},300);}}
+async function dismissFlip(ids){await sb.from(TABLE).update({reviewed:true}).in('id',ids);var g=document.getElementById('flip-group-'+ids[0]);if(g){g.style.transition='opacity .3s';g.style.opacity='0';setTimeout(function(){g.remove();},300);}}
+async function markAsFlip(latestId,allIds){await sb.from(TABLE).update({comp_type:'flips'}).eq('id',latestId);var g=document.getElementById('flip-group-'+allIds[0]);if(g){g.style.transition='opacity .3s';g.style.opacity='0';setTimeout(function(){g.remove();},300);}}
 async function autoRemoveDupes(){
   if(!confirm('Remove true duplicates only (same address+price+date)? Possible flips will NOT be touched.'))return;
-  var allData=[];for(var p=0;p<20;p++){var{data}=await sb.from(TABLE).select('id,address,city,sale_price,sold_date').eq('change_type','sold').range(p*1000,(p+1)*1000-1);if(!data||!data.length)break;allData=allData.concat(data);}
-  var groups={};allData.forEach(function(r){var k=(r.address||'').toUpperCase().replace(/\s+/g,' ').trim()+'|'+(r.city||'').toUpperCase().trim()+'|'+(r.sale_price||0)+'|'+(r.sold_date||'');if(!groups[k])groups[k]=[];groups[k].push(r);});
-  var del=[];Object.values(groups).forEach(function(g){if(g.length>1)g.slice(1).forEach(function(r){del.push(r.id);});});
+  var allData=[];for(var p=0;p<20;p++){var res=await sb.from(TABLE).select('id,address,city,sale_price,sold_date').eq('change_type','sold').order('id',{ascending:true}).range(p*1000,(p+1)*1000-1);if(!res.data||!res.data.length)break;allData=allData.concat(res.data);}
+  var seen={},del=[];allData.forEach(function(r){var k=(r.address||'').toUpperCase().replace(/\s+/g,' ').trim()+'|'+(r.city||'').toUpperCase().trim()+'|'+(r.sale_price||0)+'|'+(r.sold_date||'');if(seen[k])del.push(r.id);else seen[k]=true;});
   if(!del.length){alert('No true duplicates to remove.');return;}
   for(var i=0;i<del.length;i+=100){await sb.from(TABLE).delete().in('id',del.slice(i,i+100));}
   alert('Removed '+del.length+' duplicates.');findDuplicates();
