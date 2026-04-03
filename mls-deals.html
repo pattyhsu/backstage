@@ -211,6 +211,7 @@ select.btn{appearance:auto}
     <button class="btn" id="bf-contacted" onclick="setFilter('contacted')">Contacted <span id="cnt-contacted"></span></button>
     <button class="btn" id="bf-potential" onclick="setFilter('potential')">Potential <span id="cnt-potential"></span></button>
     <button class="btn" id="bf-unsold_flip" onclick="setFilter('unsold_flip')">Unsold Flips <span id="cnt-unsold_flip"></span></button>
+    <button class="btn" id="bf-off_market_lead" onclick="setFilter('off_market_lead')">Off-Market <span id="cnt-off_market_lead"></span></button>
     <button class="btn" id="bf-archived" onclick="setFilter('archived')">Archive</button>
     <button class="btn" id="bf-all" onclick="setFilter('all')">All</button>
     <span id="db-status" style="font-size:10px;color:var(--text-4)"></span>
@@ -343,51 +344,6 @@ async function findComps(listing){
   const pool=smPool.length?smPool:deduped;
   const hp=pool.length?Math.max(...pool.map(c=>c.psf)):0;
   return{comps:deduped.slice(0,20),hp,arv:hp*sqft,listingLat:lat,listingLng:lon};
-}
-
-// ========== CSV IMPORT (ported from Python) ==========
-function parseCSV(text){
-  const lines=[];let cur='',inQ=false;
-  for(let i=0;i<text.length;i++){const c=text[i];if(c==='"')inQ=!inQ;else if(c==='\n'&&!inQ){lines.push(cur);cur='';}else cur+=c;}
-  if(cur.trim())lines.push(cur);
-  if(lines.length<2)return[];
-  const parseLine=line=>{const vals=[];let v='',q=false;for(let i=0;i<line.replace(/\r$/,'').length;i++){const c=line[i];if(c==='"')q=!q;else if(c===','&&!q){vals.push(v.trim());v='';}else v+=c;}vals.push(v.trim());return vals;};
-  const headers=parseLine(lines[0]);
-  return lines.slice(1).filter(l=>l.trim()).map(line=>{const vals=parseLine(line);const row={};headers.forEach((h,i)=>row[h]=vals[i]||'');return row;});
-}
-
-async function importCSVToSupabase(csvText,filename){
-  const rows=parseCSV(csvText);let newAdded=0,updated=0;
-  for(const r of rows){
-    const mls=(r.mls||'').trim();if(!mls)continue;
-    const price=parseInt((r.price||'0').split('.')[0].replace(/[^\d]/g,''))||0;
-    const sqft=parseInt((r.sqft||'0').replace(/[^\d]/g,''))||0;
-    const cityRaw=(r.city||'').trim();
-    const caM=cityRaw.match(/^(.+?)\s+CA\s+(\d{5})$/i);
-    const city=caM?caM[1].trim().replace(/\b\w/g,c=>c.toUpperCase()):cityRaw.replace(/\b\w/g,c=>c.toUpperCase());
-    const zip=caM?caM[2]:'';
-    const ppsfC=(r.ppsf||'0').replace(/[^\d.]/g,'');
-    const d={mls,address:(r.address||'').trim(),city,zip,list_price:price,ppsf:ppsfC?parseInt(parseFloat(ppsfC)):0,sqft,
-      beds:(r.beds||'').trim().match(/^\d+$/)?parseInt(r.beds):0,baths:(r.baths||'').trim(),
-      lot_size:(r.lot_size||'').trim(),year_built:(r.year_built||'').trim(),pool:(r.pool||'').trim(),
-      list_date:(r.list_date||'').trim(),sale_type:(r.sale_type||'').trim(),
-      remarks:(r.remarks||'').trim(),agent_remarks:(r.agent_remarks||'').trim(),
-      showing_remarks:(r.showing_remarks||'').trim(),occupancy:(r.occupancy||'').trim(),
-      contact_name:(r.contact_name||'').trim(),contact_phone:(r.contact_phone||'').trim(),
-      occupant_type:(r.occupant_type||'').trim(),lockbox_location:(r.lockbox_location||'').trim(),
-      lockbox_type:(r.lockbox_type||'').trim(),gate_code:(r.gate_code||'').trim(),
-      agent_name:(r.agent_name||'').trim(),agent_broker:(r.agent_broker||'').trim(),
-      broker_dre:(r.broker_dre||'').trim(),agent_dre:(r.agent_dre||'').trim(),
-      agent_phone:(r.agent_phone||'').trim(),agent_email:(r.agent_email||'').trim(),
-      agent_office_phone:(r.agent_office_phone||'').trim(),
-      elementary_school:(r.elementary_school||'').trim(),middle_school:(r.middle_school||'').trim(),
-      high_school:(r.high_school||'').trim()};
-    const{data:existing}=await sb.from('properties').select('id,stage').eq('mls',mls).limit(1);
-    if(existing&&existing.length>0){d.updated_at=new Date().toISOString();await sb.from('properties').update(d).eq('mls',mls);updated++;}
-    else{d.stage='unread';await sb.from('properties').insert(d);newAdded++;}
-  }
-  try{await sb.from('listing_import_history').insert({filename,total_in_file:rows.length,new_added:newAdded,updated});}catch(e){}
-  return{new_added:newAdded,updated,total:rows.length};
 }
 
 // ========== APP STATE ==========
@@ -565,10 +521,12 @@ async function updateStageCounts(){
     const{count:ct}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).eq('stage','contacted');
     const{count:pt}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).eq('stage','potential');
     const{count:uf}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).eq('stage','unsold_flip');
+    const{count:om}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).eq('stage','off_market_lead');
     const ue=document.getElementById('cnt-unread');if(ue)ue.textContent=ur?'('+ur+')':'';
     const ce=document.getElementById('cnt-contacted');if(ce)ce.textContent=ct?'('+ct+')':'';
     const pe=document.getElementById('cnt-potential');if(pe)pe.textContent=pt?'('+pt+')':'';
     const fe=document.getElementById('cnt-unsold_flip');if(fe)fe.textContent=uf?'('+uf+')':'';
+    const oe=document.getElementById('cnt-off_market_lead');if(oe)oe.textContent=om?'('+om+')':'';
   }catch(e){}
 }
 
@@ -583,6 +541,7 @@ function renderDetailPage(l){
         <button onclick="updateListingStatus('${l.mls}','contacted');this.style.opacity='0.5';this.textContent='✓ Contacted'" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='contacted'?'var(--accent)':'var(--bg)'};color:${l.status==='contacted'?'#fff':'var(--text-3)'};cursor:pointer">Contacted</button>
         <button onclick="updateListingStatus('${l.mls}','potential');this.style.opacity='0.5';this.textContent='✓ Potential'" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='potential'?'var(--green)':'var(--bg)'};color:${l.status==='potential'?'#fff':'var(--green)'};cursor:pointer">Potential</button>
         <button onclick="updateListingStatus('${l.mls}','unsold_flip');this.style.opacity='0.5';this.textContent='✓ Unsold Flip'" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='unsold_flip'?'var(--blue)':'var(--bg)'};color:${l.status==='unsold_flip'?'#fff':'var(--blue)'};cursor:pointer">Unsold Flip</button>
+        <button onclick="updateListingStatus('${l.mls}','off_market_lead');this.style.opacity='0.5';this.textContent='✓ Off-Market'" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='off_market_lead'?'var(--purple)':'var(--bg)'};color:${l.status==='off_market_lead'?'#fff':'var(--purple)'};cursor:pointer">Off-Market</button>
         <button onclick="updateListingStatus('${l.mls}','archived');cls()" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:var(--bg);color:var(--red);cursor:pointer">Archive</button></div></div>
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
       <span style="font-size:16px;font-weight:800">${l.address}, ${l.city}, CA ${l.zip}</span>
@@ -615,7 +574,7 @@ function renderDetailPage(l){
 
 function opn(m){active=m;document.querySelector('.main').classList.add('detail-view');const l=listings.find(x=>x.mls===active);if(l){delete compCache[l.mls];renderDetailPage(l);loadComps(l);const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');let polls=0;const poll=setInterval(()=>{polls++;if(compCache[l.mls]||polls>20){clearInterval(poll);document.getElementById('comp-col').innerHTML=compsPanel(l);const cm=getComps(l);if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}}},300);setTimeout(()=>calcDeal(id,l.price,l.sqft),100);}}
 function cls(){active=null;document.querySelector('.main').classList.remove('detail-view');render();}
-function setFilter(f){currentFilter=f;cityFilter='';document.getElementById('cf').value='';['unread','contacted','potential','unsold_flip','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
+function setFilter(f){currentFilter=f;cityFilter='';document.getElementById('cf').value='';['unread','contacted','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
 function setCityFilter(){cityFilter=document.getElementById('cf').value;render();}
 function doSort(){sort_=document.getElementById('ss').value;render();}
 
@@ -658,18 +617,14 @@ async function openArchive(){document.getElementById('arch-modal').classList.add
 function closeArchive(){document.getElementById('arch-modal').classList.remove('open');}
 async function restoreDeal(m){await sb.from('properties').update({stage:'unread',updated_at:new Date().toISOString()}).eq('mls',m);openArchive();loadListings(currentFilter);}
 
-function importCSV(event){const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=async function(e){
-  document.getElementById('db-status').innerHTML='<span style="color:var(--amber)">● Importing...</span>';
-  try{const result=await importCSVToSupabase(e.target.result,file.name);document.getElementById('db-status').innerHTML='<span style="color:var(--green)">● +'+result.new_added+' new, '+result.updated+' updated</span>';await loadListings(currentFilter);}
-  catch(err){document.getElementById('db-status').innerHTML='<span style="color:var(--red)">● Import failed</span>';console.error(err);}event.target.value='';};reader.readAsText(file);}
-
 // ========== LOAD LISTINGS ==========
 async function loadListings(status){
-  let query=sb.from('properties').select('*').not('mls','is',null).order('imported_at',{ascending:false}).limit(500);
+  let query=sb.from('properties').select('*').not('mls','is',null).neq('change_type','sold').order('imported_at',{ascending:false}).limit(500);
   if(status==='unread')query=query.eq('stage','unread');
   else if(status==='archived')query=query.eq('stage','archived');
+  else if(status==='off_market_lead')query=query.eq('stage','off_market_lead');
   else if(status&&status!=='all')query=query.eq('stage',status);
-  else query=query.neq('stage','archived');
+  else query=query.not('stage','in','("archived","off_market_lead")');
   try{
     const{data,error}=await query;if(error)throw error;
     listings=(data||[]).map(r=>{
