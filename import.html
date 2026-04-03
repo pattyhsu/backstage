@@ -158,7 +158,7 @@ html, body { height: 100vh; overflow: hidden; }
 </div>
 
 <!-- GEOCODE TAB -->
-<div class="panel" id="panel-geocode" style="display:none">
+<div class="panel" id="panel-geocode">
   <div class="section">
     <h3>Batch Geocode</h3>
     <p style="font-size:13px;color:var(--text-3);margin-bottom:16px">Geocode all properties missing lat/lng using Nominatim (OpenStreetMap).</p>
@@ -178,7 +178,7 @@ html, body { height: 100vh; overflow: hidden; }
 </div>
 
 <!-- MISSING SCHOOLS TAB -->
-<div class="panel" id="panel-schools" style="display:none">
+<div class="panel" id="panel-schools">
   <div class="section">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <h3>Missing Schools <span id="msCount" style="color:var(--text-3);font-weight:400"></span></h3>
@@ -189,7 +189,7 @@ html, body { height: 100vh; overflow: hidden; }
 </div>
 
 <!-- ADD COMP TAB -->
-<div class="panel" id="panel-manual" style="display:none">
+<div class="panel" id="panel-manual">
   <div class="section">
     <h3>Add Comp Manually</h3>
     <p style="font-size:13px;color:var(--text-3);margin-bottom:16px">For Dotty flips or one-off entries.</p>
@@ -213,7 +213,7 @@ html, body { height: 100vh; overflow: hidden; }
 </div>
 
 <!-- FIND DUPLICATES TAB -->
-<div class="panel" id="panel-dupes" style="display:none">
+<div class="panel" id="panel-dupes">
   <div class="section">
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
       <button class="btn btn-primary" onclick="findDuplicates()">Find Duplicates</button>
@@ -222,9 +222,6 @@ html, body { height: 100vh; overflow: hidden; }
     <div id="dupeResults"></div>
   </div>
 </div>
-
-</div><!-- /main-content -->
-</div><!-- /app-shell -->
 
 <script>
 const SB_URL='https://pwrnywsojomrygsiezzi.supabase.co';
@@ -237,7 +234,7 @@ let importHistory=JSON.parse(localStorage.getItem('dh_import_hist')||'[]');
 // ═══ TABS ═══
 function switchTab(t){
   document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===t));
-  document.querySelectorAll('.panel').forEach(el=>el.style.display=el.id==='panel-'+t?'':'none');
+  document.querySelectorAll('.panel').forEach(el=>{el.classList.toggle('active',el.id==='panel-'+t);el.removeAttribute('style');});
   if(t==='geocode')updateGeoStats();
   if(t==='schools')loadMissingSchools();
 }
@@ -295,7 +292,7 @@ function normalizeRow(r){var out={};Object.keys(r).forEach(function(k){var mappe
 function handleFile(file){
   if(!file)return;
   Papa.parse(file,{header:true,skipEmptyLines:true,complete:function(res){
-    parsedCSV=res.data.map(normalizeRow).filter(function(r){return(r.mls&&r.mls.trim())||(r.address&&r.address.trim());});
+    parsedCSV=res.data.map(normalizeRow).filter(function(r){return r.mls&&r.mls.trim();});
     showPreview(file.name);
   },error:function(err){alert('Parse error: '+err.message);}});
 }
@@ -305,17 +302,18 @@ function showPreview(filename){
   // Count by change type
   var counts={};
   parsedCSV.forEach(function(r){var ct=(r.change_type||'').trim()||'(no status)';counts[ct]=(counts[ct]||0)+1;});
-  // Categorize
-  var ACTIVE=['Active','New Listing','Coming Soon','MLS Exclusive','Back On Market','Price Change'];
-  var ARCHIVE=['Active Under Contract','Pending','Hold'];
-  var SOLD=['Sold'];
-  var OFFMARKET=['Expired','Canceled','Withdrawn'];
+  // Categorize (case-insensitive)
+  var ACTIVE=['active','new listing','coming soon','mls exclusive','back on market','price change'];
+  var ARCHIVE=['active under contract','pending','hold'];
+  var SOLD=['sold'];
+  var OFFMARKET=['expired','canceled','withdrawn'];
   var activeN=0,archiveN=0,soldN=0,offN=0,otherN=0;
   Object.keys(counts).forEach(function(ct){
-    if(SOLD.indexOf(ct)>=0)soldN+=counts[ct];
-    else if(ARCHIVE.indexOf(ct)>=0)archiveN+=counts[ct];
-    else if(OFFMARKET.indexOf(ct)>=0)offN+=counts[ct];
-    else if(ACTIVE.indexOf(ct)>=0)activeN+=counts[ct];
+    var lc=ct.toLowerCase();
+    if(SOLD.indexOf(lc)>=0)soldN+=counts[ct];
+    else if(ARCHIVE.indexOf(lc)>=0)archiveN+=counts[ct];
+    else if(OFFMARKET.indexOf(lc)>=0)offN+=counts[ct];
+    else if(ACTIVE.indexOf(lc)>=0)activeN+=counts[ct];
     else otherN+=counts[ct];
   });
   var h='<div style="margin-bottom:12px">';
@@ -527,6 +525,19 @@ function stopGeocoding(){geocodingActive=false;document.getElementById('geoStart
 async function loadMissingSchools(){
   var city=document.getElementById('msCity').value;
   var el=document.getElementById('msList');el.innerHTML='<div class="loading">Loading...</div>';
+  // Populate city dropdown if empty
+  var msc=document.getElementById('msCity');
+  if(msc.options.length<=1){
+    try{
+      var allCities=[];
+      for(var p=0;p<20;p++){
+        var cr=await sb.from(TABLE).select('city').eq('change_type','sold').is('elementary_school',null).range(p*1000,(p+1)*1000-1);
+        if(!cr.data||!cr.data.length)break;allCities=allCities.concat(cr.data);
+      }
+      var cities=[...new Set(allCities.map(function(r){return(r.city||'').trim();}).filter(Boolean))].sort();
+      msc.innerHTML='<option value="">All Cities ('+cities.length+')</option>'+cities.map(function(c){return'<option value="'+c+'">'+c+'</option>';}).join('');
+    }catch(e){}
+  }
   var q=sb.from(TABLE).select('id,address,city,elementary_school,elementary_rating,middle_school,middle_rating,high_school,high_rating').eq('change_type','sold').is('elementary_school',null);
   if(city)q=q.eq('city',city);
   var{data,error}=await q.order('city').order('address').limit(200);
