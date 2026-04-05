@@ -331,7 +331,7 @@ async function findComps(listing){
       midSchool:comp.middle_school||'',midRating:comp.middle_rating||0,
       lat:comp.latitude,lng:comp.longitude,
       isAsking:isUnsoldFlip,
-      typePriority:{dotty:0,flips:1,unsold_flip:1,general:2}[compType]??2,
+      typePriority:{dotty:0,flips:1,halfflips:1,unsold_flip:1,general:2}[compType]??2,
     });
   }
   results.sort((a,b)=>(a.schoolMatch?0:1)-(b.schoolMatch?0:1)||(a.typePriority-b.typePriority)||((a.dist??999)-(b.dist??999)));
@@ -419,11 +419,11 @@ function renderCompMap(l,cm,mid){
 }
 
 function compH(c,idx,mls){
-  const lbl=c.type==='dotty'?'DOTTY':c.type==='flip'||c.type==='flips'?'FLIP':'SOLD';
-  const col=c.type==='dotty'?'var(--purple)':c.type==='flip'||c.type==='flips'?'var(--green)':'var(--text-4)';
-  const cls=c.type==='dotty'?'cd':c.type==='flip'||c.type==='flips'?'cf':'';
+  const lbl=c.type==='dotty'?'DOTTY':c.type==='flip'||c.type==='flips'?'FLIP':c.type==='halfflips'?'HALF':'SOLD';
+  const col=c.type==='dotty'?'var(--purple)':c.type==='flip'||c.type==='flips'?'var(--green)':c.type==='halfflips'?'var(--amber)':'var(--text-4)';
+  const cls=c.type==='dotty'?'cd':c.type==='flip'||c.type==='flips'?'cf':c.type==='halfflips'?'ch':'';
   const mid=mls.replace(/[^a-zA-Z0-9]/g,'');
-  const tb=(c.type==='dotty'||c.type==='flip'||c.type==='flips')?`<span style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;background:${c.type==='dotty'?'var(--purple-bg)':'var(--green-bg)'};color:${col};margin-right:3px">${lbl}</span>`:'';
+  const tb=(c.type==='dotty'||c.type==='flip'||c.type==='flips'||c.type==='halfflips')?`<span style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;background:${c.type==='dotty'?'var(--purple-bg)':c.type==='halfflips'?'var(--amber-bg)':'var(--green-bg)'};color:${col};margin-right:3px">${lbl}</span>`:'';
   return`<div class="cr ${cls}" style="flex-wrap:wrap;padding:4px 6px">
     <div style="display:flex;align-items:center;gap:4px;flex:1;min-width:180px">
       <input type="checkbox" checked onchange="recalcCompSummary('${mid}')" data-comp-idx="${idx}" data-comp-mls="${mid}" style="flex-shrink:0">
