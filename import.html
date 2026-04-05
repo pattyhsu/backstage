@@ -283,6 +283,12 @@ var CSV_COL_MAP={
   "seller's brokerage firm2 name":'agent2_broker','agent2_broker':'agent2_broker',
   "seller's brokerage firm2 phone":'agent2_office_phone','agent2_office_phone':'agent2_office_phone',
   'agent2_broker_dre':'agent2_broker_dre','agent2_dre':'agent2_dre',
+  "buyer's agent 1 name":'buyer_name','buyer_name':'buyer_name',
+  "buyer's agent 1 email":'buyer_email','buyer_email':'buyer_email',
+  "buyer's agent 1 phone":'buyer_phone','buyer_phone':'buyer_phone',
+  "buyer's agent 1 cell":'buyer_phone',
+  "buyer's brokerage firm1 name":'buyer_broker','buyer_broker':'buyer_broker',
+  "buyer's brokerage firm1 phone":'buyer_broker_phone','buyer_broker_phone':'buyer_broker_phone',
   'change date':'change_date','change_date':'change_date',
   'change type':'change_type','change_type':'change_type',
   'gate code':'gate_code','gate_code':'gate_code',
@@ -351,13 +357,22 @@ async function runImport(){
   try{
     var allExisting=[];
     for(var p=0;p<20;p++){
-      var mr=await sb.from(TABLE).select('id,mls,address,city,stage,comp_type').range(p*1000,(p+1)*1000-1);
+      var mr=await sb.from(TABLE).select('id,mls,address,city,sale_price,stage,comp_type').range(p*1000,(p+1)*1000-1);
       if(!mr.data||!mr.data.length)break;
       allExisting=allExisting.concat(mr.data);
     }
     allExisting.forEach(function(r){
-      if(r.mls)existingMLS.set(r.mls,{stage:r.stage,comp_type:r.comp_type});
-      var addrKey=((r.address||'').replace(/\s+/g,' ').trim().toUpperCase()+'|'+(r.city||'').trim().toUpperCase());
+      if(r.mls)existingMLS.set(r.mls,{id:r.id,stage:r.stage,comp_type:r.comp_type});
+      // For sold comps: match by address+city+price (same address can sell multiple times)
+      // For listings: match by address+city only
+      var normAddr=(r.address||'').replace(/\s+/g,' ').trim().toUpperCase();
+      var normCity=(r.city||'').trim().toUpperCase();
+      if(r.sale_price){
+        var addrPriceKey=normAddr+'|'+normCity+'|'+r.sale_price;
+        if(!existingAddr.has(addrPriceKey))existingAddr.set(addrPriceKey,{id:r.id,mls:r.mls,stage:r.stage,comp_type:r.comp_type});
+      }
+      // Also store address+city only key for listing matching
+      var addrKey=normAddr+'|'+normCity;
       if(!existingAddr.has(addrKey))existingAddr.set(addrKey,{id:r.id,mls:r.mls,stage:r.stage,comp_type:r.comp_type});
     });
   }catch(e){log.textContent+='⚠ Error fetching existing: '+e.message+'\n';}
@@ -368,6 +383,7 @@ async function runImport(){
     'occupant_type','sale_type','agent_name','agent_broker','agent_email','agent_phone','agent_dre','broker_dre','agent_office_phone',
     'contact_name','contact_phone','lockbox_type','lockbox_location','gate_code','change_date','change_type',
     'agent2_name','agent2_broker','agent2_email','agent2_phone','agent2_dre','agent2_broker_dre','agent2_office_phone',
+    'buyer_name','buyer_email','buyer_phone','buyer_broker','buyer_broker_phone',
     'elementary_school','middle_school','high_school','occupancy'];
 
   var rows=parsedCSV.map(function(r){
@@ -396,9 +412,26 @@ async function runImport(){
   rows.forEach(function(r){
     var ct=(r.change_type||'').toLowerCase().trim();
     var existing=existingMLS.get(r.mls);
-    var addrKey=((r.address||'').toUpperCase()+'|'+(r.city||'').toUpperCase());
-    var existingByAddr=existingAddr.get(addrKey);
-    if(!existing&&existingByAddr){existing=existingByAddr;if(!existingByAddr.mls&&r.mls)existingMLS.set(r.mls,existing);}
+    var normAddr=(r.address||'').toUpperCase();
+    var normCity=(r.city||'').toUpperCase();
+    
+    // For sold comps: match by address+city+price (same address can sell at different prices = different sales)
+    // For listings: match by address+city only
+    if(!existing){
+      var isSold=(ct==='sold');
+      if(isSold&&r.sale_price){
+        // Sold comps: match by address+city+price ONLY (don't fall back to address-only)
+        var addrPriceKey=normAddr+'|'+normCity+'|'+r.sale_price;
+        var existingByAddrPrice=existingAddr.get(addrPriceKey);
+        if(existingByAddrPrice){existing=existingByAddrPrice;if(!existingByAddrPrice.mls&&r.mls)existingMLS.set(r.mls,existing);}
+      }
+      if(!existing&&!isSold){
+        // Listings only: fall back to address+city match
+        var addrKey=normAddr+'|'+normCity;
+        var existingByAddr=existingAddr.get(addrKey);
+        if(existingByAddr){existing=existingByAddr;if(!existingByAddr.mls&&r.mls)existingMLS.set(r.mls,existing);}
+      }
+    }
     var isNew=!existing;
 
     if(SOLD_TYPES.indexOf(ct)>=0){
@@ -430,10 +463,24 @@ async function runImport(){
   var CHUNK=50;
   var newRows=[],updateRows=[];
   rows.forEach(function(r){
-    var addrKey=((r.address||'').toUpperCase()+'|'+(r.city||'').toUpperCase());
-    if(existingMLS.has(r.mls)){r._updateBy='mls';updateRows.push(r);}
-    else if(existingAddr.has(addrKey)){r._updateBy='id';r._updateId=existingAddr.get(addrKey).id;updateRows.push(r);}
-    else newRows.push(r);
+    var normAddr=(r.address||'').toUpperCase();
+    var normCity=(r.city||'').toUpperCase();
+    if(existingMLS.has(r.mls)){
+      r._updateBy='mls';r._updateId=existingMLS.get(r.mls).id;updateRows.push(r);
+    } else {
+      // Try address+price match first (for sold comps), then address-only (for listings)
+      var matched=false;
+      var isSoldRow=(r.change_type||'').toLowerCase()==='sold';
+      if(r.sale_price){
+        var addrPriceKey=normAddr+'|'+normCity+'|'+r.sale_price;
+        if(existingAddr.has(addrPriceKey)){r._updateBy='id';r._updateId=existingAddr.get(addrPriceKey).id;updateRows.push(r);matched=true;}
+      }
+      if(!matched&&!isSoldRow){
+        var addrKey=normAddr+'|'+normCity;
+        if(existingAddr.has(addrKey)){r._updateBy='id';r._updateId=existingAddr.get(addrKey).id;updateRows.push(r);matched=true;}
+      }
+      if(!matched)newRows.push(r);
+    }
   });
 
   var ins=0,upd=0,errs=0;
@@ -453,12 +500,11 @@ async function runImport(){
     for(var j=0;j<updateRows.length;j++){
       var r=updateRows[j];
       var upObj={};
-      Object.keys(r).forEach(function(k){if(k==='mls'&&r._updateBy!=='id')return;if(k.charAt(0)==='_')return;if(r[k]!=null&&r[k]!=='')upObj[k]=r[k];});
-      if(r._updateBy==='id'&&r.mls)upObj.mls=r.mls;
+      Object.keys(r).forEach(function(k){if(k.charAt(0)==='_')return;if(r[k]!=null&&r[k]!=='')upObj[k]=r[k];});
       if(upObj.stage==='sold_comp')upObj.stage=null;
       upObj.updated_at=new Date().toISOString();
       try{
-        var res=r._updateBy==='id'?await sb.from(TABLE).update(upObj).eq('id',r._updateId):await sb.from(TABLE).update(upObj).eq('mls',r.mls);
+        var res=await sb.from(TABLE).update(upObj).eq('id',r._updateId);
         if(res.error)throw res.error;upd++;
       }catch(e){errs++;log.textContent+='✗ '+(r.mls||r.address)+': '+e.message+'\n';}
       if((j+1)%25===0||j===updateRows.length-1)log.textContent+='✓ Updated '+(j+1)+'/'+updateRows.length+'\n';
