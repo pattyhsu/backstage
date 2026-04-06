@@ -298,7 +298,8 @@ var CSV_COL_MAP={
   'showing contact phone':'contact_phone','contact_phone':'contact_phone',
   'elementary_school':'elementary_school','middle_school':'middle_school','high_school':'high_school',
   'elementary_rating':'elementary_rating','middle_rating':'middle_rating','high_rating':'high_rating',
-  'occ/show':'occupancy','occupancy':'occupancy'
+  'occ/show':'occupancy','occupancy':'occupancy',
+  'apn #':'apn','apn':'apn'
 };
 function normalizeRow(r){var out={};Object.keys(r).forEach(function(k){var mapped=CSV_COL_MAP[k.trim().toLowerCase()];if(mapped&&!out[mapped])out[mapped]=r[k];});return out;}
 

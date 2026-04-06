@@ -189,7 +189,7 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:12px">
     <h3 style="font-size:15px;font-weight:600">All Comps <span id="browseCount" style="color:var(--text-3);font-weight:400"></span></h3>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <input type="text" id="b-search" placeholder="Search anything..." oninput="clearTimeout(window._bsTimer);window._bsTimer=setTimeout(loadBrowse,400)" style="padding:8px 12px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);outline:none;width:220px">
+      <input type="text" id="b-search" placeholder="Search address..." oninput="clearTimeout(window._bsTimer);window._bsTimer=setTimeout(loadBrowse,400)" style="padding:8px 12px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);outline:none;width:220px">
       <div class="field" style="margin:0"><select id="b-city" onchange="loadBrowse()" style="padding:8px 12px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)"><option value="">All Cities</option></select></div>
       <div class="field" style="margin:0"><select id="b-type" onchange="loadBrowse()" style="padding:8px 12px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)"><option value="">All Types</option><option value="general">General</option><option value="dotty">Dotty</option><option value="flips">Flips</option><option value="halfflips">Half-Ass Flips</option></select></div>
       <div class="field" style="margin:0"><select id="b-missing" onchange="loadBrowse()" style="padding:8px 12px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)"><option value="">All Data</option><option value="no-school">Missing Schools</option><option value="no-geo">Missing Geocode</option></select></div>
@@ -776,7 +776,7 @@ async function fetchBrowsePage() {
   const search = document.getElementById('b-search').value.trim();
 
   let query = sb.from('properties').select('*', { count: 'exact' }).eq('change_type','sold');
-  if (search) query = query.or(`address.ilike.%${search}%,city.ilike.%${search}%,elementary_school.ilike.%${search}%,middle_school.ilike.%${search}%,high_school.ilike.%${search}%`);
+  if (search) query = query.ilike('address', `%${search}%`);
   if (city) query = query.eq('city', city);
   if (type) query = query.eq('comp_type', type);
   if (missing === 'no-school') query = query.is('elementary_school', null);

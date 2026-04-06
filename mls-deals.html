@@ -88,12 +88,12 @@ body{overflow:hidden;height:100vh}
 .det-full{grid-column:1/-1}
 
 /* List header + rows */
-.th-p{display:grid;grid-template-columns:1fr 100px 90px 80px 36px 70px 50px;align-items:center;padding:8px 10px;background:var(--bg-alt);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.4px;gap:4px;position:sticky;top:0;z-index:10}
+.th-p{display:grid;grid-template-columns:1fr 100px 90px 60px 80px 80px 36px 70px 50px;align-items:center;padding:8px 10px;background:var(--bg-alt);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.4px;gap:4px;position:sticky;top:0;z-index:10}
 .rw{border-bottom:1px solid var(--border);cursor:pointer;transition:background .08s}
 .rw:hover{background:var(--bg-alt)}
 .rw.act,.rw.sel{background:var(--accent-dim)}
 .rw.archived{display:none}
-.rm-p{display:grid;grid-template-columns:1fr 100px 90px 80px 36px 70px 50px;align-items:center;padding:8px 10px;font-size:13px;font-weight:500;gap:4px}
+.rm-p{display:grid;grid-template-columns:1fr 100px 90px 60px 80px 80px 36px 70px 50px;align-items:center;padding:8px 10px;font-size:13px;font-weight:500;gap:4px}
 
 /* Address + subtext */
 .at{font-weight:700;color:var(--text);font-size:13px}
@@ -203,6 +203,12 @@ select.btn{appearance:auto}
       <option value="priority">Sort: Priority first</option>
       <option value="price-asc">Price ↑</option><option value="price-desc">Price ↓</option>
       <option value="ppsf">$/sf ↑</option><option value="dom">DOM ↑</option>
+      <option value="tag-tlc">Tag: TLC / Fixer</option>
+      <option value="tag-estate">Tag: Estate / Trust</option>
+      <option value="tag-investor">Tag: Investor / Flip</option>
+      <option value="tag-firsttime">Tag: First time</option>
+      <option value="tag-reduced">Tag: Price reduced</option>
+      <option value="tag-flipped">Tag: Already flipped</option>
     </select>
     <div class="hdr-meta"><span id="tc">0</span> listings</div>
   </div>
@@ -496,16 +502,18 @@ function calcDeal(id,listPrice,sqft){
 }
 
 // ========== LIST / DETAIL RENDERING ==========
-function getSorted(){let d=[...listings];if(cityFilter)d=d.filter(l=>l.city.toLowerCase()===cityFilter.toLowerCase());if(sort_==='priority')d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));else if(sort_==='price-asc')d.sort((a,b)=>a.price-b.price);else if(sort_==='price-desc')d.sort((a,b)=>b.price-a.price);else if(sort_==='ppsf')d.sort((a,b)=>a.ppsf-b.ppsf);else if(sort_==='dom')d.sort((a,b)=>dom(b.listDate)-dom(a.listDate));return d;}
+function getSorted(){let d=[...listings];if(cityFilter)d=d.filter(l=>l.city.toLowerCase()===cityFilter.toLowerCase());if(sort_==='priority')d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));else if(sort_==='price-asc')d.sort((a,b)=>a.price-b.price);else if(sort_==='price-desc')d.sort((a,b)=>b.price-a.price);else if(sort_==='ppsf')d.sort((a,b)=>a.ppsf-b.ppsf);else if(sort_==='dom')d.sort((a,b)=>dom(b.listDate)-dom(a.listDate));else if(sort_.startsWith('tag-')){const tagMap={'tag-tlc':'TLC / Fixer','tag-estate':'Estate / Trust','tag-investor':'Investor / Flip','tag-firsttime':'First time on market','tag-reduced':'Price reduced','tag-flipped':'Already flipped'};const tagName=tagMap[sort_]||'';d.sort((a,b)=>(b.tags.includes(tagName)?1:0)-(a.tags.includes(tagName)?1:0));}return d;}
 
 function render(){
   const data=getSorted();
-  document.getElementById('lh').innerHTML=`<div class="th-p"><span>ADDRESS</span><span>CITY</span><span class="tr">LISTING PRICE</span><span>SCHOOLS</span><span class="tr">DOM</span><span class="tr">ARV</span><span class="tr">GAP</span></div>`;
+  document.getElementById('lh').innerHTML=`<div class="th-p"><span>ADDRESS</span><span>CITY</span><span class="tr">LISTING PRICE</span><span class="tr">$/SF</span><span>STATUS</span><span>SCHOOLS</span><span class="tr">DOM</span><span class="tr">ARV</span><span class="tr">GAP</span></div>`;
   let h='';data.forEach(l=>{const d=dom(l.listDate),dc=d<=7?'dn':d>=30?'do':'dm';
     h+=`<div class="rw ${active===l.mls?'act':''}" onclick="opn('${l.mls}')"><div class="rm-p">
       <div><div class="at">${l.address} <a href="https://www.google.com/search?q=redfin+${encodeURIComponent(l.address+' '+l.city+' CA')}&btnI=1" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;vertical-align:middle"><img src="https://www.redfin.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a> <a href="https://www.zillow.com/homes/${encodeURIComponent(l.address+', '+l.city+', CA '+l.zip)}_rb/" target="_blank" onclick="event.stopPropagation()" style="vertical-align:middle"><img src="https://www.zillow.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div><div class="as">${l.beds}bd/${l.baths}ba · ${l.sqft.toLocaleString()} sf</div>${l.tags.map(tg).join('')}</div>
       <span style="color:var(--text-3);font-weight:600;font-size:12px">${(l.city||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}</span>
       <span class="tr" style="font-weight:600;font-size:12px">${FK(l.price)}</span>
+      <span class="tr" style="font-size:11px;color:var(--text-3)">${l.ppsf?'$'+l.ppsf:'—'}</span>
+      <span style="font-size:10px;font-weight:600;color:${l.changeType==='coming soon'?'var(--purple)':l.changeType==='new'?'var(--green)':'var(--text-4)'}">${(l.changeType||'—').replace(/\b\w/g,c=>c.toUpperCase())}</span>
       <span style="white-space:nowrap">${l.elem?`<span class="sp ${l.elem.r>=7?'sh':l.elem.r>=5?'sm':'sl'}"><span class="lv">E</span>${l.elem.r}</span>`:''} ${l.mid?`<span class="sp ${l.mid.r>=7?'sh':l.mid.r>=5?'sm':'sl'}"><span class="lv">M</span>${l.mid.r}</span>`:''} ${l.high?`<span class="sp ${l.high.r>=7?'sh':l.high.r>=5?'sm':'sl'}"><span class="lv">H</span>${l.high.r}</span>`:''}</span>
       <span class="tr ${dc}" style="font-weight:600;font-size:12px">${d}d</span>
       <span class="tr" style="font-weight:600;font-size:12px;color:var(--accent)">${getArvLabel(l)}</span>
@@ -639,7 +647,7 @@ async function loadListings(status){
         elem:r.elementary_rating||r.elementary_school?{r:r.elementary_rating||0,n:r.elementary_school||''}:null,
         mid:r.middle_rating||r.middle_school?{r:r.middle_rating||0,n:r.middle_school||''}:null,
         high:r.high_rating||r.high_school?{r:r.high_rating||0,n:r.high_school||''}:null,
-        tags,status:r.stage||'unread',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null};});
+        tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null};});
     active=null;sel.clear();render();
     const toTitle=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
     const cities=[...new Set(listings.map(l=>toTitle((l.city||'').trim())).filter(Boolean))].sort();
