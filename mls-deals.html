@@ -18,18 +18,14 @@
 .rw-thumb-empty{width:48px;height:36px;border-radius:4px;background:var(--bg-alt);flex-shrink:0;display:grid;place-items:center;font-size:10px;color:var(--text-4)}
 
 /* Photo lightbox */
-.lb-overlay{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.88);align-items:center;justify-content:center;flex-direction:column}
-.lb-overlay.open{display:flex}
-.lb-close{position:absolute;top:16px;right:20px;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;z-index:10001;padding:4px 10px;line-height:1}
-.lb-close:hover{opacity:.7}
-.lb-img-wrap{position:relative;display:flex;align-items:center;justify-content:center;max-width:90vw;max-height:80vh}
-.lb-img{max-width:90vw;max-height:80vh;border-radius:6px;object-fit:contain;user-select:none}
-.lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:none;color:#fff;font-size:32px;cursor:pointer;padding:12px 16px;border-radius:6px;backdrop-filter:blur(4px);line-height:1}
-.lb-nav:hover{background:rgba(255,255,255,.3)}
-.lb-prev{left:-70px}
-.lb-next{right:-70px}
-.lb-counter{color:rgba(255,255,255,.6);font-size:12px;font-weight:500;margin-top:12px;letter-spacing:.5px}
-.lb-addr{color:rgba(255,255,255,.9);font-size:13px;font-weight:600;margin-top:4px}
+.lb-overlay{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.92);overflow-y:auto}
+.lb-overlay.open{display:block}
+.lb-close{position:fixed;top:16px;right:20px;background:rgba(0,0,0,.5);border:none;color:#fff;font-size:24px;cursor:pointer;z-index:10001;padding:4px 12px;line-height:1;border-radius:6px;backdrop-filter:blur(4px)}
+.lb-close:hover{background:rgba(255,255,255,.2)}
+.lb-addr{color:#fff;font-size:14px;font-weight:600;text-align:center;padding:16px 60px 12px;position:sticky;top:0;background:rgba(0,0,0,.8);backdrop-filter:blur(10px);z-index:10000}
+.lb-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px 4px 40px;max-width:1200px;margin:0 auto}
+.lb-grid img{width:100%;display:block;cursor:pointer;border-radius:2px}
+.lb-grid img.lb-full{position:fixed;inset:0;max-width:95vw;max-height:95vh;margin:auto;z-index:10002;border-radius:6px;object-fit:contain;cursor:zoom-out}
 
 body{overflow:hidden;height:100vh}
 #cf-drop{display:none}
@@ -283,15 +279,10 @@ select.btn{appearance:auto}
 </div>
 
 <!-- Photo Lightbox -->
-<div class="lb-overlay" id="photoLightbox" onclick="if(event.target===this)closeLightbox()">
+<div class="lb-overlay" id="photoLightbox">
   <button class="lb-close" onclick="closeLightbox()">✕</button>
-  <div class="lb-img-wrap">
-    <button class="lb-nav lb-prev" onclick="navLightbox(-1)">‹</button>
-    <img class="lb-img" id="lbImg" src="" alt="">
-    <button class="lb-nav lb-next" onclick="navLightbox(1)">›</button>
-  </div>
-  <div class="lb-counter" id="lbCounter"></div>
   <div class="lb-addr" id="lbAddr"></div>
+  <div class="lb-grid" id="lbGrid"></div>
 </div>
 
 <script>
@@ -307,14 +298,34 @@ const photoCountCache={};
 function getThumbUrl(mls){return `${PHOTO_BASE}/${mls}/${mls}_01.jpg`;}
 
 // Lightbox state
-let lbMls='',lbAddr='',lbIdx=0,lbTotal=0;
+let lbMls='';
 
-function openLightbox(mls,addr,startIdx){
-  lbMls=mls;lbAddr=addr;lbIdx=startIdx||0;
-  // We need to figure out total count — try loading sequentially
-  // For now start at the clicked image and let nav handle bounds
-  if(photoCountCache[mls]){lbTotal=photoCountCache[mls];}else{lbTotal=40;}// assume max, will adjust
-  showLbImage();
+function openLightbox(mls,addr){
+  lbMls=mls;
+  document.getElementById('lbAddr').textContent=addr;
+  const grid=document.getElementById('lbGrid');
+  grid.innerHTML='';
+  // Load photos sequentially until one fails
+  let i=1;
+  function loadNext(){
+    const num=String(i).padStart(2,'0');
+    const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
+    const img=new Image();
+    img.onload=function(){
+      const el=document.createElement('img');
+      el.src=url;
+      el.onclick=function(){
+        if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
+        else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
+      };
+      grid.appendChild(el);
+      i++;
+      loadNext();
+    };
+    img.onerror=function(){/* no more photos */};
+    img.src=url;
+  }
+  loadNext();
   document.getElementById('photoLightbox').classList.add('open');
   document.addEventListener('keydown',lbKeyHandler);
 }
@@ -323,32 +334,11 @@ function closeLightbox(){
   document.removeEventListener('keydown',lbKeyHandler);
 }
 function lbKeyHandler(e){
-  if(e.key==='Escape')closeLightbox();
-  else if(e.key==='ArrowLeft')navLightbox(-1);
-  else if(e.key==='ArrowRight')navLightbox(1);
-}
-function navLightbox(dir){
-  lbIdx+=dir;
-  if(lbIdx<0)lbIdx=0;
-  showLbImage();
-}
-function showLbImage(){
-  const num=String(lbIdx+1).padStart(2,'0');
-  const url=`${PHOTO_BASE}/${lbMls}/${lbMls}_${num}.jpg`;
-  const img=document.getElementById('lbImg');
-  img.onerror=function(){
-    // If this image doesn't exist, we've reached the end
-    if(lbIdx>0){photoCountCache[lbMls]=lbIdx;lbTotal=lbIdx;lbIdx--;showLbImage();}
-    else{img.src='';document.getElementById('lbCounter').textContent='No photos found';}
-  };
-  img.onload=function(){
-    // If we loaded beyond known total, update total
-    if(lbIdx+1>lbTotal)lbTotal=lbIdx+1;
-    const knownTotal=photoCountCache[lbMls];
-    document.getElementById('lbCounter').textContent=knownTotal?`${lbIdx+1} / ${knownTotal}`:`${lbIdx+1}`;
-  };
-  img.src=url;
-  document.getElementById('lbAddr').textContent=lbAddr;
+  if(e.key==='Escape'){
+    const full=document.querySelector('.lb-grid img.lb-full');
+    if(full)full.classList.remove('lb-full');
+    else closeLightbox();
+  }
 }
 
 // ========== GEOCODING ==========
@@ -622,7 +612,7 @@ function render(){
     const thumbSrc=getThumbUrl(l.mls);
     const addrFull=l.address+', '+l.city+', CA '+l.zip;
     h+=`<div class="rw ${active===l.mls?'act':''}" onclick="opn('${l.mls}')"><div class="rm-p">
-      <div style="width:48px;height:36px;flex-shrink:0"><img class="rw-thumb" src="${thumbSrc}" alt="" data-mls="${l.mls}" data-addr="${addrFull.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();openLightbox(this.dataset.mls,this.dataset.addr,0)" onerror="this.style.display='none'"></div>
+      <div style="width:48px;height:36px;flex-shrink:0"><img class="rw-thumb" src="${thumbSrc}" alt="" data-mls="${l.mls}" data-addr="${addrFull.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();openLightbox(this.dataset.mls,this.dataset.addr)" onerror="this.style.display='none'"></div>
       <div><div class="at">${l.address} <a href="https://www.google.com/search?q=redfin+${encodeURIComponent(l.address+' '+l.city+' CA')}&btnI=1" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;vertical-align:middle"><img src="https://www.redfin.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a> <a href="https://www.zillow.com/homes/${encodeURIComponent(l.address+', '+l.city+', CA '+l.zip)}_rb/" target="_blank" onclick="event.stopPropagation()" style="vertical-align:middle"><img src="https://www.zillow.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div><div class="as">${l.beds}bd/${l.baths}ba · ${l.sqft.toLocaleString()} sf</div>${l.tags.map(tg).join('')}</div>
       <span style="color:var(--text-3);font-weight:600;font-size:12px">${(l.city||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}</span>
       <span class="tr" style="font-weight:600;font-size:12px">${FK(l.price)}</span>
