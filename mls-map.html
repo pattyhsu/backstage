@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MLS Map — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCxTeIuN4tLIrAApAf8t4fIQ3fCvIix0a8"></script>
+<style>
+body{overflow:hidden;height:100vh}
+
+/* Dropdowns */
+#cf-drop{display:none}
+#cf-drop.open{display:block}
+#cf-drop label,#tf-drop label{display:flex;align-items:center;gap:8px;padding:5px 12px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer}
+#cf-drop label:hover,#tf-drop label:hover{background:var(--bg-alt)}
+#tf-drop{display:none}
+#tf-drop.open{display:block}
+#sf-drop{display:none}
+#sf-drop.open{display:block}
+#sf-drop label{display:flex;align-items:center;gap:8px;padding:5px 12px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer}
+#sf-drop label:hover{background:var(--bg-alt)}
+
+/* === BACKSTAGE SHELL === */
+.login-wrap{height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg-page)}
+.login-box{width:360px;text-align:center}
+.login-brand{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:36px}
+.login-mark{width:32px;height:32px;border-radius:8px;background:var(--text);display:grid;place-items:center;font-weight:700;font-size:14px;color:#fff}
+.login-brand span{font-size:15px;font-weight:600;color:var(--text)}
+.login-title{font-size:24px;font-weight:600;color:var(--text);margin-bottom:6px;letter-spacing:-0.5px}
+.login-sub{font-size:14px;color:var(--text-4);margin-bottom:32px}
+.login-input{width:100%;padding:14px 18px;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:16px;text-align:center;letter-spacing:4px;outline:none}
+.login-input:focus{border-color:var(--text-3)}
+.login-input::placeholder{letter-spacing:1px;color:var(--text-4);font-size:13px}
+.login-btn{width:100%;margin-top:14px;padding:14px;background:var(--text);border:none;border-radius:var(--radius);color:#fff;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.login-btn:hover{opacity:.85}
+.login-error{margin-top:12px;font-size:13px;color:var(--red);height:18px}
+
+.app-shell{display:none;height:100vh}
+.app-shell.active{display:flex}
+
+.bs-sidebar{width:230px;background:var(--bg);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;transition:width .2s}
+.bs-sidebar.collapsed{width:56px}
+.bs-sidebar.collapsed .side-brand span,.bs-sidebar.collapsed .side-section-label,.bs-sidebar.collapsed .side-label,.bs-sidebar.collapsed .side-user-name,.bs-sidebar.collapsed .lock-btn{display:none}
+.bs-sidebar.collapsed .side-brand{justify-content:center;padding:20px 0 18px}
+.bs-sidebar.collapsed .side-item{justify-content:center;padding:10px 0;margin:0 8px 1px}
+.bs-sidebar.collapsed .side-section{padding:12px 0 0}
+.bs-sidebar.collapsed .side-footer{justify-content:center;padding:16px 0}
+.bs-sidebar.collapsed .side-user{justify-content:center}
+
+.side-brand{padding:20px 20px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.side-mark{width:26px;height:26px;border-radius:7px;background:var(--text);display:grid;place-items:center;font-weight:700;font-size:11px;color:#fff}
+.side-brand span{font-size:14px;font-weight:600;color:var(--text)}
+.side-section{padding:18px 14px 0}
+.side-section-label{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-4);padding:0 10px;margin-bottom:6px}
+.side-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius);cursor:pointer;transition:all .12s;margin-bottom:1px;text-decoration:none}
+.side-item:hover{background:var(--bg-page);text-decoration:none}
+.side-item.active{background:var(--bg-alt)}
+.side-item.active .side-icon svg{stroke:var(--text)}
+.side-item.active .side-label{color:var(--text);font-weight:600}
+.side-icon{width:18px;height:18px;display:grid;place-items:center}
+.side-icon svg{width:16px;height:16px;stroke:var(--text-4);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.side-label{font-size:13px;font-weight:500;color:var(--text-3)}
+.side-item.disabled{opacity:.35;pointer-events:none}
+.side-footer{margin-top:auto;padding:16px 20px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.side-user{display:flex;align-items:center;gap:9px}
+.side-avatar{width:26px;height:26px;border-radius:50%;background:var(--bg-alt);display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--text-3)}
+.side-user-name{font-size:13px;font-weight:500;color:var(--text-3)}
+.lock-btn{background:none;border:none;cursor:pointer;padding:4px;color:var(--text-4)}
+.lock-btn:hover{color:var(--text)}
+.collapse-btn{background:none;border:none;cursor:pointer;padding:6px 12px;color:var(--text-4);font-size:14px}
+.collapse-btn:hover{color:var(--text)}
+
+.main-content{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+
+/* Header */
+.hdr{position:sticky;top:0;z-index:200;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);height:52px;padding:0 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;color:var(--accent);letter-spacing:-.3px}
+.hdr-meta{font-size:12px;font-weight:500;color:var(--text-3);margin-left:12px;border-left:1px solid var(--border);padding-left:10px}
+.hl,.hr{display:flex;align-items:center;gap:6px}
+
+/* Map */
+#map{flex:1;width:100%}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="loginScreen">
+  <div class="login-box">
+    <div class="login-brand"><div class="login-mark">D</div><span>Dotty Homes</span></div>
+    <div class="login-title">Welcome back</div>
+    <div class="login-sub">Enter your passcode to continue</div>
+    <input type="password" class="login-input" id="pwInput" placeholder="Enter passcode" autocomplete="off" autofocus>
+    <button class="login-btn" onclick="bsLogin()">Continue</button>
+    <div class="login-error" id="pwError"></div>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div class="app-shell" id="appShell">
+
+<!-- Sidebar -->
+<div class="bs-sidebar" id="bsSidebar">
+  <div class="side-brand"><div class="side-mark">D</div><span>Backstage</span></div>
+  <div class="side-section">
+    <div class="side-section-label">Acquisitions</div>
+    <a class="side-item" href="mls-deals.html">
+      <div class="side-icon"><svg viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg></div>
+      <span class="side-label">MLS Deals</span>
+    </a>
+    <a class="side-item active" href="mls-map.html">
+      <div class="side-icon"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+      <span class="side-label">MLS Map</span>
+    </a>
+    <a class="side-item" href="flip-analyzer.html">
+      <div class="side-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></div>
+      <span class="side-label">FlipAnalyzer</span>
+    </a>
+  </div>
+  <div class="side-section">
+    <div class="side-section-label">Data</div>
+    <a class="side-item" href="comps-db.html">
+      <div class="side-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
+      <span class="side-label">Comps DB</span>
+    </a>
+    <a class="side-item" href="import.html">
+      <div class="side-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+      <span class="side-label">Import Hub</span>
+    </a>
+  </div>
+  <div class="side-section">
+    <div class="side-section-label">Coming soon</div>
+    <div class="side-item disabled"><div class="side-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg></div><span class="side-label">Portfolio</span></div>
+    <div class="side-item disabled"><div class="side-icon"><svg viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/><circle cx="12" cy="6" r="2"/></svg></div><span class="side-label">Lead Scoring</span></div>
+  </div>
+  <div class="side-footer">
+    <div class="side-user"><div class="side-avatar">P</div><span class="side-user-name">Patty</span></div>
+    <button class="collapse-btn" onclick="document.getElementById('bsSidebar').classList.toggle('collapsed')" title="Collapse">◀</button>
+    <button class="lock-btn" onclick="sessionStorage.removeItem('backstage_auth');location.reload()" title="Lock">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- Main content -->
+<div class="main-content">
+
+<div class="hdr">
+  <div class="hl">
+    <div class="logo">MLS Map</div>
+    <div style="position:relative;display:inline-block" id="cf-wrap">
+      <button class="btn" id="cf-btn" onclick="document.getElementById('cf-drop').classList.toggle('open')" style="min-width:140px;text-align:left">All Cities ▾</button>
+      <div id="cf-drop" style="position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:200px;max-height:320px;overflow-y:auto;padding:4px 0">
+        <div style="padding:4px 10px;border-bottom:1px solid var(--border);display:flex;gap:6px">
+          <button onclick="cfSelectAll()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">All</button>
+          <button onclick="cfSelectNone()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">None</button>
+        </div>
+        <div id="cf-list"></div>
+      </div>
+    </div>
+    <div style="position:relative;display:inline-block" id="tf-wrap">
+      <button class="btn" id="tf-btn" onclick="document.getElementById('tf-drop').classList.toggle('open')" style="min-width:120px;text-align:left">All Tags ▾</button>
+      <div id="tf-drop" style="position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:220px;padding:4px 0">
+        <div style="padding:4px 10px;border-bottom:1px solid var(--border);display:flex;gap:6px">
+          <button onclick="tfSelectAll()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">All</button>
+          <button onclick="tfSelectNone()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">None</button>
+        </div>
+        <label><input type="checkbox" value="TLC / Fixer" onchange="toggleTagFilter(this.value)">TLC / Fixer</label>
+        <label><input type="checkbox" value="Estate / Trust" onchange="toggleTagFilter(this.value)">Estate / Trust</label>
+        <label><input type="checkbox" value="Investor / Flip" onchange="toggleTagFilter(this.value)">Investor / Flip</label>
+        <label><input type="checkbox" value="First time on market" onchange="toggleTagFilter(this.value)">First time on market</label>
+        <label><input type="checkbox" value="Price reduced" onchange="toggleTagFilter(this.value)">Price reduced</label>
+        <label><input type="checkbox" value="Already flipped" onchange="toggleTagFilter(this.value)">Already flipped</label>
+      </div>
+    </div>
+    <div style="position:relative;display:inline-block" id="sf-wrap">
+      <button class="btn" id="sf-btn" onclick="document.getElementById('sf-drop').classList.toggle('open')" style="min-width:120px;text-align:left">All Stages ▾</button>
+      <div id="sf-drop" style="position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:200px;padding:4px 0">
+        <div style="padding:4px 10px;border-bottom:1px solid var(--border);display:flex;gap:6px">
+          <button onclick="sfSelectAll()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">All</button>
+          <button onclick="sfSelectNone()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">None</button>
+        </div>
+        <label><input type="checkbox" value="unread" onchange="toggleStageFilter(this.value)" checked>Unread</label>
+        <label><input type="checkbox" value="contacted" onchange="toggleStageFilter(this.value)">Contacted</label>
+        <label><input type="checkbox" value="potential" onchange="toggleStageFilter(this.value)">Potential</label>
+        <label><input type="checkbox" value="unsold_flip" onchange="toggleStageFilter(this.value)">Unsold Flips</label>
+        <label><input type="checkbox" value="off_market_lead" onchange="toggleStageFilter(this.value)">Off-Market</label>
+      </div>
+    </div>
+    <div class="hdr-meta"><span id="tc">0</span> on map</div>
+  </div>
+  <div class="hr">
+    <span id="db-status" style="font-size:10px;color:var(--text-4)"></span>
+  </div>
+</div>
+
+<div id="map"></div>
+
+</div><!-- /main-content -->
+
+<script>
+// ========== SUPABASE ==========
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+// ========== STATE ==========
+let listings=[], map=null, markers=[], infoWindow=null;
+let cityFilters=new Set(), tagFilters=new Set(), stageFilters=new Set(['unread']);
+
+const FK=n=>n>=1e6?'$'+(n/1e6).toFixed(2)+'M':'$'+Math.round(n/1e3)+'K';
+const toTitle=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+
+// ========== TAG COLORS ==========
+const TAG_COLORS={
+  'TLC / Fixer':'#D97706',
+  'Estate / Trust':'#7C3AED',
+  'Investor / Flip':'#2563EB',
+  'First time on market':'#059669',
+  'Price reduced':'#DC2626',
+  'Already flipped':'#92400E'
+};
+
+function getMarkerColor(l){
+  if(l.tags.length===0)return '#3074a8';
+  return TAG_COLORS[l.tags[0]]||'#3074a8';
+}
+
+// ========== CITY FILTER ==========
+function toggleCityFilter(city){if(cityFilters.has(city))cityFilters.delete(city);else cityFilters.add(city);updateCityBtn();renderMarkers();}
+function cfSelectAll(){document.querySelectorAll('#cf-list input[type=checkbox]').forEach(cb=>{cb.checked=true;cityFilters.add(cb.value);});updateCityBtn();renderMarkers();}
+function cfSelectNone(){cityFilters.clear();document.querySelectorAll('#cf-list input[type=checkbox]').forEach(cb=>cb.checked=false);updateCityBtn();renderMarkers();}
+function updateCityBtn(){const btn=document.getElementById('cf-btn');if(!cityFilters.size)btn.textContent='All Cities ▾';else if(cityFilters.size===1)btn.textContent=[...cityFilters][0]+' ▾';else btn.textContent=cityFilters.size+' Cities ▾';}
+
+// ========== TAG FILTER ==========
+function toggleTagFilter(tag){if(tagFilters.has(tag))tagFilters.delete(tag);else tagFilters.add(tag);updateTagBtn();renderMarkers();}
+function tfSelectAll(){document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>{cb.checked=true;tagFilters.add(cb.value);});updateTagBtn();renderMarkers();}
+function tfSelectNone(){tagFilters.clear();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);updateTagBtn();renderMarkers();}
+function updateTagBtn(){const btn=document.getElementById('tf-btn');if(!tagFilters.size)btn.textContent='All Tags ▾';else if(tagFilters.size===1)btn.textContent=[...tagFilters][0]+' ▾';else btn.textContent=tagFilters.size+' Tags ▾';}
+
+// ========== STAGE FILTER ==========
+function toggleStageFilter(stage){if(stageFilters.has(stage))stageFilters.delete(stage);else stageFilters.add(stage);updateStageBtn();loadListings();}
+function sfSelectAll(){document.querySelectorAll('#sf-drop input[type=checkbox]').forEach(cb=>{cb.checked=true;stageFilters.add(cb.value);});updateStageBtn();loadListings();}
+function sfSelectNone(){stageFilters.clear();document.querySelectorAll('#sf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);updateStageBtn();loadListings();}
+function updateStageBtn(){const btn=document.getElementById('sf-btn');if(!stageFilters.size)btn.textContent='All Stages ▾';else if(stageFilters.size===1){const m={'unread':'Unread','contacted':'Contacted','potential':'Potential','unsold_flip':'Unsold Flips','off_market_lead':'Off-Market'};btn.textContent=(m[[...stageFilters][0]]||[...stageFilters][0])+' ▾';}else btn.textContent=stageFilters.size+' Stages ▾';}
+
+// ========== CLOSE DROPDOWNS ==========
+document.addEventListener('click',e=>{
+  ['cf','tf','sf'].forEach(p=>{const w=document.getElementById(p+'-wrap'),d=document.getElementById(p+'-drop');if(w&&d&&!w.contains(e.target))d.classList.remove('open');});
+});
+
+// ========== FILTER LISTINGS ==========
+function getFiltered(){
+  let d=[...listings];
+  if(cityFilters.size)d=d.filter(l=>cityFilters.has(toTitle((l.city||'').trim())));
+  if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));
+  return d.filter(l=>l.latitude&&l.longitude);
+}
+
+// ========== MAP ==========
+function initMap(){
+  map=new google.maps.Map(document.getElementById('map'),{
+    zoom:10,
+    center:{lat:33.92,lng:-118.05},
+    mapTypeControl:true,
+    streetViewControl:false,
+    fullscreenControl:true,
+    styles:[{featureType:'poi',stylers:[{visibility:'off'}]}]
+  });
+  infoWindow=new google.maps.InfoWindow();
+}
+
+function renderMarkers(){
+  // Clear existing
+  markers.forEach(m=>m.setMap(null));
+  markers=[];
+
+  const filtered=getFiltered();
+  document.getElementById('tc').textContent=filtered.length;
+
+  const bounds=new google.maps.LatLngBounds();
+
+  filtered.forEach(l=>{
+    const color=getMarkerColor(l);
+    const marker=new google.maps.Marker({
+      position:{lat:l.latitude,lng:l.longitude},
+      map,
+      icon:{
+        path:google.maps.SymbolPath.CIRCLE,
+        scale:8,
+        fillColor:color,
+        fillOpacity:0.9,
+        strokeColor:'#fff',
+        strokeWeight:1.5
+      },
+      title:l.address+', '+l.city
+    });
+
+    marker.addListener('click',()=>{
+      const tags=l.tags.length?'<div style="margin-top:4px">'+l.tags.map(t=>{
+        const c=TAG_COLORS[t]||'#888';
+        return '<span style="display:inline-block;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;background:'+c+'22;color:'+c+';margin-right:3px">★ '+t+'</span>';
+      }).join('')+'</div>':'';
+
+      const schools=[];
+      if(l.elem)schools.push('E'+l.elem.r+' '+l.elem.n);
+      if(l.mid)schools.push('M'+l.mid.r+' '+l.mid.n);
+      if(l.high)schools.push('H'+l.high.r+' '+l.high.n);
+      const schoolHtml=schools.length?'<div style="font-size:10px;color:#666;margin-top:4px">'+schools.join(' · ')+'</div>':'';
+
+      infoWindow.setContent(
+        '<div style="font-family:DM Sans,sans-serif;min-width:220px;padding:2px">'+
+        '<div style="font-weight:700;font-size:13px">'+l.address+'</div>'+
+        '<div style="font-size:11px;color:#666;margin-top:2px">'+l.city+', CA '+l.zip+'</div>'+
+        '<div style="font-size:15px;font-weight:800;color:#1a1a1a;margin-top:6px">'+FK(l.price)+'<span style="font-size:11px;font-weight:500;color:#888;margin-left:6px">$'+Math.round(l.ppsf)+'/sf</span></div>'+
+        '<div style="font-size:11px;color:#666;margin-top:2px">'+l.beds+'bd/'+l.baths+'ba · '+l.sqft.toLocaleString()+' sf · Lot '+(l.lot||'—')+'</div>'+
+        '<div style="font-size:11px;color:#666">Status: '+(l.changeType||'—').replace(/\b\w/g,c=>c.toUpperCase())+' · DOM: '+l.dom+'</div>'+
+        schoolHtml+tags+
+        '<div style="margin-top:8px;display:flex;gap:6px">'+
+        '<a href="mls-deals.html" style="font-size:11px;color:#c0784a;font-weight:600;text-decoration:none">Open in Deals →</a>'+
+        '<a href="https://www.redfin.com/search#q='+encodeURIComponent(l.address+' '+l.city+' CA')+'" target="_blank" style="font-size:11px;color:#888;text-decoration:none">Redfin</a>'+
+        '<a href="https://www.zillow.com/homes/'+encodeURIComponent(l.address+', '+l.city+', CA')+'_rb/" target="_blank" style="font-size:11px;color:#888;text-decoration:none">Zillow</a>'+
+        '</div></div>'
+      );
+      infoWindow.open(map,marker);
+    });
+
+    bounds.extend({lat:l.latitude,lng:l.longitude});
+    markers.push(marker);
+  });
+
+  if(filtered.length>1)map.fitBounds(bounds,50);
+  else if(filtered.length===1)map.setCenter({lat:filtered[0].latitude,lng:filtered[0].longitude});
+}
+
+// ========== LOAD LISTINGS ==========
+async function loadListings(){
+  let query=sb.from('properties').select('address,city,zip,list_price,ppsf,sqft,beds,baths,lot_size,year_built,mls,list_date,pool,sale_type,remarks,stage,change_type,latitude,longitude,elementary_school,elementary_rating,middle_school,middle_rating,high_school,high_rating,notes')
+    .not('mls','is',null).neq('change_type','sold').not('latitude','is',null).limit(1000);
+
+  if(stageFilters.size){
+    const stages=[...stageFilters];
+    if(stages.length===1)query=query.eq('stage',stages[0]);
+    else query=query.in('stage',stages);
+  }
+
+  try{
+    const{data,error}=await query;
+    if(error)throw error;
+    listings=(data||[]).map(r=>{
+      const rmk=((r.remarks||'')+' '+(r.sale_type||'')).toLowerCase();const tags=[];
+      if(/first time on the market|first time on market|first time in \d+ year/.test(rmk))tags.push('First time on market');
+      if(/\btlc\b|\bfixer\b|\bhandyman\b|\bhandy.?man special\b/.test(rmk))tags.push('TLC / Fixer');
+      if(/\btrust sale\b|\bprobate\b|\bestate sale\b|, trust\b/.test(rmk)||/trust/i.test(r.sale_type||''))tags.push('Estate / Trust');
+      if(/\binvestor special\b|\bgreat for investors\b|\bflip\b|\bwholesale\b/.test(rmk))tags.push('Investor / Flip');
+      if(/\bprice reduced\b|\breduced price\b|\bmotivated seller\b/.test(rmk))tags.push('Price reduced');
+      if(/\bfully remodeled\b|\bcompletely remodeled\b|\btotally remodeled\b|\bnewly remodeled\b|\bfully renovated\b|\bcompletely renovated\b|\bnewly renovated\b/.test(rmk))tags.push('Already flipped');
+      const dom_val=(()=>{if(!r.list_date)return 0;try{const s=r.list_date.replace(/\//g,'-');const p=s.split('-');if(p.length===3){const dt=p[0].length===4?new Date(s):p[2].length===4?new Date(p[2]+'-'+p[0]+'-'+p[1]):new Date(s);if(isNaN(dt))return 0;return Math.max(1,Math.round((new Date()-dt)/864e5));}return 0;}catch(e){return 0;}})();
+      return{
+        address:r.address||'',city:r.city||'',zip:r.zip||'',price:r.list_price||0,ppsf:r.ppsf||0,
+        sqft:r.sqft||0,beds:r.beds||0,baths:parseFloat(r.baths)||0,lot:r.lot_size||'',
+        built:r.year_built||'',mls:r.mls||'',pool:r.pool||'',
+        changeType:r.change_type||'',tags,status:r.stage||'unread',
+        latitude:r.latitude,longitude:r.longitude,dom:dom_val,
+        elem:r.elementary_rating||r.elementary_school?{r:r.elementary_rating||0,n:r.elementary_school||''}:null,
+        mid:r.middle_rating||r.middle_school?{r:r.middle_rating||0,n:r.middle_school||''}:null,
+        high:r.high_rating||r.high_school?{r:r.high_rating||0,n:r.high_school||''}:null
+      };
+    });
+
+    // Populate city filter
+    const cities=[...new Set(listings.map(l=>toTitle((l.city||'').trim())).filter(Boolean))].sort();
+    document.getElementById('cf-list').innerHTML=cities.map(c=>
+      `<label><input type="checkbox" value="${c}" ${cityFilters.has(c)?'checked':''} onchange="toggleCityFilter('${c.replace(/'/g,"\\'")}')">${c}</label>`
+    ).join('');
+    updateCityBtn();
+
+    renderMarkers();
+  }catch(e){console.error('Failed to load:',e);}
+}
+
+// ========== INIT ==========
+(async()=>{
+  try{const{error}=await sb.from('properties').select('id').limit(1);document.getElementById('db-status').innerHTML=error?'<span style="color:var(--red)">●</span>':'<span style="color:var(--green)">●</span>';}
+  catch(e){document.getElementById('db-status').innerHTML='<span style="color:var(--red)">●</span>';}
+  initMap();
+  loadListings();
+})();
+
+// === BACKSTAGE AUTH ===
+const BS_HASH='c6f13722e2ec174320e4936445dbd16dbaced57f8df8794b83429293cf64e00d';
+async function bsSha(s){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}catch(e){return null;}}
+async function bsLogin(){const pw=document.getElementById('pwInput').value;const h=await bsSha(pw);const ok=h?(h===BS_HASH):(pw==='103191');if(ok){sessionStorage.setItem('backstage_auth','1');bsShow();}else{document.getElementById('pwError').textContent='Incorrect passcode';document.getElementById('pwInput').value='';setTimeout(()=>document.getElementById('pwError').textContent='',2000);}}
+document.getElementById('pwInput').addEventListener('keydown',e=>{if(e.key==='Enter')bsLogin();});
+function bsShow(){document.getElementById('loginScreen').style.display='none';document.getElementById('appShell').classList.add('active');}
+if(sessionStorage.getItem('backstage_auth')==='1')bsShow();
+</script>
+</div><!-- /main-content -->
+</div><!-- /app-shell -->
+</body>
+</html>
