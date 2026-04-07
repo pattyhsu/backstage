@@ -175,7 +175,7 @@ html, body { height: 100vh; overflow: hidden; }
 <div class="panel" id="panel-geocode">
   <div class="section">
     <h3>Batch Geocode</h3>
-    <p style="font-size:13px;color:var(--text-3);margin-bottom:16px">Geocode all properties missing lat/lng using Nominatim (OpenStreetMap).</p>
+    <p style="font-size:13px;color:var(--text-3);margin-bottom:16px">Three-pass pipeline: Census (free, ~95% hit rate) → Google Maps (paid, fills the gaps) → manual queue. All results bounds-checked against SoCal.</p>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
       <div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center"><div style="font-size:9px;color:var(--text-4);text-transform:uppercase;letter-spacing:.5px">Total</div><div style="font-family:var(--mono);font-size:18px;font-weight:700" id="geoTotal">0</div></div>
       <div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center"><div style="font-size:9px;color:var(--text-4);text-transform:uppercase;letter-spacing:.5px">Geocoded</div><div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--green)" id="geoDone">0</div></div>
@@ -537,7 +537,17 @@ function renderHistory(){
   el.innerHTML=importHistory.map(function(h,i){var d=new Date(h.date);return'<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--bg-alt);font-size:12px"><span style="font-family:var(--mono);color:var(--text-3);min-width:130px">'+d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</span><span style="flex:1">'+h.file+'</span><span style="color:var(--green)">+'+(h.newRows||0)+'</span><span style="color:var(--text-3)">↻'+(h.updated||0)+'</span>'+(h.sold?'<span style="color:var(--accent)">sold:'+h.sold+'</span>':'')+'<button style="background:none;border:none;color:var(--text-4);cursor:pointer" onclick="importHistory.splice('+i+',1);localStorage.setItem(\'dh_import_hist\',JSON.stringify(importHistory));renderHistory()">×</button></div>';}).join('');
 }
 
-// ═══ GEOCODING (Nominatim) ═══
+// ═══ GEOCODING PIPELINE ═══
+// Pass 1: US Census (free, accurate for ~95% of US residential addresses)
+// Pass 2: Google Maps Geocoding API (paid, ~$5/1000 — only called for Census misses)
+// Pass 3: Manual queue (loadUngeocoded UI below)
+// All results bounds-checked against SoCal to reject foreign-country false positives.
+const GOOGLE_GEO_KEY='AIzaSyCxTeIuN4tLIrAApAf8t4fIQ3fCvIix0a8';
+// SoCal bounds — generous enough to include Ventura, Santa Barbara, and Riverside/SB inland
+const SOCAL_BOUNDS={latMin:32.5,latMax:35.5,lngMin:-120.0,lngMax:-116.5};
+function inSoCal(lat,lng){return lat>=SOCAL_BOUNDS.latMin&&lat<=SOCAL_BOUNDS.latMax&&lng>=SOCAL_BOUNDS.lngMin&&lng<=SOCAL_BOUNDS.lngMax;}
+function fmtAddr(r){return(r.address||'').replace(/\s+/g,' ').trim()+', '+(r.city||'')+', CA'+(r.zip?' '+r.zip:'');}
+
 var geocodingActive=false;
 async function updateGeoStats(){
   var{count:total}=await sb.from(TABLE).select('*',{count:'exact',head:true}).not('address','is',null);
@@ -546,82 +556,134 @@ async function updateGeoStats(){
   document.getElementById('geoTotal').textContent=total||0;
   document.getElementById('geoDone').textContent=done||0;
   document.getElementById('geoRemaining').textContent=remaining;
-  var eta=Math.ceil(remaining*1.1);
+  // Census is fast — ~5/sec parallel — so estimate is much lower than the old 1.1s/addr Nominatim rate
+  var eta=Math.ceil(remaining*0.25);
   document.getElementById('geoEta').textContent=remaining>0?(eta>=60?Math.ceil(eta/60)+'m':eta+'s'):'✓';
   document.getElementById('geoBar').style.width=total>0?((done/total)*100)+'%':'0%';
 }
+
+// ─── PASS 1: Census ───
+async function geocodeCensus(r){
+  var addr=fmtAddr(r);
+  var url='https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address='+encodeURIComponent(addr)+'&benchmark=Public_AR_Current&format=json';
+  try{
+    var resp=await fetch(url);
+    if(!resp.ok)return null;
+    var d=await resp.json();
+    var matches=d&&d.result&&d.result.addressMatches;
+    if(!matches||!matches.length)return null;
+    var c=matches[0].coordinates;
+    if(!c||c.x==null||c.y==null)return null;
+    var lat=c.y,lng=c.x;
+    if(!inSoCal(lat,lng))return null; // reject anything outside SoCal
+    return{lat:lat,lng:lng};
+  }catch(e){return null;}
+}
+
+// ─── PASS 2: Google ───
+// Bias toward SoCal via the bounds parameter, then accept only ROOFTOP or RANGE_INTERPOLATED.
+// GEOMETRIC_CENTER and APPROXIMATE mean Google fell back to a city/zip centroid — not what we want.
+async function geocodeGoogle(r){
+  var addr=fmtAddr(r);
+  var bounds=SOCAL_BOUNDS.latMin+','+SOCAL_BOUNDS.lngMin+'|'+SOCAL_BOUNDS.latMax+','+SOCAL_BOUNDS.lngMax;
+  var url='https://maps.googleapis.com/maps/api/geocode/json?address='+encodeURIComponent(addr)+'&bounds='+encodeURIComponent(bounds)+'&key='+GOOGLE_GEO_KEY;
+  try{
+    var resp=await fetch(url);
+    if(!resp.ok)return null;
+    var d=await resp.json();
+    if(d.status!=='OK'||!d.results||!d.results.length)return null;
+    var res=d.results[0];
+    var lt=res.geometry&&res.geometry.location_type;
+    if(lt!=='ROOFTOP'&&lt!=='RANGE_INTERPOLATED')return null;
+    var loc=res.geometry.location;
+    if(!loc||loc.lat==null||loc.lng==null)return null;
+    if(!inSoCal(loc.lat,loc.lng))return null;
+    return{lat:loc.lat,lng:loc.lng,quality:lt};
+  }catch(e){return null;}
+}
+
+// Run a pass with limited concurrency. workerFn is async (row) => {lat,lng}|null
+async function runPass(rows,workerFn,concurrency,onProgress){
+  var i=0,results=[];
+  async function worker(){
+    while(i<rows.length&&geocodingActive){
+      var idx=i++;
+      var r=rows[idx];
+      var hit=await workerFn(r);
+      results[idx]={row:r,hit:hit};
+      if(onProgress)onProgress(results.filter(Boolean).length);
+    }
+  }
+  var workers=[];
+  for(var w=0;w<concurrency;w++)workers.push(worker());
+  await Promise.all(workers);
+  return results;
+}
+
 async function startGeocoding(){
   geocodingActive=true;
   document.getElementById('geoStartBtn').style.display='none';
   document.getElementById('geoStopBtn').style.display='';
-  var log=document.getElementById('geoLog');log.style.display='block';
+  var log=document.getElementById('geoLog');log.style.display='block';log.textContent='';
   var allRows=[];
   for(var p=0;p<20;p++){
     var res=await sb.from(TABLE).select('id,address,city,zip').is('latitude',null).not('address','is',null).range(p*1000,(p+1)*1000-1);
     if(!res.data||!res.data.length)break;allRows=allRows.concat(res.data);
   }
   if(!allRows.length){log.textContent+='All properties are geocoded!\n';stopGeocoding();return;}
-  
-  // ═══ PASS 1: Nominatim ═══
-  log.textContent+='══ Pass 1: Nominatim ('+allRows.length+' addresses) ══\n';
-  var found=0,failedRows=[];
-  for(var i=0;i<allRows.length;i++){
+
+  // ═══ PASS 1: CENSUS ═══
+  log.textContent+='══ Pass 1: US Census ('+allRows.length+' addresses) ══\n';
+  var pass1Found=0,pass1Failed=[];
+  var pass1Results=await runPass(allRows,geocodeCensus,5,function(done){
+    document.getElementById('geoBar').style.width=(done/allRows.length*50).toFixed(1)+'%';
+    document.getElementById('geoRemaining').textContent=(allRows.length-done);
+  });
+  // Write successful Census hits in batches
+  var pass1Updates=pass1Results.filter(function(x){return x&&x.hit;});
+  pass1Failed=pass1Results.filter(function(x){return x&&!x.hit;}).map(function(x){return x.row;});
+  for(var u=0;u<pass1Updates.length;u++){
     if(!geocodingActive)break;
-    var r=allRows[i];
-    var addr=(r.address||'').replace(/\s+/g,' ').trim()+', '+(r.city||'')+', CA'+(r.zip?' '+r.zip:'');
-    var success=false;
-    try{
-      var resp=await fetch('https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&limit=1&q='+encodeURIComponent(addr),{headers:{'User-Agent':'DottyHomes-Backstage'}});
-      var d=await resp.json();
-      if(d&&d.length&&d[0].lat&&d[0].lon){
-        var lat=parseFloat(d[0].lat),lon=parseFloat(d[0].lon);
-        await sb.from(TABLE).update({latitude:lat,longitude:lon}).eq('id',r.id);
-        log.textContent+='✓ '+r.address+' → '+lat.toFixed(4)+', '+lon.toFixed(4)+'\n';
-        found++;success=true;
-      }
-    }catch(e){if(i===0)log.textContent+='⚠ Nominatim error: '+e.message+'\n';}
-    if(!success)failedRows.push(r);
-    log.scrollTop=log.scrollHeight;
-    document.getElementById('geoBar').style.width=((i+1)/allRows.length*100).toFixed(1)+'%';
-    document.getElementById('geoRemaining').textContent=(allRows.length-i-1);
-    await new Promise(function(x){setTimeout(x,1100);});
+    var x=pass1Updates[u];
+    await sb.from(TABLE).update({latitude:x.hit.lat,longitude:x.hit.lng}).eq('id',x.row.id);
+    pass1Found++;
+    if(u%20===0){log.textContent+='✓ '+x.row.address+' → '+x.hit.lat.toFixed(4)+', '+x.hit.lng.toFixed(4)+' (Census)\n';log.scrollTop=log.scrollHeight;}
   }
-  log.textContent+='\n━━━ Pass 1 done: '+found+' geocoded · '+failedRows.length+' failed ━━━\n\n';
-  
-  // ═══ PASS 2: Photon (Komoot) fallback ═══
-  if(failedRows.length&&geocodingActive){
-    log.textContent+='══ Pass 2: Photon fallback ('+failedRows.length+' remaining) ══\n';
-    var found2=0,failed2=0;
-    for(var j=0;j<failedRows.length;j++){
-      if(!geocodingActive)break;
-      var r2=failedRows[j];
-      var addr2=(r2.address||'').replace(/\s+/g,' ').trim()+', '+(r2.city||'')+', CA'+(r2.zip?' '+r2.zip:'');
-      var success2=false;
-      try{
-        var resp2=await fetch('https://photon.komoot.io/api/?q='+encodeURIComponent(addr2)+'&limit=1&lat=33.9&lon=-118.1');
-        var d2=await resp2.json();
-        if(d2&&d2.features&&d2.features.length){
-          var coords=d2.features[0].geometry.coordinates;
-          var lat2=coords[1],lon2=coords[0];
-          // Sanity check: should be in SoCal area (roughly)
-          if(lat2>32&&lat2<35&&lon2>-119&&lon2<-117){
-            await sb.from(TABLE).update({latitude:lat2,longitude:lon2}).eq('id',r2.id);
-            log.textContent+='✓ '+r2.address+' → '+lat2.toFixed(4)+', '+lon2.toFixed(4)+' (Photon)\n';
-            found2++;success2=true;
-          }
-        }
-      }catch(e){if(j===0)log.textContent+='⚠ Photon error: '+e.message+'\n';}
-      if(!success2){failed2++;log.textContent+='✗ '+r2.address+' — not found\n';}
-      log.scrollTop=log.scrollHeight;
-      document.getElementById('geoRemaining').textContent=(failedRows.length-j-1);
-      // Photon has no official rate limit but be polite — 500ms between requests
-      await new Promise(function(x){setTimeout(x,500);});
+  log.textContent+='\n━━━ Pass 1 done: '+pass1Found+' geocoded · '+pass1Failed.length+' failed ━━━\n\n';
+
+  // ═══ PASS 2: GOOGLE ═══
+  if(pass1Failed.length&&geocodingActive){
+    var costEst=(pass1Failed.length*5/1000).toFixed(2);
+    var ok=confirm('Pass 1 (Census) found '+pass1Found+' / '+allRows.length+'.\n\nPass 2 will use Google Maps Geocoding API for '+pass1Failed.length+' remaining addresses.\nEstimated cost: ~$'+costEst+' (at $5/1000 requests).\n\nProceed with Pass 2?');
+    if(!ok){
+      log.textContent+='Pass 2 skipped by user. '+pass1Failed.length+' addresses left for manual entry.\n';
+      stopGeocoding();updateGeoStats();return;
     }
-    log.textContent+='\n━━━ Pass 2 done: '+found2+' geocoded · '+failed2+' still missing ━━━\n';
-    found+=found2;
+    log.textContent+='══ Pass 2: Google Maps ('+pass1Failed.length+' remaining) ══\n';
+    var pass2Found=0,pass2Failed=0;
+    var pass2Results=await runPass(pass1Failed,geocodeGoogle,5,function(done){
+      document.getElementById('geoBar').style.width=(50+done/pass1Failed.length*50).toFixed(1)+'%';
+      document.getElementById('geoRemaining').textContent=(pass1Failed.length-done);
+    });
+    var pass2Updates=pass2Results.filter(function(x){return x&&x.hit;});
+    for(var v=0;v<pass2Updates.length;v++){
+      if(!geocodingActive)break;
+      var y=pass2Updates[v];
+      await sb.from(TABLE).update({latitude:y.hit.lat,longitude:y.hit.lng}).eq('id',y.row.id);
+      pass2Found++;
+      if(v%20===0){log.textContent+='✓ '+y.row.address+' → '+y.hit.lat.toFixed(4)+', '+y.hit.lng.toFixed(4)+' (Google '+y.hit.quality+')\n';log.scrollTop=log.scrollHeight;}
+    }
+    pass2Failed=pass1Failed.length-pass2Found;
+    pass2Results.filter(function(x){return x&&!x.hit;}).slice(0,20).forEach(function(x){
+      log.textContent+='✗ '+x.row.address+' — not found by Google either\n';
+    });
+    log.textContent+='\n━━━ Pass 2 done: '+pass2Found+' geocoded · '+pass2Failed+' still missing ━━━\n';
   }
-  
-  log.textContent+='\n══ Total: '+found+' geocoded ══\n';
+
+  var grandTotal=pass1Found+(typeof pass2Found!=='undefined'?pass2Found:0);
+  log.textContent+='\n══ Total: '+grandTotal+' / '+allRows.length+' geocoded ══\n';
+  log.textContent+='Remaining addresses are available in the manual queue below.\n';
+  log.scrollTop=log.scrollHeight;
   stopGeocoding();updateGeoStats();
 }
 function stopGeocoding(){geocodingActive=false;document.getElementById('geoStartBtn').style.display='';document.getElementById('geoStopBtn').style.display='none';}
