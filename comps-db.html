@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Comps DB — Backstage</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCxTeIuN4tLIrAApAf8t4fIQ3fCvIix0a8&libraries=places"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCxTeIuN4tLIrAApAf8t4fIQ3fCvIix0a8&libraries=places&loading=async&v=weekly&callback=onMapsReady"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="backstage.css">
@@ -24,6 +24,15 @@
 
   /* Fix Google Places autocomplete dropdown z-index */
   .pac-container { z-index: 99999 !important; }
+
+  /* Photo lightbox (ported from mls-deals.html) */
+  .lb-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:10000;display:none;overflow-y:auto;padding:60px 20px 40px}
+  .lb-overlay.open{display:block}
+  .lb-close{position:fixed;top:16px;right:20px;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;z-index:10001}
+  .lb-addr{position:fixed;top:16px;left:50%;transform:translateX(-50%);color:#fff;font-size:14px;font-weight:600;z-index:10001;text-align:center}
+  .lb-grid{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:repeat(2,1fr);gap:4px}
+  .lb-grid img{width:100%;display:block;cursor:pointer;border-radius:2px}
+  .lb-grid img.lb-full{position:fixed;inset:0;max-width:95vw;max-height:95vh;margin:auto;z-index:10002;border-radius:6px;object-fit:contain;cursor:zoom-out}
 
   /* === BACKSTAGE SHELL === */
   html, body { height: 100vh; overflow: hidden; }
@@ -219,13 +228,112 @@
 
 <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(4px)"></div>
 
+<!-- Photo Lightbox -->
+<div class="lb-overlay" id="photoLightbox">
+  <button class="lb-close" onclick="closeLightbox()">✕</button>
+  <div class="lb-addr" id="lbAddr"></div>
+  <div class="lb-grid" id="lbGrid"></div>
+</div>
+
 <script>
 const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 let currentImportType='general',geocodingActive=false;
 
-async function init(){await updateStats();await populateDropdowns();setupTabs();setupDragDrop();await updateGeoStats();await loadImportHistory();initAutocomplete();}
+async function init(){await updateStats();await populateDropdowns();setupTabs();setupDragDrop();await updateGeoStats();await loadImportHistory();/* autocomplete inits via onMapsReady callback */}
+
+// ========== PHOTO LIGHTBOX (ported from mls-deals.html) ==========
+const PHOTO_BASE='https://photos.dottyhomes.com';
+const photoCountCache={};
+let lbMls='';
+
+async function fetchPhotoCount(mls){
+  if(photoCountCache[mls]!=null)return photoCountCache[mls];
+  try{
+    const res=await fetch(`${PHOTO_BASE}/${mls}/`);
+    if(!res.ok)return null;
+    const txt=await res.text();
+    const matches=txt.match(new RegExp(`${mls}_\\d+\\.jpg`,'gi'));
+    const uniq=matches?new Set(matches.map(s=>s.toLowerCase())):new Set();
+    const count=uniq.size;
+    photoCountCache[mls]=count;
+    return count;
+  }catch(e){return null;}
+}
+
+function openLightbox(mls,addr){
+  if(!mls){alert('No MLS number on this comp — cannot load photos.');return;}
+  lbMls=mls;
+  const myMls=mls;
+  const addrEl=document.getElementById('lbAddr');
+  addrEl.textContent=addr+' (loading…)';
+  const grid=document.getElementById('lbGrid');
+  grid.innerHTML='';
+  document.getElementById('photoLightbox').classList.add('open');
+  document.addEventListener('keydown',lbKeyHandler);
+  fetchPhotoCount(mls).then(total=>{
+    if(lbMls!==myMls)return;
+    if(total!=null){
+      addrEl.textContent=addr+(total===0?' (no photos)':' ('+total+(total===1?' photo':' photos')+')');
+    }
+    let i=1;
+    function loadNext(){
+      if(lbMls!==myMls)return;
+      if(total!=null&&i>total)return;
+      const num=String(i).padStart(2,'0');
+      const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
+      const img=new Image();
+      img.onload=function(){
+        if(lbMls!==myMls)return;
+        const el=document.createElement('img');
+        el.src=url;
+        el.onclick=function(){
+          if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
+          else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
+        };
+        grid.appendChild(el);
+        if(total==null)addrEl.textContent=addr+' ('+i+(i===1?' photo':' photos')+')';
+        i++;
+        loadNext();
+      };
+      img.onerror=function(){
+        if(lbMls!==myMls)return;
+        const count=i-1;
+        if(total==null){
+          photoCountCache[mls]=count;
+          if(count===0)addrEl.textContent=addr+' (no photos)';
+        }
+      };
+      img.src=url;
+    }
+    loadNext();
+  });
+}
+function closeLightbox(){
+  lbMls='';
+  document.getElementById('photoLightbox').classList.remove('open');
+  document.removeEventListener('keydown',lbKeyHandler);
+}
+function lbKeyHandler(e){
+  if(e.key==='Escape'){
+    const full=document.querySelector('.lb-grid img.lb-full');
+    if(full)full.classList.remove('lb-full');
+    else closeLightbox();
+  }
+}
+
+// Open photo lightbox for a comp by id (looks up MLS from the rendered row data)
+async function viewCompPhotos(id){
+  const{data:r}=await sb.from('properties').select('mls,address,city,zip').eq('id',id).single();
+  if(!r){alert('Comp not found');return;}
+  const fullAddr=(r.address||'')+', '+(r.city||'')+(r.zip?' '+r.zip:'');
+  openLightbox(r.mls,fullAddr);
+}
+
+// Called by Google Maps script via callback param. Guaranteed to run after places library is loaded.
+let _mapsReady=false;
+window.onMapsReady=function(){_mapsReady=true;try{initAutocomplete();}catch(e){console.error('[onMapsReady] initAutocomplete failed:',e);}};
 
 async function updateStats(){
   const{count:total}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold');
@@ -446,7 +554,7 @@ function renderResults(rows,cid,sid,showDist=false){
   let h='<div class="results-wrap"><table><thead><tr><th style="text-align:center"><input type="checkbox" checked onchange="toggleAllComps(this,\''+sid+'\')"></th><th>#</th><th>Address</th><th>City</th><th>BR/BA</th><th>SqFt</th><th>Sale Price</th><th>$/SqFt</th><th>Lot</th><th>Pool</th><th>Sold</th><th>DOM</th><th>Elementary</th><th>Middle</th><th>High School</th>';
   if(showDist)h+='<th>Dist</th>';h+='<th style="text-align:center">Actions</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{const fullAddr=(r.address||'')+', '+(r.city||'')+', CA';
-    h+=`<tr id="row-${r.id}" data-idx="${i}"><td style="text-align:center"><input type="checkbox" checked class="comp-check" data-idx="${i}" onchange="recalcSummary('${sid}')"></td><td style="font-weight:600;color:var(--accent);text-align:center">${i+1}</td><td style="white-space:nowrap;cursor:pointer" onclick="viewComp(${r.id})">${tb(r.comp_type)}<span style="border-bottom:1px dashed var(--text-4)">${r.address||''}</span> <a href="${zUrl(fullAddr)}" target="_blank" style="opacity:0.5;margin-left:2px" title="Zillow" onclick="event.stopPropagation()"><img src="https://www.zillow.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a><a href="${rUrl(fullAddr)}" target="_blank" style="opacity:0.5;margin-left:2px" title="Redfin" onclick="event.stopPropagation()"><img src="https://www.redfin.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a></td><td>${r.city||''}</td><td>${r.beds||''}/${r.baths||''}</td><td>${r.sqft?r.sqft.toLocaleString():'—'}</td><td class="price">${r.sale_price?'$'+r.sale_price.toLocaleString():'—'}</td><td class="ppsf">${r.ppsf?'$'+r.ppsf.toFixed(0):'—'}</td><td>${r.lot_size?r.lot_size.toLocaleString():'—'}</td><td class="${r.pool==='Yes'?'pool-yes':'pool-no'}">${r.pool||'No'}</td><td>${r.sold_date||'—'}</td><td><span class="dom-badge ${dc(r.dom||0)}">${r.dom!=null?r.dom:'—'}</span></td><td>${fs(r.elementary_school,r.elementary_rating,'ES')}</td><td>${fs(r.middle_school,r.middle_rating,'MS')}</td><td>${fs(r.high_school,r.high_rating,'HS')}</td>`;
+    h+=`<tr id="row-${r.id}" data-idx="${i}"><td style="text-align:center"><input type="checkbox" checked class="comp-check" data-idx="${i}" onchange="recalcSummary('${sid}')"></td><td style="font-weight:600;color:var(--accent);text-align:center">${i+1}</td><td style="white-space:nowrap;cursor:pointer" onclick="viewCompPhotos(${r.id})" title="View photos">${tb(r.comp_type)}<span style="border-bottom:1px dashed var(--text-4)">${r.address||''}</span> <a href="${zUrl(fullAddr)}" target="_blank" style="opacity:0.5;margin-left:2px" title="Zillow" onclick="event.stopPropagation()"><img src="https://www.zillow.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a><a href="${rUrl(fullAddr)}" target="_blank" style="opacity:0.5;margin-left:2px" title="Redfin" onclick="event.stopPropagation()"><img src="https://www.redfin.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a></td><td>${r.city||''}</td><td>${r.beds||''}/${r.baths||''}</td><td>${r.sqft?r.sqft.toLocaleString():'—'}</td><td class="price">${r.sale_price?'$'+r.sale_price.toLocaleString():'—'}</td><td class="ppsf">${r.ppsf?'$'+r.ppsf.toFixed(0):'—'}</td><td>${r.lot_size?r.lot_size.toLocaleString():'—'}</td><td class="${r.pool==='Yes'?'pool-yes':'pool-no'}">${r.pool||'No'}</td><td>${r.sold_date||'—'}</td><td><span class="dom-badge ${dc(r.dom||0)}">${r.dom!=null?r.dom:'—'}</span></td><td>${fs(r.elementary_school,r.elementary_rating,'ES')}</td><td>${fs(r.middle_school,r.middle_rating,'MS')}</td><td>${fs(r.high_school,r.high_rating,'HS')}</td>`;
     if(showDist)h+=`<td class="ppsf">${r.distance?r.distance.toFixed(2):'—'}</td>`;
     h+=`<td style="text-align:center;white-space:nowrap"><button onclick="editComp(${r.id})" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:13px;padding:2px 6px;font-family:inherit">✎</button><button onclick="deleteComp(${r.id})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;padding:2px 6px;font-family:inherit;opacity:0.6">✕</button></td></tr>`;});
   c.innerHTML=h+'</tbody></table></div>';
@@ -584,7 +692,8 @@ const GOOGLE_GEO_KEY='AIzaSyCxTeIuN4tLIrAApAf8t4fIQ3fCvIix0a8';
 let autocompleteLat=null, autocompleteLng=null;
 function initAutocomplete(){
   const input=document.getElementById('f-address');
-  if(!window.google?.maps?.places)return;
+  if(!input){console.warn('[initAutocomplete] f-address input not found, retrying in 200ms');setTimeout(initAutocomplete,200);return;}
+  if(!window.google?.maps?.places?.Autocomplete){console.warn('[initAutocomplete] google.maps.places.Autocomplete unavailable');return;}
   const ac=new google.maps.places.Autocomplete(input,{types:['address'],componentRestrictions:{country:'us'},fields:['geometry','formatted_address']});
   ac.addListener('place_changed',()=>{
     const place=ac.getPlace();
@@ -596,6 +705,7 @@ function initAutocomplete(){
   });
   // Clear stored coords when user manually edits the address
   input.addEventListener('input',()=>{autocompleteLat=null;autocompleteLng=null;});
+  console.log('[initAutocomplete] ready');
 }
 
 async function startGeocoding(){geocodingActive=true;document.getElementById('geoStartBtn').style.display='none';document.getElementById('geoStopBtn').style.display='';const log=document.getElementById('geoLog');log.classList.add('visible');
