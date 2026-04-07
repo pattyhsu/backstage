@@ -112,7 +112,7 @@ body{overflow:hidden;height:100vh}
 .det-full{grid-column:1/-1}
 
 /* List header + rows */
-.th-p{display:grid;grid-template-columns:52px 0.7fr 100px 90px 260px 60px 110px 100px 36px 70px 50px;align-items:center;padding:8px 10px;background:var(--bg-alt);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.4px;gap:4px}
+.th-p{display:grid;grid-template-columns:52px 0.7fr 100px 100px 260px 70px 110px 100px 70px 70px 70px;align-items:center;padding:8px 10px;background:var(--bg-alt);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.4px;gap:4px}
 #lh{position:sticky;top:0;z-index:20;background:var(--bg-alt)}
 .th-sort{cursor:pointer;user-select:none}
 .th-sort:hover{color:var(--text)}
@@ -120,7 +120,7 @@ body{overflow:hidden;height:100vh}
 .rw:hover{background:var(--bg-alt)}
 .rw.act,.rw.sel{background:var(--accent-dim)}
 .rw.archived{display:none}
-.rm-p{display:grid;grid-template-columns:52px 0.7fr 100px 90px 260px 60px 110px 100px 36px 70px 50px;align-items:center;padding:8px 10px;font-size:13px;font-weight:500;gap:4px}
+.rm-p{display:grid;grid-template-columns:52px 0.7fr 100px 100px 260px 70px 110px 100px 70px 70px 70px;align-items:center;padding:8px 10px;font-size:13px;font-weight:500;gap:4px}
 
 /* Address + subtext */
 .at{font-weight:700;color:var(--text);font-size:13px}
@@ -607,7 +607,7 @@ function getSorted(){let d=[...listings];if(cityFilters.size)d=d.filter(l=>cityF
 function render(){
   const data=getSorted();
   const sa=c=>sort_===c+'-asc'?'↑':sort_===c+'-desc'?'↓':'';
-  document.getElementById('lh').innerHTML=`<div class="th-p"><span></span><span>ADDRESS</span><span>CITY</span><span class="tr th-sort" onclick="toggleSort('price')">LISTING PRICE ${sa('price')}</span><span>NOTES</span><span class="tr th-sort" onclick="toggleSort('ppsf')">$/SF ${sa('ppsf')}</span><span>SCHOOLS</span><span>STATUS</span><span class="tr th-sort" onclick="toggleSort('dom')">DOM ${sa('dom')}</span><span class="tr th-sort" onclick="toggleSort('arv')">ARV ${sa('arv')}</span><span class="tr th-sort" onclick="toggleSort('gap')">GAP ${sa('gap')}</span></div>`;
+  document.getElementById('lh').innerHTML=`<div class="th-p"><span></span><span>ADDRESS</span><span>CITY</span><span class="tr th-sort" onclick="toggleSort('price')">LIST PRICE ${sa('price')}</span><span>NOTES</span><span class="tr th-sort" onclick="toggleSort('ppsf')">$/SF ${sa('ppsf')}</span><span>SCHOOLS</span><span>STATUS</span><span class="tr th-sort" onclick="toggleSort('dom')">DOM ${sa('dom')}</span><span class="tr th-sort" onclick="toggleSort('arv')">ARV ${sa('arv')}</span><span class="tr th-sort" onclick="toggleSort('gap')">GAP ${sa('gap')}</span></div>`;
   let h='';data.forEach(l=>{const d=dom(l.listDate),dc=d<=7?'dn':d>=30?'do':'dm';
     const thumbSrc=getThumbUrl(l.mls);
     const addrFull=l.address+', '+l.city+', CA '+l.zip;
