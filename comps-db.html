@@ -250,16 +250,19 @@ let lbMls='';
 
 async function fetchPhotoCount(mls){
   if(photoCountCache[mls]!=null)return photoCountCache[mls];
+  const url=`${PHOTO_BASE}/${mls}/`;
   try{
-    const res=await fetch(`${PHOTO_BASE}/${mls}/`);
+    const res=await fetch(url);
+    console.log('[fetchPhotoCount] url=',url,'status=',res.status,'ok=',res.ok);
     if(!res.ok)return null;
     const txt=await res.text();
     const matches=txt.match(new RegExp(`${mls}_\\d+\\.jpg`,'gi'));
     const uniq=matches?new Set(matches.map(s=>s.toLowerCase())):new Set();
     const count=uniq.size;
+    console.log('[fetchPhotoCount] matched',count,'unique photos for mls=',mls);
     photoCountCache[mls]=count;
     return count;
-  }catch(e){return null;}
+  }catch(e){console.warn('[fetchPhotoCount] fetch error for',url,e);return null;}
 }
 
 function openLightbox(mls,addr){
@@ -328,6 +331,7 @@ async function viewCompPhotos(id){
   const{data:r}=await sb.from('properties').select('mls,address,city,zip').eq('id',id).single();
   if(!r){alert('Comp not found');return;}
   const fullAddr=(r.address||'')+', '+(r.city||'')+(r.zip?' '+r.zip:'');
+  console.log('[viewCompPhotos] id=',id,'mls=',JSON.stringify(r.mls),'addr=',fullAddr);
   openLightbox(r.mls,fullAddr);
 }
 
