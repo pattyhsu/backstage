@@ -563,21 +563,23 @@ async function updateGeoStats(){
 }
 
 // ─── PASS 1: Census ───
+var _censusFirstError=null,_censusSampleLogged=false;
 async function geocodeCensus(r){
   var addr=fmtAddr(r);
   var url='https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address='+encodeURIComponent(addr)+'&benchmark=Public_AR_Current&format=json';
   try{
     var resp=await fetch(url);
-    if(!resp.ok)return null;
+    if(!resp.ok){if(!_censusFirstError)_censusFirstError='HTTP '+resp.status+' '+resp.statusText;return null;}
     var d=await resp.json();
+    if(!_censusSampleLogged){_censusSampleLogged=true;console.log('[Census] sample response for',addr,':',d);}
     var matches=d&&d.result&&d.result.addressMatches;
-    if(!matches||!matches.length)return null;
+    if(!matches||!matches.length){if(!_censusFirstError)_censusFirstError='no addressMatches in response (sample logged to console)';return null;}
     var c=matches[0].coordinates;
-    if(!c||c.x==null||c.y==null)return null;
+    if(!c||c.x==null||c.y==null){if(!_censusFirstError)_censusFirstError='match has no coordinates';return null;}
     var lat=c.y,lng=c.x;
-    if(!inSoCal(lat,lng))return null; // reject anything outside SoCal
+    if(!inSoCal(lat,lng)){if(!_censusFirstError)_censusFirstError='match outside SoCal: '+lat+','+lng;return null;}
     return{lat:lat,lng:lng};
-  }catch(e){return null;}
+  }catch(e){if(!_censusFirstError)_censusFirstError=e.message+' (likely CORS — check console)';console.error('[Census] error:',e);return null;}
 }
 
 // ─── PASS 2: Google ───
@@ -633,6 +635,7 @@ async function startGeocoding(){
   if(!allRows.length){log.textContent+='All properties are geocoded!\n';stopGeocoding();return;}
 
   // ═══ PASS 1: CENSUS ═══
+  _censusFirstError=null;_censusSampleLogged=false;
   log.textContent+='══ Pass 1: US Census ('+allRows.length+' addresses) ══\n';
   var pass1Found=0,pass1Failed=[];
   var pass1Results=await runPass(allRows,geocodeCensus,5,function(done){
@@ -649,7 +652,9 @@ async function startGeocoding(){
     pass1Found++;
     if(u%20===0){log.textContent+='✓ '+x.row.address+' → '+x.hit.lat.toFixed(4)+', '+x.hit.lng.toFixed(4)+' (Census)\n';log.scrollTop=log.scrollHeight;}
   }
-  log.textContent+='\n━━━ Pass 1 done: '+pass1Found+' geocoded · '+pass1Failed.length+' failed ━━━\n\n';
+  log.textContent+='\n━━━ Pass 1 done: '+pass1Found+' geocoded · '+pass1Failed.length+' failed ━━━\n';
+  if(pass1Found===0&&_censusFirstError)log.textContent+='⚠ Census returned 0 hits. First error: '+_censusFirstError+'\n  → Open browser console (Cmd+Opt+J) for details.\n';
+  log.textContent+='\n';
 
   // ═══ PASS 2: GOOGLE ═══
   if(pass1Failed.length&&geocodingActive){
