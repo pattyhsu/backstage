@@ -2,7 +2,7 @@
 
 Living document. As we ship features and discover problems, add them here so nothing falls through the cracks.
 
-Last updated: 2026-04-07
+Last updated: 2026-04-07 (post-GitGuardian alert)
 
 ---
 
@@ -19,13 +19,16 @@ Last updated: 2026-04-07
 - Performance — Edge Function adds latency. For 17k-row scans (Map View), this could be painful unless we batch carefully.
 
 ### Google Maps API key restriction
-**Problem.** The Google Maps API key (`AIzaSyCxTeIuN4tLIrAApAf8t4fIQ3fCvIix0a8`) is also embedded client-side in `comps-db.html` and `import.html`. If unrestricted, anyone could rack up Maps charges on your account.
+**Status: ✅ DONE 2026-04-07.** Key is restricted in Google Cloud Console:
+- **Application restrictions:** HTTP referrers — `https://backstage.dottyhomes.com/*` and `https://pattyhsu.github.io/*`
+- **API restrictions:** Geocoding API, Maps JavaScript API, Maps Embed API, Maps Static API, Places API
 
-**Plan.** In Google Cloud Console, restrict the key to:
-- **Application restrictions:** HTTP referrers — `https://backstage.dottyhomes.com/*` only
-- **API restrictions:** Maps JavaScript API, Geocoding API, Places API only
+The key is still public in the GitHub repo (GitGuardian flagged it on 2026-04-07 when `import.html` got the same key as `comps-db.html` and `mls-deals.html`), but it's now functionally harmless — Google rejects requests from non-allowed referrers.
 
-This is a 5-minute fix and should be done **today**, not deferred. No code changes needed.
+**Still TODO:** Move the key out of client HTML entirely via the Edge Function project below. Until then, GitGuardian will keep flagging it on every commit that touches a file containing the key.
+
+### Supabase anon key — also exposed
+**Same situation as Google Maps key.** The Supabase anon key is hardcoded in every Backstage HTML file. Unlike the Google Maps key, **there's no equivalent of "HTTP referrer restrictions" for Supabase** — RLS policies are the only line of defense. Audit those before treating this as low-risk.
 
 ---
 
