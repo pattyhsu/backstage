@@ -300,40 +300,69 @@ function getThumbUrl(mls){return `${PHOTO_BASE}/${mls}/${mls}_01.jpg`;}
 // Lightbox state
 let lbMls='';
 
+async function fetchPhotoCount(mls){
+  if(photoCountCache[mls]!=null)return photoCountCache[mls];
+  try{
+    const res=await fetch(`${PHOTO_BASE}/${mls}/`);
+    if(!res.ok)return null;
+    const txt=await res.text();
+    const matches=txt.match(new RegExp(`${mls}_\\d+\\.jpg`,'gi'));
+    const uniq=matches?new Set(matches.map(s=>s.toLowerCase())):new Set();
+    const count=uniq.size;
+    photoCountCache[mls]=count;
+    return count;
+  }catch(e){return null;}
+}
+
 function openLightbox(mls,addr){
   lbMls=mls;
+  const myMls=mls;
   const addrEl=document.getElementById('lbAddr');
-  addrEl.textContent=addr;
+  addrEl.textContent=addr+' (loading…)';
   const grid=document.getElementById('lbGrid');
   grid.innerHTML='';
-  // Load photos sequentially until one fails
-  let i=1;
-  function loadNext(){
-    const num=String(i).padStart(2,'0');
-    const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
-    const img=new Image();
-    img.onload=function(){
-      const el=document.createElement('img');
-      el.src=url;
-      el.onclick=function(){
-        if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
-        else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
-      };
-      grid.appendChild(el);
-      addrEl.textContent=addr+' ('+i+(i===1?' photo':' photos')+')';
-      i++;
-      loadNext();
-    };
-    img.onerror=function(){
-      const count=i-1;
-      photoCountCache[mls]=count;
-      if(count===0)addrEl.textContent=addr+' (no photos)';
-    };
-    img.src=url;
-  }
-  loadNext();
   document.getElementById('photoLightbox').classList.add('open');
   document.addEventListener('keydown',lbKeyHandler);
+  // Try to get total count upfront from directory listing
+  fetchPhotoCount(mls).then(total=>{
+    if(lbMls!==myMls)return;
+    if(total!=null){
+      addrEl.textContent=addr+(total===0?' (no photos)':' ('+total+(total===1?' photo':' photos')+')');
+    }
+    // Load photos sequentially until one fails (or until we hit known total)
+    let i=1;
+    function loadNext(){
+      if(lbMls!==myMls)return;
+      if(total!=null&&i>total)return;
+      const num=String(i).padStart(2,'0');
+      const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
+      const img=new Image();
+      img.onload=function(){
+        if(lbMls!==myMls)return;
+        const el=document.createElement('img');
+        el.src=url;
+        el.onclick=function(){
+          if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
+          else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
+        };
+        grid.appendChild(el);
+        // Only update count text in fallback mode (when total is unknown)
+        if(total==null)addrEl.textContent=addr+' ('+i+(i===1?' photo':' photos')+')';
+        i++;
+        loadNext();
+      };
+      img.onerror=function(){
+        if(lbMls!==myMls)return;
+        const count=i-1;
+        if(total==null){
+          photoCountCache[mls]=count;
+          if(count===0)addrEl.textContent=addr+' (no photos)';
+        }
+      };
+      img.src=url;
+    }
+    loadNext();
+  });
 }
 function closeLightbox(){
   document.getElementById('photoLightbox').classList.remove('open');
