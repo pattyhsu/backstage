@@ -430,6 +430,7 @@ async function findComps(listing){
     const compType=isUnsoldFlip?'unsold_flip':(comp.comp_type||'general');
     results.push({
       type:compType==='general'?'sold':compType,
+      mls:comp.mls||'',
       addr:((comp.address||'').trim()+', '+(comp.city||'').trim()).replace(/^, |, $/g,''),
       price:compPrice,sqft:comp.sqft||0,
       beds:comp.beds||0,baths:comp.baths||0,
@@ -536,7 +537,7 @@ function compH(c,idx,mls){
       <input type="checkbox" checked onchange="recalcCompSummary('${mid}')" data-comp-idx="${idx}" data-comp-mls="${mid}" style="flex-shrink:0">
       <span style="font-size:10px;font-weight:700;color:var(--accent);min-width:14px">${idx+1}</span>
       <span class="cl" style="color:${col}">${tb}${lbl==='SOLD'&&!tb?'SOLD':''}</span>
-      <span style="color:var(--text-3);font-size:11px">${c.addr}</span>
+      ${c.mls?`<span onclick="event.stopPropagation();openLightbox('${c.mls}','${c.addr.replace(/'/g,"\\'")}')" title="View photos" style="color:var(--text-3);font-size:11px;cursor:pointer;text-decoration:underline;text-decoration-color:var(--text-4);text-decoration-style:dotted;text-underline-offset:2px">${c.addr}</span>`:`<span style="color:var(--text-3);font-size:11px">${c.addr}</span>`}
       <a href="https://www.zillow.com/homes/${encodeURIComponent(c.addr.replace(/\s+/g,' ').trim()+', CA')}_rb/" target="_blank" onclick="event.stopPropagation()" style="flex-shrink:0"><img src="https://www.zillow.com/favicon.ico" style="width:11px;height:11px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div>
     <div class="cri"><span style="color:var(--text-4);font-size:10px">${c.dist!=null?c.dist+'mi':''}</span><span style="color:var(--text-4);font-size:10px">${c.beds}/${c.baths}</span><span style="color:var(--text-4);font-size:10px">${c.sqft}sf</span><span style="font-weight:600;${c.isAsking?'color:var(--blue)':''}">${F(c.price)}${c.isAsking?' <span style="font-size:9px;font-weight:400">(asking)</span>':''}</span><span style="color:var(--text-4);font-size:10px">$${c.psf}/sf</span><span style="color:var(--text-4);font-size:10px">${c.date||'—'}</span></div>
     ${compSchools(c)?'<div style="width:100%;padding:2px 0 0 24px;display:flex;gap:2px;align-items:center">'+compSchools(c)+'</div>':''}</div>`;
