@@ -76,10 +76,23 @@ html, body { height: 100vh; overflow: hidden; }
 .import-log{background:var(--bg-inset);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;font-family:var(--mono);font-size:11px;line-height:1.6;white-space:pre-wrap;max-height:300px;overflow-y:auto;display:none;margin:12px 24px;max-width:900px}
 .section{margin:24px;max-width:900px}
 .section h3{font-size:15px;font-weight:600;margin-bottom:12px}
+  .lb-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:10000;display:none}
+  .lb-overlay.open{display:block}
+  .lb-close{position:absolute;top:16px;right:20px;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;z-index:10003}
+  .lb-addr{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);color:#fff;font-size:14px;font-weight:600;z-index:10002;text-align:center;padding:0 60px}
+  .lb-scroll{position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto;padding:20px 20px 40px}
+  .lb-grid{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:repeat(2,1fr);gap:4px}
+  .lb-grid img{width:100%;display:block;cursor:pointer;border-radius:2px}
+  .lb-grid img.lb-full{position:fixed;inset:0;max-width:95vw;max-height:95vh;margin:auto;z-index:10004;border-radius:6px;object-fit:contain;cursor:zoom-out}
 </style>
 </head>
 <body>
 <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(4px)"></div>
+<div class="lb-overlay" id="photoLightbox">
+  <div class="lb-addr" id="lbAddr"></div>
+  <button class="lb-close" onclick="closeLightbox()">✕</button>
+  <div class="lb-scroll"><div class="lb-grid" id="lbGrid"></div></div>
+</div>
 
 <!-- LOGIN -->
 <div class="login-wrap" id="loginScreen">
@@ -735,7 +748,7 @@ async function findDuplicates(){
     trueDupes.forEach(function(e){var key=e[0],comps=e[1],pg=e[2];var parts=key.split('|');
       h+='<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+parts[0]+', '+parts[1]+' <a href="https://www.zillow.com/homes/'+encodeURIComponent(parts[0]+', '+parts[1]+', CA')+'" target="_blank" style="opacity:0.5;margin-left:4px"><img src="https://www.zillow.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a> <span style="color:var(--red)">('+comps.length+')</span></div>';
       comps.forEach(function(r){var isDupe=Object.values(pg).some(function(g){return g.length>1&&g.indexOf(r)>0;});
-        h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;border-radius:6px;'+(isDupe?'':'background:var(--accent-dim)')+'" id="dupe-row-'+r.id+'"><span style="font-size:12px;font-family:var(--mono);color:'+(isDupe?'var(--red)':'var(--green)')+';min-width:55px">'+(isDupe?'dupe':'★ keep')+'</span><span style="font-size:12px;min-width:90px">'+(r.sold_date||'—')+'</span><span style="font-size:12px;font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="font-size:12px;color:var(--text-4)">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="editComp('+r.id+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;font-family:inherit;margin-right:8px">edit</button><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-family:inherit">delete</button></div>';
+        h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;border-radius:6px;'+(isDupe?'':'background:var(--accent-dim)')+'" id="dupe-row-'+r.id+'"><span style="font-size:12px;font-family:var(--mono);color:'+(isDupe?'var(--red)':'var(--green)')+';min-width:55px">'+(isDupe?'dupe':'★ keep')+'</span><span style="font-size:12px;min-width:90px">'+(r.sold_date||'—')+'</span><span style="font-size:12px;font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="font-size:12px;color:var(--text-4)">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="viewCompPhotos('+r.id+')" title="View photos" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:14px;font-family:inherit;margin-right:8px">📷</button><button onclick="editComp('+r.id+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;font-family:inherit;margin-right:8px">edit</button><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-family:inherit">delete</button></div>';
       });h+='</div>';
     });h+='</div>';
   }
@@ -765,7 +778,7 @@ async function findDuplicates(){
       h+='<div style="display:flex;gap:6px"><button onclick="markAsFlip('+(latestComp?latestComp.id:0)+',['+ids+'])" style="background:var(--accent);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;padding:4px 10px;font-family:inherit;font-weight:600">Is Flip ↗</button><button onclick="markAsHalfFlip('+(latestComp?latestComp.id:0)+',['+ids+'])" style="background:var(--amber);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;padding:4px 10px;font-family:inherit;font-weight:600">Half-Ass ½</button><button onclick="dismissFlip(['+ids+'])" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-3);cursor:pointer;font-size:11px;padding:4px 10px;font-family:inherit">Not a flip ✓</button></div></div>';
 
       comps.forEach(function(r){var isLatest=r.sold_date===latestDate;
-        h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;border-radius:6px;'+(isLatest?'background:var(--accent-dim)':'')+'" id="dupe-row-'+r.id+'"><span style="font-size:12px;min-width:20px;color:var(--accent)">'+(isLatest?'★':'')+'</span><span style="font-size:12px;min-width:90px">'+(r.sold_date||'—')+'</span><span style="font-size:12px;font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="font-size:12px;color:'+(r.comp_type==='flips'?'var(--blue)':r.comp_type==='dotty'?'var(--green)':r.comp_type==='halfflips'?'var(--amber)':'var(--text-4)')+';font-weight:600;min-width:60px">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="editComp('+r.id+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;font-family:inherit;margin-right:8px">edit</button><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-family:inherit">delete</button></div>';
+        h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;border-radius:6px;'+(isLatest?'background:var(--accent-dim)':'')+'" id="dupe-row-'+r.id+'"><span style="font-size:12px;min-width:20px;color:var(--accent)">'+(isLatest?'★':'')+'</span><span style="font-size:12px;min-width:90px">'+(r.sold_date||'—')+'</span><span style="font-size:12px;font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="font-size:12px;color:'+(r.comp_type==='flips'?'var(--blue)':r.comp_type==='dotty'?'var(--green)':r.comp_type==='halfflips'?'var(--amber)':'var(--text-4)')+';font-weight:600;min-width:60px">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="viewCompPhotos('+r.id+')" title="View photos" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:14px;font-family:inherit;margin-right:8px">📷</button><button onclick="editComp('+r.id+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;font-family:inherit;margin-right:8px">edit</button><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-family:inherit">delete</button></div>';
       });h+='</div>';
     });
   }
@@ -782,6 +795,85 @@ async function saveEdit(id){const g=k=>{const e=document.getElementById('edit-'+
 const{error}=await sb.from(TABLE).update({address:g('address'),city:g('city'),beds:num('beds'),baths:num('baths'),sqft:num('sqft'),sale_price:num('sale_price'),ppsf:num('ppsf'),lot_size:num('lot_size'),pool:g('pool'),sold_date:g('sold_date')||null,dom:num('dom'),apn:g('apn')||null,elementary_school:g('elementary_school')||null,elementary_rating:num('elementary_rating'),middle_school:g('middle_school')||null,middle_rating:num('middle_rating'),high_school:g('high_school')||null,high_rating:num('high_rating'),latitude:num('latitude'),longitude:num('longitude'),comp_type:g('comp_type')||'general'}).eq('id',id);
 if(error)alert(error.message);else{closeEditModal();findDuplicates();}}
 function closeEditModal(){document.getElementById('editModal').style.display='none';}
+// ========== PHOTO LIGHTBOX (ported from comps-db.html) ==========
+const PHOTO_BASE='https://photos.dottyhomes.com';
+const photoCountCache={};
+let lbMls='';
+async function fetchPhotoCount(mls){
+  if(photoCountCache[mls]!=null)return photoCountCache[mls];
+  const url=`${PHOTO_BASE}/${mls}/`;
+  try{
+    const res=await fetch(url);
+    if(!res.ok)return null;
+    const txt=await res.text();
+    const matches=txt.match(new RegExp(`${mls}_\\d+\\.jpg`,'gi'));
+    const uniq=matches?new Set(matches.map(s=>s.toLowerCase())):new Set();
+    const count=uniq.size;
+    photoCountCache[mls]=count;
+    return count;
+  }catch(e){return null;}
+}
+function openLightbox(mls,addr){
+  if(!mls){alert('No MLS number on this comp — cannot load photos.');return;}
+  lbMls=mls;
+  const myMls=mls;
+  const addrEl=document.getElementById('lbAddr');
+  addrEl.textContent=addr+' (loading…)';
+  const grid=document.getElementById('lbGrid');
+  grid.innerHTML='';
+  document.getElementById('photoLightbox').classList.add('open');
+  document.addEventListener('keydown',lbKeyHandler);
+  fetchPhotoCount(mls).then(total=>{
+    if(lbMls!==myMls)return;
+    if(total!=null)addrEl.textContent=addr+(total===0?' (no photos)':' ('+total+(total===1?' photo':' photos')+')');
+    let i=1;
+    function loadNext(){
+      if(lbMls!==myMls)return;
+      if(total!=null&&i>total)return;
+      const num=String(i).padStart(2,'0');
+      const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
+      const img=new Image();
+      img.onload=function(){
+        if(lbMls!==myMls)return;
+        const el=document.createElement('img');
+        el.src=url;
+        el.onclick=function(){
+          if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
+          else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
+        };
+        grid.appendChild(el);
+        if(total==null)addrEl.textContent=addr+' ('+i+(i===1?' photo':' photos')+')';
+        i++;
+        loadNext();
+      };
+      img.onerror=function(){
+        if(lbMls!==myMls)return;
+        const count=i-1;
+        if(total==null){photoCountCache[mls]=count;if(count===0)addrEl.textContent=addr+' (no photos)';}
+      };
+      img.src=url;
+    }
+    loadNext();
+  });
+}
+function closeLightbox(){
+  lbMls='';
+  document.getElementById('photoLightbox').classList.remove('open');
+  document.removeEventListener('keydown',lbKeyHandler);
+}
+function lbKeyHandler(e){
+  if(e.key==='Escape'){
+    const full=document.querySelector('.lb-grid img.lb-full');
+    if(full)full.classList.remove('lb-full');
+    else closeLightbox();
+  }
+}
+async function viewCompPhotos(id){
+  const{data:r}=await sb.from(TABLE).select('mls,address,city,zip').eq('id',id).single();
+  if(!r){alert('Comp not found');return;}
+  const fullAddr=(r.address||'')+', '+(r.city||'')+(r.zip?' '+r.zip:'');
+  openLightbox(r.mls,fullAddr);
+}
 async function dismissFlip(ids){await sb.from(TABLE).update({reviewed:true}).in('id',ids);var g=document.getElementById('flip-group-'+ids[0]);if(g){g.style.transition='opacity .3s';g.style.opacity='0';setTimeout(function(){g.remove();},300);}}
 async function markAsFlip(latestId,allIds){await sb.from(TABLE).update({comp_type:'flips'}).eq('id',latestId);var g=document.getElementById('flip-group-'+allIds[0]);if(g){g.style.transition='opacity .3s';g.style.opacity='0';setTimeout(function(){g.remove();},300);}}
 async function markAsHalfFlip(latestId,allIds){await sb.from(TABLE).update({comp_type:'halfflips'}).eq('id',latestId);var g=document.getElementById('flip-group-'+allIds[0]);if(g){g.style.transition='opacity .3s';g.style.opacity='0';setTimeout(function(){g.remove();},300);}}
