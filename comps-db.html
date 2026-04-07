@@ -223,7 +223,7 @@
   <div style="display:flex;gap:16px;align-items:flex-start">
     <div id="map-canvas" style="flex:2;height:700px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);background:var(--bg-alt);display:flex;align-items:center;justify-content:center;color:var(--text-4);font-size:13px">Loading map…</div>
     <div style="flex:1;min-width:280px;max-width:380px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px"><div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">⚠ Likely Geocoding Errors <span id="outlierCount" style="color:var(--text-4);font-weight:400;text-transform:none;letter-spacing:0"></span></div><button id="clearOutlierBtn" onclick="clearOutlierCoords()" style="background:var(--red);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;padding:5px 10px;font-family:inherit;font-weight:600;display:none">Clear coords</button></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap"><div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">⚠ Likely Geocoding Errors <span id="outlierCount" style="color:var(--text-4);font-weight:400;text-transform:none;letter-spacing:0"></span></div><div style="display:flex;gap:6px"><button id="dismissAllBtn" onclick="dismissAllOutliers()" style="background:var(--bg-alt);border:1px solid var(--border);border-radius:6px;color:var(--text-3);cursor:pointer;font-size:11px;padding:5px 10px;font-family:inherit;font-weight:600;display:none" title="Mark all visible as not outliers">Dismiss all</button><button id="clearOutlierBtn" onclick="clearOutlierCoords()" style="background:var(--red);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;padding:5px 10px;font-family:inherit;font-weight:600;display:none">Clear coords</button></div></div>
       <div id="outlierList" style="max-height:660px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-page)"></div>
     </div>
   </div>
@@ -806,8 +806,15 @@ async function loadMapView(){
   const prog=()=>document.getElementById('mapLoadProgress');
   let all=[];
   for(let p=0;p<25;p++){
-    const{data,error}=await sb.from('properties').select('id,address,city,latitude,longitude,comp_type,sale_price,sold_date,mls').not('latitude','is',null).not('longitude','is',null).range(p*1000,(p+1)*1000-1);
-    if(error){canvas.innerHTML='<div style="color:var(--red)">Error: '+error.message+'</div>';return;}
+    const{data,error}=await sb.from('properties').select('id,address,city,latitude,longitude,comp_type,sale_price,sold_date,mls,outlier_reviewed').not('latitude','is',null).not('longitude','is',null).range(p*1000,(p+1)*1000-1);
+    if(error){
+      // Graceful degradation: if outlier_reviewed column doesn't exist yet, fall back to query without it
+      if(error.message&&error.message.indexOf('outlier_reviewed')>=0){
+        canvas.innerHTML='<div style="color:var(--amber);padding:20px;text-align:center"><b>Setup needed:</b> add the <code>outlier_reviewed</code> column to your <code>properties</code> table:<br><br><code style="display:inline-block;background:var(--bg-alt);padding:8px 12px;border-radius:6px;margin-top:6px">ALTER TABLE properties ADD COLUMN outlier_reviewed boolean DEFAULT false;</code><br><br>Then reload this page.</div>';
+        return;
+      }
+      canvas.innerHTML='<div style="color:var(--red)">Error: '+error.message+'</div>';return;
+    }
     if(!data||!data.length)break;
     all=all.concat(data);
     if(prog())prog().textContent='Loaded '+all.length+' comps…';
@@ -830,6 +837,7 @@ async function loadMapView(){
     const latLo=latQ1-1.5*latIQR,latHi=latQ3+1.5*latIQR;
     const lngLo=lngQ1-1.5*lngIQR,lngHi=lngQ3+1.5*lngIQR;
     rows.forEach(r=>{
+      if(r.outlier_reviewed)return; // user already confirmed this is fine
       if(r.latitude<latLo||r.latitude>latHi||r.longitude<lngLo||r.longitude>lngHi)mapViewOutliers.add(r.id);
     });
   });
@@ -889,9 +897,10 @@ function renderMapView(){
   const outlierRows=mapViewData.filter(r=>mapViewOutliers.has(r.id)&&(!cityFilter||(r.city||'').toUpperCase().trim()===cityFilter));
   document.getElementById('outlierCount').textContent='('+outlierRows.length+')';
   document.getElementById('clearOutlierBtn').style.display=outlierRows.length>0?'':'none';
+  document.getElementById('dismissAllBtn').style.display=outlierRows.length>0?'':'none';
   const list=document.getElementById('outlierList');
   if(!outlierRows.length){list.innerHTML='<div style="padding:16px;font-size:12px;color:var(--text-4);text-align:center">No outliers detected '+(cityFilter?'in '+cityFilter:'')+'</div>';return;}
-  list.innerHTML=outlierRows.slice(0,200).map(r=>'<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer" onclick="mapViewFlyTo('+r.latitude+','+r.longitude+','+r.id+')"><div style="font-weight:600">'+(r.address||'(no address)')+'</div><div style="color:var(--text-3);font-size:11px;margin-top:2px">'+(r.city||'')+' · '+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+' · '+(r.comp_type||'general')+'</div><div style="color:var(--text-4);font-size:10px;font-family:var(--mono),monospace;margin-top:2px">'+r.latitude.toFixed(5)+', '+r.longitude.toFixed(5)+'</div></div>').join('')+(outlierRows.length>200?'<div style="padding:8px 12px;font-size:11px;color:var(--text-4);text-align:center">+'+(outlierRows.length-200)+' more</div>':'');
+  list.innerHTML=outlierRows.slice(0,200).map(r=>'<div id="outlier-row-'+r.id+'" style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;display:flex;align-items:flex-start;gap:8px"><div style="flex:1;cursor:pointer" onclick="mapViewFlyTo('+r.latitude+','+r.longitude+','+r.id+')"><div style="font-weight:600">'+(r.address||'(no address)')+'</div><div style="color:var(--text-3);font-size:11px;margin-top:2px">'+(r.city||'')+' · '+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+' · '+(r.comp_type||'general')+'</div><div style="color:var(--text-4);font-size:10px;font-family:var(--mono),monospace;margin-top:2px">'+r.latitude.toFixed(5)+', '+r.longitude.toFixed(5)+'</div></div><button onclick="dismissOutlier('+r.id+')" title="Not an outlier" style="background:none;border:1px solid var(--border);border-radius:4px;color:var(--green);cursor:pointer;font-size:12px;padding:2px 8px;font-family:inherit;flex-shrink:0">✓</button></div>').join('')+(outlierRows.length>200?'<div style="padding:8px 12px;font-size:11px;color:var(--text-4);text-align:center">+'+(outlierRows.length-200)+' more</div>':'');
 }
 
 function mapViewFlyTo(lat,lng,id){
@@ -927,6 +936,42 @@ async function clearOutlierCoords(){
   btn.disabled=false;btn.textContent='Clear coords';
   renderMapView();
   alert('Cleared '+cleared+' coords. Now go to import.html → Geocode tab to re-geocode them.');
+}
+
+async function dismissOutlier(id){
+  const{error}=await sb.from('properties').update({outlier_reviewed:true}).eq('id',id);
+  if(error){alert('Error: '+error.message);return;}
+  // Update local state and animate the row out
+  mapViewOutliers.delete(id);
+  const row=mapViewData.find(r=>r.id===id);
+  if(row)row.outlier_reviewed=true;
+  const el=document.getElementById('outlier-row-'+id);
+  if(el){el.style.transition='opacity .3s';el.style.opacity='0';setTimeout(()=>renderMapView(),300);}
+  else renderMapView();
+}
+
+async function dismissAllOutliers(){
+  const cityFilter=document.getElementById('m-city-filter').value;
+  const targets=mapViewData.filter(r=>mapViewOutliers.has(r.id)&&(!cityFilter||(r.city||'').toUpperCase().trim()===cityFilter));
+  if(!targets.length){alert('Nothing to dismiss.');return;}
+  if(!confirm('Mark '+targets.length+' outlier'+(targets.length===1?'':'s')+(cityFilter?' in '+cityFilter:'')+' as reviewed?\n\nThey will be hidden from outlier detection going forward. You can undo this later by clearing the outlier_reviewed column in Supabase.'))return;
+  const btn=document.getElementById('dismissAllBtn');
+  btn.disabled=true;btn.textContent='Dismissing…';
+  const ids=targets.map(r=>r.id);
+  let dismissed=0;
+  for(let i=0;i<ids.length;i+=100){
+    const chunk=ids.slice(i,i+100);
+    const{error}=await sb.from('properties').update({outlier_reviewed:true}).in('id',chunk);
+    if(error){alert('Error: '+error.message);btn.disabled=false;btn.textContent='Dismiss all';return;}
+    dismissed+=chunk.length;
+    btn.textContent='Dismissing… '+dismissed+'/'+ids.length;
+  }
+  // Update local state
+  const dismissedSet=new Set(ids);
+  mapViewData.forEach(r=>{if(dismissedSet.has(r.id))r.outlier_reviewed=true;});
+  ids.forEach(id=>mapViewOutliers.delete(id));
+  btn.disabled=false;btn.textContent='Dismiss all';
+  renderMapView();
 }
 
 // Auto-load browse when tab is clicked
