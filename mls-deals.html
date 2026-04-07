@@ -579,8 +579,9 @@ function detHTML(l){
       <button id="lock-arv-${id}" onclick="event.stopPropagation();toggleLockArv('${l.mls}','${id}')" style="padding:4px 10px;border-radius:5px;border:1px solid ${l.lockedArv?'var(--green)':'var(--border)'};font-size:11px;font-weight:600;font-family:inherit;background:${l.lockedArv?'var(--green-bg)':'var(--bg)'};color:${l.lockedArv?'var(--green)':'var(--text-3)'};cursor:pointer;white-space:nowrap">${l.lockedArv?'🔒 Locked':'Lock ARV'}</button>
       <span style="font-size:10px;color:var(--text-4);white-space:nowrap">From comps: ${F(arv)}</span></div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--text-4);flex-shrink:0;width:100px">CONSTRUCTION</span>
-      <input type="text" id="const-${id}" value="${F(Math.round(arv*0.95/1.28*0.16))}" oninput="markConstCustom('${id}');calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--text);font-family:inherit;background:var(--bg)">
-      <span style="font-size:10px;color:var(--text-4);white-space:nowrap">16% of target</span></div>
+      <input type="text" id="const-${id}" value="${F(l.lockedConstruction||Math.round(arv*0.95/1.28*0.16))}" ${l.lockedConstruction?'readonly':''} oninput="markConstCustom('${id}');calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--text);font-family:inherit;background:${l.lockedConstruction?'var(--bg-alt)':'var(--bg)'}">
+      <button id="lock-const-${id}" onclick="event.stopPropagation();toggleLockConstruction('${l.mls}','${id}')" style="padding:4px 10px;border-radius:5px;border:1px solid ${l.lockedConstruction?'var(--green)':'var(--border)'};font-size:11px;font-weight:600;font-family:inherit;background:${l.lockedConstruction?'var(--green-bg)':'var(--bg)'};color:${l.lockedConstruction?'var(--green)':'var(--text-3)'};cursor:pointer;white-space:nowrap">${l.lockedConstruction?'🔒 Locked':'Lock Const'}</button>
+      <span style="font-size:10px;color:var(--text-4);white-space:nowrap">${l.lockedConstruction?'':'16% of target'}</span></div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--text-4);flex-shrink:0;width:100px">TARGET BUY</span>
       <input type="text" id="pp-${id}" value="${F(Math.round(arv*0.95/1.28))}" oninput="markPPCustom('${id}');calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--accent);font-family:inherit;background:var(--bg)">
       <button id="pp-reset-${id}" onclick="event.stopPropagation();resetPP('${id}',${l.price},${l.sqft})" style="font-size:10px;color:var(--accent);background:none;border:none;cursor:pointer;font-family:inherit;text-decoration:underline;display:none;white-space:nowrap">Reset</button></div>
@@ -589,8 +590,12 @@ function detHTML(l){
 
 function calcDeal(id,listPrice,sqft){
   listPriceMap[id]=listPrice;const arv=getNumVal('arv-'+id),pp=getNumVal('pp-'+id);
-  if(!constIsCustom[id]&&!ppIsCustom[id]){const fp=Math.round(arv*(1-SELL_PCT)/(1+CONST_PCT+PURCH_EXP_PCT+PROFIT_TARGET_PCT));setNumVal('pp-'+id,fp);setNumVal('const-'+id,Math.round(fp*CONST_PCT));}
-  else if(!constIsCustom[id]&&ppIsCustom[id])setNumVal('const-'+id,Math.round(pp*CONST_PCT));
+  const lObj=listings.find(x=>x.mls.replace(/[^a-zA-Z0-9]/g,'')===id);
+  const constLocked=!!(lObj&&lObj.lockedConstruction);
+  if(constLocked)setNumVal('const-'+id,lObj.lockedConstruction);
+  if(!constIsCustom[id]&&!constLocked&&!ppIsCustom[id]){const fp=Math.round(arv*(1-SELL_PCT)/(1+CONST_PCT+PURCH_EXP_PCT+PROFIT_TARGET_PCT));setNumVal('pp-'+id,fp);setNumVal('const-'+id,Math.round(fp*CONST_PCT));}
+  else if(!constIsCustom[id]&&!constLocked&&ppIsCustom[id])setNumVal('const-'+id,Math.round(pp*CONST_PCT));
+  else if(constLocked&&!ppIsCustom[id]){const fp=Math.round((arv*(1-SELL_PCT)-lObj.lockedConstruction)/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT));setNumVal('pp-'+id,fp);}
   const fPP=getNumVal('pp-'+id),fConst=getNumVal('const-'+id),pExp=fPP*PURCH_EXP_PCT;
   const profit=arv*(1-SELL_PCT)-fConst-fPP-pExp,gap=listPrice-fPP,gapPct=listPrice>0?((gap/listPrice)*100).toFixed(1):'0',goTh=PROFIT_TARGET_PCT*fPP;
   const gE=document.getElementById('gap-'+id);
@@ -741,6 +746,26 @@ async function toggleLockArv(mls,id){
   if(cm.hp>0){setNumVal('arv-'+id,l.lockedArv||(cm.hp*l.sqft));calcDeal(id,l.price,l.sqft);}
   render();
 }
+async function toggleLockConstruction(mls,id){
+  const l=listings.find(x=>x.mls===mls);if(!l)return;
+  if(l.lockedConstruction){
+    // Unlock — snap back to 16% of current target buy
+    await sb.from('properties').update({locked_construction:null,updated_at:new Date().toISOString()}).eq('mls',mls);
+    l.lockedConstruction=null;
+    constIsCustom[id]=false;
+  } else {
+    // Lock current construction value
+    const cVal=getNumVal('const-'+id);
+    if(!cVal)return;
+    await sb.from('properties').update({locked_construction:cVal,updated_at:new Date().toISOString()}).eq('mls',mls);
+    l.lockedConstruction=cVal;
+  }
+  // Re-render detail page to update button state
+  renderDetailPage(l);
+  const cm=getComps(l);
+  document.getElementById('comp-col').innerHTML=compsPanel(l);
+  if(cm.hp>0){setNumVal('arv-'+id,l.lockedArv||(cm.hp*l.sqft));calcDeal(id,l.price,l.sqft);}
+}
 async function openArchive(){document.getElementById('arch-modal').classList.add('open');const{data}=await sb.from('properties').select('*').eq('stage','archived').order('updated_at',{ascending:false});const al=document.getElementById('arch-list');if(!data?.length){al.innerHTML='<p style="color:var(--text-4);font-size:12px">No archived deals.</p>';return;}al.innerHTML=data.map(r=>`<div class="arch-item"><span>${r.address}, ${r.city} — ${FK(r.list_price||0)}</span><button class="restore-btn" onclick="restoreDeal('${r.mls}')">Restore</button></div>`).join('');}
 function closeArchive(){document.getElementById('arch-modal').classList.remove('open');}
 async function restoreDeal(m){await sb.from('properties').update({stage:'unread',updated_at:new Date().toISOString()}).eq('mls',m);openArchive();loadListings(currentFilter);}
@@ -767,7 +792,7 @@ async function loadListings(status){
         elem:r.elementary_rating||r.elementary_school?{r:r.elementary_rating||0,n:r.elementary_school||''}:null,
         mid:r.middle_rating||r.middle_school?{r:r.middle_rating||0,n:r.middle_school||''}:null,
         high:r.high_rating||r.high_school?{r:r.high_rating||0,n:r.high_school||''}:null,
-        tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null};});
+        tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null};});
     active=null;sel.clear();render();
     const toTitle=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
     const cities=[...new Set(listings.map(l=>toTitle((l.city||'').trim())).filter(Boolean))].sort();
