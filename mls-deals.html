@@ -107,7 +107,7 @@ body{overflow:hidden;height:100vh}
 
 /* Detail page */
 .det-sticky{position:sticky;top:0;z-index:10;background:var(--bg-alt);border-bottom:1px solid var(--border)}
-.det-sticky-inner{max-width:900px;margin:0 auto;padding:12px 24px}
+.det-sticky-inner{max-width:900px;margin:0 auto;padding:12px 24px;display:flex;gap:14px;align-items:flex-start}
 .det-body{max-width:900px;margin:0 auto;padding:20px 24px 40px}
 .det-full{grid-column:1/-1}
 
@@ -302,7 +302,8 @@ let lbMls='';
 
 function openLightbox(mls,addr){
   lbMls=mls;
-  document.getElementById('lbAddr').textContent=addr;
+  const addrEl=document.getElementById('lbAddr');
+  addrEl.textContent=addr;
   const grid=document.getElementById('lbGrid');
   grid.innerHTML='';
   // Load photos sequentially until one fails
@@ -319,10 +320,15 @@ function openLightbox(mls,addr){
         else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
       };
       grid.appendChild(el);
+      addrEl.textContent=addr+' ('+i+(i===1?' photo':' photos')+')';
       i++;
       loadNext();
     };
-    img.onerror=function(){/* no more photos */};
+    img.onerror=function(){
+      const count=i-1;
+      photoCountCache[mls]=count;
+      if(count===0)addrEl.textContent=addr+' (no photos)';
+    };
     img.src=url;
   }
   loadNext();
@@ -454,7 +460,7 @@ let listings=[],sel=new Set(),archived=new Set(),sort_='priority',active=null,co
 let currentFilter='unread',cityFilters=new Set(),tagFilters=new Set();
 const td_=new Date();
 const F=n=>'$'+Math.round(n).toLocaleString();
-const FK=n=>n>=1e6?'$'+(n/1e6).toFixed(2)+'M':'$'+Math.round(n/1e3)+'K';
+const FK=n=>{if(n>=995000)return'$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';return'$'+Math.round(n/1e3)+'K';};
 const dom=d=>{if(!d)return 0;try{const s=d.replace(/\//g,'-');const p=s.split('-');if(p.length===3){const dt=p[0].length===4?new Date(s):p[2].length===4?new Date(p[2]+'-'+p[0]+'-'+p[1]):new Date(s);if(isNaN(dt))return 0;return Math.max(1,Math.round((td_-dt)/864e5));}return 0;}catch(e){return 0;}};
 function tg(t){const m={'Already flipped':['var(--accent-dim)','var(--accent)'],'Estate / Trust':['var(--purple-bg)','var(--purple)'],'TLC / Fixer':['var(--amber-bg)','var(--amber)'],'First time on market':['var(--green-bg)','var(--green)'],'Investor / Flip':['var(--blue-bg)','var(--blue)'],'Price reduced':['var(--red-bg)','var(--red)']};const c=m[t]||['var(--bg-alt)','var(--text-3)'];return`<span class="tag" style="background:${c[0]};color:${c[1]};border:none">★ ${t}</span>`;}
 
@@ -602,12 +608,12 @@ function calcDeal(id,listPrice,sqft){
 function getArvVal(l){if(l.lockedArv)return l.lockedArv;const cm=compCache[l.mls];return(cm&&cm.hp)?cm.hp*l.sqft:0;}
 function getGapVal(l){const cm=compCache[l.mls];if(!cm||!cm.hp)return 0;const arv=l.lockedArv||(cm.hp*l.sqft);if(!arv)return 0;const target=Math.round(arv*0.95/1.28);return l.price-target;}
 function toggleSort(col){if(sort_===col+'-asc')sort_=col+'-desc';else if(sort_===col+'-desc')sort_='priority';else sort_=col+'-asc';render();}
-function getSorted(){let d=[...listings];if(cityFilters.size)d=d.filter(l=>cityFilters.has(l.city.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())));if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));if(sort_==='priority')d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));else if(sort_==='price-asc')d.sort((a,b)=>a.price-b.price);else if(sort_==='price-desc')d.sort((a,b)=>b.price-a.price);else if(sort_==='ppsf-asc')d.sort((a,b)=>a.ppsf-b.ppsf);else if(sort_==='ppsf-desc')d.sort((a,b)=>b.ppsf-a.ppsf);else if(sort_==='dom-asc')d.sort((a,b)=>dom(a.listDate)-dom(b.listDate));else if(sort_==='dom-desc')d.sort((a,b)=>dom(b.listDate)-dom(a.listDate));else if(sort_==='arv-asc')d.sort((a,b)=>getArvVal(a)-getArvVal(b));else if(sort_==='arv-desc')d.sort((a,b)=>getArvVal(b)-getArvVal(a));else if(sort_==='gap-asc')d.sort((a,b)=>getGapVal(a)-getGapVal(b));else if(sort_==='gap-desc')d.sort((a,b)=>getGapVal(b)-getGapVal(a));return d;}
+function getSorted(){let d=[...listings];if(cityFilters.size)d=d.filter(l=>cityFilters.has(l.city.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())));if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));const sStr=(s)=>(s||'').toString().toLowerCase();if(sort_==='priority')d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));else if(sort_==='price-asc')d.sort((a,b)=>a.price-b.price);else if(sort_==='price-desc')d.sort((a,b)=>b.price-a.price);else if(sort_==='ppsf-asc')d.sort((a,b)=>a.ppsf-b.ppsf);else if(sort_==='ppsf-desc')d.sort((a,b)=>b.ppsf-a.ppsf);else if(sort_==='dom-asc')d.sort((a,b)=>dom(a.listDate)-dom(b.listDate));else if(sort_==='dom-desc')d.sort((a,b)=>dom(b.listDate)-dom(a.listDate));else if(sort_==='arv-asc')d.sort((a,b)=>getArvVal(a)-getArvVal(b));else if(sort_==='arv-desc')d.sort((a,b)=>getArvVal(b)-getArvVal(a));else if(sort_==='gap-asc')d.sort((a,b)=>getGapVal(a)-getGapVal(b));else if(sort_==='gap-desc')d.sort((a,b)=>getGapVal(b)-getGapVal(a));else if(sort_==='address-asc')d.sort((a,b)=>sStr(a.address).localeCompare(sStr(b.address)));else if(sort_==='address-desc')d.sort((a,b)=>sStr(b.address).localeCompare(sStr(a.address)));else if(sort_==='city-asc')d.sort((a,b)=>sStr(a.city).localeCompare(sStr(b.city)));else if(sort_==='city-desc')d.sort((a,b)=>sStr(b.city).localeCompare(sStr(a.city)));else if(sort_==='status-asc')d.sort((a,b)=>sStr(a.changeType).localeCompare(sStr(b.changeType)));else if(sort_==='status-desc')d.sort((a,b)=>sStr(b.changeType).localeCompare(sStr(a.changeType)));return d;}
 
 function render(){
   const data=getSorted();
   const sa=c=>sort_===c+'-asc'?'↑':sort_===c+'-desc'?'↓':'';
-  document.getElementById('lh').innerHTML=`<div class="th-p"><span></span><span>ADDRESS</span><span>CITY</span><span class="tr th-sort" style="padding-right:14px" onclick="toggleSort('price')">LIST PRICE ${sa('price')}</span><span>NOTES</span><span class="tr th-sort" style="padding-right:10px" onclick="toggleSort('ppsf')">$/SF ${sa('ppsf')}</span><span>SCHOOLS</span><span>STATUS</span><span class="tr th-sort" onclick="toggleSort('dom')">DOM ${sa('dom')}</span><span class="tr th-sort" onclick="toggleSort('arv')">ARV ${sa('arv')}</span><span class="tr th-sort" style="padding-right:10px" onclick="toggleSort('gap')">GAP ${sa('gap')}</span></div>`;
+  document.getElementById('lh').innerHTML=`<div class="th-p"><span></span><span class="th-sort" onclick="toggleSort('address')">ADDRESS ${sa('address')}</span><span class="th-sort" onclick="toggleSort('city')">CITY ${sa('city')}</span><span class="tr th-sort" style="padding-right:14px" onclick="toggleSort('price')">LIST PRICE ${sa('price')}</span><span>NOTES</span><span class="tr th-sort" style="padding-right:10px" onclick="toggleSort('ppsf')">$/SF ${sa('ppsf')}</span><span>SCHOOLS</span><span class="th-sort" onclick="toggleSort('status')">STATUS ${sa('status')}</span><span class="tr th-sort" onclick="toggleSort('dom')">DOM ${sa('dom')}</span><span class="tr th-sort" onclick="toggleSort('arv')">ARV ${sa('arv')}</span><span class="tr th-sort" style="padding-right:10px" onclick="toggleSort('gap')">GAP ${sa('gap')}</span></div>`;
   let h='';data.forEach(l=>{const d=dom(l.listDate),dc=d<=7?'dn':d>=30?'do':'dm';
     const thumbSrc=getThumbUrl(l.mls);
     const addrFull=l.address+', '+l.city+', CA '+l.zip;
@@ -643,7 +649,8 @@ function renderDetailPage(l){
   const id=l.mls.replace(/[^a-zA-Z0-9]/g,''),d=dom(l.listDate);
   const redfin=`https://www.google.com/search?q=redfin+${encodeURIComponent(l.address+' '+l.city+' CA')}&btnI=1`;
   const zillow=`https://www.zillow.com/homes/${encodeURIComponent(l.address+', '+l.city+', CA '+l.zip)}_rb/`;
-  let h=`<div class="det-sticky"><div class="det-sticky-inner"><div style="flex:1;min-width:0">
+  const detAddrFull=(l.address+', '+l.city+', CA '+l.zip).replace(/"/g,'&quot;');
+  let h=`<div class="det-sticky"><div class="det-sticky-inner"><div class="det-thumb" data-mls="${l.mls}" data-addr="${detAddrFull}" onclick="openLightbox(this.dataset.mls,this.dataset.addr)" style="width:120px;height:90px;flex-shrink:0;border-radius:6px;overflow:hidden;background:var(--bg);border:1px solid var(--border);cursor:pointer"><img src="${getThumbUrl(l.mls)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=&quot;display:flex;align-items:center;justify-content:center;height:100%;font-size:10px;color:var(--text-4)&quot;>no photo</div>'"></div><div style="flex:1;min-width:0">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <button onclick="cls()" style="background:none;border:1px solid var(--border);border-radius:5px;padding:4px 10px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-3)">← Back</button>
       <div style="display:flex;gap:6px">
