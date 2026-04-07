@@ -223,7 +223,7 @@
   <div style="display:flex;gap:16px;align-items:flex-start">
     <div id="map-canvas" style="flex:2;height:700px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);background:var(--bg-alt);display:flex;align-items:center;justify-content:center;color:var(--text-4);font-size:13px">Loading map…</div>
     <div style="flex:1;min-width:280px;max-width:380px">
-      <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">⚠ Likely Geocoding Errors <span id="outlierCount" style="color:var(--text-4);font-weight:400;text-transform:none;letter-spacing:0"></span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px"><div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">⚠ Likely Geocoding Errors <span id="outlierCount" style="color:var(--text-4);font-weight:400;text-transform:none;letter-spacing:0"></span></div><button id="clearOutlierBtn" onclick="clearOutlierCoords()" style="background:var(--red);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;padding:5px 10px;font-family:inherit;font-weight:600;display:none">Clear coords</button></div>
       <div id="outlierList" style="max-height:660px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-page)"></div>
     </div>
   </div>
@@ -826,9 +826,9 @@ async function loadMapView(){
     const q=(arr,p)=>arr[Math.floor(arr.length*p)];
     const latQ1=q(lats,0.25),latQ3=q(lats,0.75),latIQR=latQ3-latQ1;
     const lngQ1=q(lngs,0.25),lngQ3=q(lngs,0.75),lngIQR=lngQ3-lngQ1;
-    // 3x IQR is a conservative outlier band — flags only egregious cases
-    const latLo=latQ1-3*latIQR,latHi=latQ3+3*latIQR;
-    const lngLo=lngQ1-3*lngIQR,lngHi=lngQ3+3*lngIQR;
+    // 1.5x IQR is the textbook strict threshold — for flip comps even a few blocks of geocoding error matter
+    const latLo=latQ1-1.5*latIQR,latHi=latQ3+1.5*latIQR;
+    const lngLo=lngQ1-1.5*lngIQR,lngHi=lngQ3+1.5*lngIQR;
     rows.forEach(r=>{
       if(r.latitude<latLo||r.latitude>latHi||r.longitude<lngLo||r.longitude>lngHi)mapViewOutliers.add(r.id);
     });
@@ -888,6 +888,7 @@ function renderMapView(){
   // Render outlier sidebar list (always shows all outliers, regardless of filter, but city filter narrows it)
   const outlierRows=mapViewData.filter(r=>mapViewOutliers.has(r.id)&&(!cityFilter||(r.city||'').toUpperCase().trim()===cityFilter));
   document.getElementById('outlierCount').textContent='('+outlierRows.length+')';
+  document.getElementById('clearOutlierBtn').style.display=outlierRows.length>0?'':'none';
   const list=document.getElementById('outlierList');
   if(!outlierRows.length){list.innerHTML='<div style="padding:16px;font-size:12px;color:var(--text-4);text-align:center">No outliers detected '+(cityFilter?'in '+cityFilter:'')+'</div>';return;}
   list.innerHTML=outlierRows.slice(0,200).map(r=>'<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer" onclick="mapViewFlyTo('+r.latitude+','+r.longitude+','+r.id+')"><div style="font-weight:600">'+(r.address||'(no address)')+'</div><div style="color:var(--text-3);font-size:11px;margin-top:2px">'+(r.city||'')+' · '+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+' · '+(r.comp_type||'general')+'</div><div style="color:var(--text-4);font-size:10px;font-family:var(--mono),monospace;margin-top:2px">'+r.latitude.toFixed(5)+', '+r.longitude.toFixed(5)+'</div></div>').join('')+(outlierRows.length>200?'<div style="padding:8px 12px;font-size:11px;color:var(--text-4);text-align:center">+'+(outlierRows.length-200)+' more</div>':'');
@@ -900,6 +901,32 @@ function mapViewFlyTo(lat,lng,id){
   // Pop the matching marker's info window
   const marker=mapViewMarkers.find(m=>{const p=m.getPosition();return Math.abs(p.lat()-lat)<1e-6&&Math.abs(p.lng()-lng)<1e-6;});
   if(marker)google.maps.event.trigger(marker,'click');
+}
+
+async function clearOutlierCoords(){
+  // Use whatever the sidebar is currently showing (respects city filter)
+  const cityFilter=document.getElementById('m-city-filter').value;
+  const targets=mapViewData.filter(r=>mapViewOutliers.has(r.id)&&(!cityFilter||(r.city||'').toUpperCase().trim()===cityFilter));
+  if(!targets.length){alert('No outliers to clear.');return;}
+  if(!confirm('Clear lat/lon on '+targets.length+' outlier'+(targets.length===1?'':'s')+(cityFilter?' in '+cityFilter:'')+'?\n\nAfter clearing, run the Geocode tab in import.html to re-geocode them.'))return;
+  const btn=document.getElementById('clearOutlierBtn');
+  btn.disabled=true;btn.textContent='Clearing…';
+  const ids=targets.map(r=>r.id);
+  let cleared=0;
+  for(let i=0;i<ids.length;i+=100){
+    const chunk=ids.slice(i,i+100);
+    const{error}=await sb.from('properties').update({latitude:null,longitude:null}).in('id',chunk);
+    if(error){alert('Error: '+error.message);btn.disabled=false;btn.textContent='Clear coords';return;}
+    cleared+=chunk.length;
+    btn.textContent='Clearing… '+cleared+'/'+ids.length;
+  }
+  // Drop them from local state so the map updates without a reload
+  const clearedSet=new Set(ids);
+  mapViewData=mapViewData.filter(r=>!clearedSet.has(r.id));
+  ids.forEach(id=>mapViewOutliers.delete(id));
+  btn.disabled=false;btn.textContent='Clear coords';
+  renderMapView();
+  alert('Cleared '+cleared+' coords. Now go to import.html → Geocode tab to re-geocode them.');
 }
 
 // Auto-load browse when tab is clicked
