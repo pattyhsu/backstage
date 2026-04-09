@@ -819,7 +819,7 @@ async function loadListings(status){
       if(/\bfully remodeled\b|\bcompletely remodeled\b|\btotally remodeled\b|\bnewly remodeled\b|\bfully renovated\b|\bcompletely renovated\b|\bnewly renovated\b/.test(rmk))tags.push('Already flipped');
       return{address:r.address||'',city:r.city||'',zip:r.zip||'',price:r.list_price||0,sqft:r.sqft||0,ppsf:r.ppsf||0,beds:r.beds||0,baths:parseFloat(r.baths)||0,lot:r.lot_size||'',built:r.year_built||'',mls:r.mls||'',listDate:r.list_date||'',pool:r.pool||'',saleType:r.sale_type||'',remarks:r.remarks||'',agentRemarks:r.agent_remarks||'',showingRemarks:r.showing_remarks||'',occupancy:r.occupancy||'',contactName:r.contact_name||'',contactPhone:r.contact_phone||'',occupantType:r.occupant_type||'',lockboxLocation:r.lockbox_location||'',lockboxType:r.lockbox_type||'',gateCode:r.gate_code||'',agent:r.agent_name||'',agentEmail:r.agent_email||'',agentPhone:r.agent_phone||'',agentOfficePhone:r.agent_office_phone||'',broker:r.agent_broker||'',brokerDre:r.broker_dre||'',agentDre:r.agent_dre||'',
         elem:r.elementary_rating||r.elementary_school?{r:r.elementary_rating||0,n:r.elementary_school||''}:null,
-        mid:r.middle_rating||r.middle_school?{r:r.middle_rating||0,n:r.middle_school||''}:null,
+        mid:(r.middle_rating||r.middle_school)&&(r.middle_school!==r.elementary_school)?{r:r.middle_rating||0,n:r.middle_school||''}:null,
         high:r.high_rating||r.high_school?{r:r.high_rating||0,n:r.high_school||''}:null,
         tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null};});
     active=null;sel.clear();render();
