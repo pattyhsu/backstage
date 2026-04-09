@@ -242,10 +242,10 @@ select.btn{appearance:auto}
           <button onclick="tfSelectAll()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">All</button>
           <button onclick="tfSelectNone()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">None</button>
         </div>
-        <label><input type="checkbox" value="TLC / Fixer" onchange="toggleTagFilter(this.value)">TLC / Fixer</label>
+        <label><input type="checkbox" value="Fixer" onchange="toggleTagFilter(this.value)">Fixer</label>
+        <label><input type="checkbox" value="Dated" onchange="toggleTagFilter(this.value)">Dated</label>
         <label><input type="checkbox" value="Estate / Trust" onchange="toggleTagFilter(this.value)">Estate / Trust</label>
         <label><input type="checkbox" value="Investor / Flip" onchange="toggleTagFilter(this.value)">Investor / Flip</label>
-        <label><input type="checkbox" value="First time on market" onchange="toggleTagFilter(this.value)">First time on market</label>
         <label><input type="checkbox" value="Price reduced" onchange="toggleTagFilter(this.value)">Price reduced</label>
         <label><input type="checkbox" value="Already flipped" onchange="toggleTagFilter(this.value)">Already flipped</label>
       </div>
@@ -492,9 +492,9 @@ const td_=new Date();
 const F=n=>'$'+Math.round(n).toLocaleString();
 const FK=n=>{if(n>=995000)return'$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';return'$'+Math.round(n/1e3)+'K';};
 const dom=d=>{if(!d)return 0;try{const s=d.replace(/\//g,'-');const p=s.split('-');if(p.length===3){const dt=p[0].length===4?new Date(s):p[2].length===4?new Date(p[2]+'-'+p[0]+'-'+p[1]):new Date(s);if(isNaN(dt))return 0;return Math.max(1,Math.round((td_-dt)/864e5));}return 0;}catch(e){return 0;}};
-function tg(t){const m={'Already flipped':['var(--accent-dim)','var(--accent)'],'Estate / Trust':['var(--purple-bg)','var(--purple)'],'TLC / Fixer':['var(--amber-bg)','var(--amber)'],'First time on market':['var(--green-bg)','var(--green)'],'Investor / Flip':['var(--blue-bg)','var(--blue)'],'Price reduced':['var(--red-bg)','var(--red)']};const c=m[t]||['var(--bg-alt)','var(--text-3)'];return`<span class="tag" style="background:${c[0]};color:${c[1]};border:none">★ ${t}</span>`;}
-const ALL_TAGS=['TLC / Fixer','Estate / Trust','Investor / Flip','First time on market','Price reduced','Already flipped'];
-const TAG_COLORS={'Already flipped':['var(--accent-dim)','var(--accent)'],'Estate / Trust':['var(--purple-bg)','var(--purple)'],'TLC / Fixer':['var(--amber-bg)','var(--amber)'],'First time on market':['var(--green-bg)','var(--green)'],'Investor / Flip':['var(--blue-bg)','var(--blue)'],'Price reduced':['var(--red-bg)','var(--red)']};
+function tg(t){const m={'Already flipped':['var(--accent-dim)','var(--accent)'],'Estate / Trust':['var(--purple-bg)','var(--purple)'],'Fixer':['var(--amber-bg)','var(--amber)'],'Dated':['var(--green-bg)','var(--green)'],'Investor / Flip':['var(--blue-bg)','var(--blue)'],'Price reduced':['var(--red-bg)','var(--red)']};const c=m[t]||['var(--bg-alt)','var(--text-3)'];return`<span class="tag" style="background:${c[0]};color:${c[1]};border:none">★ ${t}</span>`;}
+const ALL_TAGS=['Fixer','Dated','Estate / Trust','Investor / Flip','Price reduced','Already flipped'];
+const TAG_COLORS={'Already flipped':['var(--accent-dim)','var(--accent)'],'Estate / Trust':['var(--purple-bg)','var(--purple)'],'Fixer':['var(--amber-bg)','var(--amber)'],'Dated':['var(--green-bg)','var(--green)'],'Investor / Flip':['var(--blue-bg)','var(--blue)'],'Price reduced':['var(--red-bg)','var(--red)']};
 async function toggleCustomTag(mls,tag){const l=listings.find(x=>x.mls===mls);if(!l)return;const cur=l.tags.includes(tag)?l.tags.filter(t=>t!==tag):[...l.tags,tag];await saveCustomTags(mls,cur);}
 async function saveCustomTags(mls,newTags){const l=listings.find(x=>x.mls===mls);if(!l)return;l.tags=newTags;l.customTags=newTags;const{error}=await sb.from('properties').update({custom_tags:newTags,updated_at:new Date().toISOString()}).eq('mls',mls);if(error)console.error('saveCustomTags error',error);const mid=mls.replace(/[^a-zA-Z0-9]/g,'');renderTagToggles(mls,mid);render();}
 function renderTagToggles(mls,mid){const l=listings.find(x=>x.mls===mls);if(!l)return;const el=document.getElementById('tag-toggles-'+mid);if(!el)return;el.innerHTML=ALL_TAGS.map(t=>{const active=l.tags.includes(t);const c=TAG_COLORS[t]||['var(--bg-alt)','var(--text-3)'];const style=active?`background:${c[0]};color:${c[1]};border:none;cursor:pointer`:`background:var(--bg);color:var(--text-4);border:1px solid var(--border);cursor:pointer;opacity:0.5`;return`<span class="tag" style="${style}" onclick="event.stopPropagation();toggleCustomTag('${mls.replace(/'/g,"\'")}','${t.replace(/'/g,"\'")}')">${active?'★':'☆'} ${t}</span>`;}).join('');}
@@ -818,8 +818,9 @@ async function loadListings(status){
     listings=(data||[]).map(r=>{
       const rmk=((r.remarks||'')+' '+(r.sale_type||'')).toLowerCase();let tags=[];
       if(r.custom_tags!==null&&r.custom_tags!==undefined){tags=r.custom_tags||[];}else{
-      if(/first time on the market|first time on market|first time in \d+ year/.test(rmk))tags.push('First time on market');
-      if(/\btlc\b|\bfixer\b|\bhandyman\b|\bhandy.?man special\b/.test(rmk))tags.push('TLC / Fixer');
+      const isRenovated=/\bfully remodeled\b|\bcompletely remodeled\b|\btotally remodeled\b|\bnewly remodeled\b|\bfully renovated\b|\bcompletely renovated\b|\bnewly renovated\b|\brecently remodeled\b|\brecently renovated\b|\bbrand new kitchen\b|\bbrand new bath/.test(rmk);
+      if(!isRenovated&&/\bdated\b|\boutdated\b|\boriginal condition\b|\boriginal kitchen\b|\boriginal bath(?:room)?s?\b|\bneeds updating\b|\bneeds update\b|\bneeds updates\b|\bneeds updated\b|\bneeds cosmetic\b|\bneeds modernizing\b|\bneeds remodel\b|\bneeds a remodel\b|\bneeds remodeling\b|\bneeds renovation\b|\bneeds renovating\b|\bbring your (?:contractor|designer|imagination|vision)\b|\bcosmetic (?:work|updates?|fixer)\b|\bupdate to (?:your|taste)\b|\bmake it your own\b|\bgood bones\b|\bwith some (?:tlc|updating|updates|love)\b|\bready for your (?:updates?|touches?|vision)\b|\bopportunity to update\b|\badd your personal touch\b/.test(rmk))tags.push('Dated');
+      if(/\btlc\b|\bfixer\b|\bhandyman\b|\bhandy.?man special\b/.test(rmk))tags.push('Fixer');
       if(/\btrust sale\b|\bprobate\b|\bestate sale\b|, trust\b/.test(rmk)||/trust/i.test(r.sale_type||''))tags.push('Estate / Trust');
       if(/\binvestor special\b|\bgreat for investors\b|\bflip\b|\bwholesale\b/.test(rmk))tags.push('Investor / Flip');
       if(/\bprice reduced\b|\breduced price\b|\bmotivated seller\b/.test(rmk))tags.push('Price reduced');
