@@ -566,7 +566,7 @@ async function updateGeoStats(){
 var _censusFirstError=null,_censusSampleLogged=false;
 async function geocodeCensus(r){
   var addr=fmtAddr(r);
-  var url='https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address='+encodeURIComponent(addr)+'&benchmark=Public_AR_Current&format=json';
+  var url='https://census.dottyhomes.com/geocoder/locations/onelineaddress?address='+encodeURIComponent(addr)+'&benchmark=Public_AR_Current&format=json';
   try{
     var resp=await fetch(url);
     if(!resp.ok){if(!_censusFirstError)_censusFirstError='HTTP '+resp.status+' '+resp.statusText;return null;}
