@@ -302,16 +302,14 @@ let lbMls='';
 
 async function fetchPhotoCount(mls){
   if(photoCountCache[mls]!=null)return photoCountCache[mls];
-  try{
-    const res=await fetch(`${PHOTO_BASE}/${mls}/`);
-    if(!res.ok)return null;
-    const txt=await res.text();
-    const matches=txt.match(new RegExp(`${mls}_\\d+\\.jpg`,'gi'));
-    const uniq=matches?new Set(matches.map(s=>s.toLowerCase())):new Set();
-    const count=uniq.size;
-    photoCountCache[mls]=count;
-    return count;
-  }catch(e){return null;}
+  // Check if listing has photo_files from Supabase
+  const listing=listings.find(l=>l.mls===mls);
+  if(listing?.photoFiles?.length){
+    photoCountCache[mls]=listing.photoFiles.length;
+    return listing.photoFiles.length;
+  }
+  // Fallback: sequential probe (for listings not yet backfilled)
+  return null;
 }
 
 function openLightbox(mls,addr){
@@ -323,46 +321,56 @@ function openLightbox(mls,addr){
   grid.innerHTML='';
   document.getElementById('photoLightbox').classList.add('open');
   document.addEventListener('keydown',lbKeyHandler);
-  // Try to get total count upfront from directory listing
-  fetchPhotoCount(mls).then(total=>{
+
+  const listing=listings.find(l=>l.mls===mls);
+
+  // If we have photo_files from Supabase, use them directly
+  if(listing?.photoFiles?.length){
+    const files=listing.photoFiles;
+    addrEl.textContent=addr+' ('+files.length+(files.length===1?' photo':' photos')+')';
+    photoCountCache[mls]=files.length;
+    files.forEach(fname=>{
+      const url=`${PHOTO_BASE}/${mls}/${fname}`;
+      const el=document.createElement('img');
+      el.src=url;
+      el.onclick=function(){
+        if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
+        else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
+      };
+      grid.appendChild(el);
+    });
+    return;
+  }
+
+  // Fallback: sequential probe for listings without photo_files
+  let i=1;
+  function loadNext(){
     if(lbMls!==myMls)return;
-    if(total!=null){
-      addrEl.textContent=addr+(total===0?' (no photos)':' ('+total+(total===1?' photo':' photos')+')');
-    }
-    // Load photos sequentially until one fails (or until we hit known total)
-    let i=1;
-    function loadNext(){
+    const num=String(i).padStart(2,'0');
+    const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
+    const img=new Image();
+    img.onload=function(){
       if(lbMls!==myMls)return;
-      if(total!=null&&i>total)return;
-      const num=String(i).padStart(2,'0');
-      const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
-      const img=new Image();
-      img.onload=function(){
-        if(lbMls!==myMls)return;
-        const el=document.createElement('img');
-        el.src=url;
-        el.onclick=function(){
-          if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
-          else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
-        };
-        grid.appendChild(el);
-        // Only update count text in fallback mode (when total is unknown)
-        if(total==null)addrEl.textContent=addr+' ('+i+(i===1?' photo':' photos')+')';
-        i++;
-        loadNext();
+      const el=document.createElement('img');
+      el.src=url;
+      el.onclick=function(){
+        if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
+        else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
       };
-      img.onerror=function(){
-        if(lbMls!==myMls)return;
-        const count=i-1;
-        if(total==null){
-          photoCountCache[mls]=count;
-          if(count===0)addrEl.textContent=addr+' (no photos)';
-        }
-      };
-      img.src=url;
-    }
-    loadNext();
-  });
+      grid.appendChild(el);
+      addrEl.textContent=addr+' ('+i+(i===1?' photo':' photos')+')';
+      i++;
+      loadNext();
+    };
+    img.onerror=function(){
+      if(lbMls!==myMls)return;
+      const count=i-1;
+      photoCountCache[mls]=count;
+      if(count===0)addrEl.textContent=addr+' (no photos)';
+    };
+    img.src=url;
+  }
+  loadNext();
 }
 function closeLightbox(){
   document.getElementById('photoLightbox').classList.remove('open');
@@ -829,7 +837,7 @@ async function loadListings(status){
         elem:r.elementary_rating||r.elementary_school?{r:r.elementary_rating||0,n:r.elementary_school||''}:null,
         mid:(r.middle_rating||r.middle_school)&&(r.middle_school!==r.elementary_school)?{r:r.middle_rating||0,n:r.middle_school||''}:null,
         high:r.high_rating||r.high_school?{r:r.high_rating||0,n:r.high_school||''}:null,
-        tags,customTags:r.custom_tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null};});
+        tags,customTags:r.custom_tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null,photoFiles:r.photo_files||null};});
     active=null;sel.clear();render();
     const toTitle=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
     const cities=[...new Set(listings.map(l=>toTitle((l.city||'').trim())).filter(Boolean))].sort();
