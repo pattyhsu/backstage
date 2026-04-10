@@ -822,7 +822,31 @@ async function loadListings(status){
   else if(status&&status!=='all')query=query.eq('stage',status);
   else query=query.not('stage','in','("archived","off_market_lead")');
   try{
-    const{data,error}=await query;if(error)throw error;
+    let{data,error}=await query;if(error)throw error;
+    // Address-relist filter: if viewing off-market, hide rows whose address has
+    // a newer listing (any non-cancelled/expired/withdrawn status) under a different MLS#.
+    if(status==='off_market_lead'&&data&&data.length){
+      const OFF_LOCK=['cancelled','canceled','expired','withdrawn'];
+      const norm=r=>((r.address||'').replace(/\s+/g,' ').trim().toUpperCase()+'|'+(r.city||'').trim().toUpperCase());
+      const offByAddr=new Map();
+      data.forEach(r=>{const k=norm(r);if(!offByAddr.has(k)||new Date(r.change_date||0)>new Date(offByAddr.get(k).change_date||0))offByAddr.set(k,r);});
+      const addrs=[...new Set(data.map(r=>r.address).filter(Boolean))];
+      const relisted=new Set();
+      // Chunk address lookups to avoid huge IN clauses
+      for(let i=0;i<addrs.length;i+=100){
+        const chunk=addrs.slice(i,i+100);
+        const{data:other}=await sb.from('properties').select('mls,address,city,change_date,change_type').in('address',chunk);
+        (other||[]).forEach(o=>{
+          const k=norm(o);
+          const offRow=offByAddr.get(k);
+          if(!offRow||o.mls===offRow.mls)return;
+          const oct=(o.change_type||'').toLowerCase().trim();
+          if(OFF_LOCK.indexOf(oct)>=0)return; // another off-market row doesn't count as a relist
+          if(new Date(o.change_date||0)>new Date(offRow.change_date||0))relisted.add(k);
+        });
+      }
+      if(relisted.size)data=data.filter(r=>!relisted.has(norm(r)));
+    }
     listings=(data||[]).map(r=>{
       const rmk=((r.remarks||'')+' '+(r.sale_type||'')).toLowerCase();let tags=[];
       if(r.custom_tags!==null&&r.custom_tags!==undefined){tags=r.custom_tags||[];}else{
