@@ -376,12 +376,12 @@ async function runImport(){
   try{
     var allExisting=[];
     for(var p=0;p<20;p++){
-      var mr=await sb.from(TABLE).select('id,mls,address,city,sale_price,stage,comp_type').range(p*1000,(p+1)*1000-1);
+      var mr=await sb.from(TABLE).select('id,mls,address,city,sale_price,stage,comp_type,change_type,change_date').range(p*1000,(p+1)*1000-1);
       if(!mr.data||!mr.data.length)break;
       allExisting=allExisting.concat(mr.data);
     }
     allExisting.forEach(function(r){
-      if(r.mls)existingMLS.set(r.mls,{id:r.id,stage:r.stage,comp_type:r.comp_type});
+      if(r.mls)existingMLS.set(r.mls,{id:r.id,stage:r.stage,comp_type:r.comp_type,change_type:r.change_type,change_date:r.change_date});
       // For sold comps: match by address+city+price (same address can sell multiple times)
       // For listings: match by address+city only
       var normAddr=(r.address||'').replace(/\s+/g,' ').trim().toUpperCase();
@@ -479,13 +479,33 @@ async function runImport(){
   log.textContent+='  → Off-Market Leads: '+offMarketCount+'\n\n';
 
   // Split new vs update
+  // Lock rules: sold = frozen; cancelled/expired/withdrawn = one-way lock;
+  // everything else = date-guarded against stale CSVs.
+  var FROZEN_STATUSES=['sold'];
+  var OFF_MARKET_LOCK=['cancelled','canceled','expired','withdrawn'];
+  var lockedSkipped=0,stalesSkipped=0;
   var CHUNK=50;
   var newRows=[],updateRows=[];
   rows.forEach(function(r){
     var normAddr=(r.address||'').toUpperCase();
     var normCity=(r.city||'').toUpperCase();
     if(existingMLS.has(r.mls)){
-      r._updateBy='mls';r._updateId=existingMLS.get(r.mls).id;updateRows.push(r);
+      var ex=existingMLS.get(r.mls);
+      var exCT=(ex.change_type||'').toLowerCase().trim();
+      var csvCT=(r.change_type||'').toLowerCase().trim();
+      var csvDate=new Date(r.change_date||0);
+      var dbDate=new Date(ex.change_date||0);
+      // 1. Sold = frozen forever
+      if(FROZEN_STATUSES.indexOf(exCT)>=0){lockedSkipped++;return;}
+      // 2. Off-market lock: only a newer sold/off-market row can update
+      if(OFF_MARKET_LOCK.indexOf(exCT)>=0){
+        var csvIsTerm=FROZEN_STATUSES.indexOf(csvCT)>=0||OFF_MARKET_LOCK.indexOf(csvCT)>=0;
+        if(!csvIsTerm||csvDate<=dbDate){lockedSkipped++;return;}
+      } else {
+        // 3. On-market: reject stale CSVs
+        if(csvDate<dbDate){stalesSkipped++;return;}
+      }
+      r._updateBy='mls';r._updateId=ex.id;updateRows.push(r);
     } else {
       // Try address+price match first (for sold comps), then address-only (for listings)
       var matched=false;
@@ -530,7 +550,7 @@ async function runImport(){
       log.scrollTop=log.scrollHeight;
     }
   }
-  log.textContent+='\n━━━ Done: '+ins+' inserted · '+upd+' updated · '+errs+' errors ━━━\n';
+  log.textContent+='\n━━━ Done: '+ins+' inserted · '+upd+' updated · '+lockedSkipped+' locked · '+stalesSkipped+' stale · '+errs+' errors ━━━\n';
   importHistory.unshift({date:new Date().toISOString(),file:document.getElementById('previewTitle').textContent,rows:rows.length,newRows:ins,updated:upd,sold:soldCount,archived:archivedCount,offMarket:offMarketCount,errors:errs});
   if(importHistory.length>20)importHistory=importHistory.slice(0,20);
   localStorage.setItem('dh_import_hist',JSON.stringify(importHistory));renderHistory();
