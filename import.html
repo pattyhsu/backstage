@@ -84,6 +84,9 @@ html, body { height: 100vh; overflow: hidden; }
   .lb-grid{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:repeat(2,1fr);gap:4px}
   .lb-grid img{width:100%;display:block;cursor:pointer;border-radius:2px}
   .lb-grid img.lb-full{position:fixed;inset:0;max-width:95vw;max-height:95vh;margin:auto;z-index:10004;border-radius:6px;object-fit:contain;cursor:zoom-out}
+  .dupe-thumb{width:60px;height:45px;object-fit:cover;border-radius:4px;cursor:pointer;background:var(--bg-alt);flex-shrink:0;border:1px solid var(--border);transition:transform .15s}
+  .dupe-thumb:hover{transform:scale(1.8);z-index:10;position:relative;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+  .dupe-thumb-empty{width:60px;height:45px;border-radius:4px;background:var(--bg-alt);flex-shrink:0;border:1px dashed var(--border);display:grid;place-items:center;font-size:10px;color:var(--text-4)}
 </style>
 </head>
 <body>
@@ -789,7 +792,7 @@ async function addManualComp(){
 // ═══ FIND DUPLICATES ═══
 async function findDuplicates(){
   var c=document.getElementById('dupeResults');c.innerHTML='<div class="loading">Checking...</div>';
-  var allData=[];for(var p=0;p<20;p++){var res=await sb.from(TABLE).select('id,address,city,sale_price,sold_date,sqft,comp_type,dom,reviewed').eq('change_type','sold').order('city').order('address').range(p*1000,(p+1)*1000-1);if(!res.data||!res.data.length)break;allData=allData.concat(res.data);}
+  var allData=[];for(var p=0;p<20;p++){var res=await sb.from(TABLE).select('id,mls,address,city,sale_price,sold_date,sqft,comp_type,dom,reviewed').eq('change_type','sold').order('city').order('address').range(p*1000,(p+1)*1000-1);if(!res.data||!res.data.length)break;allData=allData.concat(res.data);}
   if(!allData.length){c.innerHTML='<p style="color:var(--green)">No comps to check.</p>';return;}
   var groups={};allData.forEach(function(r){var k=(r.address||'').toUpperCase().replace(/\s+/g,' ').trim()+'|'+(r.city||'').toUpperCase().trim();if(!groups[k])groups[k]=[];groups[k].push(r);});
   var repeats=Object.entries(groups).filter(function(e){return e[1].length>1;});
@@ -807,6 +810,13 @@ async function findDuplicates(){
 
   var h='';
 
+  // Helper: generate thumbnail HTML for a comp row
+  function dupeThumb(r){
+    if(!r.mls)return '<div class="dupe-thumb-empty">no MLS</div>';
+    var src=PHOTO_BASE+'/'+r.mls+'/'+r.mls+'_01.jpg';
+    return '<img class="dupe-thumb" src="'+src+'" onclick="openLightbox(\''+r.mls+'\',\''+((r.address||'')+', '+(r.city||'')).replace(/'/g,"\\'")+'\');event.stopPropagation()" onerror="this.outerHTML=\'<div class=dupe-thumb-empty>no photo</div>\'" title="Click for all photos">';
+  }
+
   // TRUE DUPLICATES
   if(trueDupes.length){
     var tdCount=trueDupes.reduce(function(s,e){return s+Object.values(e[2]).reduce(function(ss,g){return ss+g.length-1;},0);},0);
@@ -815,7 +825,7 @@ async function findDuplicates(){
     trueDupes.forEach(function(e){var key=e[0],comps=e[1],pg=e[2];var parts=key.split('|');
       h+='<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+parts[0]+', '+parts[1]+' <a href="https://www.zillow.com/homes/'+encodeURIComponent(parts[0]+', '+parts[1]+', CA')+'" target="_blank" style="opacity:0.5;margin-left:4px"><img src="https://www.zillow.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a> <span style="color:var(--red)">('+comps.length+')</span></div>';
       comps.forEach(function(r){var isDupe=Object.values(pg).some(function(g){return g.length>1&&g.indexOf(r)>0;});
-        h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;border-radius:6px;'+(isDupe?'':'background:var(--accent-dim)')+'" id="dupe-row-'+r.id+'"><span style="font-size:12px;font-family:var(--mono);color:'+(isDupe?'var(--red)':'var(--green)')+';min-width:55px">'+(isDupe?'dupe':'★ keep')+'</span><span style="font-size:12px;min-width:90px">'+(r.sold_date||'—')+'</span><span style="font-size:12px;font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="font-size:12px;color:var(--text-4)">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="viewCompPhotos('+r.id+')" title="View photos" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:14px;font-family:inherit;margin-right:8px">📷</button><button onclick="editComp('+r.id+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;font-family:inherit;margin-right:8px">edit</button><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-family:inherit">delete</button></div>';
+        h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;border-radius:6px;'+(isDupe?'':'background:var(--accent-dim)')+'" id="dupe-row-'+r.id+'">'+dupeThumb(r)+'<span style="font-size:12px;font-family:var(--mono);color:'+(isDupe?'var(--red)':'var(--green)')+';min-width:55px">'+(isDupe?'dupe':'★ keep')+'</span><span style="font-size:12px;min-width:90px">'+(r.sold_date||'—')+'</span><span style="font-size:12px;font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="font-size:12px;color:var(--text-4)">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="viewCompPhotos('+r.id+')" title="View photos" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:14px;font-family:inherit;margin-right:8px">📷</button><button onclick="editComp('+r.id+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;font-family:inherit;margin-right:8px">edit</button><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-family:inherit">delete</button></div>';
       });h+='</div>';
     });h+='</div>';
   }
@@ -845,7 +855,7 @@ async function findDuplicates(){
       h+='<div style="display:flex;gap:6px"><button onclick="markAsFlip('+(latestComp?latestComp.id:0)+',['+ids+'])" style="background:var(--accent);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;padding:4px 10px;font-family:inherit;font-weight:600">Is Flip ↗</button><button onclick="markAsHalfFlip('+(latestComp?latestComp.id:0)+',['+ids+'])" style="background:var(--amber);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;padding:4px 10px;font-family:inherit;font-weight:600">Half-Ass ½</button><button onclick="dismissFlip(['+ids+'])" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-3);cursor:pointer;font-size:11px;padding:4px 10px;font-family:inherit">Not a flip ✓</button></div></div>';
 
       comps.forEach(function(r){var isLatest=r.sold_date===latestDate;
-        h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;border-radius:6px;'+(isLatest?'background:var(--accent-dim)':'')+'" id="dupe-row-'+r.id+'"><span style="font-size:12px;min-width:20px;color:var(--accent)">'+(isLatest?'★':'')+'</span><span style="font-size:12px;min-width:90px">'+(r.sold_date||'—')+'</span><span style="font-size:12px;font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="font-size:12px;color:'+(r.comp_type==='flips'?'var(--blue)':r.comp_type==='dotty'?'var(--green)':r.comp_type==='halfflips'?'var(--amber)':'var(--text-4)')+';font-weight:600;min-width:60px">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="viewCompPhotos('+r.id+')" title="View photos" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:14px;font-family:inherit;margin-right:8px">📷</button><button onclick="editComp('+r.id+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;font-family:inherit;margin-right:8px">edit</button><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-family:inherit">delete</button></div>';
+        h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;border-radius:6px;'+(isLatest?'background:var(--accent-dim)':'')+'" id="dupe-row-'+r.id+'">'+dupeThumb(r)+'<span style="font-size:12px;min-width:20px;color:var(--accent)">'+(isLatest?'★':'')+'</span><span style="font-size:12px;min-width:90px">'+(r.sold_date||'—')+'</span><span style="font-size:12px;font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="font-size:12px;color:'+(r.comp_type==='flips'?'var(--blue)':r.comp_type==='dotty'?'var(--green)':r.comp_type==='halfflips'?'var(--amber)':'var(--text-4)')+';font-weight:600;min-width:60px">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="viewCompPhotos('+r.id+')" title="View photos" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:14px;font-family:inherit;margin-right:8px">📷</button><button onclick="editComp('+r.id+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;font-family:inherit;margin-right:8px">edit</button><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-family:inherit">delete</button></div>';
       });h+='</div>';
     });
   }
