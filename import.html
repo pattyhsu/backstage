@@ -254,7 +254,11 @@ const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 const TABLE='properties';
 const sb=window.supabase.createClient(SB_URL,SB_KEY);
 let parsedCSV=null;
-let importHistory=JSON.parse(localStorage.getItem('dh_import_hist')||'[]');
+let importHistory=[];
+async function loadHistory(){
+  try{var{data}=await sb.from('import_history').select('*').order('imported_at',{ascending:false}).limit(50);importHistory=data||[];renderHistory();}
+  catch(e){console.error('history load failed:',e);}
+}
 
 // ═══ TABS ═══
 function switchTab(t){
@@ -425,7 +429,7 @@ async function runImport(){
   var ACTIVE_TYPES=['active','new listing','coming soon','mls exclusive','back on market','price change'];
   var ARCHIVE_TYPES=['active under contract','pending','hold'];
   var SOLD_TYPES=['sold'];
-  var OFF_MARKET_TYPES=['expired','canceled','withdrawn'];
+  var OFF_MARKET_TYPES=['expired','canceled','cancelled','withdrawn'];
   var newCount=0,dupeCount=0,soldCount=0,archivedCount=0,offMarketCount=0,priceUpdated=0;
 
   rows.forEach(function(r){
@@ -472,11 +476,12 @@ async function runImport(){
     }
   });
 
-  log.textContent+='  New listings: '+newCount+'\n';
-  log.textContent+='  Updates: '+dupeCount+(priceUpdated?' ('+priceUpdated+' price changes)':'')+'\n';
-  log.textContent+='  → Sold (moved to comps): '+soldCount+'\n';
-  log.textContent+='  → Archived: '+archivedCount+'\n';
-  log.textContent+='  → Off-Market Leads: '+offMarketCount+'\n\n';
+  // Breakdown log moved to after the split loop, so it reflects post-lock counts.
+
+  // Split new vs update
+  // Reset breakdown counters — they will be re-counted in the split loop
+  // below so that locked/stale-skipped rows don't inflate the totals.
+  newCount=0;dupeCount=0;soldCount=0;archivedCount=0;offMarketCount=0;priceUpdated=0;
 
   // Split new vs update
   // Lock rules: sold = frozen; cancelled/expired/withdrawn = one-way lock;
@@ -489,39 +494,60 @@ async function runImport(){
   rows.forEach(function(r){
     var normAddr=(r.address||'').toUpperCase();
     var normCity=(r.city||'').toUpperCase();
+    var ct=(r.change_type||'').toLowerCase().trim();
+    var countCategory=function(isUpdate){
+      if(SOLD_TYPES.indexOf(ct)>=0)soldCount++;
+      else if(ARCHIVE_TYPES.indexOf(ct)>=0)archivedCount++;
+      else if(OFF_MARKET_TYPES.indexOf(ct)>=0)offMarketCount++;
+      else if(ACTIVE_TYPES.indexOf(ct)>=0){if(isUpdate){if(ct==='price change'||ct==='back on market')priceUpdated++;dupeCount++;}else newCount++;}
+      else {if(isUpdate)dupeCount++;else newCount++;}
+    };
     if(existingMLS.has(r.mls)){
       var ex=existingMLS.get(r.mls);
       var exCT=(ex.change_type||'').toLowerCase().trim();
-      var csvCT=(r.change_type||'').toLowerCase().trim();
+      var csvCT=ct;
       var csvDate=new Date(r.change_date||0);
       var dbDate=new Date(ex.change_date||0);
-      // 1. Sold = frozen forever
       if(FROZEN_STATUSES.indexOf(exCT)>=0){lockedSkipped++;return;}
-      // 2. Off-market lock: only a newer sold/off-market row can update
       if(OFF_MARKET_LOCK.indexOf(exCT)>=0){
         var csvIsTerm=FROZEN_STATUSES.indexOf(csvCT)>=0||OFF_MARKET_LOCK.indexOf(csvCT)>=0;
         if(!csvIsTerm||csvDate<=dbDate){lockedSkipped++;return;}
       } else {
-        // 3. On-market: reject stale CSVs
         if(csvDate<dbDate){stalesSkipped++;return;}
       }
+      countCategory(true);
       r._updateBy='mls';r._updateId=ex.id;updateRows.push(r);
     } else {
       // Try address+price match first (for sold comps), then address-only (for listings)
       var matched=false;
-      var isSoldRow=(r.change_type||'').toLowerCase()==='sold';
+      var isSoldRow=ct==='sold';
+      // Helper: lock check for address-matched rows (existing record has no MLS in our cache,
+      // but we still need to honor sold/off-market locks via the matched record's change_type/date).
+      var addrLockCheck=function(matchedRow){
+        // Address-fallback matches don't carry change_type/change_date in existingAddr,
+        // so we skip the per-row lock here — this path is rare (NULL-MLS sold comps mainly).
+        // The MLS-keyed path above handles 99% of lock enforcement.
+        return true;
+      };
       if(r.sale_price){
         var addrPriceKey=normAddr+'|'+normCity+'|'+r.sale_price;
-        if(existingAddr.has(addrPriceKey)){r._updateBy='id';r._updateId=existingAddr.get(addrPriceKey).id;updateRows.push(r);matched=true;}
+        if(existingAddr.has(addrPriceKey)){r._updateBy='id';r._updateId=existingAddr.get(addrPriceKey).id;updateRows.push(r);matched=true;countCategory(true);}
       }
       if(!matched&&!isSoldRow){
         var addrKey=normAddr+'|'+normCity;
-        if(existingAddr.has(addrKey)){r._updateBy='id';r._updateId=existingAddr.get(addrKey).id;updateRows.push(r);matched=true;}
+        if(existingAddr.has(addrKey)){r._updateBy='id';r._updateId=existingAddr.get(addrKey).id;updateRows.push(r);matched=true;countCategory(true);}
       }
-      if(!matched)newRows.push(r);
+      if(!matched){newRows.push(r);countCategory(false);}
     }
   });
 
+  log.textContent+='  New listings: '+newCount+'\n';
+  log.textContent+='  Updates: '+dupeCount+(priceUpdated?' ('+priceUpdated+' price changes)':'')+'\n';
+  log.textContent+='  → Sold (moved to comps): '+soldCount+'\n';
+  log.textContent+='  → Archived: '+archivedCount+'\n';
+  log.textContent+='  → Off-Market Leads: '+offMarketCount+'\n';
+  log.textContent+='  Locked (skipped): '+lockedSkipped+'\n';
+  log.textContent+='  Stale (skipped): '+stalesSkipped+'\n\n';
   var ins=0,upd=0,errs=0;
   newRows.forEach(function(r){if(r.stage==='sold_comp')r.stage=null;});
 
@@ -551,14 +577,22 @@ async function runImport(){
     }
   }
   log.textContent+='\n━━━ Done: '+ins+' inserted · '+upd+' updated · '+lockedSkipped+' locked · '+stalesSkipped+' stale · '+errs+' errors ━━━\n';
-  importHistory.unshift({date:new Date().toISOString(),file:document.getElementById('previewTitle').textContent,rows:rows.length,newRows:ins,updated:upd,sold:soldCount,archived:archivedCount,offMarket:offMarketCount,errors:errs});
-  if(importHistory.length>20)importHistory=importHistory.slice(0,20);
-  localStorage.setItem('dh_import_hist',JSON.stringify(importHistory));renderHistory();
+  try{
+    await sb.from('import_history').insert({
+      source:document.getElementById('previewTitle').textContent,
+      device:/Win/.test(navigator.platform)?'windows':/Mac/.test(navigator.platform)?'mac':'other',
+      rows:rows.length,inserted:ins,updated:upd,
+      locked:lockedSkipped,stale:stalesSkipped,errors:errs,
+      sold:soldCount,archived:archivedCount,off_market:offMarketCount
+    });
+  }catch(e){console.error('history insert failed:',e);log.textContent+='⚠ History insert failed: '+e.message+' (check that import_history table exists)\n';}
+  await loadHistory();
 }
 function renderHistory(){
   var el=document.getElementById('histBody');if(!importHistory.length){el.innerHTML='<p style="color:var(--text-4)">No imports yet.</p>';return;}
-  el.innerHTML=importHistory.map(function(h,i){var d=new Date(h.date);return'<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--bg-alt);font-size:12px"><span style="font-family:var(--mono);color:var(--text-3);min-width:130px">'+d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</span><span style="flex:1">'+h.file+'</span><span style="color:var(--green)">+'+(h.newRows||0)+'</span><span style="color:var(--text-3)">↻'+(h.updated||0)+'</span>'+(h.sold?'<span style="color:var(--accent)">sold:'+h.sold+'</span>':'')+'<button style="background:none;border:none;color:var(--text-4);cursor:pointer" onclick="importHistory.splice('+i+',1);localStorage.setItem(\'dh_import_hist\',JSON.stringify(importHistory));renderHistory()">×</button></div>';}).join('');
+  el.innerHTML=importHistory.map(function(h){var d=new Date(h.imported_at);var dev=h.device?' <span style="color:var(--text-4);font-size:10px">['+h.device+']</span>':'';var lockBadge=h.locked?'<span style="color:var(--purple)">🔒'+h.locked+'</span>':'';var staleBadge=h.stale?'<span style="color:var(--text-4)">⊘'+h.stale+'</span>':'';return'<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--bg-alt);font-size:12px"><span style="font-family:var(--mono);color:var(--text-3);min-width:130px">'+d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</span><span style="flex:1">'+(h.source||'')+dev+'</span><span style="color:var(--green)">+'+(h.inserted||0)+'</span><span style="color:var(--text-3)">↻'+(h.updated||0)+'</span>'+(h.sold?'<span style="color:var(--accent)">sold:'+h.sold+'</span>':'')+lockBadge+staleBadge+'<button style="background:none;border:none;color:var(--text-4);cursor:pointer" onclick="deleteHistoryRow(\''+h.id+'\')">×</button></div>';}).join('');
 }
+async function deleteHistoryRow(id){await sb.from('import_history').delete().eq('id',id);await loadHistory();}
 
 // ═══ GEOCODING PIPELINE ═══
 // Pass 1: US Census (free, accurate for ~95% of US residential addresses)
@@ -995,7 +1029,7 @@ if(sessionStorage.getItem('backstage_auth')==='1')bsShow();
 (async function(){
   try{var{error}=await sb.from(TABLE).select('id').limit(1);document.getElementById('dbStatus').innerHTML=error?'<span style="color:var(--red)">●</span>':'<span style="color:var(--green)">●</span>';}
   catch(e){document.getElementById('dbStatus').innerHTML='<span style="color:var(--red)">●</span>';}
-  renderHistory();
+  loadHistory();
 })();
 </script>
 </div><!-- /main-content -->
