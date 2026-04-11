@@ -146,7 +146,6 @@ html, body { height: 100vh; overflow: hidden; }
   <div class="tab active" data-tab="import" onclick="switchTab('import')">Import CSV</div>
   <div class="tab" data-tab="geocode" onclick="switchTab('geocode')">Geocode</div>
   <div class="tab" data-tab="schools" onclick="switchTab('schools')">Missing Schools</div>
-  <div class="tab" data-tab="manual" onclick="switchTab('manual')">Add Comp</div>
   <div class="tab" data-tab="dupes" onclick="switchTab('dupes')">Find Duplicates</div>
 </div>
 
@@ -213,35 +212,10 @@ html, body { height: 100vh; overflow: hidden; }
   </div>
 </div>
 
-<!-- ADD COMP TAB -->
-<div class="panel" id="panel-manual">
-  <div class="section">
-    <h3>Add Comp Manually</h3>
-    <p style="font-size:13px;color:var(--text-3);margin-bottom:16px">For Dotty flips or one-off entries.</p>
-    <div class="search-grid">
-      <div class="field"><label>Address</label><input type="text" id="m-address" placeholder="e.g. 13202 Carolyn"></div>
-      <div class="field"><label>City</label><input type="text" id="m-city" placeholder="e.g. CERRITOS"></div>
-      <div class="field"><label>Bedrooms</label><input type="number" id="m-beds" placeholder="3"></div>
-      <div class="field"><label>Bathrooms</label><input type="number" id="m-baths" step="0.5" placeholder="2"></div>
-      <div class="field"><label>SqFt</label><input type="number" id="m-sqft" placeholder="1500"></div>
-      <div class="field"><label>Sale Price</label><input type="number" id="m-price" placeholder="1100000"></div>
-      <div class="field"><label>Lot Size</label><input type="number" id="m-lot" placeholder="5000"></div>
-      <div class="field"><label>Pool</label><select id="m-pool"><option value="0">No</option><option value="1">Yes</option></select></div>
-      <div class="field"><label>Sold Date</label><input type="date" id="m-sold"></div>
-      <div class="field"><label>DOM</label><input type="number" id="m-dom" placeholder="7"></div>
-      <div class="field"><label>Coordinates</label><input type="text" id="m-coords" placeholder="33.8570, -118.0733"></div>
-      <div class="field"><label>Comp Type</label><select id="m-type"><option value="dotty">Dotty</option><option value="flips">Flips</option><option value="halfflips">Half-Ass Flip</option><option value="general">General</option></select></div>
-    </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="addManualComp()">Add Comp</button></div>
-    <div id="manualLog"></div>
-  </div>
-</div>
-
 <!-- FIND DUPLICATES TAB -->
 <div class="panel" id="panel-dupes">
   <div class="section">
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
-      <button class="btn btn-primary" onclick="findDuplicates()">Find Duplicates</button>
       <button class="btn btn-secondary" id="autoRemoveBtn" onclick="autoRemoveDupes()" style="display:none">Auto Remove True Dupes</button>
     </div>
     <div id="dupeResults"></div>
