@@ -785,14 +785,14 @@ async function loadMissingSchools(){
     try{
       var allCities=[];
       for(var p=0;p<20;p++){
-        var cr=await sb.from(TABLE).select('city').eq('change_type','sold').is('elementary_school',null).range(p*1000,(p+1)*1000-1);
+        var cr=await sb.from(TABLE).select('city').is('elementary_school',null).range(p*1000,(p+1)*1000-1);
         if(!cr.data||!cr.data.length)break;allCities=allCities.concat(cr.data);
       }
       var cities=[...new Set(allCities.map(function(r){return(r.city||'').trim();}).filter(Boolean))].sort();
       msc.innerHTML='<option value="">All Cities ('+cities.length+')</option>'+cities.map(function(c){return'<option value="'+c+'">'+c+'</option>';}).join('');
     }catch(e){}
   }
-  var q=sb.from(TABLE).select('id,address,city,elementary_school,elementary_rating,middle_school,middle_rating,high_school,high_rating').eq('change_type','sold').is('elementary_school',null);
+  var q=sb.from(TABLE).select('id,address,city,elementary_school,elementary_rating,middle_school,middle_rating,high_school,high_rating').is('elementary_school',null);
   if(city)q=q.eq('city',city);
   var{data,error}=await q.order('city').order('address').limit(200);
   if(error){el.innerHTML='Error: '+error.message;return;}
