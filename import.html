@@ -570,9 +570,9 @@ async function runImport(){
   log.textContent+='\n━━━ Done: '+ins+' inserted · '+upd+' updated · '+lockedSkipped+' locked · '+stalesSkipped+' stale · '+errs+' errors ━━━\n';
   try{
     await sb.from('import_history').insert({
-      source:document.getElementById('previewTitle').textContent,
+      filename:document.getElementById('previewTitle').textContent,
       device:/Win/.test(navigator.platform)?'windows':/Mac/.test(navigator.platform)?'mac':'other',
-      rows:rows.length,inserted:ins,updated:upd,
+      rows_imported:rows.length,inserted:ins,updated:upd,
       locked:lockedSkipped,stale:stalesSkipped,errors:errs,
       sold:soldCount,archived:archivedCount,off_market:offMarketCount
     });
