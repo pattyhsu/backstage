@@ -452,6 +452,23 @@ async function runImport(){
 
   // Breakdown log moved to after the split loop, so it reflects post-lock counts.
 
+  // Intra-CSV dedupe: same MLS can appear multiple times in one hotsheet
+  // (e.g. New Listing + Price Change on the same day). Collapse to the latest
+  // event per MLS — by change_date, tiebreak by CSV order (THEMLS exports
+  // chronologically, so later row = more recent). Rows without an MLS are
+  // left alone (address-only matching handles them downstream).
+  var _seenMLS={},_dedupedRows=[],_collapsed=0;
+  rows.forEach(function(r){
+    if(!r.mls){_dedupedRows.push(r);return;}
+    if(!(r.mls in _seenMLS)){_seenMLS[r.mls]=_dedupedRows.length;_dedupedRows.push(r);return;}
+    var prevIdx=_seenMLS[r.mls],prev=_dedupedRows[prevIdx];
+    var prevDate=new Date(prev.change_date||0),curDate=new Date(r.change_date||0);
+    if(curDate>=prevDate){_dedupedRows[prevIdx]=r;}
+    _collapsed++;
+  });
+  if(_collapsed){log.textContent+='Collapsed '+_collapsed+' intra-CSV duplicate row(s) → '+_dedupedRows.length+' unique MLS#s\n';}
+  rows=_dedupedRows;
+
   // Split new vs update
   // Reset breakdown counters — they will be re-counted in the split loop
   // below so that locked/stale-skipped rows don't inflate the totals.
