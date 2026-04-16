@@ -348,9 +348,8 @@ async function runImport(){
   if(!parsedCSV||!parsedCSV.length)return alert('No data');
   var log=document.getElementById('importLog');log.style.display='block';log.textContent='Importing '+parsedCSV.length+' rows...\n';
 
-  // Fetch existing records
+  // Fetch existing records — MLS-keyed only (per SOLD_LOCK_FIX.md §4).
   var existingMLS=new Map();
-  var existingAddr=new Map();
   try{
     var allExisting=[];
     for(var p=0;p<20;p++){
@@ -360,17 +359,6 @@ async function runImport(){
     }
     allExisting.forEach(function(r){
       if(r.mls)existingMLS.set(r.mls,{id:r.id,stage:r.stage,comp_type:r.comp_type,change_type:r.change_type,change_date:r.change_date});
-      // For sold comps: match by address+city+price (same address can sell multiple times)
-      // For listings: match by address+city only
-      var normAddr=(r.address||'').replace(/\s+/g,' ').trim().toUpperCase();
-      var normCity=(r.city||'').trim().toUpperCase();
-      if(r.sale_price){
-        var addrPriceKey=normAddr+'|'+normCity+'|'+r.sale_price;
-        if(!existingAddr.has(addrPriceKey))existingAddr.set(addrPriceKey,{id:r.id,mls:r.mls,stage:r.stage,comp_type:r.comp_type});
-      }
-      // Also store address+city only key for listing matching
-      var addrKey=normAddr+'|'+normCity;
-      if(!existingAddr.has(addrKey))existingAddr.set(addrKey,{id:r.id,mls:r.mls,stage:r.stage,comp_type:r.comp_type});
     });
   }catch(e){log.textContent+='⚠ Error fetching existing: '+e.message+'\n';}
 
@@ -399,146 +387,111 @@ async function runImport(){
     return c;
   }).filter(function(r){return r.mls;});
 
-  // Smart stage assignment
+  // ═══ §4a CSV PREPROCESSING ═══
+  // Collapse multi-event MLS# rows: pick max change_date, tiebreak via
+  // status-priority ladder, final tiebreak = last-in-CSV-order.
+  var STATUS_TIER={
+    'sold':1,
+    'canceled':2,'cancelled':2,'withdrawn':2,'expired':2,
+    'pending':3,'active under contract':3,
+    'hold':4,
+    'back on market':5,
+    'price change':6,'new listing':6,'active':6,'coming soon':6,'mls exclusive':6
+  };
+  function _statusTier(ct){var t=STATUS_TIER[(ct||'').toLowerCase().trim()];return t||99;}
+  var rawRowCount=rows.length;
+  var _byMLS=Object.create(null);   // mls → row (last winner)
+  rows.forEach(function(r){
+    var prev=_byMLS[r.mls];
+    if(!prev){_byMLS[r.mls]=r;return;}
+    var prevDate=prev.change_date||'',curDate=r.change_date||'';
+    if(curDate>prevDate){_byMLS[r.mls]=r;return;}
+    if(curDate<prevDate)return;
+    // Same change_date — status-priority ladder (lower tier wins).
+    var prevTier=_statusTier(prev.change_type),curTier=_statusTier(r.change_type);
+    if(curTier<prevTier){_byMLS[r.mls]=r;return;}
+    if(curTier>prevTier)return;
+    // Tier tie → last-in-CSV-order wins (overwrite).
+    _byMLS[r.mls]=r;
+  });
+  var collapsedRows=[];
+  for(var _k in _byMLS)collapsedRows.push(_byMLS[_k]);
+  log.textContent+=rawRowCount+' CSV rows → '+collapsedRows.length+' unique MLS# after preprocessing\n';
+  rows=collapsedRows;
+
+  // ═══ §4 PASS-1 MATCHER + §5 STAGE TRANSITIONS ═══
   var ACTIVE_TYPES=['active','new listing','coming soon','mls exclusive','back on market','price change'];
-  var ARCHIVE_TYPES=['active under contract','pending','hold'];
-  var SOLD_TYPES=['sold'];
-  var OFF_MARKET_TYPES=['expired','canceled','cancelled','withdrawn'];
-  var newCount=0,dupeCount=0,soldCount=0,archivedCount=0,offMarketCount=0,priceUpdated=0;
+  var ARCHIVED_ACTIVE_TYPES=['pending','active under contract','hold'];
+  var TERMINAL_TYPES=['sold','canceled','cancelled','withdrawn','expired'];
+  var OFF_MARKET_NONSOLD=['canceled','cancelled','withdrawn','expired'];
+  var newCount=0,updateCount=0,lockedRejectCount=0,staleRejectCount=0;
+  var soldCount=0,archivedCount=0,offMarketCount=0,priceUpdated=0;
+  var newRows=[],updateRows=[];
+  var CHUNK=50;
+
+  function applyStageTransition(r,existing,isInsert){
+    var ct=(r.change_type||'').toLowerCase().trim();
+    if(ct==='sold'){
+      // Sold-insert / sold-update logic — identical (spec §5).
+      r.change_type='sold';
+      if(existing&&existing.stage==='unsold_flip')r.comp_type='flips';
+      else if(existing&&existing.comp_type)r.comp_type=existing.comp_type;
+      else r.comp_type='general';
+      r.stage='sold_comp';   // transient marker, nulled at write (insert + update paths)
+      if(r.sale_price&&r.sqft)r.ppsf=Math.round(r.sale_price/r.sqft*100)/100;
+    }else if(ARCHIVED_ACTIVE_TYPES.indexOf(ct)>=0){
+      r.stage='archived';   // both insert and update
+    }else if(OFF_MARKET_NONSOLD.indexOf(ct)>=0){
+      r.stage='archived';   // both insert and update; row locks via terminal change_type
+    }else if(ACTIVE_TYPES.indexOf(ct)>=0){
+      if(isInsert)r.stage='unread';
+      // On update: do NOT set r.stage — build_update_payload's null/empty
+      // filter then preserves the DB stage (potential, contacted, unsold_flip).
+    }else{
+      // Unknown change_type — same handling as ACTIVE.
+      if(isInsert)r.stage='unread';
+    }
+  }
 
   rows.forEach(function(r){
     var ct=(r.change_type||'').toLowerCase().trim();
     var existing=existingMLS.get(r.mls);
-    var normAddr=(r.address||'').toUpperCase();
-    var normCity=(r.city||'').toUpperCase();
-    
-    // For sold comps: match by address+city+price (same address can sell at different prices = different sales)
-    // For listings: match by address+city only
-    if(!existing){
-      var isSold=(ct==='sold');
-      if(isSold&&r.sale_price){
-        // Sold comps: match by address+city+price ONLY (don't fall back to address-only)
-        var addrPriceKey=normAddr+'|'+normCity+'|'+r.sale_price;
-        var existingByAddrPrice=existingAddr.get(addrPriceKey);
-        if(existingByAddrPrice){existing=existingByAddrPrice;if(!existingByAddrPrice.mls&&r.mls)existingMLS.set(r.mls,existing);}
+    if(existing){
+      var exCT=(existing.change_type||'').toLowerCase().trim();
+      // §3 rule 4 + §4 step 2: locked rejection — covers all four terminal statuses.
+      if(TERMINAL_TYPES.indexOf(exCT)>=0){
+        lockedRejectCount++;
+        console.warn('locked_reject',r.mls,'stored change_type='+exCT,'incoming='+ct);
+        log.textContent+='  ↳ Locked: MLS '+r.mls+' (stored='+exCT+', incoming='+ct+')\n';
+        return;
       }
-      if(!existing&&!isSold){
-        // Listings only: fall back to address+city match
-        var addrKey=normAddr+'|'+normCity;
-        var existingByAddr=existingAddr.get(addrKey);
-        if(existingByAddr){existing=existingByAddr;if(!existingByAddr.mls&&r.mls)existingMLS.set(r.mls,existing);}
-      }
+      // §4 step 4: stale rejection — string compare on YYYY-MM-DD (set by
+      // the date-normalize loop above, so lex order = calendar order).
+      var csvDate=r.change_date||'',dbDate=existing.change_date||'';
+      if(csvDate<=dbDate){staleRejectCount++;return;}
+      // §4 step 3: update path.
+      applyStageTransition(r,existing,false);
+      r._updateBy='mls';r._updateId=existing.id;
+      updateRows.push(r);updateCount++;
+    }else{
+      // §4 step 5: miss → insert.
+      applyStageTransition(r,null,true);
+      newRows.push(r);newCount++;
     }
-    var isNew=!existing;
-
-    if(SOLD_TYPES.indexOf(ct)>=0){
-      r.change_type='sold';r.stage='sold_comp';
-      if(existing&&existing.stage==='unsold_flip')r.comp_type='flips';
-      else if(existing&&existing.comp_type)r.comp_type=existing.comp_type;
-      else r.comp_type='general';
-      if(r.sale_price&&r.sqft)r.ppsf=Math.round(r.sale_price/r.sqft*100)/100;
-      soldCount++;
-    } else if(ARCHIVE_TYPES.indexOf(ct)>=0){
-      r.stage='archived';archivedCount++;
-    } else if(OFF_MARKET_TYPES.indexOf(ct)>=0){
-      r.stage='off_market_lead';offMarketCount++;
-    } else if(ACTIVE_TYPES.indexOf(ct)>=0){
-      if(isNew){r.stage='unread';newCount++;}
-      else{if(ct==='price change'||ct==='back on market')priceUpdated++;dupeCount++;}
-    } else {
-      if(isNew){r.stage='unread';newCount++;}else dupeCount++;
-    }
-  });
-
-  // Breakdown log moved to after the split loop, so it reflects post-lock counts.
-
-  // Intra-CSV dedupe: same MLS can appear multiple times in one hotsheet
-  // (e.g. New Listing + Price Change on the same day). Collapse to the latest
-  // event per MLS — by change_date, tiebreak by CSV order (THEMLS exports
-  // chronologically, so later row = more recent). Rows without an MLS are
-  // left alone (address-only matching handles them downstream).
-  var _seenMLS={},_dedupedRows=[],_collapsed=0;
-  rows.forEach(function(r){
-    if(!r.mls){_dedupedRows.push(r);return;}
-    if(!(r.mls in _seenMLS)){_seenMLS[r.mls]=_dedupedRows.length;_dedupedRows.push(r);return;}
-    var prevIdx=_seenMLS[r.mls],prev=_dedupedRows[prevIdx];
-    var prevDate=new Date(prev.change_date||0),curDate=new Date(r.change_date||0);
-    if(curDate>=prevDate){_dedupedRows[prevIdx]=r;}
-    _collapsed++;
-  });
-  if(_collapsed){log.textContent+='Collapsed '+_collapsed+' intra-CSV duplicate row(s) → '+_dedupedRows.length+' unique MLS#s\n';}
-  rows=_dedupedRows;
-
-  // Split new vs update
-  // Reset breakdown counters — they will be re-counted in the split loop
-  // below so that locked/stale-skipped rows don't inflate the totals.
-  newCount=0;dupeCount=0;soldCount=0;archivedCount=0;offMarketCount=0;priceUpdated=0;
-
-  // Split new vs update
-  // Lock rules: sold = frozen; cancelled/expired/withdrawn = one-way lock;
-  // everything else = date-guarded against stale CSVs.
-  var FROZEN_STATUSES=['sold'];
-  var OFF_MARKET_LOCK=['cancelled','canceled','expired','withdrawn'];
-  var lockedSkipped=0,stalesSkipped=0;
-  var CHUNK=50;
-  var newRows=[],updateRows=[];
-  rows.forEach(function(r){
-    var normAddr=(r.address||'').toUpperCase();
-    var normCity=(r.city||'').toUpperCase();
-    var ct=(r.change_type||'').toLowerCase().trim();
-    var countCategory=function(isUpdate){
-      if(SOLD_TYPES.indexOf(ct)>=0)soldCount++;
-      else if(ARCHIVE_TYPES.indexOf(ct)>=0)archivedCount++;
-      else if(OFF_MARKET_TYPES.indexOf(ct)>=0)offMarketCount++;
-      else if(ACTIVE_TYPES.indexOf(ct)>=0){if(isUpdate){if(ct==='price change'||ct==='back on market')priceUpdated++;dupeCount++;}else newCount++;}
-      else {if(isUpdate)dupeCount++;else newCount++;}
-    };
-    if(existingMLS.has(r.mls)){
-      var ex=existingMLS.get(r.mls);
-      var exCT=(ex.change_type||'').toLowerCase().trim();
-      var csvCT=ct;
-      var csvDate=new Date(r.change_date||0);
-      var dbDate=new Date(ex.change_date||0);
-      if(FROZEN_STATUSES.indexOf(exCT)>=0){lockedSkipped++;return;}
-      if(OFF_MARKET_LOCK.indexOf(exCT)>=0){
-        var csvIsTerm=FROZEN_STATUSES.indexOf(csvCT)>=0||OFF_MARKET_LOCK.indexOf(csvCT)>=0;
-        if(!csvIsTerm||csvDate<=dbDate){lockedSkipped++;return;}
-      } else {
-        if(csvDate<dbDate){stalesSkipped++;return;}
-      }
-      countCategory(true);
-      r._updateBy='mls';r._updateId=ex.id;updateRows.push(r);
-    } else {
-      // Try address+price match first (for sold comps), then address-only (for listings)
-      var matched=false;
-      var isSoldRow=ct==='sold';
-      // Helper: lock check for address-matched rows (existing record has no MLS in our cache,
-      // but we still need to honor sold/off-market locks via the matched record's change_type/date).
-      var addrLockCheck=function(matchedRow){
-        // Address-fallback matches don't carry change_type/change_date in existingAddr,
-        // so we skip the per-row lock here — this path is rare (NULL-MLS sold comps mainly).
-        // The MLS-keyed path above handles 99% of lock enforcement.
-        return true;
-      };
-      if(r.sale_price){
-        var addrPriceKey=normAddr+'|'+normCity+'|'+r.sale_price;
-        if(existingAddr.has(addrPriceKey)){r._updateBy='id';r._updateId=existingAddr.get(addrPriceKey).id;updateRows.push(r);matched=true;countCategory(true);}
-      }
-      if(!matched&&!isSoldRow){
-        var addrKey=normAddr+'|'+normCity;
-        if(existingAddr.has(addrKey)){r._updateBy='id';r._updateId=existingAddr.get(addrKey).id;updateRows.push(r);matched=true;countCategory(true);}
-      }
-      if(!matched){newRows.push(r);countCategory(false);}
-    }
+    // Category tally for the summary log.
+    if(ct==='sold')soldCount++;
+    else if(ARCHIVED_ACTIVE_TYPES.indexOf(ct)>=0)archivedCount++;
+    else if(OFF_MARKET_NONSOLD.indexOf(ct)>=0)offMarketCount++;
+    else if(ACTIVE_TYPES.indexOf(ct)>=0&&existing&&(ct==='price change'||ct==='back on market'))priceUpdated++;
   });
 
   log.textContent+='  New listings: '+newCount+'\n';
-  log.textContent+='  Updates: '+dupeCount+(priceUpdated?' ('+priceUpdated+' price changes)':'')+'\n';
+  log.textContent+='  Updates: '+updateCount+(priceUpdated?' ('+priceUpdated+' price changes)':'')+'\n';
   log.textContent+='  → Sold (moved to comps): '+soldCount+'\n';
   log.textContent+='  → Archived: '+archivedCount+'\n';
   log.textContent+='  → Off-Market Leads: '+offMarketCount+'\n';
-  log.textContent+='  Locked (skipped): '+lockedSkipped+'\n';
-  log.textContent+='  Stale (skipped): '+stalesSkipped+'\n\n';
+  log.textContent+='  Rejected (locked): '+lockedRejectCount+'\n';
+  log.textContent+='  Rejected (stale): '+staleRejectCount+'\n\n';
   var ins=0,upd=0,errs=0;
   newRows.forEach(function(r){if(r.stage==='sold_comp')r.stage=null;});
 
@@ -567,13 +520,13 @@ async function runImport(){
       log.scrollTop=log.scrollHeight;
     }
   }
-  log.textContent+='\n━━━ Done: '+ins+' inserted · '+upd+' updated · '+lockedSkipped+' locked · '+stalesSkipped+' stale · '+errs+' errors ━━━\n';
+  log.textContent+='\n━━━ Done: '+ins+' inserted · '+upd+' updated · '+lockedRejectCount+' locked · '+staleRejectCount+' stale · '+errs+' errors ━━━\n';
   try{
     await sb.from('import_history').insert({
       filename:document.getElementById('previewTitle').textContent,
       device:/Win/.test(navigator.platform)?'windows':/Mac/.test(navigator.platform)?'mac':'other',
       rows_imported:rows.length,inserted:ins,updated:upd,
-      locked:lockedSkipped,stale:stalesSkipped,errors:errs,
+      locked:lockedRejectCount,stale:staleRejectCount,errors:errs,
       sold:soldCount,archived:archivedCount,off_market:offMarketCount
     });
   }catch(e){console.error('history insert failed:',e);log.textContent+='⚠ History insert failed: '+e.message+' (check that import_history table exists)\n';}
