@@ -377,10 +377,10 @@ async function runImport(){
   var INT_COLS={beds:1,sqft:1,list_price:1,sale_price:1,lot_size:1,year_built:1,dom:1,elementary_rating:1,middle_rating:1,high_rating:1};
   var FLOAT_COLS={baths:1,ppsf:1};
   var TEXT_COLS=['mls','address','city','zip','pool','list_date','sold_date','remarks','agent_remarks','showing_remarks',
-    'occupant_type','sale_type','agent_name','agent_broker','agent_email','agent_phone','agent_dre','broker_dre','agent_office_phone',
+    'occupant_type','sale_type','agent_name','agent_broker','agent_email','agent_phone','agent_cell','agent_dre','broker_dre','agent_office_phone',
     'contact_name','contact_phone','lockbox_type','lockbox_location','gate_code','change_date','change_type',
-    'agent2_name','agent2_broker','agent2_email','agent2_phone','agent2_dre','agent2_broker_dre','agent2_office_phone',
-    'buyer_name','buyer_email','buyer_phone','buyer_broker','buyer_broker_phone',
+    'agent2_name','agent2_broker','agent2_email','agent2_phone','agent2_cell','agent2_dre','agent2_broker_dre','agent2_office_phone',
+    'buyer_name','buyer_email','buyer_phone','buyer_cell','buyer_broker','buyer_broker_phone',
     'elementary_school','middle_school','high_school','occupancy','apn'];
 
   var rows=parsedCSV.map(function(r){
