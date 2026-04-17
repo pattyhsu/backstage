@@ -278,6 +278,20 @@ select.btn{appearance:auto}
   </div>
 </div>
 
+<div class="modal-bg" id="const-editor">
+  <div class="modal" style="max-width:560px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <h3 id="const-editor-title" style="margin:0;font-size:14px">Construction breakdown</h3>
+      <button class="pc" onclick="closeConstEditor()">✕</button>
+    </div>
+    <div id="const-editor-sub" style="font-size:11px;color:var(--text-3);margin-bottom:12px"></div>
+    <div id="const-editor-body"></div>
+    <div style="display:flex;justify-content:space-between;margin-top:14px;padding-top:10px;border-top:2px solid var(--border);font-weight:700;font-size:13px">
+      <span>TOTAL</span><span id="const-editor-total" style="color:var(--accent);font-size:16px">$0</span>
+    </div>
+  </div>
+</div>
+
 <!-- Photo Lightbox -->
 <div class="lb-overlay" id="photoLightbox">
   <button class="lb-close" onclick="closeLightbox()">✕</button>
@@ -607,11 +621,120 @@ function recalcCompSummary(mid){
 // ========== DEAL ANALYZER ==========
 const SELL_PCT=0.05,CONST_PCT=0.16,PURCH_EXP_PCT=0.02,PROFIT_TARGET_PCT=0.10;
 let ppIsCustom={},constIsCustom={},listPriceMap={};
+// Construction estimator — mirrors construction_estimator/construction-estimator.jsx
+// Data-driven so the Edit modal can render checkboxes from the same source.
+const CONST_CATEGORIES=[
+  {id:"demo",label:"Demo",items:[
+    {id:"demo_work",label:"Demo Work",cost:s=>s<1500?8000:10000}
+  ]},
+  {id:"electrical",label:"Electrical",items:[
+    {id:"elec_panel",label:"Panel Upgrade",cost:()=>3500},
+    {id:"elec_rewire",label:"Rewire",cost:()=>5000},
+    {id:"elec_lights",label:"Lighting",cost:()=>3000},
+    {id:"elec_ev",label:"EV Charger",cost:()=>1000}
+  ]},
+  {id:"plumbing",label:"Plumbing",items:[
+    {id:"plumb_repipe",label:"Repipe",cost:()=>5000},
+    {id:"plumb_redrain",label:"Re-drain (inside)",cost:()=>3000},
+    {id:"plumb_maindrain",label:"Main Drain",cost:()=>5000}
+  ]},
+  {id:"bathrooms",label:"Bathrooms",items:[
+    {id:"bath_full_1",label:"Full Bath #1",cost:()=>12000},
+    {id:"bath_full_2",label:"Full Bath #2",cost:()=>12000},
+    {id:"bath_full_3",label:"Full Bath #3",cost:()=>12000},
+    {id:"bath_half",label:"Half Bath",cost:()=>3500}
+  ]},
+  {id:"kitchen",label:"Kitchen",items:[
+    {id:"kitchen",label:"Kitchen",cost:s=>s<1800?10000:15000,note:s=>s<1800?"small (<1,800 sf) · $10k":"large (1,800+ sf) · $15k"}
+  ]},
+  {id:"structural",label:"Structural",items:[
+    {id:"beam",label:"Beam Work",cost:s=>s<1500?2000:5000},
+    {id:"foundation",label:"Foundation Repair",cost:s=>s<=1000?3000:s>=2000?10000:Math.round(3000+((s-1000)/1000)*7000),note:s=>s<=1000?"min · $3k":s>=2000?"max · $10k":"linear · "+s.toLocaleString()+" sf"}
+  ]},
+  {id:"interior",label:"Interior",items:[
+    {id:"paint_int",label:"Interior Paint",cost:()=>8000},
+    {id:"fireplace",label:"Fireplace",cost:()=>1000},
+    {id:"floor",label:"Flooring ($5/sqft)",cost:s=>s*5}
+  ]},
+  {id:"exterior",label:"Exterior",items:[
+    {id:"paint_ext",label:"Exterior Paint",cost:()=>3500},
+    {id:"roof",label:"Roof",cost:s=>s<2000?10000:12000},
+    {id:"driveway",label:"Driveway",cost:()=>9000},
+    {id:"windows",label:"Windows",cost:s=>s<1700?7000:s<=2000?10000:12000},
+    {id:"ironwork",label:"Iron Work",cost:()=>2500},
+    {id:"fence",label:"Fence",cost:s=>s<1500?3000:5000},
+    {id:"garden",label:"Garden / Landscaping",cost:s=>s<1500?7000:10000},
+    {id:"pool",label:"Pool",cost:()=>20000}
+  ]}
+];
+const CONST_ALL_IDS=CONST_CATEGORIES.flatMap(c=>c.items.map(i=>i.id));
+// Per-MLS selected items. When an MLS has no entry, every item is assumed checked.
+let constChecked={};
+function getConstChecked(mls){
+  if(!constChecked[mls])constChecked[mls]=Object.fromEntries(CONST_ALL_IDS.map(id=>[id,true]));
+  return constChecked[mls];
+}
+function estimateConstruction(sqft,mls){
+  const s=parseFloat(sqft)||0;if(!s)return 0;
+  const checked=mls?getConstChecked(mls):null;
+  let t=0;
+  for(const cat of CONST_CATEGORIES)for(const item of cat.items){
+    const on=checked?checked[item.id]!==false:true;
+    if(on)t+=item.cost(s);
+  }
+  return Math.round(t);
+}
+function renderConstEditorBody(mls,sqft){
+  const s=parseFloat(sqft)||0;
+  const checked=getConstChecked(mls);
+  let h='';
+  for(const cat of CONST_CATEGORIES){
+    h+=`<div style="font-size:9px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin:12px 0 4px;padding-bottom:4px;border-bottom:1px solid var(--border)">${cat.label}</div>`;
+    for(const item of cat.items){
+      const cost=s?item.cost(s):0;
+      const isOn=checked[item.id]!==false;
+      const note=s&&item.note?item.note(s):'';
+      h+=`<label style="display:flex;align-items:center;gap:10px;padding:6px 4px;cursor:${s?'pointer':'not-allowed'};font-size:12px;color:${isOn?'var(--text)':'var(--text-4)'};opacity:${s?1:0.5}">
+        <input type="checkbox" ${isOn?'checked':''} ${s?'':'disabled'} onchange="toggleConstItem('${mls}','${item.id}',${s})">
+        <span style="flex:1">${item.label}${note?` <span style="color:var(--text-4);font-size:10px;margin-left:4px">${note}</span>`:''}</span>
+        <span style="font-weight:600;color:${isOn?'var(--accent)':'var(--text-4)'};min-width:70px;text-align:right">${F(cost)}</span>
+      </label>`;
+    }
+  }
+  document.getElementById('const-editor-body').innerHTML=h;
+  document.getElementById('const-editor-total').textContent=F(estimateConstruction(s,mls));
+}
+let _constEditorCtx=null; // {mls,id,sqft}
+function openConstEditor(mls,id,sqft){
+  const l=listings.find(x=>x.mls===mls);
+  if(!l)return;
+  _constEditorCtx={mls,id,sqft};
+  document.getElementById('const-editor-title').textContent=`Construction — ${l.address}, ${l.city}`;
+  const sub=sqft?`${Number(sqft).toLocaleString()} sqft · toggle items to recalculate${l.lockedConstruction?' (construction is locked — toggling updates the default only)':''}`:'No sqft on this listing — costs unavailable';
+  document.getElementById('const-editor-sub').textContent=sub;
+  renderConstEditorBody(mls,sqft);
+  document.getElementById('const-editor').classList.add('open');
+}
+function closeConstEditor(){document.getElementById('const-editor').classList.remove('open');_constEditorCtx=null;}
+function toggleConstItem(mls,itemId,sqft){
+  const checked=getConstChecked(mls);
+  checked[itemId]=!checked[itemId];
+  renderConstEditorBody(mls,sqft);
+  // Push updated estimate into the deal analyzer if it's on screen and not locked/custom.
+  if(_constEditorCtx&&_constEditorCtx.mls===mls){
+    const id=_constEditorCtx.id;
+    const lObj=listings.find(x=>x.mls===mls);
+    if(lObj&&!lObj.lockedConstruction&&!constIsCustom[id]){
+      setNumVal('const-'+id,estimateConstruction(sqft,mls));
+      calcDeal(id,lObj.price,sqft);
+    }
+  }
+}
 function getNumVal(id){return parseInt((document.getElementById(id)||{}).value?.replace(/[^\d]/g,'')||'0')||0;}
 function setNumVal(id,n){const el=document.getElementById(id);if(el)el.value=F(n);}
 function markPPCustom(id){ppIsCustom[id]=true;const r=document.getElementById('pp-reset-'+id);if(r)r.style.display='inline';}
 function markConstCustom(id){constIsCustom[id]=true;}
-function resetPP(id,lp,sq){ppIsCustom[id]=false;const r=document.getElementById('pp-reset-'+id);if(r)r.style.display='none';const arv=getNumVal('arv-'+id);const pp=Math.round(arv*(1-SELL_PCT)/(1+CONST_PCT+PURCH_EXP_PCT+PROFIT_TARGET_PCT));setNumVal('pp-'+id,pp);if(!constIsCustom[id])setNumVal('const-'+id,Math.round(pp*CONST_PCT));calcDeal(id,lp,sq);}
+function resetPP(id,lp,sq){ppIsCustom[id]=false;const r=document.getElementById('pp-reset-'+id);if(r)r.style.display='none';calcDeal(id,lp,sq);}
 
 function detHTML(l){
   const cm=getComps(l),liveArv=cm.hp*l.sqft,arv=l.lockedArv||liveArv,id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
@@ -621,23 +744,26 @@ function detHTML(l){
       <button id="lock-arv-${id}" onclick="event.stopPropagation();toggleLockArv('${l.mls}','${id}')" style="padding:4px 10px;border-radius:5px;border:1px solid ${l.lockedArv?'var(--green)':'var(--border)'};font-size:11px;font-weight:600;font-family:inherit;background:${l.lockedArv?'var(--green-bg)':'var(--bg)'};color:${l.lockedArv?'var(--green)':'var(--text-3)'};cursor:pointer;white-space:nowrap">${l.lockedArv?'🔒 Locked':'Lock ARV'}</button>
       <span style="font-size:10px;color:var(--text-4);white-space:nowrap">From comps: ${F(arv)}</span></div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--text-4);flex-shrink:0;width:100px">CONSTRUCTION</span>
-      <input type="text" id="const-${id}" value="${F(l.lockedConstruction||Math.round(arv*0.95/1.28*0.16))}" ${l.lockedConstruction?'readonly':''} oninput="markConstCustom('${id}');calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--text);font-family:inherit;background:${l.lockedConstruction?'var(--bg-alt)':'var(--bg)'}">
-      <button id="lock-const-${id}" onclick="event.stopPropagation();toggleLockConstruction('${l.mls}','${id}')" style="padding:4px 10px;border-radius:5px;border:1px solid ${l.lockedConstruction?'var(--green)':'var(--border)'};font-size:11px;font-weight:600;font-family:inherit;background:${l.lockedConstruction?'var(--green-bg)':'var(--bg)'};color:${l.lockedConstruction?'var(--green)':'var(--text-3)'};cursor:pointer;white-space:nowrap">${l.lockedConstruction?'🔒 Locked':'Lock Const'}</button>
-      <span style="font-size:10px;color:var(--text-4);white-space:nowrap">${l.lockedConstruction?'':'16% of target'}</span></div>
+      <input type="text" id="const-${id}" value="${F(l.lockedConstruction||estimateConstruction(l.sqft,l.mls))}" ${l.lockedConstruction?'readonly':''} oninput="markConstCustom('${id}');calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--text);font-family:inherit;background:${l.lockedConstruction?'var(--bg-alt)':'var(--bg)'}">
+      <button onclick="event.stopPropagation();openConstEditor('${l.mls}','${id}',${l.sqft||0})" style="padding:4px 10px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:var(--bg);color:var(--text-3);cursor:pointer;white-space:nowrap">Edit</button>
+      <button id="lock-const-${id}" onclick="event.stopPropagation();toggleLockConstruction('${l.mls}','${id}')" style="padding:4px 10px;border-radius:5px;border:1px solid ${l.lockedConstruction?'var(--green)':'var(--border)'};font-size:11px;font-weight:600;font-family:inherit;background:${l.lockedConstruction?'var(--green-bg)':'var(--bg)'};color:${l.lockedConstruction?'var(--green)':'var(--text-3)'};cursor:pointer;white-space:nowrap">🔒 Const</button>
+      <span style="font-size:10px;color:var(--text-4);white-space:nowrap">${l.lockedConstruction?'':'16% of ARV = '+F(Math.round(arv*0.16))}</span></div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--text-4);flex-shrink:0;width:100px">TARGET BUY</span>
-      <input type="text" id="pp-${id}" value="${F(Math.round(arv*0.95/1.28))}" oninput="markPPCustom('${id}');calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--accent);font-family:inherit;background:var(--bg)">
+      <input type="text" id="pp-${id}" value="${F(Math.round((arv*(1-SELL_PCT)-(l.lockedConstruction||estimateConstruction(l.sqft,l.mls)))/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT)))}" oninput="markPPCustom('${id}');calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--accent);font-family:inherit;background:var(--bg)">
       <button id="pp-reset-${id}" onclick="event.stopPropagation();resetPP('${id}',${l.price},${l.sqft})" style="font-size:10px;color:var(--accent);background:none;border:none;cursor:pointer;font-family:inherit;text-decoration:underline;display:none;white-space:nowrap">Reset</button></div>
     <div id="gap-${id}"></div><div id="breakdown-${id}" style="margin-top:4px"></div></div>`;
 }
 
 function calcDeal(id,listPrice,sqft){
-  listPriceMap[id]=listPrice;const arv=getNumVal('arv-'+id),pp=getNumVal('pp-'+id);
+  listPriceMap[id]=listPrice;const arv=getNumVal('arv-'+id);
   const lObj=listings.find(x=>x.mls.replace(/[^a-zA-Z0-9]/g,'')===id);
   const constLocked=!!(lObj&&lObj.lockedConstruction);
-  if(constLocked)setNumVal('const-'+id,lObj.lockedConstruction);
-  if(!constIsCustom[id]&&!constLocked&&!ppIsCustom[id]){const fp=Math.round(arv*(1-SELL_PCT)/(1+CONST_PCT+PURCH_EXP_PCT+PROFIT_TARGET_PCT));setNumVal('pp-'+id,fp);setNumVal('const-'+id,Math.round(fp*CONST_PCT));}
-  else if(!constIsCustom[id]&&!constLocked&&ppIsCustom[id])setNumVal('const-'+id,Math.round(pp*CONST_PCT));
-  else if(constLocked&&!ppIsCustom[id]){const fp=Math.round((arv*(1-SELL_PCT)-lObj.lockedConstruction)/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT));setNumVal('pp-'+id,fp);}
+  // Effective construction cost: locked > user-custom > sqft-based estimator
+  let effConst;
+  if(constLocked){effConst=lObj.lockedConstruction;setNumVal('const-'+id,effConst);}
+  else if(constIsCustom[id])effConst=getNumVal('const-'+id);
+  else{effConst=estimateConstruction(sqft,lObj&&lObj.mls);setNumVal('const-'+id,effConst);}
+  if(!ppIsCustom[id]){const fp=Math.round((arv*(1-SELL_PCT)-effConst)/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT));setNumVal('pp-'+id,fp);}
   const fPP=getNumVal('pp-'+id),fConst=getNumVal('const-'+id),pExp=fPP*PURCH_EXP_PCT;
   const profit=arv*(1-SELL_PCT)-fConst-fPP-pExp,gap=listPrice-fPP,gapPct=listPrice>0?((gap/listPrice)*100).toFixed(1):'0',goTh=PROFIT_TARGET_PCT*fPP;
   const gE=document.getElementById('gap-'+id);
@@ -652,7 +778,7 @@ function calcDeal(id,listPrice,sqft){
 
 // ========== LIST / DETAIL RENDERING ==========
 function getArvVal(l){if(l.lockedArv)return l.lockedArv;const cm=compCache[l.mls];return(cm&&cm.hp)?cm.hp*l.sqft:0;}
-function getGapVal(l){const cm=compCache[l.mls];if(!cm||!cm.hp)return 0;const arv=l.lockedArv||(cm.hp*l.sqft);if(!arv)return 0;const target=Math.round(arv*0.95/1.28);return l.price-target;}
+function getGapVal(l){const cm=compCache[l.mls];if(!cm||!cm.hp)return 0;const arv=l.lockedArv||(cm.hp*l.sqft);if(!arv)return 0;const eConst=l.lockedConstruction||estimateConstruction(l.sqft,l.mls);const target=Math.round((arv*(1-SELL_PCT)-eConst)/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT));return l.price-target;}
 function toggleSort(col){if(sort_===col+'-asc')sort_=col+'-desc';else if(sort_===col+'-desc')sort_='priority';else sort_=col+'-asc';render();}
 function getSorted(){let d=[...listings];if(cityFilters.size)d=d.filter(l=>cityFilters.has(l.city.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())));if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));const sStr=(s)=>(s||'').toString().toLowerCase();if(sort_==='priority')d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));else if(sort_==='price-asc')d.sort((a,b)=>a.price-b.price);else if(sort_==='price-desc')d.sort((a,b)=>b.price-a.price);else if(sort_==='ppsf-asc')d.sort((a,b)=>a.ppsf-b.ppsf);else if(sort_==='ppsf-desc')d.sort((a,b)=>b.ppsf-a.ppsf);else if(sort_==='dom-asc')d.sort((a,b)=>dom(a.listDate)-dom(b.listDate));else if(sort_==='dom-desc')d.sort((a,b)=>dom(b.listDate)-dom(a.listDate));else if(sort_==='arv-asc')d.sort((a,b)=>getArvVal(a)-getArvVal(b));else if(sort_==='arv-desc')d.sort((a,b)=>getArvVal(b)-getArvVal(a));else if(sort_==='gap-asc')d.sort((a,b)=>getGapVal(a)-getGapVal(b));else if(sort_==='gap-desc')d.sort((a,b)=>getGapVal(b)-getGapVal(a));else if(sort_==='address-asc')d.sort((a,b)=>sStr(a.address).localeCompare(sStr(b.address)));else if(sort_==='address-desc')d.sort((a,b)=>sStr(b.address).localeCompare(sStr(a.address)));else if(sort_==='city-asc')d.sort((a,b)=>sStr(a.city).localeCompare(sStr(b.city)));else if(sort_==='city-desc')d.sort((a,b)=>sStr(b.city).localeCompare(sStr(a.city)));else if(sort_==='status-asc')d.sort((a,b)=>sStr(a.changeType).localeCompare(sStr(b.changeType)));else if(sort_==='status-desc')d.sort((a,b)=>sStr(b.changeType).localeCompare(sStr(a.changeType)));return d;}
 
@@ -792,7 +918,7 @@ async function toggleLockArv(mls,id){
 async function toggleLockConstruction(mls,id){
   const l=listings.find(x=>x.mls===mls);if(!l)return;
   if(l.lockedConstruction){
-    // Unlock — snap back to 16% of current target buy
+    // Unlock — snap back to sqft-based construction estimate
     await sb.from('properties').update({locked_construction:null,updated_at:new Date().toISOString()}).eq('mls',mls);
     l.lockedConstruction=null;
     constIsCustom[id]=false;
