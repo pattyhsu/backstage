@@ -433,7 +433,6 @@ async function runImport(){
     var ct=(r.change_type||'').toLowerCase().trim();
     if(ct==='sold'){
       // Sold-insert / sold-update logic — identical (spec §5).
-      r.change_type='sold';
       if(existing&&existing.stage==='unsold_flip')r.comp_type='flips';
       else if(existing&&existing.comp_type)r.comp_type=existing.comp_type;
       else r.comp_type='general';
@@ -455,6 +454,9 @@ async function runImport(){
 
   rows.forEach(function(r){
     var ct=(r.change_type||'').toLowerCase().trim();
+    // Canonicalize stored change_type to lowercase for every row.
+    // Per SOLD_LOCK_FIX.md §5 "Change-type canonicalization".
+    r.change_type=ct;
     var existing=existingMLS.get(r.mls);
     if(existing){
       var exCT=(existing.change_type||'').toLowerCase().trim();
