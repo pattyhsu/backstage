@@ -375,6 +375,7 @@ async function runImport(){
     var c={};
     TEXT_COLS.forEach(function(k){if(r[k]){var v=r[k].trim();if(v)c[k]=v;}});
     if(c.address)c.address=c.address.replace(/\s+/g,' ').trim();
+    if(c.city)c.city=c.city.toUpperCase().trim();
     Object.keys(INT_COLS).forEach(function(k){if(r[k]){var v=parseInt(String(r[k]).replace(/[$,]/g,''));if(!isNaN(v))c[k]=v;}});
     Object.keys(FLOAT_COLS).forEach(function(k){if(r[k]){var v=parseFloat(String(r[k]).replace(/[$,]/g,''));if(!isNaN(v))c[k]=Math.round(v*100)/100;}});
     if(r.lot_size){var lv=parseInt(String(r.lot_size).split('/')[0].replace(/[^0-9]/g,''));if(!isNaN(lv)&&lv>0)c.lot_size=lv;}
