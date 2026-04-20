@@ -295,7 +295,10 @@ var CSV_COL_MAP={
   'elementary_school':'elementary_school','middle_school':'middle_school','high_school':'high_school',
   'elementary_rating':'elementary_rating','middle_rating':'middle_rating','high_rating':'high_rating',
   'occ/show':'occupancy','occupancy':'occupancy',
-  'apn #':'apn','apn':'apn'
+  'apn #':'apn','apn':'apn',
+  'ar':'mls_area','area':'mls_area',
+  'area name':'mls_area_name','area_name':'mls_area_name',
+  'mls_area':'mls_area','mls_area_name':'mls_area_name'
 };
 function normalizeRow(r){var out={};Object.keys(r).forEach(function(k){var mapped=CSV_COL_MAP[k.trim().toLowerCase()];if(mapped&&!out[mapped])out[mapped]=r[k];});return out;}
 
@@ -442,7 +445,7 @@ async function runImport(){
     }else if(ARCHIVED_ACTIVE_TYPES.indexOf(ct)>=0){
       r.stage='archived';   // both insert and update
     }else if(OFF_MARKET_NONSOLD.indexOf(ct)>=0){
-      r.stage='archived';   // both insert and update; row locks via terminal change_type
+      r.stage='off_market_lead';   // both insert and update; row locks via terminal change_type
     }else if(ACTIVE_TYPES.indexOf(ct)>=0){
       if(isInsert)r.stage='unread';
       // On update: do NOT set r.stage — build_update_payload's null/empty
