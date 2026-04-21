@@ -574,9 +574,67 @@ function compsPanel(l){
   else h+=cm.comps.map((c,i)=>compH(c,i,l.mls)).join('');
   const avgPsf=cm.comps.length?Math.round(cm.comps.map(c=>c.psf).filter(Boolean).reduce((a,b)=>a+b,0)/cm.comps.filter(c=>c.psf).length):0;
   h+=`<div class="ab" id="comp-arv-${mid}">Avg $/sf: $${avgPsf} → ARV = ${l.sqft.toLocaleString()} sf × $${avgPsf} = ${F(avgPsf*l.sqft)}</div>`;
+  h+=renderArvEstimateBlock(l.mls,mid);
+  setTimeout(()=>ensureArvEstimate(l.mls,mid),50);
   setTimeout(()=>renderCompMap(l,cm,mid),200);
   return h;
 }
+
+// ========== ARV ESTIMATOR (v7.4.1) — Layer 2+3+4 nightly batch ==========
+// Reads the latest row from `arv_estimates` (written by
+// `python -m arv_estimator.batch`). One row per subject; we fetch on
+// first expand and cache per-MLS so re-renders don't refetch.
+const arvEstimateCache={};
+function renderArvEstimateBlock(mls,mid){
+  const c=arvEstimateCache[mls];
+  if(!c||c.state==='pending'||c.state==='missing')
+    return `<div class="ab" id="arv-est-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate: pending — runs nightly</div>`;
+  if(c.state==='error')
+    return `<div class="ab" id="arv-est-${mid}" style="background:var(--bg);color:var(--text-4);font-weight:500">ARV unavailable: ${escapeHtml(c.row&&c.row.error_message||'unknown error')}</div>`;
+  const r=c.row,lvl=(r.confidence||'').toLowerCase();
+  const pillStyle=lvl==='high'?'background:var(--green-bg);color:var(--green)':lvl==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
+  const pill=`<span style="${pillStyle};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:8px">${(r.confidence||'?').toUpperCase()}</span>`;
+  const headline=r.headline_arv!=null?F(r.headline_arv):'—';
+  const lb=(r.result_json&&r.result_json.layer_breakdown)||{};
+  const l2med=lb.layer_2_knn_median_ppsf;
+  const l2arv=lb.layer_2_implied_arv;
+  const drift=lb.layer_3_market_drift;
+  let driftLine='<i style="color:var(--text-4)">abstained (scope unavailable)</i>';
+  if(drift&&drift.scope!=='unavailable'){
+    const pct=drift.pct_applied,sign=pct>=0?'+':'';
+    driftLine=`${sign}${pct}% applied (${drift.scope} scope)`;
+  }
+  const flags=Array.isArray(r.flags)?r.flags:[];
+  const flagsHtml=flags.length?`<ul style="margin:4px 0 0 16px;padding:0;font-size:10px;color:var(--text-3)">${flags.map(f=>`<li>${escapeHtml(String(f))}</li>`).join('')}</ul>`:'<span style="color:var(--text-4);font-size:10px">(none)</span>';
+  const computed=r.computed_at?new Date(r.computed_at).toLocaleString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(',','')+' PT':'(unknown)';
+  return `<div class="ab" id="arv-est-${mid}" style="display:block">
+    <div>ARV estimate (v7.4.1): ${headline}${pill}</div>
+    <details style="margin-top:6px">
+      <summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Layer breakdown</summary>
+      <div style="margin-top:4px;font-size:11px;font-weight:500;color:var(--text-2);display:grid;grid-template-columns:auto 1fr;gap:4px 10px">
+        <div style="color:var(--text-4)">Layer 2 $/sqft:</div><div>${l2med!=null?'$'+Math.round(l2med):'—'}${l2arv!=null?` → ${F(l2arv)}`:''}</div>
+        <div style="color:var(--text-4)">Layer 3 drift:</div><div>${driftLine}</div>
+        <div style="color:var(--text-4)">Layer 4 score:</div><div>${r.confidence_score!=null?r.confidence_score+'/100':'—'}</div>
+        <div style="color:var(--text-4)">Flags:</div><div>${flagsHtml}</div>
+        <div style="color:var(--text-4)">Computed:</div><div>${computed}</div>
+      </div>
+    </details>
+  </div>`;
+}
+async function ensureArvEstimate(mls,mid){
+  if(arvEstimateCache[mls]&&arvEstimateCache[mls].state!=='pending')return;
+  arvEstimateCache[mls]={state:'pending'};
+  try{
+    const {data,error}=await sb.from('arv_estimates').select('*').eq('mls',mls).order('computed_at',{ascending:false}).limit(1).maybeSingle();
+    if(error){arvEstimateCache[mls]={state:'missing'};}
+    else if(!data){arvEstimateCache[mls]={state:'missing'};}
+    else{arvEstimateCache[mls]={state:(data.status==='error'?'error':'ok'),row:data};}
+  }catch(e){arvEstimateCache[mls]={state:'missing'};}
+  const el=document.getElementById('arv-est-'+mid);
+  if(el)el.outerHTML=renderArvEstimateBlock(mls,mid);
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// ========== END ARV ESTIMATOR ==========
 
 function renderCompMap(l,cm,mid){
   const mapDiv=document.getElementById('comp-map-'+mid);if(!mapDiv||!window.google?.maps)return;
