@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flip Review — Backstage</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<style>
+  /* ==========================================================================
+     FLIP REVIEW — local layout only
+     All shared tokens/buttons/modals/school pills live in backstage.css.
+     Patterns mirrored from condition-review.html (QA shell) and
+     mls-deals.html (lightbox, keyboard nav).
+     ========================================================================== */
+
+  html, body { height:100vh; overflow:hidden; }
+
+  /* ---- Header ---- */
+  .header { position:sticky; top:0; z-index:200; background:rgba(255,255,255,.92); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); height:52px; padding:0 24px; display:flex; align-items:center; justify-content:space-between; }
+  .header-left { display:flex; align-items:center; gap:14px; }
+  .header h1 { font-size:14px; font-weight:700; letter-spacing:-.3px; color:var(--accent); margin:0; }
+  .header h1 span { color:var(--text-3); font-weight:400; }
+  .header-right { display:flex; align-items:center; gap:14px; font-size:12px; color:var(--text-3); }
+  .db-dot { font-size:10px; color:var(--text-4); }
+
+  /* ---- Progress bar ---- */
+  .progress-wrap { padding:14px 24px 10px; border-bottom:1px solid var(--border); background:var(--bg); }
+  .progress-label { display:flex; justify-content:space-between; align-items:baseline; font-size:13px; color:var(--text-3); margin-bottom:6px; font-family:var(--mono); }
+  .progress-label b { color:var(--text); font-weight:700; font-size:14px; }
+  .progress-label .pct { color:var(--accent); font-weight:700; }
+  .progress-bar { width:100%; height:6px; background:var(--bg-alt); border-radius:3px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--accent); transition:width .25s; width:0%; }
+
+  /* ---- Filter bar ---- */
+  .filter-bar { display:flex; gap:10px; padding:12px 24px; border-bottom:1px solid var(--border); flex-wrap:wrap; align-items:center; }
+  .filter-bar select, .filter-bar input[type=text], .filter-bar input[type=number] { font-family:var(--sans); font-size:12px; padding:6px 8px; background:var(--bg-page); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); outline:none; }
+  .filter-bar input[type=number] { width:92px; }
+  .filter-bar input[type=text] { width:160px; }
+  .filter-bar select:hover, .filter-bar input:hover { border-color:var(--border-hover); }
+  .filter-bar label.tog { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-3); cursor:pointer; }
+  .filter-bar .search-input { width:220px; font-family:var(--mono); }
+  .filter-bar .range-group { display:flex; gap:4px; align-items:center; }
+  .filter-bar .range-sep { color:var(--text-4); font-size:11px; }
+  .filter-bar .reset-btn { font-size:11px; color:var(--text-3); background:none; border:none; cursor:pointer; padding:4px 6px; }
+  .filter-bar .reset-btn:hover { color:var(--accent); }
+  .kbd-hint { margin-left:auto; font-size:11px; color:var(--text-4); font-family:var(--mono); }
+  .kbd-hint kbd { display:inline-block; padding:1px 5px; border-radius:3px; background:var(--bg-alt); border:1px solid var(--border); font-size:10px; margin:0 1px; color:var(--text-2); }
+
+  /* ---- Table ---- */
+  .list-wrap { flex:1; overflow-y:auto; min-width:0; }
+  .tbl { width:100%; border-collapse:collapse; font-size:12px; }
+  .tbl thead th { position:sticky; top:0; background:var(--bg-alt); z-index:5; padding:8px 8px; text-align:left; font-size:10px; font-weight:700; color:var(--text-3); letter-spacing:.4px; text-transform:uppercase; border-bottom:1px solid var(--border); white-space:nowrap; }
+  .tbl thead th.sortable { cursor:pointer; user-select:none; }
+  .tbl thead th.sortable:hover { color:var(--text); }
+  .tbl thead th .sort-arrow { display:inline-block; margin-left:2px; font-size:9px; color:var(--text-4); }
+  .tbl thead th.sort-active .sort-arrow { color:var(--accent); }
+  .tbl tbody tr { border-bottom:1px solid var(--border); transition:background .08s; vertical-align:top; }
+  .tbl tbody tr:hover { background:var(--bg-alt); }
+  .tbl tbody tr.focused { background:var(--accent-dim); }
+  .tbl tbody tr.dotty-row { background:rgba(128,90,213,.04); }
+  .tbl tbody tr.dotty-row.focused { background:rgba(128,90,213,.12); }
+  .tbl td { padding:8px 8px; vertical-align:top; }
+
+  .c-mls { font-family:var(--mono); font-size:11px; color:var(--text-4); }
+  .c-addr { font-weight:600; color:var(--text); cursor:pointer; }
+  .c-addr:hover { text-decoration:underline; text-decoration-style:dotted; text-decoration-color:var(--text-4); text-underline-offset:2px; }
+  .c-addr-sub { font-size:11px; color:var(--text-3); margin-top:1px; }
+  .c-num { font-variant-numeric:tabular-nums; font-family:var(--mono); font-size:11px; color:var(--text-2); white-space:nowrap; }
+  .c-ppsf { font-variant-numeric:tabular-nums; font-family:var(--mono); font-size:11px; color:var(--accent); font-weight:600; }
+  .photo-strip { display:flex; gap:3px; }
+  .photo-strip img { width:54px; height:40px; border-radius:3px; object-fit:cover; cursor:pointer; background:var(--bg-alt); }
+  .photo-strip img:hover { opacity:.85; }
+  .photo-empty { width:54px; height:40px; border-radius:3px; background:var(--bg-alt); display:grid; place-items:center; font-size:10px; color:var(--text-4); }
+
+  /* ---- comp_type toggle ---- */
+  .ct-toggle { display:inline-flex; gap:2px; }
+  .ct-btn { padding:3px 7px; font-size:10px; font-weight:600; font-family:inherit; border:1px solid var(--border); background:var(--bg); color:var(--text-3); border-radius:3px; cursor:pointer; text-transform:uppercase; letter-spacing:.3px; }
+  .ct-btn:hover:not(:disabled) { border-color:var(--border-hover); color:var(--text); }
+  .ct-btn:disabled { opacity:.45; cursor:not-allowed; }
+  .ct-btn.active.ct-flips     { background:var(--green); border-color:var(--green); color:#fff; }
+  .ct-btn.active.ct-halfflips { background:var(--amber); border-color:var(--amber); color:#fff; }
+  .ct-btn.active.ct-general   { background:var(--text-3); border-color:var(--text-3); color:#fff; }
+  .ct-btn.active.ct-null      { background:var(--bg-alt); border-color:var(--text-4); color:var(--text-2); }
+  .ct-btn.active.ct-dotty     { background:var(--purple); border-color:var(--purple); color:#fff; }
+
+  /* ---- notes textarea ---- */
+  .notes-ta { width:100%; min-width:160px; min-height:40px; font-family:var(--sans); font-size:11px; padding:5px 6px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); color:var(--text); resize:vertical; outline:none; }
+  .notes-ta:focus { border-color:var(--accent); }
+  .notes-ta:disabled { background:var(--bg-alt); opacity:.55; cursor:not-allowed; }
+
+  /* ---- confirm checkbox ---- */
+  .cf-wrap { display:inline-flex; align-items:center; gap:6px; font-size:10px; color:var(--text-3); }
+  .cf-wrap input { accent-color:var(--accent); cursor:pointer; }
+  .cf-wrap input:disabled { cursor:not-allowed; }
+
+  /* ---- save indicator ---- */
+  .save-indicator { display:inline-block; min-width:14px; margin-left:6px; font-size:10px; font-weight:700; font-family:var(--mono); }
+  .save-indicator.saving  { color:var(--text-4); }
+  .save-indicator.saved   { color:var(--green); }
+  .save-indicator.error   { color:var(--red); }
+
+  /* ---- dotty badge ---- */
+  .dotty-badge { display:inline-block; font-size:9px; font-weight:700; padding:2px 6px; border-radius:3px; background:var(--purple-bg); color:var(--purple); letter-spacing:.3px; margin-left:6px; }
+
+  /* ---- schools ---- */
+  .hs-pill { display:inline-flex; align-items:center; gap:3px; }
+  .sp { display:inline-flex; align-items:center; gap:2px; font-size:10px; font-weight:700; padding:2px 5px; border-radius:4px; }
+  .sh { background:var(--green-bg); color:var(--green); }
+  .sm { background:var(--amber-bg); color:var(--amber); }
+  .sl { background:var(--red-bg); color:var(--red); }
+
+  /* ---- empty state ---- */
+  .empty-state { text-align:center; padding:60px 24px; color:var(--text-4); font-size:14px; }
+
+  /* ---- Photo lightbox (mirrored from mls-deals.html) ---- */
+  .lb-overlay { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.92); overflow-y:auto; }
+  .lb-overlay.open { display:block; }
+  .lb-close { position:fixed; top:16px; right:20px; background:rgba(0,0,0,.5); border:none; color:#fff; font-size:24px; cursor:pointer; z-index:10001; padding:4px 12px; line-height:1; border-radius:6px; }
+  .lb-close:hover { background:rgba(255,255,255,.2); }
+  .lb-addr { color:#fff; font-size:14px; font-weight:600; text-align:center; padding:16px 60px 12px; position:sticky; top:0; background:rgba(0,0,0,.8); z-index:10000; }
+  .lb-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px 4px 40px; max-width:1200px; margin:0 auto; }
+  .lb-grid img { width:100%; display:block; cursor:pointer; border-radius:2px; }
+  .lb-grid img.lb-full { position:fixed; inset:0; max-width:95vw; max-height:95vh; margin:auto; z-index:10002; border-radius:6px; object-fit:contain; cursor:zoom-out; }
+
+  /* ---- Compare modal (side-by-side flip calibration) ---- */
+  .cmp-overlay { display:none; position:fixed; inset:0; z-index:9998; background:rgba(0,0,0,.85); overflow-y:auto; }
+  .cmp-overlay.open { display:block; }
+  .cmp-inner { max-width:1400px; margin:0 auto; padding:24px; }
+  .cmp-header { display:flex; justify-content:space-between; align-items:center; padding:10px 0 16px; color:#fff; font-size:14px; position:sticky; top:0; background:rgba(0,0,0,.85); z-index:10; }
+  .cmp-close { background:none; border:1px solid rgba(255,255,255,.3); color:#fff; padding:4px 12px; border-radius:4px; cursor:pointer; font-family:inherit; font-size:13px; }
+  .cmp-close:hover { background:rgba(255,255,255,.1); }
+  .cmp-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; }
+  .cmp-col { background:rgba(255,255,255,.04); border-radius:6px; padding:10px; }
+  .cmp-col-h { color:#fff; font-size:12px; font-weight:600; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,.15); }
+  .cmp-col-h .cmp-col-sub { font-size:10px; color:rgba(255,255,255,.6); font-weight:400; margin-top:2px; }
+  .cmp-col-this .cmp-col-h { color:var(--amber); }
+  .cmp-col-ref .cmp-col-h { color:var(--green); }
+  .cmp-col img { width:100%; display:block; border-radius:4px; margin-bottom:4px; cursor:pointer; }
+  .cmp-col img:hover { opacity:.85; }
+  .cmp-col .cmp-empty { color:rgba(255,255,255,.4); font-size:11px; padding:12px 4px; }
+
+  /* ==========================================================================
+     BACKSTAGE SHELL (mirrored from condition-review.html — structurally identical)
+     ========================================================================== */
+  .login-wrap { height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg-page); }
+  .login-box { width:360px; text-align:center; }
+  .login-brand { display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:36px; }
+  .login-mark { width:32px; height:32px; border-radius:8px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:14px; color:#fff; }
+  .login-brand span { font-size:15px; font-weight:600; color:var(--text); }
+  .login-title { font-size:24px; font-weight:600; color:var(--text); margin-bottom:6px; letter-spacing:-.5px; }
+  .login-sub { font-size:14px; color:var(--text-4); margin-bottom:32px; }
+  .login-input { width:100%; padding:14px 18px; background:var(--bg); border:1.5px solid var(--border); border-radius:var(--radius); color:var(--text); font-family:'JetBrains Mono',monospace; font-size:16px; text-align:center; letter-spacing:4px; outline:none; }
+  .login-input:focus { border-color:var(--text-3); }
+  .login-input::placeholder { letter-spacing:1px; color:var(--text-4); font-size:13px; }
+  .login-btn { width:100%; margin-top:14px; padding:14px; background:var(--text); border:none; border-radius:var(--radius); color:#fff; font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; }
+  .login-btn:hover { opacity:.85; }
+  .login-error { margin-top:12px; font-size:13px; color:var(--red); height:18px; }
+
+  .app-shell { display:none; height:100vh; }
+  .app-shell.active { display:flex; }
+
+  .sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+  .sidebar.collapsed { width:56px; }
+  .sidebar.collapsed .side-brand span,
+  .sidebar.collapsed .side-section-label,
+  .sidebar.collapsed .side-label,
+  .sidebar.collapsed .side-user-name,
+  .sidebar.collapsed .lock-btn { display:none; }
+  .sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+  .sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+  .sidebar.collapsed .side-section { padding:12px 0 0; }
+  .sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+  .sidebar.collapsed .side-user { justify-content:center; }
+  .side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+  .side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+  .side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+  .side-section { padding:18px 14px 0; }
+  .side-section-label { font-size:10px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:var(--text-4); padding:0 10px; margin-bottom:6px; }
+  .side-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:1px; text-decoration:none; }
+  .side-item:hover { background:var(--bg-page); text-decoration:none; }
+  .side-item.active { background:var(--bg-alt); }
+  .side-item.active .side-icon svg { stroke:var(--text); }
+  .side-item.active .side-label { color:var(--text); font-weight:600; }
+  .side-icon { width:18px; height:18px; display:grid; place-items:center; }
+  .side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  .side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+  .side-item.disabled { opacity:.35; pointer-events:none; }
+  .side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .side-user { display:flex; align-items:center; gap:9px; }
+  .side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+  .side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+  .lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+  .lock-btn:hover { color:var(--text); }
+  .collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
+  .collapse-btn:hover { color:var(--text); }
+
+  .main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="loginScreen">
+  <div class="login-box">
+    <div class="login-brand"><div class="login-mark">D</div><span>Dotty Homes</span></div>
+    <div class="login-title">Welcome back</div>
+    <div class="login-sub">Enter your passcode to continue</div>
+    <input type="password" class="login-input" id="pwInput" placeholder="Enter passcode" autocomplete="off" autofocus>
+    <button class="login-btn" onclick="bsLogin()">Continue</button>
+    <div class="login-error" id="pwError"></div>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div class="app-shell" id="appShell">
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+  <div class="side-brand"><div class="side-mark">D</div><span>Backstage</span></div>
+  <div class="side-section">
+    <div class="side-section-label">Acquisitions</div>
+    <a class="side-item" href="mls-deals.html">
+      <div class="side-icon"><svg viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg></div>
+      <span class="side-label">MLS Deals</span>
+    </a>
+    <a class="side-item" href="flip-analyzer.html">
+      <div class="side-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></div>
+      <span class="side-label">FlipAnalyzer</span>
+    </a>
+  </div>
+  <div class="side-section">
+    <div class="side-section-label">Data</div>
+    <a class="side-item" href="comps-db.html">
+      <div class="side-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
+      <span class="side-label">Comps DB</span>
+    </a>
+    <a class="side-item" href="import.html">
+      <div class="side-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+      <span class="side-label">Import Hub</span>
+    </a>
+    <a class="side-item" href="condition-review.html">
+      <div class="side-icon"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg></div>
+      <span class="side-label">Condition QA</span>
+    </a>
+    <a class="side-item active" href="flip-review.html">
+      <div class="side-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <span class="side-label">Flip Review</span>
+    </a>
+  </div>
+  <div class="side-section">
+    <div class="side-section-label">Coming soon</div>
+    <div class="side-item disabled"><div class="side-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg></div><span class="side-label">Portfolio</span></div>
+    <div class="side-item disabled"><div class="side-icon"><svg viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/><circle cx="12" cy="6" r="2"/></svg></div><span class="side-label">Lead Scoring</span></div>
+  </div>
+  <div class="side-footer">
+    <div class="side-user"><div class="side-avatar">P</div><span class="side-user-name">Patty</span></div>
+    <button class="collapse-btn" onclick="document.getElementById('sidebar').classList.toggle('collapsed')" title="Collapse">&#9664;</button>
+    <button class="lock-btn" onclick="sessionStorage.removeItem('backstage_auth');location.reload()" title="Lock">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- Main content -->
+<div class="main-content">
+
+<div class="header">
+  <div class="header-left">
+    <h1>Flip Review <span id="headerCount"></span></h1>
+  </div>
+  <div class="header-right">
+    <span id="schemaWarn" style="color:var(--amber);display:none;font-weight:600" title="Schema migration not applied — writes are disabled.">⚠ schema missing</span>
+    <span class="db-dot" id="dbStatus">●</span>
+  </div>
+</div>
+
+<div class="progress-wrap">
+  <div class="progress-label">
+    <span>Reviewed: <b id="pReviewed">0</b> / <b id="pTotal">0</b></span>
+    <span class="pct"><span id="pPct">0</span>%</span>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="pFill"></div></div>
+</div>
+
+<div class="filter-bar">
+  <input type="text" class="search-input" id="fSearch" placeholder="/ search MLS or address" oninput="onFilterChange()">
+  <select id="fCity" onchange="onFilterChange()"><option value="">All Cities</option></select>
+  <input type="text" id="fZip" placeholder="ZIP" style="width:80px;font-family:var(--mono)" oninput="onFilterChange()">
+  <select id="fCompType" onchange="onFilterChange()">
+    <option value="flips">flips (default)</option>
+    <option value="halfflips">halfflips</option>
+    <option value="general">general</option>
+    <option value="null">(null)</option>
+    <option value="dotty">dotty (read-only)</option>
+    <option value="all_reviewable">all (excl. dotty)</option>
+    <option value="all">all (incl. dotty)</option>
+  </select>
+  <div class="range-group" title="Sold date range">
+    <input type="text" id="fSoldFrom" placeholder="YYYY-MM-DD" style="width:110px;font-family:var(--mono)" oninput="onFilterChange()">
+    <span class="range-sep">→</span>
+    <input type="text" id="fSoldTo" placeholder="YYYY-MM-DD" style="width:110px;font-family:var(--mono)" oninput="onFilterChange()">
+  </div>
+  <div class="range-group" title="Sale price range">
+    <input type="number" id="fPriceMin" placeholder="$ min" oninput="onFilterChange()">
+    <span class="range-sep">–</span>
+    <input type="number" id="fPriceMax" placeholder="$ max" oninput="onFilterChange()">
+  </div>
+  <div class="range-group" title="$/sqft range">
+    <input type="number" id="fPsfMin" placeholder="$/sf min" oninput="onFilterChange()">
+    <span class="range-sep">–</span>
+    <input type="number" id="fPsfMax" placeholder="$/sf max" oninput="onFilterChange()">
+  </div>
+  <select id="fHsRating" onchange="onFilterChange()" title="Min HS rating">
+    <option value="">HS ≥ any</option>
+    <option value="4">HS ≥ 4</option>
+    <option value="6">HS ≥ 6</option>
+    <option value="8">HS ≥ 8</option>
+  </select>
+  <label class="tog"><input type="checkbox" id="fShowConfirmed" onchange="onFilterChange()"> show confirmed</label>
+  <button class="reset-btn" onclick="resetFilters()">reset</button>
+  <div class="kbd-hint">
+    <kbd>j</kbd>/<kbd>k</kbd> row · <kbd>1</kbd>–<kbd>5</kbd> tag · <kbd>c</kbd> confirm · <kbd>p</kbd> photos · <kbd>v</kbd> compare · <kbd>/</kbd> search
+  </div>
+</div>
+
+<div class="list-wrap" id="listWrap">
+  <table class="tbl" id="tbl">
+    <thead>
+      <tr>
+        <th style="width:28px">#</th>
+        <th class="sortable" data-sort="mls">MLS<span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort="address">Address<span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort="city">City / ZIP<span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort="sqft">sqft / bd·ba / lot<span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort="year_built">yr<span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort="sold_date">sold<span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort="sale_price">price<span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort="ppsf">$/sf<span class="sort-arrow"></span></th>
+        <th>HS</th>
+        <th>photos</th>
+        <th style="min-width:210px">comp_type</th>
+        <th style="min-width:170px">notes</th>
+        <th style="min-width:100px">confirmed</th>
+      </tr>
+    </thead>
+    <tbody id="tblBody"></tbody>
+  </table>
+  <div id="emptyState" class="empty-state" style="display:none">No rows match your filters.</div>
+</div>
+
+</div><!-- /main-content -->
+</div><!-- /app-shell -->
+
+<!-- Photo lightbox -->
+<div class="lb-overlay" id="photoLightbox">
+  <button class="lb-close" onclick="closeLightbox()">&#10005;</button>
+  <div class="lb-addr" id="lbAddr"></div>
+  <div class="lb-grid" id="lbGrid"></div>
+</div>
+
+<!-- Side-by-side compare modal -->
+<div class="cmp-overlay" id="cmpOverlay">
+  <div class="cmp-inner">
+    <div class="cmp-header">
+      <div id="cmpTitle" style="font-weight:600"></div>
+      <button class="cmp-close" onclick="closeCompare()">Close ✕</button>
+    </div>
+    <div class="cmp-grid" id="cmpGrid"></div>
+  </div>
+</div>
+
+<script>
+// ===========================================================================
+// SUPABASE CLIENT
+// ===========================================================================
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+const PHOTO_BASE='https://photos.dottyhomes.com';
+const VALID_CT=['flips','halfflips','general','null','dotty']; // 'null' = SQL NULL
+const EDITABLE_CT=['flips','halfflips','general','null'];      // dotty is read-only per brief
+
+// ===========================================================================
+// APP STATE
+// ===========================================================================
+let rows=[];                 // all rows loaded from Supabase for the current comp_type filter set
+let filtered=[];             // after client-side filtering/sorting
+let focusIdx=-1;             // keyboard-focused row (index into `filtered`)
+let sortKey='sold_date', sortDir='desc';
+let schemaOk={notes:true, confirmed_at:true}; // detected after first load
+let totalFlipsCount=0;       // denominator for progress (flips in DB, regardless of filter)
+let reviewedCount=0;         // confirmed_at IS NOT NULL among flips
+
+// Supabase write throttle — 5 writes/sec per page instance.
+const RATE_LIMIT=5, RATE_WINDOW_MS=1000;
+const writeTimes=[];
+function acquireWriteSlot(){
+  const now=Date.now();
+  while(writeTimes.length && now-writeTimes[0]>RATE_WINDOW_MS) writeTimes.shift();
+  if(writeTimes.length>=RATE_LIMIT){
+    const wait=RATE_WINDOW_MS-(now-writeTimes[0])+5;
+    return new Promise(res=>setTimeout(()=>res(acquireWriteSlot()),wait));
+  }
+  writeTimes.push(now);
+  return Promise.resolve();
+}
+
+// ===========================================================================
+// UTILITIES
+// ===========================================================================
+function esc(s){ if(s==null) return ''; const d=document.createElement('div'); d.textContent=String(s); return d.innerHTML; }
+function fmtPrice(p){ if(!p) return '—'; return '$'+Math.round(p).toLocaleString(); }
+function fmtPsf(p){ if(!p) return '—'; return '$'+Math.round(p); }
+function fmtDate(d){ if(!d) return '—'; return String(d).slice(0,10); }
+function computePsf(r){ const pr=r.sale_price, sf=r.sqft; if(!pr||!sf) return null; return pr/sf; }
+function redfinUrl(r){
+  const parts=[r.address, r.city, 'CA', r.zip].filter(Boolean).join(', ');
+  return 'https://www.redfin.com/stingray/do/location-autocomplete?location='+encodeURIComponent(parts)+'&v=2';
+}
+// Simpler Redfin link — go to their search page; they accept most queries.
+function redfinSearchUrl(r){
+  const q=[r.address, r.city, r.zip].filter(Boolean).join(' ');
+  return 'https://www.redfin.com/stingray/do/location-autocomplete?location='+encodeURIComponent(q);
+}
+function redfinBrowseUrl(r){
+  const slug=(r.city||'').replace(/\s+/g,'-');
+  const state='CA';
+  if(r.zip) return 'https://www.redfin.com/zipcode/'+encodeURIComponent(r.zip);
+  if(slug) return 'https://www.redfin.com/city/'+encodeURIComponent(slug)+'/'+state;
+  return 'https://www.redfin.com/';
+}
+function redfinLink(r){
+  // Redfin has no stable deep-link-by-MLS on the open web, so search the address.
+  const q=[r.address, r.city, 'CA', r.zip].filter(Boolean).join(', ');
+  return 'https://www.redfin.com/stingray/do/location-autocomplete?location='+encodeURIComponent(q);
+}
+// The above endpoint is awkward; use /homes/ as a fallback — close to mls-deals.html Zillow pattern.
+function redfinDeepLink(r){
+  const q=[r.address, r.city, 'CA', r.zip].filter(Boolean).join(' ');
+  return 'https://www.redfin.com/search?type=homes&q='+encodeURIComponent(q);
+}
+
+function hsPill(rating, name){
+  if(!rating) return esc(name||'');
+  const cls=rating>=7?'sh':rating>=5?'sm':'sl';
+  return `<span class="hs-pill"><span class="sp ${cls}">${rating}</span><span style="font-size:10px;color:var(--text-3)">${esc((name||'').replace(/ High School$/,' HS'))}</span></span>`;
+}
+
+function photosForRow(r){
+  // Brief says properties.photos is a JSON array. Repo convention fallback:
+  // {PHOTO_BASE}/{mls}/{mls}_NN.jpg.
+  const arr=Array.isArray(r.photos)?r.photos:null;
+  if(arr && arr.length){
+    return arr.map(p=>{
+      if(!p) return null;
+      if(String(p).startsWith('http')) return p;
+      if(r.mls) return `${PHOTO_BASE}/${r.mls}/${p}`;
+      return null;
+    }).filter(Boolean);
+  }
+  if(!r.mls) return [];
+  // Fallback: optimistic first-3 pattern; onerror will hide broken thumbs.
+  return [1,2,3].map(i=>`${PHOTO_BASE}/${r.mls}/${r.mls}_${String(i).padStart(2,'0')}.jpg`);
+}
+
+// ===========================================================================
+// URL STATE — filters in the querystring so reloads keep state.
+// ===========================================================================
+const FILTER_KEYS=['search','city','zip','compType','soldFrom','soldTo','priceMin','priceMax','psfMin','psfMax','hsRating','showConfirmed','sort','dir'];
+
+function readUrlState(){
+  const p=new URLSearchParams(location.search);
+  const s={};
+  FILTER_KEYS.forEach(k=>{ if(p.has(k)) s[k]=p.get(k); });
+  return s;
+}
+function writeUrlState(){
+  const p=new URLSearchParams();
+  const pairs={
+    search:   document.getElementById('fSearch').value.trim(),
+    city:     document.getElementById('fCity').value,
+    zip:      document.getElementById('fZip').value.trim(),
+    compType: document.getElementById('fCompType').value,
+    soldFrom: document.getElementById('fSoldFrom').value.trim(),
+    soldTo:   document.getElementById('fSoldTo').value.trim(),
+    priceMin: document.getElementById('fPriceMin').value,
+    priceMax: document.getElementById('fPriceMax').value,
+    psfMin:   document.getElementById('fPsfMin').value,
+    psfMax:   document.getElementById('fPsfMax').value,
+    hsRating: document.getElementById('fHsRating').value,
+    showConfirmed: document.getElementById('fShowConfirmed').checked ? '1':'',
+    sort:     sortKey,
+    dir:      sortDir,
+  };
+  for(const [k,v] of Object.entries(pairs)){ if(v!=='' && v!=null) p.set(k,v); }
+  const qs=p.toString();
+  const url=location.pathname+(qs?('?'+qs):'');
+  history.replaceState(null,'',url);
+}
+function applyUrlState(){
+  const s=readUrlState();
+  if('search' in s)   document.getElementById('fSearch').value=s.search;
+  if('city' in s)     document.getElementById('fCity').value=s.city;
+  if('zip' in s)      document.getElementById('fZip').value=s.zip;
+  if('compType' in s) document.getElementById('fCompType').value=s.compType;
+  if('soldFrom' in s) document.getElementById('fSoldFrom').value=s.soldFrom;
+  if('soldTo' in s)   document.getElementById('fSoldTo').value=s.soldTo;
+  if('priceMin' in s) document.getElementById('fPriceMin').value=s.priceMin;
+  if('priceMax' in s) document.getElementById('fPriceMax').value=s.priceMax;
+  if('psfMin' in s)   document.getElementById('fPsfMin').value=s.psfMin;
+  if('psfMax' in s)   document.getElementById('fPsfMax').value=s.psfMax;
+  if('hsRating' in s) document.getElementById('fHsRating').value=s.hsRating;
+  if('showConfirmed' in s) document.getElementById('fShowConfirmed').checked = s.showConfirmed==='1';
+  if('sort' in s)     sortKey=s.sort;
+  if('dir' in s)      sortDir=s.dir;
+}
+
+function resetFilters(){
+  document.getElementById('fSearch').value='';
+  document.getElementById('fCity').value='';
+  document.getElementById('fZip').value='';
+  document.getElementById('fCompType').value='flips';
+  document.getElementById('fSoldFrom').value='';
+  document.getElementById('fSoldTo').value='';
+  document.getElementById('fPriceMin').value='';
+  document.getElementById('fPriceMax').value='';
+  document.getElementById('fPsfMin').value='';
+  document.getElementById('fPsfMax').value='';
+  document.getElementById('fHsRating').value='';
+  document.getElementById('fShowConfirmed').checked=false;
+  sortKey='sold_date'; sortDir='desc';
+  writeUrlState();
+  loadAndRender();
+}
+
+// ===========================================================================
+// LOAD
+// ===========================================================================
+async function detectSchema(){
+  // Probe for `notes` and `confirmed_at` columns. If missing, page still works
+  // in read-only mode — writes are suppressed and a warning banner shown.
+  try{
+    const {error}=await sb.from('properties').select('id,notes,confirmed_at').limit(1);
+    if(error && /notes|confirmed_at/i.test(error.message||'')){
+      schemaOk={notes:false, confirmed_at:false};
+      document.getElementById('schemaWarn').style.display='inline';
+      console.warn('[flip-review] schema missing — writes disabled. Run pre_phase2/C_schema_migration.sql.');
+    }
+  }catch(e){ console.warn('[flip-review] schema detect failed',e); }
+}
+
+function ctFilterToList(v){
+  if(v==='all') return null; // no filter
+  if(v==='all_reviewable') return ['flips','halfflips','general']; // excl dotty; NULL fetched separately if needed
+  if(v==='null') return ['__NULL__'];
+  if(v==='dotty') return ['dotty'];
+  if(v==='flips') return ['flips'];
+  if(v==='halfflips') return ['halfflips'];
+  if(v==='general') return ['general'];
+  return ['flips'];
+}
+
+async function loadAndRender(){
+  await loadRows();
+  applyClientFilters();
+  renderTable();
+  await updateProgressCounter();
+}
+
+async function loadRows(){
+  const sel='id,mls,address,city,zip,sqft,beds,baths,lot_size,year_built,sold_date,sale_price,high_school,high_rating,comp_type'
+    + (schemaOk.notes?',notes':'')
+    + (schemaOk.confirmed_at?',confirmed_at':'');
+  const ctVal=document.getElementById('fCompType').value;
+  const ctList=ctFilterToList(ctVal);
+  let q=sb.from('properties').select(sel).limit(5000);
+  if(ctList===null){
+    // 'all' — no comp_type filter
+  }else if(ctList.length===1 && ctList[0]==='__NULL__'){
+    q=q.is('comp_type',null);
+  }else{
+    q=q.in('comp_type',ctList);
+  }
+  const {data,error}=await q;
+  if(error){
+    console.error('[flip-review] load error',error);
+    rows=[]; return;
+  }
+  rows=(data||[]).map(r=>({
+    ...r,
+    ppsf: computePsf(r),
+    _saving:false, _savedAt:0, _errorMsg:null,
+  }));
+
+  // Populate city dropdown (once, based on current result set — good enough)
+  populateCityDropdown();
+}
+
+function populateCityDropdown(){
+  const sel=document.getElementById('fCity');
+  const current=sel.value;
+  const cities=[...new Set(rows.map(r=>r.city).filter(Boolean))].sort();
+  sel.innerHTML='<option value="">All Cities</option>'+cities.map(c=>`<option value="${esc(c)}"${c===current?' selected':''}>${esc(c)}</option>`).join('');
+}
+
+async function updateProgressCounter(){
+  // Progress denominator is total flips, regardless of current filter (brief §3.5).
+  if(!schemaOk.confirmed_at){
+    document.getElementById('pTotal').textContent='—';
+    document.getElementById('pReviewed').textContent='—';
+    document.getElementById('pPct').textContent='—';
+    document.getElementById('pFill').style.width='0%';
+    return;
+  }
+  try{
+    const {count:tot}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('comp_type','flips');
+    const {count:rev}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('comp_type','flips').not('confirmed_at','is',null);
+    totalFlipsCount=tot||0; reviewedCount=rev||0;
+    document.getElementById('pTotal').textContent=totalFlipsCount.toLocaleString();
+    document.getElementById('pReviewed').textContent=reviewedCount.toLocaleString();
+    const pct=totalFlipsCount?Math.round(100*reviewedCount/totalFlipsCount):0;
+    document.getElementById('pPct').textContent=pct;
+    document.getElementById('pFill').style.width=pct+'%';
+  }catch(e){ console.warn('[flip-review] progress count failed',e); }
+}
+
+// ===========================================================================
+// FILTER + SORT (client-side)
+// ===========================================================================
+function applyClientFilters(){
+  const search=document.getElementById('fSearch').value.trim().toLowerCase();
+  const city=document.getElementById('fCity').value;
+  const zip=document.getElementById('fZip').value.trim();
+  const soldFrom=document.getElementById('fSoldFrom').value.trim();
+  const soldTo=document.getElementById('fSoldTo').value.trim();
+  const priceMin=parseFloat(document.getElementById('fPriceMin').value)||null;
+  const priceMax=parseFloat(document.getElementById('fPriceMax').value)||null;
+  const psfMin=parseFloat(document.getElementById('fPsfMin').value)||null;
+  const psfMax=parseFloat(document.getElementById('fPsfMax').value)||null;
+  const hsMin=parseFloat(document.getElementById('fHsRating').value)||null;
+  const showConfirmed=document.getElementById('fShowConfirmed').checked;
+
+  filtered=rows.filter(r=>{
+    if(!showConfirmed && schemaOk.confirmed_at && r.confirmed_at) return false;
+    if(city && r.city!==city) return false;
+    if(zip && String(r.zip||'').indexOf(zip)!==0) return false;
+    if(soldFrom && (r.sold_date||'')<soldFrom) return false;
+    if(soldTo && (r.sold_date||'')>soldTo) return false;
+    if(priceMin!=null && (r.sale_price||0)<priceMin) return false;
+    if(priceMax!=null && (r.sale_price||0)>priceMax) return false;
+    if(psfMin!=null && (r.ppsf||0)<psfMin) return false;
+    if(psfMax!=null && (r.ppsf||0)>psfMax) return false;
+    if(hsMin!=null && (r.high_rating||0)<hsMin) return false;
+    if(search){
+      const hay=((r.mls||'')+' '+(r.address||'')+' '+(r.city||'')).toLowerCase();
+      if(hay.indexOf(search)<0) return false;
+    }
+    return true;
+  });
+
+  // Sort
+  const dir=sortDir==='asc'?1:-1;
+  filtered.sort((a,b)=>{
+    let av=a[sortKey], bv=b[sortKey];
+    if(sortKey==='ppsf'){ av=a.ppsf; bv=b.ppsf; }
+    if(av==null && bv==null) return 0;
+    if(av==null) return 1;
+    if(bv==null) return -1;
+    if(typeof av==='number' && typeof bv==='number') return (av-bv)*dir;
+    return String(av).localeCompare(String(bv))*dir;
+  });
+
+  document.getElementById('headerCount').textContent='('+filtered.length.toLocaleString()+')';
+  if(focusIdx>=filtered.length) focusIdx=filtered.length-1;
+}
+
+function onFilterChange(){
+  applyClientFilters();
+  renderTable();
+  writeUrlState();
+  // If comp_type filter changed, we need a reload — detect via difference in rows set
+  // Keep simple: reload when ctFilter changes.
+}
+// Wire comp_type change to reload (different server-side result set)
+document.addEventListener('change',e=>{
+  if(e.target && e.target.id==='fCompType') loadAndRender();
+});
+
+// Header click → sort
+document.addEventListener('click',e=>{
+  const th=e.target.closest && e.target.closest('th.sortable');
+  if(!th) return;
+  const key=th.dataset.sort;
+  if(sortKey===key){ sortDir=sortDir==='asc'?'desc':'asc'; }
+  else { sortKey=key; sortDir=(key==='sold_date'||key==='sale_price'||key==='ppsf'||key==='sqft'||key==='year_built')?'desc':'asc'; }
+  applyClientFilters();
+  renderTable();
+  writeUrlState();
+});
+
+// ===========================================================================
+// RENDER
+// ===========================================================================
+function renderTable(){
+  const body=document.getElementById('tblBody');
+  if(!filtered.length){
+    body.innerHTML='';
+    document.getElementById('emptyState').style.display='block';
+    updateSortArrows();
+    return;
+  }
+  document.getElementById('emptyState').style.display='none';
+  body.innerHTML=filtered.map((r,i)=>renderRow(r,i)).join('');
+  updateSortArrows();
+  if(focusIdx>=0) highlightFocus();
+}
+
+function updateSortArrows(){
+  document.querySelectorAll('th.sortable').forEach(th=>{
+    const arrow=th.querySelector('.sort-arrow');
+    if(th.dataset.sort===sortKey){ th.classList.add('sort-active'); arrow.textContent=sortDir==='asc'?'▲':'▼'; }
+    else { th.classList.remove('sort-active'); arrow.textContent=''; }
+  });
+}
+
+function renderRow(r,i){
+  const isDotty=r.comp_type==='dotty';
+  const readOnly=isDotty; // dotty = holdout, everything disabled
+  const photos=photosForRow(r);
+  const thumbsHtml=photos.length
+    ? photos.slice(0,3).map(u=>`<img loading="lazy" src="${esc(u)}" onerror="this.style.visibility='hidden'" onclick="openLightbox('${esc(r.mls)}','${esc((r.address||'')+', '+(r.city||''))}')">`).join('')
+    : '<div class="photo-empty">(none)</div>';
+  const addrFull=[r.address,r.city].filter(Boolean).join(', ');
+  const addrHref='https://www.redfin.com/search?type=homes&q='+encodeURIComponent([r.address,r.city,'CA',r.zip].filter(Boolean).join(' '));
+  const ct=r.comp_type||'null';
+  const ctButtons=VALID_CT.map(v=>{
+    const active=(ct===v);
+    const disabled=readOnly || !EDITABLE_CT.includes(v);
+    const cls='ct-btn ct-'+v+(active?' active':'');
+    const label=v==='null'?'NULL':v.toUpperCase();
+    const title=readOnly?'dotty holdout — read-only':(disabled?'not selectable':'set comp_type to '+v);
+    return `<button class="${cls}" ${disabled?'disabled':''} title="${esc(title)}" onclick="event.stopPropagation();setCompType('${esc(r.mls)}','${v}')">${label}</button>`;
+  }).join('');
+  const notesVal=r.notes||'';
+  const confirmed=!!r.confirmed_at;
+  const saveCls=r._saving?'save-indicator saving':(r._errorMsg?'save-indicator error':(r._savedAt?'save-indicator saved':'save-indicator'));
+  const saveSym=r._saving?'…':(r._errorMsg?'✕':(r._savedAt?'✓':''));
+
+  return `<tr class="${isDotty?'dotty-row':''}${i===focusIdx?' focused':''}" data-idx="${i}" data-mls="${esc(r.mls)}" onclick="setFocus(${i})">
+    <td class="c-num">${i+1}</td>
+    <td class="c-mls">${esc(r.mls||'—')}</td>
+    <td>
+      <div class="c-addr"><a href="${esc(addrHref)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:inherit;text-decoration:none">${esc(r.address||'—')}</a></div>
+      <div class="c-addr-sub">${esc(addrFull)} ${r.zip?'<span style="color:var(--text-4)">'+esc(r.zip)+'</span>':''}</div>
+    </td>
+    <td class="c-num">${esc(r.city||'—')}<br><span style="color:var(--text-4)">${esc(r.zip||'')}</span></td>
+    <td class="c-num">${r.sqft?r.sqft.toLocaleString():'—'} sf · ${r.beds||'—'}/${r.baths||'—'} · ${r.lot_size?Math.round(r.lot_size).toLocaleString()+' lot':'—'}</td>
+    <td class="c-num">${r.year_built||'—'}</td>
+    <td class="c-num">${fmtDate(r.sold_date)}</td>
+    <td class="c-num">${fmtPrice(r.sale_price)}</td>
+    <td class="c-ppsf">${fmtPsf(r.ppsf)}</td>
+    <td>${hsPill(r.high_rating,r.high_school)}</td>
+    <td><div class="photo-strip">${thumbsHtml}</div>
+      <div style="margin-top:4px;display:flex;gap:6px">
+        <button class="reset-btn" style="font-size:10px" onclick="event.stopPropagation();openLightbox('${esc(r.mls)}','${esc(addrFull)}')" ${!r.mls?'disabled':''}>open</button>
+        <button class="reset-btn" style="font-size:10px" onclick="event.stopPropagation();openCompare('${esc(r.mls)}')" ${!r.mls?'disabled':''}>compare</button>
+      </div>
+    </td>
+    <td>
+      <div class="ct-toggle">${ctButtons}</div>
+      ${isDotty?'<span class="dotty-badge">holdout — do not edit</span>':''}
+      <span class="${saveCls}" id="sv-${esc(r.mls)}">${saveSym}</span>
+      ${r._errorMsg?`<div style="color:var(--red);font-size:10px;margin-top:2px">${esc(r._errorMsg)}</div>`:''}
+    </td>
+    <td>
+      <textarea class="notes-ta" ${readOnly?'disabled':''} placeholder="${readOnly?'(read-only)':'notes…'}"
+        onchange="setNotes('${esc(r.mls)}',this.value)"
+        onclick="event.stopPropagation()"
+      >${esc(notesVal)}</textarea>
+    </td>
+    <td>
+      <label class="cf-wrap">
+        <input type="checkbox" ${confirmed?'checked':''} ${readOnly?'disabled':''}
+          onclick="event.stopPropagation()"
+          onchange="setConfirmed('${esc(r.mls)}',this.checked)">
+        ${confirmed && r.confirmed_at ? '<span style="color:var(--text-4);font-family:var(--mono)">'+esc(String(r.confirmed_at).slice(0,10))+'</span>' : '<span>mark</span>'}
+      </label>
+    </td>
+  </tr>`;
+}
+
+function highlightFocus(){
+  document.querySelectorAll('tr.focused').forEach(tr=>tr.classList.remove('focused'));
+  const tr=document.querySelector(`tr[data-idx="${focusIdx}"]`);
+  if(tr){ tr.classList.add('focused'); tr.scrollIntoView({block:'nearest'}); }
+}
+
+function setFocus(i){ focusIdx=i; highlightFocus(); }
+
+// ===========================================================================
+// WRITES — all go through updateRow() which enforces: (a) rate limit,
+// (b) dotty guard, (c) optimistic UI, (d) audit log, (e) revert on error.
+// ===========================================================================
+async function updateRow(mls, patch){
+  if(!schemaOk.confirmed_at && ('confirmed_at' in patch)){
+    console.warn('[flip-review] confirmed_at column missing — skipping write'); return false;
+  }
+  if(!schemaOk.notes && ('notes' in patch)){
+    console.warn('[flip-review] notes column missing — skipping write'); return false;
+  }
+  const r=rows.find(x=>x.mls===mls);
+  if(!r){ console.warn('[flip-review] row not found',mls); return false; }
+
+  // Defense-in-depth: never write dotty rows, even if UI somehow slipped through.
+  if(r.comp_type==='dotty'){
+    console.warn('[flip-review] refused to write dotty row',mls);
+    flashRow(mls,'error','dotty holdout');
+    return false;
+  }
+
+  // Capture old values for audit + optimistic revert
+  const old={};
+  for(const k of Object.keys(patch)) old[k]=r[k]??null;
+
+  // Optimistic update
+  for(const k of Object.keys(patch)) r[k]=patch[k];
+  r._saving=true; r._errorMsg=null;
+  rerenderRow(mls);
+
+  try{
+    await acquireWriteSlot();
+    // Convert comp_type 'null' sentinel to SQL NULL
+    const dbPatch={...patch};
+    if(dbPatch.comp_type==='null') dbPatch.comp_type=null;
+    const {error}=await sb.from('properties').update(dbPatch).eq('mls',mls);
+    if(error) throw error;
+
+    // Audit log — one row per column changed
+    const auditRows=Object.keys(patch).map(col=>({
+      mls: mls,
+      column_name: col,
+      old_value: old[col]==null?null:String(old[col]),
+      new_value: patch[col]==null?null:String(patch[col]),
+    }));
+    await acquireWriteSlot();
+    const {error:aerr}=await sb.from('properties_audit_log').insert(auditRows);
+    if(aerr) console.warn('[flip-review] audit log insert failed (non-fatal)',aerr);
+
+    r._saving=false; r._savedAt=Date.now(); r._errorMsg=null;
+    rerenderRow(mls);
+    setTimeout(()=>{ if(Date.now()-r._savedAt>=900){ r._savedAt=0; rerenderRow(mls); } },1000);
+
+    // If the confirmed state or comp_type changed, progress counter may be stale.
+    if('confirmed_at' in patch || 'comp_type' in patch) updateProgressCounter();
+    // If show-confirmed is off and row just got confirmed, it should disappear.
+    if('confirmed_at' in patch && patch.confirmed_at && !document.getElementById('fShowConfirmed').checked){
+      // Re-filter so confirmed rows drop out of view.
+      applyClientFilters(); renderTable();
+    }
+    return true;
+  }catch(e){
+    // Revert optimistic update
+    for(const k of Object.keys(patch)) r[k]=old[k];
+    r._saving=false; r._errorMsg=(e&&e.message)||'save failed';
+    rerenderRow(mls);
+    console.error('[flip-review] save failed',mls,e);
+    return false;
+  }
+}
+
+function rerenderRow(mls){
+  const tr=document.querySelector(`tr[data-mls="${cssEscape(mls)}"]`);
+  if(!tr) return;
+  const idx=parseInt(tr.dataset.idx,10);
+  const r=filtered[idx];
+  if(!r) return;
+  tr.outerHTML=renderRow(r,idx);
+  // re-apply focus class if needed
+  if(idx===focusIdx) highlightFocus();
+}
+function cssEscape(s){ return String(s).replace(/["\\]/g,'\\$&'); }
+function flashRow(mls,kind,msg){
+  const r=rows.find(x=>x.mls===mls);
+  if(!r) return;
+  r._errorMsg=msg; rerenderRow(mls);
+  setTimeout(()=>{ r._errorMsg=null; rerenderRow(mls); },2000);
+}
+
+// Per-column wrappers
+function setCompType(mls,val){
+  const r=rows.find(x=>x.mls===mls);
+  if(!r || r.comp_type==='dotty') return;
+  if(!EDITABLE_CT.includes(val)) return;
+  updateRow(mls,{comp_type: val});
+}
+function setNotes(mls,val){
+  const r=rows.find(x=>x.mls===mls);
+  if(!r || r.comp_type==='dotty') return;
+  if((r.notes||'')===(val||'')) return;
+  updateRow(mls,{notes: val||null});
+}
+function setConfirmed(mls,checked){
+  const r=rows.find(x=>x.mls===mls);
+  if(!r || r.comp_type==='dotty') return;
+  updateRow(mls,{confirmed_at: checked ? new Date().toISOString() : null});
+}
+
+// ===========================================================================
+// PHOTO LIGHTBOX (mirrored from mls-deals.html)
+// ===========================================================================
+let lbMls='';
+function openLightbox(mls, addr){
+  if(!mls){ return; }
+  lbMls=mls;
+  const my=mls;
+  const addrEl=document.getElementById('lbAddr');
+  addrEl.textContent=addr+' (loading…)';
+  const grid=document.getElementById('lbGrid');
+  grid.innerHTML='';
+  document.getElementById('photoLightbox').classList.add('open');
+  document.addEventListener('keydown',lbKeyHandler);
+
+  // Prefer photos array on the row if present
+  const row=rows.find(r=>r.mls===mls);
+  const knownArr=Array.isArray(row?.photos)?row.photos:null;
+  if(knownArr && knownArr.length){
+    const urls=knownArr.map(p=>String(p).startsWith('http')?p:`${PHOTO_BASE}/${mls}/${p}`);
+    addrEl.textContent=addr+' ('+urls.length+' photo'+(urls.length===1?'':'s')+')';
+    urls.forEach(u=>{
+      const el=document.createElement('img');
+      el.src=u;
+      el.onclick=function(){
+        if(this.classList.contains('lb-full')) this.classList.remove('lb-full');
+        else { document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full')); this.classList.add('lb-full'); }
+      };
+      grid.appendChild(el);
+    });
+    return;
+  }
+
+  // Fallback: sequential probe
+  let i=1;
+  function loadNext(){
+    if(lbMls!==my) return;
+    const num=String(i).padStart(2,'0');
+    const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
+    const img=new Image();
+    img.onload=function(){
+      if(lbMls!==my) return;
+      const el=document.createElement('img');
+      el.src=url;
+      el.onclick=function(){
+        if(this.classList.contains('lb-full')) this.classList.remove('lb-full');
+        else { document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full')); this.classList.add('lb-full'); }
+      };
+      grid.appendChild(el);
+      addrEl.textContent=addr+' ('+i+' photo'+(i===1?'':'s')+')';
+      i++; loadNext();
+    };
+    img.onerror=function(){
+      if(lbMls!==my) return;
+      if(i===1) addrEl.textContent=addr+' (no photos)';
+    };
+    img.src=url;
+  }
+  loadNext();
+}
+function closeLightbox(){
+  lbMls='';
+  document.getElementById('photoLightbox').classList.remove('open');
+  document.removeEventListener('keydown',lbKeyHandler);
+}
+function lbKeyHandler(e){
+  if(e.key==='Escape'){
+    const full=document.querySelector('.lb-grid img.lb-full');
+    if(full) full.classList.remove('lb-full'); else closeLightbox();
+  }
+}
+
+// ===========================================================================
+// COMPARE MODAL — this row's photos alongside 3 known-good flips in same city/price band.
+// ===========================================================================
+async function openCompare(mls){
+  const r=rows.find(x=>x.mls===mls);
+  if(!r){ return; }
+  document.getElementById('cmpOverlay').classList.add('open');
+  document.getElementById('cmpTitle').textContent='Compare — '+[r.address,r.city].filter(Boolean).join(', ');
+  const grid=document.getElementById('cmpGrid');
+  grid.innerHTML='<div class="cmp-col cmp-col-this"><div class="cmp-col-h">This row (loading…)</div></div>';
+
+  // Pull 3 random known-good flips same city, similar price band (±30%)
+  let refs=[];
+  try{
+    const band=0.3, pr=r.sale_price||0;
+    let q=sb.from('properties')
+      .select('id,mls,address,city,sale_price,photos,comp_type,confirmed_at')
+      .eq('comp_type','flips')
+      .neq('mls',r.mls||'__x__')
+      .limit(40);
+    if(r.city) q=q.eq('city',r.city);
+    if(schemaOk.confirmed_at) q=q.not('confirmed_at','is',null); // only "confirmed" known-good
+    if(pr){
+      q=q.gte('sale_price',Math.round(pr*(1-band))).lte('sale_price',Math.round(pr*(1+band)));
+    }
+    const {data}=await q;
+    const pool=(data||[]).filter(x=>x.mls);
+    // Shuffle and pick 3
+    for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+    refs=pool.slice(0,3);
+  }catch(e){ console.warn('[flip-review] compare load failed',e); }
+
+  const thisPhotos=photosForRow(r).slice(0,6);
+  const thisCol=`<div class="cmp-col cmp-col-this">
+    <div class="cmp-col-h">This row
+      <div class="cmp-col-sub">${esc([r.address,r.city].filter(Boolean).join(', '))} · ${fmtPrice(r.sale_price)} · ${esc(r.comp_type||'null')}</div>
+    </div>
+    ${thisPhotos.length?thisPhotos.map(u=>`<img src="${esc(u)}" onclick="this.classList.toggle('lb-full')" onerror="this.style.display='none'">`).join(''):'<div class="cmp-empty">No photos for this row.</div>'}
+  </div>`;
+
+  const refCols=refs.length?refs.map(ref=>{
+    const urls=photosForRow(ref).slice(0,6);
+    return `<div class="cmp-col cmp-col-ref">
+      <div class="cmp-col-h">Known-good flip
+        <div class="cmp-col-sub">${esc([ref.address,ref.city].filter(Boolean).join(', '))} · ${fmtPrice(ref.sale_price)}</div>
+      </div>
+      ${urls.length?urls.map(u=>`<img src="${esc(u)}" onclick="this.classList.toggle('lb-full')" onerror="this.style.display='none'">`).join(''):'<div class="cmp-empty">No photos.</div>'}
+    </div>`;
+  }).join('') : '<div class="cmp-col cmp-col-ref"><div class="cmp-col-h">No reference flips matched</div><div class="cmp-empty">Try a different city or widen the price band in this code.</div></div>';
+
+  grid.innerHTML=thisCol+refCols;
+}
+function closeCompare(){
+  document.getElementById('cmpOverlay').classList.remove('open');
+  document.getElementById('cmpGrid').innerHTML='';
+}
+
+// ===========================================================================
+// KEYBOARD NAV
+// ===========================================================================
+document.addEventListener('keydown',e=>{
+  // Don't intercept when typing in an input/textarea
+  const tag=(e.target && e.target.tagName||'').toLowerCase();
+  const typing=(tag==='input'||tag==='textarea'||e.target.isContentEditable);
+
+  // '/' focuses search — even when focus is elsewhere, but not while typing in another input
+  if(e.key==='/' && !typing){
+    e.preventDefault(); document.getElementById('fSearch').focus(); return;
+  }
+  // Escape blurs inputs / closes overlays
+  if(e.key==='Escape'){
+    if(document.getElementById('cmpOverlay').classList.contains('open')){ closeCompare(); return; }
+    if(document.getElementById('photoLightbox').classList.contains('open')){ closeLightbox(); return; }
+    if(typing){ e.target.blur(); return; }
+  }
+  if(typing) return;
+
+  if(e.key==='j' || e.key==='ArrowDown'){
+    if(!filtered.length) return;
+    focusIdx=Math.min(filtered.length-1,(focusIdx<0?0:focusIdx+1));
+    highlightFocus(); e.preventDefault();
+  } else if(e.key==='k' || e.key==='ArrowUp'){
+    if(!filtered.length) return;
+    focusIdx=Math.max(0,(focusIdx<0?0:focusIdx-1));
+    highlightFocus(); e.preventDefault();
+  } else if(['1','2','3','4','5'].includes(e.key)){
+    if(focusIdx<0) return;
+    const r=filtered[focusIdx]; if(!r) return;
+    const map={'1':'flips','2':'halfflips','3':'general','4':'null','5':'dotty'};
+    const target=map[e.key];
+    if(target==='dotty') return; // per brief: dotty is read-only from this page
+    if(r.comp_type==='dotty') return;
+    setCompType(r.mls,target);
+    e.preventDefault();
+  } else if(e.key==='c'){
+    if(focusIdx<0) return;
+    const r=filtered[focusIdx]; if(!r) return;
+    if(r.comp_type==='dotty') return;
+    setConfirmed(r.mls, !r.confirmed_at);
+    e.preventDefault();
+  } else if(e.key==='p'){
+    if(focusIdx<0) return;
+    const r=filtered[focusIdx]; if(!r) return;
+    openLightbox(r.mls,[r.address,r.city].filter(Boolean).join(', '));
+    e.preventDefault();
+  } else if(e.key==='v'){
+    if(focusIdx<0) return;
+    const r=filtered[focusIdx]; if(!r) return;
+    openCompare(r.mls);
+    e.preventDefault();
+  }
+});
+
+// ===========================================================================
+// INIT
+// ===========================================================================
+async function init(){
+  try{
+    const {error}=await sb.from('properties').select('id').limit(1);
+    document.getElementById('dbStatus').style.color=error?'var(--red)':'var(--green)';
+  }catch(e){ document.getElementById('dbStatus').style.color='var(--red)'; }
+
+  await detectSchema();
+  applyUrlState();
+  await loadAndRender();
+}
+
+// ===========================================================================
+// BACKSTAGE AUTH (mirrored — same hash as other pages)
+// ===========================================================================
+const BS_HASH='c6f13722e2ec174320e4936445dbd16dbaced57f8df8794b83429293cf64e00d';
+async function bsSha(s){ try{ const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)); return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join(''); } catch(e){ return null; } }
+async function bsLogin(){
+  const pw=document.getElementById('pwInput').value;
+  const h=await bsSha(pw);
+  const ok=h?(h===BS_HASH):(pw==='103191');
+  if(ok){ sessionStorage.setItem('backstage_auth','1'); bsShow(); init(); }
+  else { document.getElementById('pwError').textContent='Incorrect passcode'; document.getElementById('pwInput').value=''; setTimeout(()=>document.getElementById('pwError').textContent='',2000); }
+}
+document.getElementById('pwInput').addEventListener('keydown',e=>{ if(e.key==='Enter') bsLogin(); });
+function bsShow(){ document.getElementById('loginScreen').style.display='none'; document.getElementById('appShell').classList.add('active'); }
+if(sessionStorage.getItem('backstage_auth')==='1'){ bsShow(); init(); }
+</script>
+</body>
+</html>
