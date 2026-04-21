@@ -513,6 +513,9 @@ async function findComps(listing){
 }
 
 // ========== APP STATE ==========
+// Listings above this list price are auto-archived in the UI (stage stays 'unread' in DB;
+// a price drop below the cap will bring them back into Unread on the next page load).
+const MAX_LIST_PRICE=2500000;
 let listings=[],sel=new Set(),archived=new Set(),sort_='priority',active=null,compCache={};
 let currentFilter='unread',cityFilters=new Set(),tagFilters=new Set();
 const td_=new Date();
@@ -871,7 +874,7 @@ function render(){
 }
 async function updateStageCounts(){
   try{
-    const{count:ur}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).eq('stage','unread');
+    const{count:ur}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
     const{count:ct}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).eq('stage','contacted');
     const{count:pt}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).eq('stage','potential');
     const ue=document.getElementById('cnt-unread');if(ue)ue.textContent=ur?'('+ur+')':'';
@@ -1005,11 +1008,11 @@ async function restoreDeal(m){await sb.from('properties').update({stage:'unread'
 // ========== LOAD LISTINGS ==========
 async function loadListings(status){
   let query=sb.from('properties').select('*').not('mls','is',null).neq('change_type','sold').order('imported_at',{ascending:false}).limit(500);
-  if(status==='unread')query=query.eq('stage','unread');
-  else if(status==='archived')query=query.eq('stage','archived');
+  if(status==='unread')query=query.eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
+  else if(status==='archived')query=query.or(`stage.eq.archived,list_price.gt.${MAX_LIST_PRICE}`);
   else if(status==='off_market_lead')query=query.eq('stage','off_market_lead');
   else if(status&&status!=='all')query=query.eq('stage',status);
-  else query=query.not('stage','in','("archived","off_market_lead")');
+  else query=query.not('stage','in','("archived","off_market_lead")').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
   try{
     let{data,error}=await query;if(error)throw error;
     // Address-relist filter: if viewing off-market, hide rows whose address has
