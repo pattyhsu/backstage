@@ -537,7 +537,7 @@ function getArvLabel(l){
   const arv=cm.hp*l.sqft;return FK(arv);
 }
 
-function getGapLabel(l){const cm=compCache[l.mls];if(!cm||!cm.hp)return'<span style="color:var(--text-4)">—</span>';const arv=l.lockedArv||(cm.hp*l.sqft);if(!arv)return'<span style="color:var(--text-4)">—</span>';const target=Math.round(arv*0.95/1.28);const diff=l.price-target;const ad=Math.abs(diff);const label=ad>=1e6?'$'+(ad/1e6).toFixed(1)+'M':'$'+Math.round(ad/1e3)+'K';return diff>0?`<span style="color:var(--red);font-weight:600">+${label}</span>`:`<span style="color:var(--green);font-weight:600">-${label}</span>`;}
+function getGapLabel(l){const cm=compCache[l.mls];if(!cm||!cm.hp)return'<span style="color:var(--text-4)">—</span>';const diff=getGapVal(l);if(!diff)return'<span style="color:var(--text-4)">—</span>';const ad=Math.abs(diff);const label=ad>=1e6?'$'+(ad/1e6).toFixed(1)+'M':'$'+Math.ceil(ad/1e3)+'K';return diff>0?`<span style="color:var(--red);font-weight:600">+${label}</span>`:`<span style="color:var(--green);font-weight:600">-${label}</span>`;}
 
 function getComps(l){return compCache[l.mls]||{comps:[],hp:0,loading:true};}
 
