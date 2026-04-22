@@ -1155,13 +1155,15 @@ async function toggleLockArv(mls,id){
   const l=listings.find(x=>x.mls===mls);if(!l)return;
   if(l.lockedArv){
     // Unlock
-    await sb.from('properties').update({locked_arv:null,updated_at:new Date().toISOString()}).eq('mls',mls);
+    const{error}=await sb.from('properties').update({locked_arv:null,updated_at:new Date().toISOString()}).eq('mls',mls);
+    if(error){console.error('unlock ARV failed',error);alert('Unlock ARV failed: '+error.message);return;}
     l.lockedArv=null;
   } else {
     // Lock current ARV value
     const arvVal=getNumVal('arv-'+id);
     if(!arvVal)return;
-    await sb.from('properties').update({locked_arv:arvVal,updated_at:new Date().toISOString()}).eq('mls',mls);
+    const{error}=await sb.from('properties').update({locked_arv:arvVal,updated_at:new Date().toISOString()}).eq('mls',mls);
+    if(error){console.error('lock ARV failed',error);alert('Lock ARV failed: '+error.message);return;}
     l.lockedArv=arvVal;
   }
   // Re-render detail page to update button state
@@ -1175,14 +1177,16 @@ async function toggleLockConstruction(mls,id){
   const l=listings.find(x=>x.mls===mls);if(!l)return;
   if(l.lockedConstruction){
     // Unlock — snap back to sqft-based construction estimate
-    await sb.from('properties').update({locked_construction:null,updated_at:new Date().toISOString()}).eq('mls',mls);
+    const{error}=await sb.from('properties').update({locked_construction:null,updated_at:new Date().toISOString()}).eq('mls',mls);
+    if(error){console.error('unlock construction failed',error);alert('Unlock construction failed: '+error.message);return;}
     l.lockedConstruction=null;
     constIsCustom[id]=false;
   } else {
     // Lock current construction value
     const cVal=getNumVal('const-'+id);
     if(!cVal)return;
-    await sb.from('properties').update({locked_construction:cVal,updated_at:new Date().toISOString()}).eq('mls',mls);
+    const{error}=await sb.from('properties').update({locked_construction:cVal,updated_at:new Date().toISOString()}).eq('mls',mls);
+    if(error){console.error('lock construction failed',error);alert('Lock construction failed: '+error.message);return;}
     l.lockedConstruction=cVal;
   }
   // Re-render detail page to update button state
