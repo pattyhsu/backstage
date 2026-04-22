@@ -575,7 +575,9 @@ function compsPanel(l){
   const avgPsf=cm.comps.length?Math.round(cm.comps.map(c=>c.psf).filter(Boolean).reduce((a,b)=>a+b,0)/cm.comps.filter(c=>c.psf).length):0;
   h+=`<div class="ab" id="comp-arv-${mid}">Avg $/sf: $${avgPsf} → ARV = ${l.sqft.toLocaleString()} sf × $${avgPsf} = ${F(avgPsf*l.sqft)}</div>`;
   h+=renderArvEstimateBlock(l.mls,mid);
+  h+=renderDealScoreBlock(l.mls,mid);
   setTimeout(()=>ensureArvEstimate(l.mls,mid),50);
+  setTimeout(()=>ensureDealScore(l.mls,mid),50);
   setTimeout(()=>renderCompMap(l,cm,mid),200);
   return h;
 }
@@ -636,6 +638,106 @@ async function ensureArvEstimate(mls,mid){
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 // ========== END ARV ESTIMATOR ==========
 
+// ========== DEAL SCORER — grade pill + score breakdown =============
+// Reads the latest row from `deal_scores` (written by
+// `python -m underwriter.batch`). Cache mirrors arvEstimateCache:
+// module-local, per-MLS, sticky for the session. No polling, no
+// refetch-on-refresh — a missing cache entry just means we haven't
+// looked yet.
+const dealScoreCache={};
+function dsGradeStyle(g){
+  if(g==='A')return'background:var(--green-bg);color:var(--green)';
+  if(g==='B')return'background:var(--blue-bg,var(--accent-dim2));color:var(--blue,var(--accent))';
+  if(g==='C')return'background:var(--amber-bg);color:var(--amber)';
+  if(g==='D')return'background:var(--red-bg);color:var(--red)';
+  return'background:var(--bg-alt);color:var(--text-4)';
+}
+function renderDealScoreBlock(mls,mid){
+  const c=dealScoreCache[mls];
+  if(!c||c.state==='pending'||c.state==='missing')
+    return`<div class="ab" id="ds-block-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Deal score: pending — runs per-listing</div>`;
+  if(c.state==='error')
+    return`<div class="ab" id="ds-block-${mid}" style="background:var(--bg);color:var(--text-4);font-weight:500">Deal score unavailable: ${escapeHtml(c.row&&c.row.error_message||'unknown error')}</div>`;
+  const r=c.row,g=r.grade||'?';
+  const pill=`<span style="${dsGradeStyle(g)};font-size:11px;font-weight:800;padding:2px 8px;border-radius:10px;letter-spacing:.5px;margin-right:6px">${g}</span>`;
+  const spread=r.spread!=null?F(r.spread):'—';
+  const pct=r.spread_pct!=null?(r.spread_pct>=0?'+':'')+Number(r.spread_pct).toFixed(2)+'%':'—';
+  const bd=r.breakdown_json||{};
+  const gap=bd.gap_vs_list;
+  const gapStr=gap!=null?(gap>=0?'+':'')+F(gap):'—';
+  const spreadPctStr=bd.spread_pct!=null?' · '+(bd.spread_pct>=0?'+':'')+Number(bd.spread_pct).toFixed(2)+'%':'';
+  const computed=r.computed_at?new Date(r.computed_at).toLocaleString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(',','')+' PT':'(unknown)';
+  return`<div class="ab" id="ds-block-${mid}" style="display:block">
+    <div>Deal score: ${pill}spread ${spread} · ${pct}</div>
+    <details style="margin-top:6px">
+      <summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Score breakdown</summary>
+      <div style="margin-top:4px;font-size:11px;font-weight:500;color:var(--text-2);display:grid;grid-template-columns:auto 1fr;gap:4px 10px">
+        <div style="color:var(--text-4)">List price:</div><div>${bd.list_price!=null?F(bd.list_price):'—'}</div>
+        <div style="color:var(--text-4)">ARV:</div><div>${bd.arv!=null?F(bd.arv):'—'}</div>
+        <div style="color:var(--text-4)">Rehab:</div><div>${bd.rehab!=null?F(bd.rehab):'—'}${bd.rehab_locked?' <i style="color:var(--text-4)">(locked)</i>':''}</div>
+        <div style="color:var(--text-4)">Financing:</div><div>${bd.financing!=null?F(bd.financing):'—'}</div>
+        <div style="color:var(--text-4)">Purchase close:</div><div>${bd.purchase_close!=null?F(bd.purchase_close):'—'}</div>
+        <div style="color:var(--text-4)">Sale close:</div><div>${bd.sale_close!=null?F(bd.sale_close):'—'}</div>
+        <div style="color:var(--text-4)">Spread:</div><div>${bd.spread!=null?F(bd.spread):'—'}${spreadPctStr}</div>
+        <div style="color:var(--text-4)">Target buy:</div><div>${bd.target_buy!=null?F(bd.target_buy):'—'}</div>
+        <div style="color:var(--text-4)">Gap vs list:</div><div>${gapStr}</div>
+        <div style="color:var(--text-4)">Computed:</div><div>${computed}</div>
+      </div>
+    </details>
+  </div>`;
+}
+function renderDealGradePill(mls){
+  const c=dealScoreCache[mls];
+  if(!c||c.state!=='ok'||!c.row||!c.row.grade)
+    return`<span class="ds-card-pill" data-ds-mls="${mls}"></span>`;
+  const g=c.row.grade;
+  return`<span class="ds-card-pill" data-ds-mls="${mls}" style="${dsGradeStyle(g)};font-size:10px;font-weight:800;padding:1px 6px;border-radius:8px;margin-left:6px;letter-spacing:.4px;vertical-align:middle">${g}</span>`;
+}
+function refreshDealCardPill(mls){
+  // List-card pills for this MLS may exist multiple times if the same
+  // listing appears across filter views; update them all in place.
+  document.querySelectorAll('.ds-card-pill[data-ds-mls="'+mls+'"]').forEach(el=>{el.outerHTML=renderDealGradePill(mls);});
+}
+async function ensureDealScore(mls,mid){
+  if(!dealScoreCache[mls]||dealScoreCache[mls].state==='pending'){
+    if(!dealScoreCache[mls])dealScoreCache[mls]={state:'pending'};
+    try{
+      const{data,error}=await sb.from('deal_scores').select('*').eq('mls',mls).order('computed_at',{ascending:false}).limit(1).maybeSingle();
+      if(error){dealScoreCache[mls]={state:'missing'};}
+      else if(!data){dealScoreCache[mls]={state:'missing'};}
+      else{dealScoreCache[mls]={state:(data.status==='error'?'error':'ok'),row:data};}
+    }catch(e){dealScoreCache[mls]={state:'missing'};}
+  }
+  if(mid){
+    const el=document.getElementById('ds-block-'+mid);
+    if(el)el.outerHTML=renderDealScoreBlock(mls,mid);
+  }
+  refreshDealCardPill(mls);
+}
+async function bulkLoadDealScores(mlses){
+  // Single bulk fetch for every uncached MLS currently on screen. Same
+  // cache shape as ensureDealScore's per-MLS path; 'missing' sticks.
+  const need=Array.from(new Set(mlses)).filter(m=>m&&!dealScoreCache[m]);
+  if(!need.length)return;
+  need.forEach(m=>{dealScoreCache[m]={state:'pending'};});
+  try{
+    const{data,error}=await sb.from('deal_scores').select('mls,status,grade,spread,spread_pct,breakdown_json,error_message,computed_at').in('mls',need).order('computed_at',{ascending:false});
+    if(error){need.forEach(m=>{dealScoreCache[m]={state:'missing'};});}
+    else{
+      const seen={};
+      (data||[]).forEach(r=>{if(!seen[r.mls])seen[r.mls]=r;});
+      need.forEach(m=>{
+        if(seen[m])dealScoreCache[m]={state:(seen[m].status==='error'?'error':'ok'),row:seen[m]};
+        else dealScoreCache[m]={state:'missing'};
+      });
+    }
+  }catch(e){
+    need.forEach(m=>{if(dealScoreCache[m]&&dealScoreCache[m].state==='pending')dealScoreCache[m]={state:'missing'};});
+  }
+  need.forEach(m=>refreshDealCardPill(m));
+}
+// ========== END DEAL SCORER ==========
+
 function renderCompMap(l,cm,mid){
   const mapDiv=document.getElementById('comp-map-'+mid);if(!mapDiv||!window.google?.maps)return;
   const sLat=parseFloat(l.latitude)||parseFloat(cm.listingLat)||0,sLng=parseFloat(l.longitude)||parseFloat(cm.listingLng)||0;
@@ -687,72 +789,94 @@ function recalcCompSummary(mid){
 // ========== DEAL ANALYZER ==========
 const SELL_PCT=0.05,CONST_PCT=0.16,PURCH_EXP_PCT=0.02,PROFIT_TARGET_PCT=0.10;
 let ppIsCustom={},constIsCustom={},listPriceMap={};
-// Construction estimator — mirrors construction_estimator/construction-estimator.jsx
+// Rehab ladder loaded from Supabase config table (key=rehab_categories).
+// See underwriter/seed_config.py for the seed; underwriter/rehab.py is the Python twin.
 // Data-driven so the Edit modal can render checkboxes from the same source.
-const CONST_CATEGORIES=[
-  {id:"demo",label:"Demo",items:[
-    {id:"demo_work",label:"Demo Work",cost:s=>s<1500?8000:10000}
-  ]},
-  {id:"electrical",label:"Electrical",items:[
-    {id:"elec_panel",label:"Panel Upgrade",cost:()=>3500},
-    {id:"elec_rewire",label:"Rewire",cost:()=>5000},
-    {id:"elec_lights",label:"Lighting",cost:()=>3000},
-    {id:"elec_ev",label:"EV Charger",cost:()=>1000}
-  ]},
-  {id:"plumbing",label:"Plumbing",items:[
-    {id:"plumb_repipe",label:"Repipe",cost:()=>5000},
-    {id:"plumb_redrain",label:"Re-drain (inside)",cost:()=>3000},
-    {id:"plumb_maindrain",label:"Main Drain",cost:()=>5000}
-  ]},
-  {id:"bathrooms",label:"Bathrooms",items:[
-    {id:"bath_full_1",label:"Full Bath #1",cost:()=>12000},
-    {id:"bath_full_2",label:"Full Bath #2",cost:()=>12000},
-    {id:"bath_full_3",label:"Full Bath #3",cost:()=>12000},
-    {id:"bath_half",label:"Half Bath",cost:()=>3500}
-  ]},
-  {id:"kitchen",label:"Kitchen",items:[
-    {id:"kitchen",label:"Kitchen",cost:s=>s<1800?10000:15000,note:s=>s<1800?"small (<1,800 sf) · $10k":"large (1,800+ sf) · $15k"}
-  ]},
-  {id:"structural",label:"Structural",items:[
-    {id:"beam",label:"Beam Work",cost:s=>s<1500?2000:5000},
-    {id:"foundation",label:"Foundation Repair",cost:s=>s<=1000?3000:s>=2000?10000:Math.round((3000+((s-1000)/1000)*7000)/100)*100,note:s=>s<=1000?"min · $3k":s>=2000?"max · $10k":"linear · "+s.toLocaleString()+" sf"}
-  ]},
-  {id:"interior",label:"Interior",items:[
-    {id:"paint_int",label:"Interior Paint",cost:()=>8000},
-    {id:"fireplace",label:"Fireplace",cost:()=>1000},
-    {id:"floor",label:"Flooring ($5/sqft)",cost:s=>Math.round(s*5/100)*100}
-  ]},
-  {id:"exterior",label:"Exterior",items:[
-    {id:"paint_ext",label:"Exterior Paint",cost:()=>3500},
-    {id:"roof",label:"Roof",cost:s=>s<2000?10000:12000},
-    {id:"driveway",label:"Driveway",cost:()=>9000},
-    {id:"windows",label:"Windows",cost:s=>s<1700?7000:s<=2000?10000:12000},
-    {id:"ironwork",label:"Iron Work",cost:()=>2500},
-    {id:"fence",label:"Fence",cost:s=>s<1500?3000:5000},
-    {id:"garden",label:"Garden / Landscaping",cost:s=>s<1500?7000:10000},
-    {id:"pool",label:"Pool",cost:()=>20000}
-  ]}
-];
-const CONST_ALL_IDS=CONST_CATEGORIES.flatMap(c=>c.items.map(i=>i.id));
+let CONST_CATEGORIES=null;
+async function loadRehabConfig(){
+  try{
+    const{data,error}=await sb.from('config').select('value').eq('key','rehab_categories').limit(1).maybeSingle();
+    if(error||!data||!data.value||!Array.isArray(data.value.categories)){console.warn('rehab_categories not loaded',error);return false;}
+    CONST_CATEGORIES=data.value.categories;
+    return true;
+  }catch(e){console.warn('rehab_categories fetch failed',e);return false;}
+}
 // Per-MLS selected items. When an MLS has no entry, every item is assumed checked.
 let constChecked={};
 // Per-MLS per-item cost overrides (user-typed dollar amounts). Missing → use default.
 let constOverrides={};
+// Declarative cost rule evaluator. Mirrors underwriter/rehab.py:eval_cost_rule.
+// Rule shapes: flat | sqft_band | sqft_linear | sqft_multiplier.
+function evalCostRule(rule,sqft){
+  if(!rule)return 0;
+  const s=sqft;
+  if(rule.type==='flat')return Number(rule.amount)||0;
+  if(rule.type==='sqft_band'){
+    for(const band of rule.bands){
+      if(band.max==null||s<band.max)return Number(band.amount)||0;
+    }
+    return 0;
+  }
+  if(rule.type==='sqft_linear'){
+    const lo=rule.min_sqft,hi=rule.max_sqft;
+    const clamped=Math.max(lo,Math.min(hi,s));
+    const frac=(clamped-lo)/(hi-lo);
+    const raw=rule.min_amount+frac*(rule.max_amount-rule.min_amount);
+    const rt=rule.round_to||1;
+    return Math.round(raw/rt)*rt;
+  }
+  if(rule.type==='sqft_multiplier'){
+    const raw=s*rule.per_sqft;
+    const rt=rule.round_to||1;
+    return Math.round(raw/rt)*rt;
+  }
+  return 0;
+}
+// Applicability evaluator. Mirrors underwriter/rehab.py:evaluate_applicability
+// and the bath/pool logic that used to live inline in getConstChecked.
+function evalApplicability(rule,l){
+  if(!rule||rule.always_on)return true;
+  if(rule.min_full_baths!=null){
+    const b=parseFloat(l&&l.baths)||0;
+    return Math.floor(b)>=rule.min_full_baths;
+  }
+  if(rule.requires_half_bath){
+    const b=parseFloat(l&&l.baths)||0;
+    return b>Math.floor(b);
+  }
+  if(rule.requires_pool){
+    // JS-legacy default: ON unless the pool string is literally 'no'.
+    return ((l&&l.pool)||'').toLowerCase()!=='no';
+  }
+  return true;
+}
+// Note resolver for the construction editor. Preserves the two inline
+// behaviours from the old JS: kitchen picks the matching sqft_band's
+// note; foundation renders "min · $3k" / "max · $10k" / "linear · N sf"
+// from the sqft_linear rule's notes block.
+function evalItemNote(item,sqft){
+  const rule=item.cost;
+  if(!rule)return'';
+  if(rule.type==='sqft_band'){
+    for(const band of rule.bands){
+      if(band.max==null||sqft<band.max)return band.note||'';
+    }
+    return '';
+  }
+  if(rule.type==='sqft_linear'&&rule.notes){
+    if(sqft<=rule.min_sqft)return rule.notes.min_label||'';
+    if(sqft>=rule.max_sqft)return rule.notes.max_label||'';
+    return(rule.notes.linear_label||'').replace('{sqft_comma}',Number(sqft).toLocaleString());
+  }
+  return '';
+}
 function getConstChecked(mls){
   if(!constChecked[mls]){
-    const d=Object.fromEntries(CONST_ALL_IDS.map(id=>[id,true]));
+    if(!CONST_CATEGORIES)return {};
     const l=(typeof listings!=='undefined')?listings.find(x=>x.mls===mls):null;
-    if(l){
-      // Bathrooms: MLS "baths" is like 2, 2.5, 3. Integer part = full baths; any fractional part = has a half bath.
-      const b=parseFloat(l.baths)||0;
-      const fulls=Math.floor(b);
-      const hasHalf=b>fulls;
-      if(fulls<1)d.bath_full_1=false;
-      if(fulls<2)d.bath_full_2=false;
-      if(fulls<3)d.bath_full_3=false;
-      if(!hasHalf)d.bath_half=false;
-      // Pool: string 'Yes'/'No'
-      if((l.pool||'').toLowerCase()==='no')d.pool=false;
+    const d={};
+    for(const cat of CONST_CATEGORIES)for(const item of cat.items){
+      d[item.id]=l?evalApplicability(item.applicability,l):true;
     }
     constChecked[mls]=d;
   }
@@ -762,10 +886,10 @@ function getConstOverrides(mls){if(!constOverrides[mls])constOverrides[mls]={};r
 function costOf(item,sqft,mls){
   const s=parseFloat(sqft)||0;
   const ov=mls&&constOverrides[mls]?constOverrides[mls][item.id]:undefined;
-  return ov!=null?ov:item.cost(s);
+  return ov!=null?ov:evalCostRule(item.cost,s);
 }
 function estimateConstruction(sqft,mls){
-  const s=parseFloat(sqft)||0;if(!s)return 0;
+  const s=parseFloat(sqft)||0;if(!s||!CONST_CATEGORIES)return 0;
   const checked=mls?getConstChecked(mls):null;
   let t=0;
   for(const cat of CONST_CATEGORIES)for(const item of cat.items){
@@ -775,6 +899,13 @@ function estimateConstruction(sqft,mls){
   return Math.round(t);
 }
 function renderConstEditorBody(mls,sqft){
+  const body=document.getElementById('const-editor-body');
+  const tot=document.getElementById('const-editor-total');
+  if(!CONST_CATEGORIES){
+    if(body)body.innerHTML='<div style="padding:20px;text-align:center;color:var(--text-4);font-size:12px">Loading rehab config…</div>';
+    if(tot)tot.textContent='—';
+    return;
+  }
   const s=parseFloat(sqft)||0;
   const checked=getConstChecked(mls);
   const overrides=getConstOverrides(mls);
@@ -782,11 +913,11 @@ function renderConstEditorBody(mls,sqft){
   for(const cat of CONST_CATEGORIES){
     h+=`<div style="font-size:9px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin:12px 0 4px;padding-bottom:4px;border-bottom:1px solid var(--border)">${cat.label}</div>`;
     for(const item of cat.items){
-      const defaultCost=s?item.cost(s):0;
+      const defaultCost=s?evalCostRule(item.cost,s):0;
       const effCost=s?costOf(item,s,mls):0;
       const isOn=checked[item.id]!==false;
       const isOverridden=overrides[item.id]!=null;
-      const note=s&&item.note?item.note(s):'';
+      const note=s?evalItemNote(item,s):'';
       h+=`<div style="display:flex;align-items:center;gap:10px;padding:6px 4px;font-size:12px;color:${isOn?'var(--text)':'var(--text-4)'};opacity:${s?1:0.5}">
         <input type="checkbox" ${isOn?'checked':''} ${s?'':'disabled'} onchange="toggleConstItem('${mls}','${item.id}',${s})" style="cursor:${s?'pointer':'not-allowed'};flex-shrink:0">
         <span style="flex:1">${item.label}${note?` <span style="color:var(--text-4);font-size:10px;margin-left:4px">${note}</span>`:''}${isOverridden?` <span style="color:var(--text-4);font-size:10px;margin-left:4px">(default ${F(defaultCost)})</span>`:''}</span>
@@ -794,8 +925,8 @@ function renderConstEditorBody(mls,sqft){
       </div>`;
     }
   }
-  document.getElementById('const-editor-body').innerHTML=h;
-  document.getElementById('const-editor-total').textContent=F(estimateConstruction(s,mls));
+  if(body)body.innerHTML=h;
+  if(tot)tot.textContent=F(estimateConstruction(s,mls));
 }
 function setConstCostLive(mls,itemId,raw,sqft){
   const cleaned=(raw||'').replace(/[^\d]/g,'');
@@ -917,7 +1048,7 @@ function render(){
       <div style="width:48px;height:36px;flex-shrink:0"><img class="rw-thumb" src="${thumbSrc}" alt="" data-mls="${l.mls}" data-addr="${addrFull.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();openLightbox(this.dataset.mls,this.dataset.addr)" onerror="this.style.display='none'"></div>
       <div><div class="at">${l.address} <a href="https://www.google.com/search?q=redfin+${encodeURIComponent(l.address+' '+l.city+' CA')}&btnI=1" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;vertical-align:middle"><img src="https://www.redfin.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a> <a href="https://www.zillow.com/homes/${encodeURIComponent(l.address+', '+l.city+', CA '+l.zip)}_rb/" target="_blank" onclick="event.stopPropagation()" style="vertical-align:middle"><img src="https://www.zillow.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div><div class="as">${l.beds}bd/${l.baths}ba · ${l.sqft.toLocaleString()} sf</div>${l.tags.map(tg).join('')}</div>
       <span style="color:var(--text-3);font-weight:600;font-size:12px">${(l.city||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}</span>
-      <span class="tr" style="font-weight:600;font-size:12px;padding-right:14px">${FK(l.price)}</span>
+      <span class="tr" style="font-weight:600;font-size:12px;padding-right:14px">${FK(l.price)}${renderDealGradePill(l.mls)}</span>
       <input type="text" id="rownotes-${l.mls.replace(/[^a-zA-Z0-9]/g,'')}" data-mls="${l.mls}" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onkeydown="event.stopPropagation()" oninput="rowNotesInput(this)" onblur="rowNotesBlur(this)" value="${(l.notes||'').replace(/"/g,'&quot;')}" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box;height:28px">
       <span class="tr" style="font-size:11px;color:var(--text-3);padding-right:10px">${l.ppsf?'$'+Math.round(l.ppsf):'—'}</span>
       <span style="white-space:nowrap">${l.elem?`<span class="sp ${l.elem.r>=7?'sh':l.elem.r>=5?'sm':'sl'}" data-school="${l.elem.n}"><span class="lv">E</span>${l.elem.r}</span>`:''} ${l.mid?`<span class="sp ${l.mid.r>=7?'sh':l.mid.r>=5?'sm':'sl'}" data-school="${l.mid.n}"><span class="lv">M</span>${l.mid.r}</span>`:''} ${l.high?`<span class="sp ${l.high.r>=7?'sh':l.high.r>=5?'sm':'sl'}" data-school="${l.high.n}"><span class="lv">H</span>${l.high.r}</span>`:''}</span>
@@ -929,6 +1060,7 @@ function render(){
   document.getElementById('lb').innerHTML=h;
   document.getElementById('tc').textContent=data.length;
   updateStageCounts();
+  bulkLoadDealScores(data.map(l=>l.mls));
 }
 async function updateStageCounts(){
   try{
@@ -1137,6 +1269,7 @@ async function batchFetchComps(){
 (async()=>{
   try{const{error}=await sb.from('properties').select('id').limit(1);document.getElementById('db-status').innerHTML=error?'<span style="color:var(--red)">●</span>':'<span style="color:var(--green)">●</span>';}
   catch(e){document.getElementById('db-status').innerHTML='<span style="color:var(--red)">●</span>';}
+  await loadRehabConfig();
   loadListings('unread');
 })();
 render();
