@@ -750,17 +750,46 @@ function renderCompMap(l,cm,mid){
   if(cm.comps.some(c=>c.lat))map.fitBounds(bounds,40);
 }
 
+// Inline comp-type selector so you can retag a comp (general / flips /
+// halfflips / dotty) directly from the detail view's comp list instead
+// of hopping to flip-review.html. Skip the select on unsold_flip (active
+// listings matched as comps) and on comps without an MLS — those aren't
+// retaggable. See updateCompType() for the write path.
+function compTypeSelectHtml(c,subjectMid){
+  if(!c.mls||c.type==='unsold_flip'){
+    const lbl=c.type==='unsold_flip'?'ASKING':'SOLD';
+    return`<span style="font-size:8px;font-weight:700;color:var(--text-4);margin-right:3px">${lbl}</span>`;
+  }
+  const currentDb=c.type==='sold'?'general':c.type==='flip'?'flips':c.type;
+  const bg=c.type==='dotty'?'var(--purple-bg)':(c.type==='flips'||c.type==='flip')?'var(--green-bg)':c.type==='halfflips'?'var(--amber-bg)':'var(--bg-alt)';
+  const col=c.type==='dotty'?'var(--purple)':(c.type==='flips'||c.type==='flip')?'var(--green)':c.type==='halfflips'?'var(--amber)':'var(--text-4)';
+  const opts=[['general','SOLD'],['halfflips','HALF'],['flips','FLIP'],['dotty','DOTTY']];
+  const optsHtml=opts.map(([v,l])=>`<option value="${v}"${v===currentDb?' selected':''}>${l}</option>`).join('');
+  return`<select title="Retag comp type" onchange="event.stopPropagation();updateCompType('${c.mls}','${subjectMid}',this.value)" onclick="event.stopPropagation()" style="font-size:8px;font-weight:700;padding:1px 2px;border-radius:3px;border:1px solid transparent;background:${bg};color:${col};cursor:pointer;margin-right:3px;text-transform:uppercase;font-family:inherit">${optsHtml}</select>`;
+}
+async function updateCompType(compMls,subjectMid,newType){
+  const{error}=await sb.from('properties').update({comp_type:newType,updated_at:new Date().toISOString()}).eq('mls',compMls);
+  if(error){console.error('retag comp failed',error);alert('Retag failed: '+error.message);return;}
+  // Update in-memory cache for the active subject + re-render the panel
+  // so the row's class + badge color reflect the new comp_type.
+  const subjectMls=Object.keys(compCache).find(k=>k.replace(/[^a-zA-Z0-9]/g,'')===subjectMid);
+  if(subjectMls&&compCache[subjectMls]){
+    const comp=compCache[subjectMls].comps.find(c=>c.mls===compMls);
+    if(comp)comp.type=newType==='general'?'sold':newType;
+    const l=listings.find(x=>x.mls===subjectMls);
+    if(l){const el=document.getElementById('comp-col');if(el)el.innerHTML=compsPanel(l);}
+  }
+}
 function compH(c,idx,mls){
   const lbl=c.type==='dotty'?'DOTTY':c.type==='flip'||c.type==='flips'?'FLIP':c.type==='halfflips'?'HALF':'SOLD';
   const col=c.type==='dotty'?'var(--purple)':c.type==='flip'||c.type==='flips'?'var(--green)':c.type==='halfflips'?'var(--amber)':'var(--text-4)';
   const cls=c.type==='dotty'?'cd':c.type==='flip'||c.type==='flips'?'cf':c.type==='halfflips'?'ch':'';
   const mid=mls.replace(/[^a-zA-Z0-9]/g,'');
-  const tb=(c.type==='dotty'||c.type==='flip'||c.type==='flips'||c.type==='halfflips')?`<span style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;background:${c.type==='dotty'?'var(--purple-bg)':c.type==='halfflips'?'var(--amber-bg)':'var(--green-bg)'};color:${col};margin-right:3px">${lbl}</span>`:'';
   return`<div class="cr ${cls}" style="flex-wrap:wrap;padding:4px 6px">
     <div style="display:flex;align-items:center;gap:4px;flex:1;min-width:180px">
       <input type="checkbox" checked onchange="recalcCompSummary('${mid}')" data-comp-idx="${idx}" data-comp-mls="${mid}" style="flex-shrink:0">
       <span style="font-size:10px;font-weight:700;color:var(--accent);min-width:14px">${idx+1}</span>
-      <span class="cl" style="color:${col}">${tb}${lbl==='SOLD'&&!tb?'SOLD':''}</span>
+      ${compTypeSelectHtml(c,mid)}
       ${c.mls?`<span onclick="event.stopPropagation();openLightbox('${c.mls}','${c.addr.replace(/'/g,"\\'")}')" title="View photos" style="color:var(--text-3);font-size:11px;cursor:pointer;text-decoration:underline;text-decoration-color:var(--text-4);text-decoration-style:dotted;text-underline-offset:2px">${c.addr}</span>`:`<span style="color:var(--text-3);font-size:11px">${c.addr}</span>`}
       <a href="https://www.zillow.com/homes/${encodeURIComponent(c.addr.replace(/\s+/g,' ').trim()+', CA')}_rb/" target="_blank" onclick="event.stopPropagation()" style="flex-shrink:0"><img src="https://www.zillow.com/favicon.ico" style="width:11px;height:11px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div>
     <div class="cri"><span style="color:var(--text-4);font-size:10px">${c.dist!=null?c.dist+'mi':''}</span><span style="color:var(--text-4);font-size:10px">${c.beds}/${c.baths}</span><span style="color:var(--text-4);font-size:10px">${c.sqft}sf</span><span style="color:var(--text-4);font-size:10px">${c.lot?c.lot+' lot':''}</span><span style="font-weight:600;${c.isAsking?'color:var(--blue)':''}">${F(c.price)}${c.isAsking?' <span style="font-size:9px;font-weight:400">(asking)</span>':''}</span><span style="color:var(--text-4);font-size:10px">$${c.psf}/sf</span><span style="color:var(--text-4);font-size:10px">${c.date||'—'}</span></div>
