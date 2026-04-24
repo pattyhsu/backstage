@@ -94,9 +94,30 @@
     html += '</div>';
 
     // Footer: dynamic user + collapse + sign-out.
-    const displayName = (user.user_metadata && user.user_metadata.full_name)
-      || (user.email ? user.email.split('@')[0] : 'User');
+    // Fallback chain: user_metadata.full_name → user_metadata.name
+    // → user_metadata.display_name → user_metadata.preferred_username
+    // → top-level user.email prefix → 'User'. Google OAuth populates
+    // at least one of the user_metadata.* paths; magic-link-only
+    // sign-ins drop through to email prefix.
+    const meta = (user && user.user_metadata) || {};
+    const displayName = meta.full_name
+      || meta.name
+      || meta.display_name
+      || meta.preferred_username
+      || (user && user.email ? user.email.split('@')[0] : 'User');
     const initial = (displayName || 'U').charAt(0).toUpperCase();
+    // One-time diagnostic so we can collapse the fallback chain to a
+    // single canonical path once we know which one Google OAuth
+    // actually populates. Fires only on the first render per session.
+    if (!window.__SIDEBAR_USER_DEBUG_LOGGED__) {
+      console.log('[sidebar] user shape:', JSON.stringify({
+        has_user: !!user,
+        email: user && user.email,
+        metadata_keys: Object.keys(meta),
+        metadata: meta,
+      }, null, 2));
+      window.__SIDEBAR_USER_DEBUG_LOGGED__ = true;
+    }
     html += '<div class="side-footer">';
     html += '  <div class="side-user"><div class="side-avatar">' + escapeHtml(initial) + '</div><span class="side-user-name">' + escapeHtml(displayName) + '</span></div>';
     html += '  <button class="collapse-btn" onclick="document.getElementById(\'bsSidebar\').classList.toggle(\'collapsed\')" title="Collapse">◀</button>';
