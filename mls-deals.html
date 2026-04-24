@@ -225,6 +225,9 @@ select.btn{appearance:auto}
         <label><input type="checkbox" value="Already flipped" onchange="toggleTagFilter(this.value)">Already flipped</label>
       </div>
     </div>
+    <button class="btn" id="de-btn" onclick="toggleDeFilter()"
+            title="Show only listings whose agent has ≥1 double-end since 2023"
+            style="min-width:auto" disabled>🔁 DE only</button>
     <div class="hdr-meta"><span id="tc">0</span> listings</div>
   </div>
   <div class="hr">
@@ -495,6 +498,8 @@ async function findComps(listing){
 const MAX_LIST_PRICE=2500000;
 let listings=[],sel=new Set(),archived=new Set(),sort_='priority',active=null,compCache={};
 let currentFilter='unread',cityFilters=new Set(),tagFilters=new Set();
+// Brief AD: "DE only" filter toggle. Stays off until user toggles; resets on stage switch.
+let deOnlyFilter=false;
 // Agent double-end counts — seller-side DE rows since 2023-01-01, keyed by lowercased email/name.
 // Populated once per page load via fetchAgentDeCounts() after `listings` loads. Email-primary,
 // name-fallback over disjoint listing populations (no double-counting).
@@ -1047,7 +1052,7 @@ function calcDeal(id,listPrice,sqft){
 function getArvVal(l){if(l.lockedArv)return l.lockedArv;const cm=compCache[l.mls];return(cm&&cm.hp)?cm.hp*l.sqft:0;}
 function getGapVal(l){const cm=compCache[l.mls];if(!cm||!cm.hp)return 0;const arv=l.lockedArv||(cm.hp*l.sqft);if(!arv)return 0;const eConst=l.lockedConstruction||estimateConstruction(l.sqft,l.mls);const target=Math.round((arv*(1-SELL_PCT)-eConst)/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT));return l.price-target;}
 function toggleSort(col){if(sort_===col+'-asc')sort_=col+'-desc';else if(sort_===col+'-desc')sort_='priority';else sort_=col+'-asc';render();}
-function getSorted(){let d=[...listings];if(cityFilters.size)d=d.filter(l=>cityFilters.has(l.city.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())));if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));const sStr=(s)=>(s||'').toString().toLowerCase();if(sort_==='priority')d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));else if(sort_==='price-asc')d.sort((a,b)=>a.price-b.price);else if(sort_==='price-desc')d.sort((a,b)=>b.price-a.price);else if(sort_==='ppsf-asc')d.sort((a,b)=>a.ppsf-b.ppsf);else if(sort_==='ppsf-desc')d.sort((a,b)=>b.ppsf-a.ppsf);else if(sort_==='dom-asc')d.sort((a,b)=>dom(a.listDate)-dom(b.listDate));else if(sort_==='dom-desc')d.sort((a,b)=>dom(b.listDate)-dom(a.listDate));else if(sort_==='arv-asc')d.sort((a,b)=>getArvVal(a)-getArvVal(b));else if(sort_==='arv-desc')d.sort((a,b)=>getArvVal(b)-getArvVal(a));else if(sort_==='gap-asc')d.sort((a,b)=>getGapVal(a)-getGapVal(b));else if(sort_==='gap-desc')d.sort((a,b)=>getGapVal(b)-getGapVal(a));else if(sort_==='address-asc')d.sort((a,b)=>sStr(a.address).localeCompare(sStr(b.address)));else if(sort_==='address-desc')d.sort((a,b)=>sStr(b.address).localeCompare(sStr(a.address)));else if(sort_==='city-asc')d.sort((a,b)=>sStr(a.city).localeCompare(sStr(b.city)));else if(sort_==='city-desc')d.sort((a,b)=>sStr(b.city).localeCompare(sStr(a.city)));else if(sort_==='status-asc')d.sort((a,b)=>sStr(a.changeType).localeCompare(sStr(b.changeType)));else if(sort_==='status-desc')d.sort((a,b)=>sStr(b.changeType).localeCompare(sStr(a.changeType)));return d;}
+function getSorted(){let d=[...listings];if(cityFilters.size)d=d.filter(l=>cityFilters.has(l.city.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())));if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));if(deOnlyFilter)d=d.filter(l=>agentDeCountFor(l)>0);const sStr=(s)=>(s||'').toString().toLowerCase();if(sort_==='priority')d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));else if(sort_==='price-asc')d.sort((a,b)=>a.price-b.price);else if(sort_==='price-desc')d.sort((a,b)=>b.price-a.price);else if(sort_==='ppsf-asc')d.sort((a,b)=>a.ppsf-b.ppsf);else if(sort_==='ppsf-desc')d.sort((a,b)=>b.ppsf-a.ppsf);else if(sort_==='dom-asc')d.sort((a,b)=>dom(a.listDate)-dom(b.listDate));else if(sort_==='dom-desc')d.sort((a,b)=>dom(b.listDate)-dom(a.listDate));else if(sort_==='arv-asc')d.sort((a,b)=>getArvVal(a)-getArvVal(b));else if(sort_==='arv-desc')d.sort((a,b)=>getArvVal(b)-getArvVal(a));else if(sort_==='gap-asc')d.sort((a,b)=>getGapVal(a)-getGapVal(b));else if(sort_==='gap-desc')d.sort((a,b)=>getGapVal(b)-getGapVal(a));else if(sort_==='address-asc')d.sort((a,b)=>sStr(a.address).localeCompare(sStr(b.address)));else if(sort_==='address-desc')d.sort((a,b)=>sStr(b.address).localeCompare(sStr(a.address)));else if(sort_==='city-asc')d.sort((a,b)=>sStr(a.city).localeCompare(sStr(b.city)));else if(sort_==='city-desc')d.sort((a,b)=>sStr(b.city).localeCompare(sStr(a.city)));else if(sort_==='status-asc')d.sort((a,b)=>sStr(a.changeType).localeCompare(sStr(b.changeType)));else if(sort_==='status-desc')d.sort((a,b)=>sStr(b.changeType).localeCompare(sStr(a.changeType)));return d;}
 
 function render(){
   const data=getSorted();
@@ -1060,7 +1065,7 @@ function render(){
       <div style="width:48px;height:36px;flex-shrink:0"><img class="rw-thumb" src="${thumbSrc}" alt="" data-mls="${l.mls}" data-addr="${addrFull.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();openLightbox(this.dataset.mls,this.dataset.addr)" onerror="this.style.display='none'"></div>
       <div><div class="at">${l.address} <a href="https://www.google.com/search?q=redfin+${encodeURIComponent(l.address+' '+l.city+' CA')}&btnI=1" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;vertical-align:middle"><img src="https://www.redfin.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a> <a href="https://www.zillow.com/homes/${encodeURIComponent(l.address+', '+l.city+', CA '+l.zip)}_rb/" target="_blank" onclick="event.stopPropagation()" style="vertical-align:middle"><img src="https://www.zillow.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div><div class="as">${l.beds}bd/${l.baths}ba · ${l.sqft.toLocaleString()} sf</div>${l.tags.map(tg).join('')}</div>
       <span style="color:var(--text-3);font-weight:600;font-size:12px">${(l.city||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}</span>
-      <span class="tr" style="font-weight:600;font-size:12px;padding-right:14px">${FK(l.price)}${renderDealGradePill(l.mls)}</span>
+      <span class="tr" style="font-weight:600;font-size:12px;padding-right:14px">${FK(l.price)}${renderDealGradePill(l.mls)}${renderAgentDeCardPill(l)}</span>
       <input type="text" id="rownotes-${l.mls.replace(/[^a-zA-Z0-9]/g,'')}" data-mls="${l.mls}" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onkeydown="event.stopPropagation()" oninput="rowNotesInput(this)" onblur="rowNotesBlur(this)" value="${(l.notes||'').replace(/"/g,'&quot;')}" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box;height:28px">
       <span class="tr" style="font-size:11px;color:var(--text-3);padding-right:10px">${l.ppsf?'$'+Math.round(l.ppsf):'—'}</span>
       <span style="white-space:nowrap">${l.elem?`<span class="sp ${l.elem.r>=7?'sh':l.elem.r>=5?'sm':'sl'}" data-school="${l.elem.n}"><span class="lv">E</span>${l.elem.r}</span>`:''} ${l.mid?`<span class="sp ${l.mid.r>=7?'sh':l.mid.r>=5?'sm':'sl'}" data-school="${l.mid.n}"><span class="lv">M</span>${l.mid.r}</span>`:''} ${l.high?`<span class="sp ${l.high.r>=7?'sh':l.high.r>=5?'sm':'sl'}" data-school="${l.high.n}"><span class="lv">H</span>${l.high.r}</span>`:''}</span>
@@ -1132,7 +1137,7 @@ function renderDetailPage(l){
 
 function opn(m){active=m;document.querySelector('.main').classList.add('detail-view');const l=listings.find(x=>x.mls===active);if(l){delete compCache[l.mls];renderDetailPage(l);loadComps(l);const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');let polls=0;const poll=setInterval(()=>{polls++;if(compCache[l.mls]||polls>20){clearInterval(poll);document.getElementById('comp-col').innerHTML=compsPanel(l);const cm=getComps(l);if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}}},300);setTimeout(()=>calcDeal(id,l.price,l.sqft),100);}}
 function cls(){active=null;document.querySelector('.main').classList.remove('detail-view');render();}
-function setFilter(f){currentFilter=f;cityFilters.clear();tagFilters.clear();updateCityBtn();updateTagBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','contacted','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
+function setFilter(f){currentFilter=f;cityFilters.clear();tagFilters.clear();deOnlyFilter=false;updateCityBtn();updateTagBtn();updateDeBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','contacted','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
 function toggleCityFilter(city){if(cityFilters.has(city))cityFilters.delete(city);else cityFilters.add(city);updateCityBtn();render();}
 function cfSelectAll(){const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;cityFilters.add(cb.value);});updateCityBtn();render();}
 function cfSelectNone(){cityFilters.clear();const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateCityBtn();render();}
@@ -1142,6 +1147,8 @@ function toggleTagFilter(tag){if(tagFilters.has(tag))tagFilters.delete(tag);else
 function tfSelectAll(){const cbs=document.querySelectorAll('#tf-drop input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;tagFilters.add(cb.value);});updateTagBtn();render();}
 function tfSelectNone(){tagFilters.clear();const cbs=document.querySelectorAll('#tf-drop input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateTagBtn();render();}
 function updateTagBtn(){const btn=document.getElementById('tf-btn');if(!tagFilters.size)btn.textContent='All Tags ▾';else if(tagFilters.size===1)btn.textContent=[...tagFilters][0]+' ▾';else btn.textContent=tagFilters.size+' Tags ▾';}
+function toggleDeFilter(){deOnlyFilter=!deOnlyFilter;updateDeBtn();render();}
+function updateDeBtn(){const btn=document.getElementById('de-btn');if(!btn)return;btn.disabled=!deCacheReady;btn.className='btn'+(deOnlyFilter?' btn-on':'');}
 
 
 async function refetchComps(mls){const l=listings.find(x=>x.mls===mls);if(!l)return;const mid=mls.replace(/[^a-zA-Z0-9]/g,'');
@@ -1307,6 +1314,10 @@ async function fetchAgentDeCounts(){
     console.log(`[fetchAgentDeCounts] ${deCountByEmail.size} email-keyed agents, ${deCountByName.size} name-keyed agents flagged as DE since 2023-01-01`);
     // Re-render so any already-open detail pane picks up the pill.
     render();
+    // Also refresh the DE-only filter button's disabled state —
+    // it stays greyed until the cache resolves, per Brief AD
+    // Option Y race-handling.
+    updateDeBtn();
     if(active){const l=listings.find(x=>x.mls===active);if(l)renderDetailPage(l);}
   }catch(e){console.error('[fetchAgentDeCounts]',e);}
 }
@@ -1323,6 +1334,13 @@ function renderAgentDeBadge(l){
   if(!n)return '';
   const noun=n===1?'past deal':'past deals';
   return `<span style="background:var(--amber-bg);color:var(--amber);font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:8px;letter-spacing:.3px" title="Listing agent has ${n} double-end ${n===1?'deal':'deals'} since 2023">🔁 double-end agent — ${n} ${noun}</span>`;
+}
+// Brief AD: compact list-card variant. Emoji-only payload; count lives in the tooltip.
+// Reuses the same deCountByEmail / deCountByName caches populated by fetchAgentDeCounts().
+function renderAgentDeCardPill(l){
+  const n=agentDeCountFor(l);
+  if(!n)return '';
+  return `<span style="background:var(--amber-bg);color:var(--amber);font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;letter-spacing:.3px;vertical-align:middle" title="Listing agent has ${n} double-end deal${n===1?'':'s'} since 2023">🔁</span>`;
 }
 async function batchFetchComps(){
   const BATCH=10;
