@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Flip Review — Backstage</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="backstage.css">
@@ -145,22 +146,7 @@
   /* ==========================================================================
      BACKSTAGE SHELL (mirrored from condition-review.html — structurally identical)
      ========================================================================== */
-  .login-wrap { height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg-page); }
-  .login-box { width:360px; text-align:center; }
-  .login-brand { display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:36px; }
-  .login-mark { width:32px; height:32px; border-radius:8px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:14px; color:#fff; }
-  .login-brand span { font-size:15px; font-weight:600; color:var(--text); }
-  .login-title { font-size:24px; font-weight:600; color:var(--text); margin-bottom:6px; letter-spacing:-.5px; }
-  .login-sub { font-size:14px; color:var(--text-4); margin-bottom:32px; }
-  .login-input { width:100%; padding:14px 18px; background:var(--bg); border:1.5px solid var(--border); border-radius:var(--radius); color:var(--text); font-family:'JetBrains Mono',monospace; font-size:16px; text-align:center; letter-spacing:4px; outline:none; }
-  .login-input:focus { border-color:var(--text-3); }
-  .login-input::placeholder { letter-spacing:1px; color:var(--text-4); font-size:13px; }
-  .login-btn { width:100%; margin-top:14px; padding:14px; background:var(--text); border:none; border-radius:var(--radius); color:#fff; font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; }
-  .login-btn:hover { opacity:.85; }
-  .login-error { margin-top:12px; font-size:13px; color:var(--red); height:18px; }
-
-  .app-shell { display:none; height:100vh; }
-  .app-shell.active { display:flex; }
+  .app-shell { display:flex; height:100vh; }
 
   .sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
   .sidebar.collapsed { width:56px; }
@@ -202,20 +188,8 @@
 </head>
 <body>
 
-<!-- LOGIN -->
-<div class="login-wrap" id="loginScreen">
-  <div class="login-box">
-    <div class="login-brand"><div class="login-mark">D</div><span>Dotty Homes</span></div>
-    <div class="login-title">Welcome back</div>
-    <div class="login-sub">Enter your passcode to continue</div>
-    <input type="password" class="login-input" id="pwInput" placeholder="Enter passcode" autocomplete="off" autofocus>
-    <button class="login-btn" onclick="bsLogin()">Continue</button>
-    <div class="login-error" id="pwError"></div>
-  </div>
-</div>
-
 <!-- APP SHELL -->
-<div class="app-shell" id="appShell">
+<div class="app-shell">
 
 <!-- Sidebar -->
 <div class="sidebar" id="sidebar">
@@ -258,7 +232,7 @@
   <div class="side-footer">
     <div class="side-user"><div class="side-avatar">P</div><span class="side-user-name">Patty</span></div>
     <button class="collapse-btn" onclick="document.getElementById('sidebar').classList.toggle('collapsed')" title="Collapse">&#9664;</button>
-    <button class="lock-btn" onclick="sessionStorage.removeItem('backstage_auth');location.reload()" title="Lock">
+    <button class="lock-btn" onclick="signOut()" title="Sign out">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     </button>
   </div>
@@ -379,6 +353,7 @@
 const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;  // expose for auth.js
 
 const PHOTO_BASE='https://photos.dottyhomes.com';
 const VALID_CT=['flips','halfflips','general','null','dotty']; // 'null' = SQL NULL
@@ -1109,20 +1084,13 @@ async function init(){
 }
 
 // ===========================================================================
-// BACKSTAGE AUTH (mirrored — same hash as other pages)
+// BOOT — gate on auth, then init
 // ===========================================================================
-const BS_HASH='c6f13722e2ec174320e4936445dbd16dbaced57f8df8794b83429293cf64e00d';
-async function bsSha(s){ try{ const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)); return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join(''); } catch(e){ return null; } }
-async function bsLogin(){
-  const pw=document.getElementById('pwInput').value;
-  const h=await bsSha(pw);
-  const ok=h?(h===BS_HASH):(pw==='103191');
-  if(ok){ sessionStorage.setItem('backstage_auth','1'); bsShow(); init(); }
-  else { document.getElementById('pwError').textContent='Incorrect passcode'; document.getElementById('pwInput').value=''; setTimeout(()=>document.getElementById('pwError').textContent='',2000); }
-}
-document.getElementById('pwInput').addEventListener('keydown',e=>{ if(e.key==='Enter') bsLogin(); });
-function bsShow(){ document.getElementById('loginScreen').style.display='none'; document.getElementById('appShell').classList.add('active'); }
-if(sessionStorage.getItem('backstage_auth')==='1'){ bsShow(); init(); }
+(async()=>{
+  await window.authGate();
+  if(!window.CURRENT_USER_ROLE) return;  // authGate redirected; abort
+  init();
+})();
 </script>
 </body>
 </html>
