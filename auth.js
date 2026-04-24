@@ -103,6 +103,7 @@
     }
 
     window.CURRENT_USER_ROLE = role;
+    window.CURRENT_USER = session.user;
     unhideBody();
   }
 
