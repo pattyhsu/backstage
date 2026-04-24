@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="backstage.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCxTeIuN4tLIrAApAf8t4fIQ3fCvIix0a8"></script>
+<script src="auth.js"></script>
 <style>
 /* === DEAL MACHINE — local layout only === */
 /* All shared styles (buttons, tags, modals, school pills, toggles, etc.) come from backstage.css */
@@ -40,22 +41,8 @@ body{overflow:hidden;height:100vh}
 .sp:hover::after{content:attr(data-school);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#fff;color:var(--text);font-size:11px;font-weight:500;padding:4px 8px;border-radius:4px;border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,.12);white-space:nowrap;z-index:100;pointer-events:none}
 
 /* === BACKSTAGE SHELL === */
-.login-wrap { height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg-page); }
-.login-box { width:360px; text-align:center; }
-.login-brand { display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:36px; }
-.login-mark { width:32px; height:32px; border-radius:8px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:14px; color:#fff; }
-.login-brand span { font-size:15px; font-weight:600; color:var(--text); }
-.login-title { font-size:24px; font-weight:600; color:var(--text); margin-bottom:6px; letter-spacing:-0.5px; }
-.login-sub { font-size:14px; color:var(--text-4); margin-bottom:32px; }
-.login-input { width:100%; padding:14px 18px; background:var(--bg); border:1.5px solid var(--border); border-radius:var(--radius); color:var(--text); font-family:'JetBrains Mono',monospace; font-size:16px; text-align:center; letter-spacing:4px; outline:none; }
-.login-input:focus { border-color:var(--text-3); }
-.login-input::placeholder { letter-spacing:1px; color:var(--text-4); font-size:13px; }
-.login-btn { width:100%; margin-top:14px; padding:14px; background:var(--text); border:none; border-radius:var(--radius); color:#fff; font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; }
-.login-btn:hover { opacity:.85; }
-.login-error { margin-top:12px; font-size:13px; color:var(--red); height:18px; }
 
-.app-shell { display:none; height:100vh; }
-.app-shell.active { display:flex; }
+.app-shell { display:flex; height:100vh; }
 
 .bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
 .bs-sidebar.collapsed { width:56px; }
@@ -165,20 +152,8 @@ select.btn{appearance:auto}
 </head>
 <body>
 
-<!-- LOGIN -->
-<div class="login-wrap" id="loginScreen">
-  <div class="login-box">
-    <div class="login-brand"><div class="login-mark">D</div><span>Dotty Homes</span></div>
-    <div class="login-title">Welcome back</div>
-    <div class="login-sub">Enter your passcode to continue</div>
-    <input type="password" class="login-input" id="pwInput" placeholder="Enter passcode" autocomplete="off" autofocus>
-    <button class="login-btn" onclick="bsLogin()">Continue</button>
-    <div class="login-error" id="pwError"></div>
-  </div>
-</div>
-
 <!-- APP SHELL -->
-<div class="app-shell" id="appShell">
+<div class="app-shell">
 
 <!-- Sidebar -->
 <div class="bs-sidebar" id="bsSidebar">
@@ -213,7 +188,7 @@ select.btn{appearance:auto}
   <div class="side-footer">
     <div class="side-user"><div class="side-avatar">P</div><span class="side-user-name">Patty</span></div>
     <button class="collapse-btn" onclick="document.getElementById('bsSidebar').classList.toggle('collapsed')" title="Collapse">◀</button>
-    <button class="lock-btn" onclick="sessionStorage.removeItem('backstage_auth');location.reload()" title="Lock">
+    <button class="lock-btn" onclick="signOut()" title="Sign out">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     </button>
   </div>
@@ -309,6 +284,7 @@ select.btn{appearance:auto}
 const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;  // expose for auth.js
 
 // ========== PHOTO SUPPORT ==========
 const PHOTO_BASE='https://photos.dottyhomes.com';
@@ -498,6 +474,7 @@ async function findComps(listing){
       lat:comp.latitude,lng:comp.longitude,
       isAsking:isUnsoldFlip,
       typePriority:{dotty:0,flips:1,halfflips:1,unsold_flip:1,general:2}[compType]??2,
+      doubleEnded:comp.double_ended===true,
     });
   }
   results.sort((a,b)=>(a.schoolMatch?0:1)-(b.schoolMatch?0:1)||(a.typePriority-b.typePriority)||((a.dist??999)-(b.dist??999)));
@@ -518,6 +495,11 @@ async function findComps(listing){
 const MAX_LIST_PRICE=2500000;
 let listings=[],sel=new Set(),archived=new Set(),sort_='priority',active=null,compCache={};
 let currentFilter='unread',cityFilters=new Set(),tagFilters=new Set();
+// Agent double-end counts — seller-side DE rows since 2023-01-01, keyed by lowercased email/name.
+// Populated once per page load via fetchAgentDeCounts() after `listings` loads. Email-primary,
+// name-fallback over disjoint listing populations (no double-counting).
+const deCountByEmail=new Map(),deCountByName=new Map();
+let deCacheReady=false;
 const td_=new Date();
 const F=n=>'$'+Math.round(n).toLocaleString();
 const FK=n=>{if(n>=995000)return'$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';return'$'+Math.round(n/1e3)+'K';};
@@ -790,6 +772,7 @@ function compH(c,idx,mls){
       <input type="checkbox" checked onchange="recalcCompSummary('${mid}')" data-comp-idx="${idx}" data-comp-mls="${mid}" style="flex-shrink:0">
       <span style="font-size:10px;font-weight:700;color:var(--accent);min-width:14px">${idx+1}</span>
       ${compTypeSelectHtml(c,mid)}
+      ${c.doubleEnded?`<span title="Double-end — listing agent also represented the buyer" style="background:var(--amber-bg);color:var(--amber);font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:4px;letter-spacing:.3px;flex-shrink:0">🔁 DE</span>`:''}
       ${c.mls?`<span onclick="event.stopPropagation();openLightbox('${c.mls}','${c.addr.replace(/'/g,"\\'")}')" title="View photos" style="color:var(--text-3);font-size:11px;cursor:pointer;text-decoration:underline;text-decoration-color:var(--text-4);text-decoration-style:dotted;text-underline-offset:2px">${c.addr}</span>`:`<span style="color:var(--text-3);font-size:11px">${c.addr}</span>`}
       <a href="https://www.zillow.com/homes/${encodeURIComponent(c.addr.replace(/\s+/g,' ').trim()+', CA')}_rb/" target="_blank" onclick="event.stopPropagation()" style="flex-shrink:0"><img src="https://www.zillow.com/favicon.ico" style="width:11px;height:11px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div>
     <div class="cri"><span style="color:var(--text-4);font-size:10px">${c.dist!=null?c.dist+'mi':''}</span><span style="color:var(--text-4);font-size:10px">${c.beds}/${c.baths}</span><span style="color:var(--text-4);font-size:10px">${c.sqft}sf</span><span style="color:var(--text-4);font-size:10px">${c.lot?c.lot+' lot':''}</span><span style="font-weight:600;${c.isAsking?'color:var(--blue)':''}">${F(c.price)}${c.isAsking?' <span style="font-size:9px;font-weight:400">(asking)</span>':''}</span><span style="color:var(--text-4);font-size:10px">$${c.psf}/sf</span><span style="color:var(--text-4);font-size:10px">${c.date||'—'}</span></div>
@@ -1141,7 +1124,7 @@ function renderDetailPage(l){
     <div class="toggle-section" style="margin-bottom:8px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">PROPERTY & SHOWING <span>▸</span></div><div class="toggle-body"><div class="si">
       <span><b>Sale Type:</b> ${l.saleType||'—'}</span><span><b>Listed:</b> ${l.listDate||'—'}</span><span><b>Occupancy:</b> ${l.occupancy||'—'}</span><span><b>Occupant:</b> ${l.occupantType||'—'}</span><span><b>Contact:</b> ${l.contactName||'—'} ${l.contactPhone||''}</span><span><b>Lockbox:</b> ${l.lockboxType||'—'} ${l.lockboxLocation?'@ '+l.lockboxLocation:''}</span><span><b>Gate Code:</b> ${l.gateCode||'—'}</span></div></div></div>
     <div class="toggle-section" style="margin-bottom:14px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">AGENT & BROKER <span>▸</span></div><div class="toggle-body"><div class="agb">
-      <span><b>Agent:</b> ${l.agent||'—'}</span><span><b>DRE#:</b> ${l.agentDre||'—'}</span><span><b>Email:</b> ${l.agentEmail||'—'}</span><span><b>Phone:</b> ${l.agentPhone||'—'}</span><span><b>Office:</b> ${l.agentOfficePhone||'—'}</span><span><b>Broker:</b> ${l.broker||'—'}</span><span><b>Broker DRE#:</b> ${l.brokerDre||'—'}</span><span><b>MLS#:</b> ${l.mls}</span></div></div></div></div>`;
+      <span><b>Agent:</b> ${l.agent||'—'}${renderAgentDeBadge(l)}</span><span><b>DRE#:</b> ${l.agentDre||'—'}</span><span><b>Email:</b> ${l.agentEmail||'—'}</span><span><b>Phone:</b> ${l.agentPhone||'—'}</span><span><b>Office:</b> ${l.agentOfficePhone||'—'}</span><span><b>Broker:</b> ${l.broker||'—'}</span><span><b>Broker DRE#:</b> ${l.brokerDre||'—'}</span><span><b>MLS#:</b> ${l.mls}</span></div></div></div></div>`;
   document.getElementById('detPage').innerHTML=h;
   document.getElementById('comp-col').innerHTML=compsPanel(l);
   renderTagToggles(l.mls,id);
@@ -1284,8 +1267,63 @@ async function loadListings(status){
     cfList.innerHTML=cities.map(c=>`<label><input type="checkbox" value="${c}" ${cityFilters.has(c)?'checked':''} onchange="toggleCityFilter('${c.replace(/'/g,"\\'")}')">${c}</label>`).join('');
     updateCityBtn();
     batchFetchComps();
+    fetchAgentDeCounts();
   }catch(e){console.error('Failed to load:',e);}}
 
+// Fetch seller-side DE counts for the current listings pool. Email-primary,
+// name-fallback over DISJOINT listing populations: listings with a non-empty
+// agentEmail contribute to the email-keyed query; listings without an email
+// fall back to the name-keyed query. No row can be counted twice because
+// each listing's lookup only reads one of the two maps.
+async function fetchAgentDeCounts(){
+  const emailSet=new Set(),nameSet=new Set();
+  for(const l of listings){
+    const em=(l.agentEmail||'').trim().toLowerCase();
+    const nm=(l.agent||'').trim().toLowerCase();
+    if(em)emailSet.add(em);
+    else if(nm)nameSet.add(nm);
+  }
+  const emails=[...emailSet],names=[...nameSet];
+  try{
+    const[er,nr]=await Promise.all([
+      emails.length
+        ?sb.from('properties').select('agent_email').eq('double_ended',true).gte('sold_date','2023-01-01').in('agent_email',emails)
+        :Promise.resolve({data:[]}),
+      names.length
+        ?sb.from('properties').select('agent_name').eq('double_ended',true).gte('sold_date','2023-01-01').in('agent_name',names)
+        :Promise.resolve({data:[]}),
+    ]);
+    if(er.error)console.error('[fetchAgentDeCounts email]',er.error);
+    if(nr.error)console.error('[fetchAgentDeCounts name]',nr.error);
+    for(const row of(er.data||[])){
+      const k=(row.agent_email||'').trim().toLowerCase();
+      if(k)deCountByEmail.set(k,(deCountByEmail.get(k)||0)+1);
+    }
+    for(const row of(nr.data||[])){
+      const k=(row.agent_name||'').trim().toLowerCase();
+      if(k)deCountByName.set(k,(deCountByName.get(k)||0)+1);
+    }
+    deCacheReady=true;
+    console.log(`[fetchAgentDeCounts] ${deCountByEmail.size} email-keyed agents, ${deCountByName.size} name-keyed agents flagged as DE since 2023-01-01`);
+    // Re-render so any already-open detail pane picks up the pill.
+    render();
+    if(active){const l=listings.find(x=>x.mls===active);if(l)renderDetailPage(l);}
+  }catch(e){console.error('[fetchAgentDeCounts]',e);}
+}
+function agentDeCountFor(l){
+  if(!deCacheReady)return 0;
+  const em=(l.agentEmail||'').trim().toLowerCase();
+  if(em)return deCountByEmail.get(em)||0;
+  const nm=(l.agent||'').trim().toLowerCase();
+  if(nm)return deCountByName.get(nm)||0;
+  return 0;
+}
+function renderAgentDeBadge(l){
+  const n=agentDeCountFor(l);
+  if(!n)return '';
+  const noun=n===1?'past deal':'past deals';
+  return `<span style="background:var(--amber-bg);color:var(--amber);font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:8px;letter-spacing:.3px" title="Listing agent has ${n} double-end ${n===1?'deal':'deals'} since 2023">🔁 double-end agent — ${n} ${noun}</span>`;
+}
 async function batchFetchComps(){
   const BATCH=10;
   let todo=listings.filter(l=>!compCache[l.mls]&&l.sqft>0);
@@ -1300,20 +1338,14 @@ async function batchFetchComps(){
 
 // ========== INIT ==========
 (async()=>{
+  await window.authGate();
+  if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
   try{const{error}=await sb.from('properties').select('id').limit(1);document.getElementById('db-status').innerHTML=error?'<span style="color:var(--red)">●</span>':'<span style="color:var(--green)">●</span>';}
   catch(e){document.getElementById('db-status').innerHTML='<span style="color:var(--red)">●</span>';}
   await loadRehabConfig();
   loadListings('unread');
+  render();
 })();
-render();
-
-// === BACKSTAGE AUTH ===
-const BS_HASH='c6f13722e2ec174320e4936445dbd16dbaced57f8df8794b83429293cf64e00d';
-async function bsSha(s){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}catch(e){return null;}}
-async function bsLogin(){const pw=document.getElementById('pwInput').value;const h=await bsSha(pw);const ok=h?(h===BS_HASH):(pw==='103191');if(ok){sessionStorage.setItem('backstage_auth','1');bsShow();}else{document.getElementById('pwError').textContent='Incorrect passcode';document.getElementById('pwInput').value='';setTimeout(()=>document.getElementById('pwError').textContent='',2000);}}
-document.getElementById('pwInput').addEventListener('keydown',e=>{if(e.key==='Enter')bsLogin();});
-function bsShow(){document.getElementById('loginScreen').style.display='none';document.getElementById('appShell').classList.add('active');}
-if(sessionStorage.getItem('backstage_auth')==='1')bsShow();
 </script>
 </div><!-- /main-content -->
 </div><!-- /app-shell -->

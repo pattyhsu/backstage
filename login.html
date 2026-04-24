@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in — Dotty Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body { overflow:hidden; height:100vh; }
+.login-wrap { height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg-page); }
+.login-box { width:380px; text-align:center; }
+.login-brand { display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:36px; }
+.login-mark { width:32px; height:32px; border-radius:8px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:14px; color:#fff; }
+.login-brand span { font-size:15px; font-weight:600; color:var(--text); }
+.login-title { font-size:24px; font-weight:600; color:var(--text); margin-bottom:6px; letter-spacing:-0.5px; }
+.login-sub { font-size:14px; color:var(--text-4); margin-bottom:28px; }
+
+.google-btn { width:100%; padding:12px 16px; background:var(--bg); border:1.5px solid var(--border); border-radius:var(--radius); color:var(--text); font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; }
+.google-btn:hover { border-color:var(--border-hover); background:var(--bg-page); }
+.google-btn svg { width:18px; height:18px; flex-shrink:0; }
+
+.divider { display:flex; align-items:center; gap:10px; margin:22px 0; color:var(--text-4); font-size:11px; letter-spacing:.16em; text-transform:uppercase; }
+.divider::before, .divider::after { content:""; flex:1; height:1px; background:var(--border); }
+
+.login-input { width:100%; padding:12px 14px; background:var(--bg); border:1.5px solid var(--border); border-radius:var(--radius); color:var(--text); font-family:inherit; font-size:14px; outline:none; box-sizing:border-box; }
+.login-input:focus { border-color:var(--text-3); }
+.login-input::placeholder { color:var(--text-4); }
+
+.login-btn { width:100%; margin-top:10px; padding:12px; background:var(--text); border:none; border-radius:var(--radius); color:#fff; font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; }
+.login-btn:hover { opacity:.85; }
+.login-btn:disabled { opacity:.5; cursor:not-allowed; }
+
+.login-msg { margin-top:16px; font-size:13px; min-height:18px; }
+.login-msg.err { color:#B84545; }
+.login-msg.info { color:var(--text-3); }
+
+.reject-banner { background:#FBECEC; border:1px solid #E8B9B9; color:#7A2F2F; padding:10px 14px; border-radius:var(--radius); font-size:13px; line-height:1.4; margin-bottom:22px; text-align:left; }
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-box">
+    <div class="login-brand"><div class="login-mark">D</div><span>Backstage</span></div>
+
+    <div id="rejectBanner" class="reject-banner" style="display:none"></div>
+
+    <div class="login-title">Sign in</div>
+    <div class="login-sub">Dotty Homes internal tools</div>
+
+    <button class="google-btn" id="googleBtn" onclick="signInWithGoogle()">
+      <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+        <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
+        <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+        <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571.001-.001.002-.001.003-.002l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+      </svg>
+      Sign in with Google
+    </button>
+
+    <div class="divider">or</div>
+
+    <input type="email" class="login-input" id="emailInput" placeholder="you@example.com" autocomplete="email">
+    <button class="login-btn" id="magicBtn" onclick="signInWithMagicLink()">Send magic link</button>
+
+    <div id="loginMsg" class="login-msg"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const REDIRECT_TARGET = '/mls-deals.html';
+
+function redirectTo() {
+  // Use window.location.origin so both backstage.dottyhomes.com and
+  // localhost dev hosts work; OAuth + magic link both land here.
+  return window.location.origin + REDIRECT_TARGET;
+}
+
+function showMsg(text, kind) {
+  const el = document.getElementById('loginMsg');
+  el.textContent = text || '';
+  el.className = 'login-msg' + (kind ? ' ' + kind : '');
+}
+
+function showRejection(text) {
+  const el = document.getElementById('rejectBanner');
+  el.textContent = text;
+  el.style.display = 'block';
+}
+
+async function signInWithGoogle() {
+  showMsg('', null);
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: redirectTo() }
+  });
+  if (error) showMsg(error.message, 'err');
+}
+
+async function signInWithMagicLink() {
+  showMsg('', null);
+  const email = document.getElementById('emailInput').value.trim().toLowerCase();
+  if (!email) { showMsg('Enter your email.', 'err'); return; }
+  const btn = document.getElementById('magicBtn');
+  btn.disabled = true;
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: redirectTo() }
+  });
+  btn.disabled = false;
+  if (error) { showMsg(error.message, 'err'); return; }
+  showMsg('Check your email for the sign-in link.', 'info');
+}
+
+document.getElementById('emailInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') signInWithMagicLink();
+});
+
+// On load: surface not-invited rejection (stashed by auth.js when
+// current_user_role() returned NULL) and bounce already-authed users
+// straight through.
+(async () => {
+  const rejection = sessionStorage.getItem('auth_rejection');
+  if (rejection === 'not_invited') {
+    showRejection('This account is not authorized for Dotty Backstage. Contact Patty to be added.');
+    sessionStorage.removeItem('auth_rejection');
+    // Don't auto-redirect — we want the user to see the banner and
+    // stop trying this account. auth.js already signed them out.
+    return;
+  }
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) location.replace(REDIRECT_TARGET);
+})();
+</script>
+</body>
+</html>
