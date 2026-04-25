@@ -6,6 +6,7 @@
 <title>Flip Review — Backstage</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
+<script src="sidebar.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="backstage.css">
@@ -148,24 +149,24 @@
      ========================================================================== */
   .app-shell { display:flex; height:100vh; }
 
-  .sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
-  .sidebar.collapsed { width:56px; }
-  .sidebar.collapsed .side-brand span,
-  .sidebar.collapsed .side-section-label,
-  .sidebar.collapsed .side-label,
-  .sidebar.collapsed .side-user-name,
-  .sidebar.collapsed .lock-btn { display:none; }
-  .sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
-  .sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
-  .sidebar.collapsed .side-section { padding:12px 0 0; }
-  .sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
-  .sidebar.collapsed .side-user { justify-content:center; }
+  .bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+  .bs-sidebar.collapsed { width:56px; }
+  .bs-sidebar.collapsed .side-brand span,
+  .bs-sidebar.collapsed .side-section-label,
+  .bs-sidebar.collapsed .side-label,
+  .bs-sidebar.collapsed .side-user-name,
+  .bs-sidebar.collapsed .lock-btn { display:none; }
+  .bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+  .bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+  .bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+  .bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+  .bs-sidebar.collapsed .side-user { justify-content:center; }
   .side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
   .side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
   .side-brand span { font-size:14px; font-weight:600; color:var(--text); }
-  .side-section { padding:18px 14px 0; }
-  .side-section-label { font-size:10px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:var(--text-4); padding:0 10px; margin-bottom:6px; }
-  .side-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:1px; text-decoration:none; }
+  .side-section { padding:6px 10px 0; }
+  .side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+  .side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
   .side-item:hover { background:var(--bg-page); text-decoration:none; }
   .side-item.active { background:var(--bg-alt); }
   .side-item.active .side-icon svg { stroke:var(--text); }
@@ -191,52 +192,8 @@
 <!-- APP SHELL -->
 <div class="app-shell">
 
-<!-- Sidebar -->
-<div class="sidebar" id="sidebar">
-  <div class="side-brand"><div class="side-mark">D</div><span>Backstage</span></div>
-  <div class="side-section">
-    <div class="side-section-label">Acquisitions</div>
-    <a class="side-item" href="mls-deals.html">
-      <div class="side-icon"><svg viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg></div>
-      <span class="side-label">MLS Deals</span>
-    </a>
-    <a class="side-item" href="flip-analyzer.html">
-      <div class="side-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></div>
-      <span class="side-label">FlipAnalyzer</span>
-    </a>
-  </div>
-  <div class="side-section">
-    <div class="side-section-label">Data</div>
-    <a class="side-item" href="comps-db.html">
-      <div class="side-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
-      <span class="side-label">Comps DB</span>
-    </a>
-    <a class="side-item" href="import.html">
-      <div class="side-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
-      <span class="side-label">Import Hub</span>
-    </a>
-    <a class="side-item" href="condition-review.html">
-      <div class="side-icon"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg></div>
-      <span class="side-label">Condition QA</span>
-    </a>
-    <a class="side-item active" href="flip-review.html">
-      <div class="side-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
-      <span class="side-label">Flip Review</span>
-    </a>
-  </div>
-  <div class="side-section">
-    <div class="side-section-label">Coming soon</div>
-    <div class="side-item disabled"><div class="side-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg></div><span class="side-label">Portfolio</span></div>
-    <div class="side-item disabled"><div class="side-icon"><svg viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/><circle cx="12" cy="6" r="2"/></svg></div><span class="side-label">Lead Scoring</span></div>
-  </div>
-  <div class="side-footer">
-    <div class="side-user"><div class="side-avatar">P</div><span class="side-user-name">Patty</span></div>
-    <button class="collapse-btn" onclick="document.getElementById('sidebar').classList.toggle('collapsed')" title="Collapse">&#9664;</button>
-    <button class="lock-btn" onclick="signOut()" title="Sign out">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-    </button>
-  </div>
-</div>
+<!-- Sidebar (rendered by sidebar.js) -->
+<div class="bs-sidebar" id="bsSidebar"></div>
 
 <!-- Main content -->
 <div class="main-content">
@@ -1089,6 +1046,7 @@ async function init(){
 (async()=>{
   await window.authGate();
   if(!window.CURRENT_USER_ROLE) return;  // authGate redirected; abort
+  window.renderSidebar('flip-review');
   init();
 })();
 </script>
