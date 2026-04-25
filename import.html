@@ -502,7 +502,7 @@ async function deleteHistoryRow(id){await sb.from('import_history').delete().eq(
 // Pass 2: Google Maps Geocoding API (paid, ~$5/1000 — only called for Census misses)
 // Pass 3: Manual queue (loadUngeocoded UI below)
 // All results bounds-checked against SoCal to reject foreign-country false positives.
-const GOOGLE_GEO_KEY='AIzaSyCxTeIuN4tLIrAApAf8t4fIQ3fCvIix0a8';
+const GOOGLE_GEO_KEY='AIzaSyBtxBe0q6i46rUomZzVE3BKmJ4EQNYGvvU';
 // SoCal bounds — generous enough to include Ventura, Santa Barbara, and Riverside/SB inland
 const SOCAL_BOUNDS={latMin:32.5,latMax:35.5,lngMin:-120.0,lngMax:-116.5};
 function inSoCal(lat,lng){return lat>=SOCAL_BOUNDS.latMin&&lat<=SOCAL_BOUNDS.latMax&&lng>=SOCAL_BOUNDS.lngMin&&lng<=SOCAL_BOUNDS.lngMax;}

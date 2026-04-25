@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Comps DB — Backstage</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCxTeIuN4tLIrAApAf8t4fIQ3fCvIix0a8&libraries=places&loading=async&v=weekly&callback=onMapsReady"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBtxBe0q6i46rUomZzVE3BKmJ4EQNYGvvU&libraries=places&loading=async&v=weekly&callback=onMapsReady"></script>
 <script src="auth.js"></script>
 <script src="sidebar.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -534,7 +534,7 @@ function toggleAllComps(masterCb,sid){
 
 async function updateGeoStats(){const{count:t}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold');const{count:d}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold').not('latitude','is',null);const rem=(t||0)-(d||0);document.getElementById('geo-total').textContent=t||0;document.getElementById('geo-done').textContent=d||0;document.getElementById('geo-remaining').textContent=rem;const mins=Math.ceil(rem*0.1/60);document.getElementById('geo-eta').textContent=rem>0?(mins<1?'<1m':`~${mins}m`):'✓';document.getElementById('geoBar').style.width=t>0?((d/t)*100)+'%':'0%';}
 
-const GOOGLE_GEO_KEY='AIzaSyCxTeIuN4tLIrAApAf8t4fIQ3fCvIix0a8';
+const GOOGLE_GEO_KEY='AIzaSyBtxBe0q6i46rUomZzVE3BKmJ4EQNYGvvU';
 
 // Places Autocomplete for address search
 let autocompleteLat=null, autocompleteLng=null;
