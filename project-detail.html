@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Detail — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js"></script>
+<style>
+/* === PROJECT DETAIL — local layout only === */
+
+body { overflow:hidden; height:100vh; }
+
+/* Backstage shell */
+.app-shell { display:flex; height:100vh; }
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+.bs-sidebar.collapsed { width:56px; }
+.bs-sidebar.collapsed .side-brand span, .bs-sidebar.collapsed .side-section-label, .bs-sidebar.collapsed .side-label, .bs-sidebar.collapsed .side-user-name, .bs-sidebar.collapsed .lock-btn { display:none; }
+.bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+.bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+.bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+.bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+.bs-sidebar.collapsed .side-user { justify-content:center; }
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.lock-btn:hover { color:var(--text); }
+.collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
+.collapse-btn:hover { color:var(--text); }
+.main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
+
+/* Layout */
+.scroll-wrap { flex:1; overflow-y:auto; }
+.container { max-width:880px; margin:0 auto; padding:18px 24px 80px; }
+
+/* Top bar (back button) */
+.topbar { display:flex; align-items:center; gap:10px; padding:14px 24px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.92); backdrop-filter:blur(20px); position:sticky; top:0; z-index:10; }
+.back-btn { background:none; border:1px solid var(--border); border-radius:5px; padding:4px 10px; cursor:pointer; font-size:12px; font-family:inherit; color:var(--text-3); text-decoration:none; }
+.back-btn:hover { color:var(--text); border-color:var(--border-hover); text-decoration:none; }
+
+/* Header block */
+.header-block { padding:6px 0 16px; border-bottom:1px solid var(--border); }
+.header-block h1 { font-size:22px; font-weight:700; letter-spacing:-.4px; margin:0 0 4px; color:var(--text); }
+.header-block .sub { font-size:12px; color:var(--text-3); margin:0 0 8px; font-family:var(--mono); }
+.header-block .stage-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:12px; }
+.stage-pill { display:inline-block; font-size:11px; font-weight:700; padding:3px 10px; border-radius:10px; background:var(--accent-dim); color:var(--accent); letter-spacing:.3px; }
+.stage-pill.empty { background:var(--bg-alt); color:var(--text-4); }
+.header-block .age { color:var(--text-3); }
+.acq-link { font-size:11px; color:var(--text-3); text-decoration:none; }
+.acq-link:hover { color:var(--accent); text-decoration:underline; }
+
+.financials { font-size:12px; color:var(--text-3); padding:6px 0 0; font-family:var(--mono); }
+.financials b { color:var(--text); font-weight:600; }
+
+/* Section blocks */
+.section { margin-top:22px; padding-top:14px; border-top:1px solid var(--border); }
+.section h2 { font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); margin:0 0 10px; }
+.section.stub .stub-msg { font-size:12px; color:var(--text-4); font-style:italic; padding:8px 0; }
+
+/* Stage transition form */
+.move-form { display:flex; flex-direction:column; gap:8px; max-width:480px; }
+.move-row { display:flex; align-items:center; gap:8px; }
+.move-row label { font-size:11px; color:var(--text-3); width:74px; flex-shrink:0; font-weight:600; }
+.move-form select, .move-form textarea { font-family:inherit; font-size:13px; padding:6px 10px; border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text); outline:none; }
+.move-form select { flex:1; }
+.move-form textarea { width:100%; min-height:54px; resize:vertical; }
+.move-btn { align-self:flex-start; padding:6px 18px; border-radius:5px; border:1px solid var(--accent); background:var(--accent); color:#fff; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; }
+.move-btn:hover { filter:brightness(1.05); }
+.move-btn:disabled { opacity:.55; cursor:not-allowed; }
+.move-msg { font-size:11px; min-height:14px; }
+.move-msg.ok { color:var(--green); }
+.move-msg.err { color:var(--red); }
+
+/* History list */
+.history { list-style:none; padding:0; margin:0; }
+.history li { padding:10px 0; border-bottom:1px solid var(--border); }
+.history li:last-child { border-bottom:none; }
+.history .when { font-size:11px; color:var(--text-4); font-family:var(--mono); }
+.history .who { font-size:11px; color:var(--text-3); margin-left:6px; }
+.history .arrow { font-size:13px; color:var(--text); margin-top:2px; }
+.history .arrow .from { color:var(--text-3); }
+.history .arrow .to { color:var(--accent); font-weight:600; }
+.history .note { font-size:12px; color:var(--text-3); margin-top:4px; padding-left:10px; border-left:2px solid var(--border); font-style:italic; }
+.empty-history { font-size:12px; color:var(--text-4); font-style:italic; }
+
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+<div class="bs-sidebar" id="bsSidebar"></div>
+
+<div class="main-content">
+
+<div class="topbar">
+  <a class="back-btn" href="pipeline.html">← Pipeline</a>
+  <span style="font-size:11px;color:var(--text-4)" id="topbar-mls"></span>
+</div>
+
+<div class="scroll-wrap">
+<div class="container" id="container">
+  <div style="padding:60px 0;text-align:center;color:var(--text-4)">Loading...</div>
+</div>
+</div>
+
+</div><!-- /main-content -->
+</div><!-- /app-shell -->
+
+<script>
+// ========== SUPABASE CLIENT ==========
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+
+// ========== STAGE CONFIG ==========
+const STAGES=['offered','in_escrow','closed','under_construction','listed','sold'];
+function pipelineStageLabel(s){
+  if(s==null)return 'Out of pipeline';
+  return ({offered:'Offered',in_escrow:'In Escrow',closed:'Closed',under_construction:'Under Construction',listed:'Listed',sold:'Sold'})[s]||s;
+}
+
+// ========== HELPERS ==========
+function FK(n){if(!n||!isFinite(n))return '—';if(n>=1e6)return '$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';if(n>=1e3)return '$'+Math.round(n/1e3)+'K';return '$'+n;}
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
+function relTime(iso){
+  if(!iso)return '';
+  const t=new Date(iso).getTime();if(!isFinite(t))return '';
+  const days=Math.floor((Date.now()-t)/86400000);
+  if(days<=0)return 'today';
+  if(days===1)return '1 day ago';
+  if(days<14)return days+' days ago';
+  if(days<60)return Math.floor(days/7)+' weeks ago';
+  return Math.floor(days/30)+' months ago';
+}
+function fmtDate(iso){
+  if(!iso)return '';
+  const d=new Date(iso);
+  if(!isFinite(d.getTime()))return '';
+  return d.toISOString().slice(0,10);
+}
+function userShort(uuid){
+  if(!uuid)return 'unknown';
+  // Show first 8 chars; tooltip carries the full uuid via the title attr at the call site.
+  return uuid.slice(0,8);
+}
+
+// ========== PARSE QUERY PARAM ==========
+function getMls(){
+  const params=new URLSearchParams(location.search);
+  return (params.get('mls')||'').trim();
+}
+
+// ========== STATE ==========
+let currentProperty=null;
+let stageHistory=[];
+let saving=false;
+
+// ========== LOAD ==========
+async function loadProject(){
+  const mls=getMls();
+  const topBarMls=document.getElementById('topbar-mls');
+  if(topBarMls)topBarMls.textContent=mls?'MLS# '+mls:'';
+  if(!mls){
+    document.getElementById('container').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--text-4)">No <code>?mls=</code> query param. Open this page from the Pipeline kanban or an MLS Deals listing.</div>`;
+    return;
+  }
+
+  // Property row.
+  const {data:rows,error:pErr}=await sb.from('properties')
+    .select('id, mls, address, city, zip, beds, baths, sqft, year_built, list_price, sale_price, sold_date, pipeline_stage, locked_arv, locked_construction')
+    .eq('mls',mls)
+    .limit(1);
+  if(pErr){
+    console.error('[project-detail] property load failed',pErr);
+    document.getElementById('container').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--red)">Failed to load: ${escapeHtml(pErr.message)}</div>`;
+    return;
+  }
+  if(!rows||!rows.length){
+    document.getElementById('container').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--text-4)">No property found with MLS# ${escapeHtml(mls)}.</div>`;
+    return;
+  }
+  currentProperty=rows[0];
+
+  // Optional ARV + grade pulls (best-effort; non-fatal).
+  let arvRow=null, gradeRow=null;
+  try {
+    const {data:arvData}=await sb.from('arv_estimates').select('arv,confidence_label').eq('mls',mls).order('computed_at',{ascending:false}).limit(1);
+    arvRow=(arvData&&arvData[0])||null;
+  } catch(e){ /* ignore */ }
+  try {
+    const {data:gData}=await sb.from('deal_scores').select('grade,spread_pct,status').eq('mls',mls).order('computed_at',{ascending:false}).limit(1);
+    gradeRow=(gData&&gData[0])||null;
+  } catch(e){ /* ignore */ }
+
+  // History.
+  const {data:hist,error:hErr}=await sb.from('pipeline_stage_history')
+    .select('id, mls, from_stage, to_stage, transitioned_at, transitioned_by, note, created_at')
+    .eq('mls',mls)
+    .order('transitioned_at',{ascending:false});
+  if(hErr){
+    console.error('[project-detail] history load failed',hErr);
+    stageHistory=[];
+  } else {
+    stageHistory=hist||[];
+  }
+
+  renderPage(arvRow,gradeRow);
+}
+
+// ========== RENDER ==========
+function renderPage(arvRow,gradeRow){
+  const p=currentProperty;
+  const role=window.CURRENT_USER_ROLE;
+  const stage=p.pipeline_stage;
+  const stageLabel=pipelineStageLabel(stage);
+
+  // Days in current stage = age of latest history row matching to_stage.
+  let daysInStageStr='';
+  if(stage){
+    const lastEnter=stageHistory.find(h=>h.to_stage===stage);
+    if(lastEnter)daysInStageStr=' · '+relTime(lastEnter.transitioned_at)+' in stage';
+  }
+
+  const subParts=[
+    (p.beds!=null&&p.beds!==0)?`${p.beds}bd`:null,
+    (p.baths!=null&&p.baths!==0)?`${p.baths}ba`:null,
+    p.sqft?`${p.sqft.toLocaleString()} sf`:null,
+    p.year_built?`Built ${p.year_built}`:null,
+  ].filter(Boolean).join(' · ');
+
+  const finBits=[];
+  if(p.list_price)finBits.push(`<b>List:</b> ${FK(p.list_price)}`);
+  if(p.sale_price)finBits.push(`<b>Sale:</b> ${FK(p.sale_price)}`);
+  if(p.locked_arv)finBits.push(`<b>ARV (locked):</b> ${FK(p.locked_arv)}`);
+  else if(arvRow&&arvRow.arv)finBits.push(`<b>ARV:</b> ${FK(arvRow.arv)}${arvRow.confidence_label?' ('+arvRow.confidence_label+')':''}`);
+  if(gradeRow&&gradeRow.grade)finBits.push(`<b>Grade:</b> ${escapeHtml(gradeRow.grade)}${gradeRow.spread_pct!=null?' · '+(gradeRow.spread_pct).toFixed(1)+'% spread':''}`);
+  if(p.locked_construction)finBits.push(`<b>Construction (locked):</b> ${FK(p.locked_construction)}`);
+
+  // Stage transition options.
+  const stageOptions=STAGES.map(s=>{
+    const sel=(s===stage)?' selected disabled':'';
+    return `<option value="${s}"${sel}>${escapeHtml(pipelineStageLabel(s))}${s===stage?' (current)':''}</option>`;
+  }).join('');
+
+  let html=`
+    <div class="header-block">
+      <h1>${escapeHtml(p.address||'(no address)')}</h1>
+      <p class="sub">${escapeHtml((p.city||'')+(p.zip?', CA '+p.zip:''))} · MLS# ${escapeHtml(p.mls)}${subParts?' · '+escapeHtml(subParts):''}</p>
+      <div class="stage-row">
+        <span class="${'stage-pill'+(stage?'':' empty')}">${escapeHtml(stageLabel)}</span>
+        <span class="age">${escapeHtml(daysInStageStr)}</span>
+        <a class="acq-link" href="mls-deals.html" title="No ?mls= deep-link yet — find this listing manually in MLS Deals.">View acquisition data →</a>
+      </div>
+      ${finBits.length?`<div class="financials">${finBits.join(' · ')}</div>`:''}
+    </div>
+
+    <div class="section">
+      <h2>Stage Transition</h2>
+      <div class="move-form">
+        <div class="move-row">
+          <label for="newStageSelect">Move to:</label>
+          <select id="newStageSelect">
+            <option value="" disabled selected>Choose stage...</option>
+            ${stageOptions}
+            <option disabled>──────────</option>
+            <option value="__exit__">— Out of pipeline</option>
+          </select>
+        </div>
+        <div class="move-row" style="align-items:flex-start">
+          <label for="moveNote" style="margin-top:6px">Note:</label>
+          <textarea id="moveNote" placeholder="Optional context (e.g. 'Offer accepted at $1.05M', 'Fell out of escrow — buyer financing')"></textarea>
+        </div>
+        <button class="move-btn" id="moveBtn" onclick="moveStage()">Move</button>
+        <div class="move-msg" id="moveMsg"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Stage History</h2>
+      ${renderHistoryList()}
+    </div>
+
+    <div class="section stub">
+      <h2>Construction</h2>
+      <div class="stub-msg">Coming soon — Sprint 5 Field Ops agent will populate scope, GC, line items, photos, and timeline here.</div>
+    </div>
+
+    <div class="section stub">
+      <h2>Listing</h2>
+      <div class="stub-msg">Coming soon — Sprint 5 Sales agent will populate listing copy, photo selection, MLS publish status, and showings.</div>
+    </div>
+  `;
+
+  // FINANCING — owner only.
+  if(role==='owner'){
+    html+=`
+      <div class="section stub">
+        <h2>Financing <span style="color:var(--text-4);font-weight:400;letter-spacing:0;text-transform:none">(owner only)</span></h2>
+        <div class="stub-msg">Coming soon — Sprint 4 Money agent will populate capital sources, draws, payoff schedule, and net cash position here.</div>
+      </div>
+    `;
+  }
+
+  html+=`
+    <div class="section stub">
+      <h2>Sale</h2>
+      <div class="stub-msg">Coming soon — Sprint 5 Sales agent will populate offers, accepted price, escrow timeline, and closing docs.</div>
+    </div>
+
+    <div class="section stub">
+      <h2>Docs</h2>
+      <div class="stub-msg">Coming soon — uploaded PDFs (purchase contract, disclosures, permits, inspections) keyed off this MLS.</div>
+    </div>
+  `;
+
+  document.getElementById('container').innerHTML=html;
+}
+
+function renderHistoryList(){
+  if(!stageHistory.length){
+    return `<div class="empty-history">No transitions recorded yet. The first move via the dropdown above will start the audit trail.</div>`;
+  }
+  let html='<ul class="history">';
+  for(const h of stageHistory){
+    const fromLbl=h.from_stage?pipelineStageLabel(h.from_stage):'(entered pipeline)';
+    const toLbl=h.to_stage?pipelineStageLabel(h.to_stage):'(left pipeline)';
+    const who=h.transitioned_by?userShort(h.transitioned_by):'unknown';
+    html+=`<li>
+      <div><span class="when">${escapeHtml(fmtDate(h.transitioned_at))} · ${escapeHtml(relTime(h.transitioned_at))}</span><span class="who" title="${escapeHtml(h.transitioned_by||'')}">by ${escapeHtml(who)}</span></div>
+      <div class="arrow"><span class="from">${escapeHtml(fromLbl)}</span> → <span class="to">${escapeHtml(toLbl)}</span></div>
+      ${h.note?`<div class="note">${escapeHtml(h.note)}</div>`:''}
+    </li>`;
+  }
+  html+='</ul>';
+  return html;
+}
+
+// ========== STAGE TRANSITION ==========
+async function moveStage(){
+  if(saving)return;
+  const sel=document.getElementById('newStageSelect');
+  const noteEl=document.getElementById('moveNote');
+  const btn=document.getElementById('moveBtn');
+  const msgEl=document.getElementById('moveMsg');
+  msgEl.className='move-msg';
+  msgEl.textContent='';
+
+  const raw=(sel.value||'').trim();
+  if(!raw){
+    msgEl.className='move-msg err';
+    msgEl.textContent='Pick a stage first.';
+    return;
+  }
+  const toStage=(raw==='__exit__')?null:raw;
+  const fromStage=currentProperty.pipeline_stage;
+  if(toStage===fromStage){
+    msgEl.className='move-msg err';
+    msgEl.textContent='Already in that stage.';
+    return;
+  }
+  const note=(noteEl.value||'').trim()||null;
+  const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
+
+  saving=true;
+  btn.disabled=true;
+  msgEl.textContent='Saving...';
+
+  // 1. Append history row (source of truth).
+  const {error:hErr}=await sb.from('pipeline_stage_history').insert({
+    mls: currentProperty.mls,
+    from_stage: fromStage,
+    to_stage: toStage,
+    transitioned_by: userId,
+    note: note,
+  });
+  if(hErr){
+    saving=false; btn.disabled=false;
+    msgEl.className='move-msg err';
+    msgEl.textContent='History insert failed: '+hErr.message;
+    return;
+  }
+
+  // 2. Update denormalized cache on properties.
+  const {error:pErr}=await sb.from('properties')
+    .update({pipeline_stage: toStage, updated_at: new Date().toISOString()})
+    .eq('mls', currentProperty.mls);
+  if(pErr){
+    saving=false; btn.disabled=false;
+    msgEl.className='move-msg err';
+    msgEl.textContent='Properties update failed (history row was written; reconcile later): '+pErr.message;
+    return;
+  }
+
+  saving=false;
+  btn.disabled=false;
+  noteEl.value='';
+  msgEl.className='move-msg ok';
+  msgEl.textContent='Moved to '+(toStage?pipelineStageLabel(toStage):'Out of pipeline')+'.';
+  await loadProject();
+}
+window.moveStage=moveStage;
+
+// ========== INIT ==========
+(async()=>{
+  await window.authGate();
+  if(!window.CURRENT_USER_ROLE)return;
+  window.renderSidebar(null);
+  await loadProject();
+})();
+</script>
+</body>
+</html>

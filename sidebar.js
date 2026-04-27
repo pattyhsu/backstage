@@ -23,7 +23,7 @@
       label: 'Acquisitions',
       items: [
         { key: 'deals',    label: 'MLS Deals', href: 'mls-deals.html', icon: iconDeals() },
-        { key: 'pipeline', label: 'Pipeline',  href: null,             icon: iconPipeline() },
+        { key: 'pipeline', label: 'Pipeline',  href: 'pipeline.html',  icon: iconPipeline() },
         { key: 'offers',   label: 'Offers',    href: null,             icon: iconOffers() },
         { key: 'showings', label: 'Showings',  href: null,             icon: iconShowings() },
       ],

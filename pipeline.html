@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pipeline — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js"></script>
+<style>
+/* === PIPELINE — local layout only === */
+/* Shared shell + sidebar tokens come from backstage.css. */
+
+body { overflow:hidden; height:100vh; }
+
+/* Backstage shell — same skeleton mls-deals.html uses. */
+.app-shell { display:flex; height:100vh; }
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+.bs-sidebar.collapsed { width:56px; }
+.bs-sidebar.collapsed .side-brand span, .bs-sidebar.collapsed .side-section-label, .bs-sidebar.collapsed .side-label, .bs-sidebar.collapsed .side-user-name, .bs-sidebar.collapsed .lock-btn { display:none; }
+.bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+.bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+.bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+.bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+.bs-sidebar.collapsed .side-user { justify-content:center; }
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.lock-btn:hover { color:var(--text); }
+.collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
+.collapse-btn:hover { color:var(--text); }
+.main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
+
+/* Header bar */
+.pipe-hdr { padding:14px 24px 10px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.92); backdrop-filter:blur(20px); display:flex; align-items:baseline; justify-content:space-between; gap:16px; }
+.pipe-hdr h1 { font-size:14px; font-weight:700; letter-spacing:-.3px; color:var(--accent); margin:0; }
+.pipe-hdr h1 span { color:var(--text-3); font-weight:400; margin-left:6px; }
+.pipe-hdr .totals { font-size:11px; color:var(--text-3); font-family:var(--mono); }
+
+/* Kanban board */
+.board { flex:1; display:flex; gap:10px; padding:14px 14px 20px; overflow-x:auto; overflow-y:hidden; align-items:stretch; }
+.col { flex:1 1 0; min-width:220px; display:flex; flex-direction:column; background:var(--bg-alt); border:1px solid var(--border); border-radius:8px; min-height:0; }
+.col-hdr { padding:10px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.col-hdr .name { font-size:11px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:var(--text-2); }
+.col-hdr .cnt { font-size:11px; font-weight:700; color:var(--text-3); font-family:var(--mono); padding:1px 7px; border-radius:9px; background:var(--bg); border:1px solid var(--border); }
+.col-body { flex:1; padding:8px; overflow-y:auto; min-height:0; display:flex; flex-direction:column; gap:6px; }
+.col-empty { font-size:11px; color:var(--text-4); text-align:center; padding:18px 8px; font-style:italic; }
+
+/* Card */
+.card { display:block; padding:10px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; text-decoration:none; color:inherit; transition:all .1s; }
+.card:hover { border-color:var(--border-hover); transform:translateY(-1px); box-shadow:0 2px 6px rgba(0,0,0,.04); text-decoration:none; }
+.card .addr { font-size:13px; font-weight:600; color:var(--text); line-height:1.25; }
+.card .city { font-size:11px; color:var(--text-3); margin-top:1px; }
+.card .meta { display:flex; justify-content:space-between; align-items:center; margin-top:6px; gap:6px; }
+.card .price { font-size:11px; font-weight:600; color:var(--accent); font-family:var(--mono); }
+.card .age { font-size:10px; color:var(--text-4); font-family:var(--mono); }
+.card .sub { font-size:10px; color:var(--text-3); margin-top:2px; }
+
+/* Mobile / narrow viewport — stack columns vertically. */
+@media (max-width: 900px) {
+  .board { flex-direction:column; overflow-x:hidden; overflow-y:auto; }
+  .col { min-width:0; max-height:none; }
+  .col-body { max-height:280px; }
+}
+
+.empty-state { text-align:center; padding:60px 24px; color:var(--text-4); font-size:13px; }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+<!-- Sidebar (rendered by sidebar.js) -->
+<div class="bs-sidebar" id="bsSidebar"></div>
+
+<!-- Main content -->
+<div class="main-content">
+
+<div class="pipe-hdr">
+  <h1>Pipeline <span id="pipe-summary"></span></h1>
+  <div class="totals" id="pipe-totals"></div>
+</div>
+
+<div id="board" class="board">
+  <div class="empty-state">Loading...</div>
+</div>
+
+</div><!-- /main-content -->
+</div><!-- /app-shell -->
+
+<script>
+// ========== SUPABASE CLIENT ==========
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+
+// ========== STAGE CONFIG ==========
+const STAGES=['offered','in_escrow','closed','under_construction','listed','sold'];
+function pipelineStageLabel(s){
+  if(s==null)return '—';
+  return ({offered:'Offered',in_escrow:'In Escrow',closed:'Closed',under_construction:'Under Construction',listed:'Listed',sold:'Sold'})[s]||s;
+}
+
+// ========== HELPERS ==========
+function FK(n){if(!n||!isFinite(n))return '';if(n>=1e6)return '$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';if(n>=1e3)return '$'+Math.round(n/1e3)+'K';return '$'+n;}
+function relTime(iso){
+  if(!iso)return '';
+  const t=new Date(iso).getTime();if(!isFinite(t))return '';
+  const days=Math.floor((Date.now()-t)/86400000);
+  if(days<=0)return 'today';
+  if(days===1)return '1d';
+  if(days<14)return days+'d';
+  if(days<60)return Math.floor(days/7)+'w';
+  return Math.floor(days/30)+'mo';
+}
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
+
+// ========== DATA LOAD ==========
+async function loadPipeline(){
+  // Fetch all properties currently in pipeline.
+  const {data:props,error:pErr}=await sb.from('properties')
+    .select('id, mls, address, city, list_price, sale_price, pipeline_stage, sqft, beds, baths')
+    .not('pipeline_stage','is',null)
+    .order('mls');
+  if(pErr){console.error('[pipeline] properties load failed',pErr);renderError(pErr.message);return;}
+
+  // Fetch latest history row per mls to compute "days in current stage".
+  // Cheap-and-simple: pull all rows, take the most recent transitioned_at per mls.
+  const inflightMls=(props||[]).map(p=>p.mls).filter(Boolean);
+  let latestByMls={};
+  if(inflightMls.length){
+    const {data:hist,error:hErr}=await sb.from('pipeline_stage_history')
+      .select('mls, transitioned_at, to_stage, transitioned_by')
+      .in('mls',inflightMls)
+      .order('transitioned_at',{ascending:false});
+    if(hErr){console.warn('[pipeline] history load failed (non-fatal)',hErr);}
+    for(const row of (hist||[])){
+      if(!latestByMls[row.mls])latestByMls[row.mls]=row;
+    }
+  }
+
+  renderBoard(props||[],latestByMls);
+}
+
+function renderBoard(props,latestByMls){
+  const byStage={};
+  for(const s of STAGES)byStage[s]=[];
+  for(const p of props){
+    if(byStage[p.pipeline_stage])byStage[p.pipeline_stage].push(p);
+  }
+
+  let html='';
+  for(const stage of STAGES){
+    const rows=byStage[stage]||[];
+    html+=`<div class="col">
+      <div class="col-hdr"><span class="name">${escapeHtml(pipelineStageLabel(stage))}</span><span class="cnt">${rows.length}</span></div>
+      <div class="col-body">`;
+    if(!rows.length){
+      html+=`<div class="col-empty">No deals in this stage</div>`;
+    } else {
+      for(const p of rows){
+        const latest=latestByMls[p.mls];
+        const age=latest?relTime(latest.transitioned_at):'';
+        const priceStr=p.list_price?FK(p.list_price):(p.sale_price?FK(p.sale_price):'');
+        const sub=[
+          (p.beds!=null&&p.beds!==0)?`${p.beds}bd`:null,
+          (p.baths!=null&&p.baths!==0)?`${p.baths}ba`:null,
+          p.sqft?`${p.sqft.toLocaleString()} sf`:null,
+        ].filter(Boolean).join(' / ');
+        const href='project-detail.html?mls='+encodeURIComponent(p.mls);
+        html+=`<a class="card" href="${href}">
+          <div class="addr">${escapeHtml(p.address||'(no address)')}</div>
+          <div class="city">${escapeHtml(p.city||'')}</div>
+          ${sub?`<div class="sub">${escapeHtml(sub)}</div>`:''}
+          <div class="meta">
+            <span class="price">${priceStr}</span>
+            <span class="age">${age?'in stage '+age:''}</span>
+          </div>
+        </a>`;
+      }
+    }
+    html+='</div></div>';
+  }
+  document.getElementById('board').innerHTML=html;
+
+  const total=props.length;
+  document.getElementById('pipe-summary').textContent=total?`(${total} deal${total===1?'':'s'} in pipeline)`:'(empty)';
+  const summaryParts=STAGES.map(s=>`${pipelineStageLabel(s)}: ${(byStage[s]||[]).length}`);
+  document.getElementById('pipe-totals').textContent=summaryParts.join(' · ');
+}
+
+function renderError(msg){
+  document.getElementById('board').innerHTML=`<div class="empty-state">Failed to load pipeline: ${escapeHtml(msg)}</div>`;
+}
+
+// ========== INIT ==========
+(async()=>{
+  await window.authGate();
+  if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
+  window.renderSidebar('pipeline');
+  await loadPipeline();
+})();
+</script>
+</body>
+</html>
