@@ -255,6 +255,13 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;  // expose for auth.js
 
+// ========== PIPELINE STAGE HELPER (mirrors pipeline.html / project-detail.html) ==========
+// 3-stage canonical list per migration 011: offered → in_escrow → under_construction.
+function pipelineStageLabel(s){
+  if(s==null)return '—';
+  return ({offered:'Offered',in_escrow:'In Escrow',under_construction:'Under Construction'})[s]||s;
+}
+
 // ========== PHOTO SUPPORT ==========
 const PHOTO_BASE='https://photos.dottyhomes.com';
 const photoCountCache={};
@@ -977,6 +984,7 @@ function resetPP(id,lp,sq){ppIsCustom[id]=false;const r=document.getElementById(
 function detHTML(l){
   const cm=getComps(l),liveArv=cm.hp*l.sqft,arv=l.lockedArv||liveArv,id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
   return`<div class="cb" style="position:relative">
+    ${!l.pipelineStage?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><button id="open-offer-${id}" onclick="event.stopPropagation();openOffer('${l.mls}')" style="padding:6px 12px;border-radius:5px;border:1px solid var(--accent);font-size:12px;font-weight:700;font-family:inherit;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap" title="Move this listing into Pipeline at the Offered stage">📤 Open offer</button><span style="font-size:11px;color:var(--text-4)">Start Pipeline tracking for this deal.</span></div>`:''}
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--text-4);flex-shrink:0;width:100px">ARV</span>
       <input type="text" id="arv-${id}" value="${F(arv)}" oninput="calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--accent);font-family:inherit;background:var(--bg)">
       <button id="lock-arv-${id}" onclick="event.stopPropagation();toggleLockArv('${l.mls}','${id}')" style="padding:4px 10px;border-radius:5px;border:1px solid ${l.lockedArv?'var(--green)':'var(--border)'};font-size:11px;font-weight:600;font-family:inherit;background:${l.lockedArv?'var(--green-bg)':'var(--bg)'};color:${l.lockedArv?'var(--green)':'var(--text-3)'};cursor:pointer;white-space:nowrap">${l.lockedArv?'🔒 Locked':'Lock ARV'}</button>
@@ -1095,7 +1103,7 @@ function renderDetailPage(l){
     <div class="toggle-section" style="margin-bottom:8px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">PROPERTY & SHOWING <span>▸</span></div><div class="toggle-body"><div class="si">
       <span><b>Sale Type:</b> ${l.saleType||'—'}</span><span><b>Listed:</b> ${l.listDate||'—'}</span><span><b>Occupancy:</b> ${l.occupancy||'—'}</span><span><b>Occupant:</b> ${l.occupantType||'—'}</span><span><b>Contact:</b> ${l.contactName||'—'} ${l.contactPhone||''}</span><span><b>Lockbox:</b> ${l.lockboxType||'—'} ${l.lockboxLocation?'@ '+l.lockboxLocation:''}</span><span><b>Gate Code:</b> ${l.gateCode||'—'}</span></div></div></div>
     <div class="toggle-section" style="margin-bottom:14px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">AGENT & BROKER <span>▸</span></div><div class="toggle-body"><div class="agb">
-      <span><b>Agent:</b> ${l.agent||'—'}${renderAgentDeBadge(l)}</span><span><b>DRE#:</b> ${l.agentDre||'—'}</span><span><b>Email:</b> ${l.agentEmail||'—'}</span><span><b>Phone:</b> ${l.agentPhone||'—'}</span><span><b>Office:</b> ${l.agentOfficePhone||'—'}</span><span><b>Broker:</b> ${l.broker||'—'}</span><span><b>Broker DRE#:</b> ${l.brokerDre||'—'}</span><span><b>MLS#:</b> ${l.mls}</span></div></div></div></div>`;
+      <span><b>Agent:</b> ${l.agent||'—'}${renderAgentDeBadge(l)}</span><span><b>DRE#:</b> ${l.agentDre||'—'}</span><span><b>Email:</b> ${l.agentEmail||'—'}</span><span><b>Phone:</b> ${l.agentPhone||'—'}</span><span><b>Office:</b> ${l.agentOfficePhone||'—'}</span><span><b>Broker:</b> ${l.broker||'—'}</span><span><b>Broker DRE#:</b> ${l.brokerDre||'—'}</span><span><b>MLS#:</b> ${l.mls}</span>${l.pipelineStage?`<span><b>🏗 In project:</b> ${pipelineStageLabel(l.pipelineStage)} <a href="project-detail.html?mls=${encodeURIComponent(l.mls)}">→ view</a></span>`:''}</div></div></div></div>`;
   document.getElementById('detPage').innerHTML=h;
   document.getElementById('comp-col').innerHTML=compsPanel(l);
   renderTagToggles(l.mls,id);
@@ -1135,6 +1143,40 @@ const _rowNotesTimers={};
 function rowNotesInput(el){const mls=el.dataset.mls;clearTimeout(_rowNotesTimers[mls]);el.style.borderColor='var(--border)';_rowNotesTimers[mls]=setTimeout(()=>saveRowNotes(el),700);}
 function rowNotesBlur(el){const mls=el.dataset.mls;clearTimeout(_rowNotesTimers[mls]);saveRowNotes(el);}
 async function saveRowNotes(el){const mls=el.dataset.mls;const val=el.value;const li=listings.find(x=>x.mls===mls);if(li&&li.notes===val){el.style.borderColor='var(--border)';return;}el.style.borderColor='var(--accent)';const{error}=await sb.from('properties').update({notes:val,updated_at:new Date().toISOString()}).eq('mls',mls);if(error){el.style.borderColor='var(--red)';return;}if(li)li.notes=val;el.style.borderColor='var(--green)';setTimeout(()=>{el.style.borderColor='var(--border)';},1200);const mid=mls.replace(/[^a-zA-Z0-9]/g,'');const det=document.getElementById('notes2-'+mid);if(det&&det.value!==val)det.value=val;}
+
+// Brief T (post-mid-gate): open the Pipeline for this listing at the Offered
+// stage. Writes pipeline_stage='offered' on the property + appends a
+// {from_stage:null, to_stage:'offered'} row to pipeline_stage_history. The
+// history insert is mls-keyed (matches the wider schema convention — no
+// property_id lookup needed). Disables the button during submit to guard
+// against double-clicks. Re-renders the detail pane on success so the
+// "🏗 In project" link appears and the button disappears.
+async function openOffer(mls){
+  const l=listings.find(x=>x.mls===mls);if(!l)return;
+  if(l.pipelineStage){console.warn('openOffer: listing already in pipeline',mls);return;}
+  const id=mls.replace(/[^a-zA-Z0-9]/g,'');
+  const btn=document.getElementById('open-offer-'+id);
+  if(btn){btn.disabled=true;btn.style.opacity='0.6';btn.style.cursor='wait';btn.textContent='Opening…';}
+  try{
+    const{error:pErr}=await sb.from('properties')
+      .update({pipeline_stage:'offered',updated_at:new Date().toISOString()})
+      .eq('mls',mls);
+    if(pErr)throw pErr;
+    const{error:hErr}=await sb.from('pipeline_stage_history').insert({
+      mls,
+      from_stage:null,
+      to_stage:'offered',
+      note:'Pipeline opened from MLS Deals',
+    });
+    if(hErr)throw hErr;
+    l.pipelineStage='offered';
+    renderDetailPage(l);
+  }catch(e){
+    console.warn('openOffer failed',e);
+    alert('Open offer failed: '+(e&&e.message?e.message:String(e)));
+    if(btn){btn.disabled=false;btn.style.opacity='';btn.style.cursor='pointer';btn.textContent='📤 Open offer';}
+  }
+}
 
 async function toggleLockArv(mls,id){
   const l=listings.find(x=>x.mls===mls);if(!l)return;
@@ -1232,7 +1274,7 @@ async function loadListings(status){
         elem:r.elementary_rating||r.elementary_school?{r:r.elementary_rating||0,n:r.elementary_school||''}:null,
         mid:(r.middle_rating||r.middle_school)&&(r.middle_school!==r.elementary_school)?{r:r.middle_rating||0,n:r.middle_school||''}:null,
         high:r.high_rating||r.high_school?{r:r.high_rating||0,n:r.high_school||''}:null,
-        tags,customTags:r.custom_tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null,photoFiles:r.photo_files||null};});
+        tags,customTags:r.custom_tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null,photoFiles:r.photo_files||null,pipelineStage:r.pipeline_stage||null};});
     active=null;sel.clear();render();
     const toTitle=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
     const cities=[...new Set(listings.map(l=>toTitle((l.city||'').trim())).filter(Boolean))].sort();
