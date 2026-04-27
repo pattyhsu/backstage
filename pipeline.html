@@ -115,10 +115,10 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;
 
 // ========== STAGE CONFIG ==========
-const STAGES=['offered','in_escrow','closed','under_construction','listed','sold'];
+const STAGES=['offered','in_escrow','under_construction'];
 function pipelineStageLabel(s){
   if(s==null)return '—';
-  return ({offered:'Offered',in_escrow:'In Escrow',closed:'Closed',under_construction:'Under Construction',listed:'Listed',sold:'Sold'})[s]||s;
+  return ({offered:'Offered',in_escrow:'In Escrow',under_construction:'Under Construction'})[s]||s;
 }
 
 // ========== HELPERS ==========
