@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js"></script>
+<style>
+/* === CHAT — local layout only ===
+   Shared shell + sidebar tokens come from backstage.css. */
+
+body { overflow:hidden; height:100vh; }
+
+/* Backstage shell — same skeleton pipeline.html / mls-deals.html use. */
+.app-shell { display:flex; height:100vh; }
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+.bs-sidebar.collapsed { width:56px; }
+.bs-sidebar.collapsed .side-brand span, .bs-sidebar.collapsed .side-section-label, .bs-sidebar.collapsed .side-label, .bs-sidebar.collapsed .side-user-name, .bs-sidebar.collapsed .lock-btn { display:none; }
+.bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+.bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+.bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+.bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+.bs-sidebar.collapsed .side-user { justify-content:center; }
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.lock-btn:hover { color:var(--text); }
+.collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
+.collapse-btn:hover { color:var(--text); }
+.main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
+
+/* Header bar */
+.chat-hdr { padding:14px 24px 10px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.92); backdrop-filter:blur(20px); display:flex; align-items:baseline; justify-content:space-between; gap:16px; }
+.chat-hdr h1 { font-size:14px; font-weight:700; letter-spacing:-.3px; color:var(--accent); margin:0; }
+.chat-hdr h1 span { color:var(--text-3); font-weight:400; margin-left:6px; }
+.chat-hdr .hint { font-size:11px; color:var(--text-3); }
+
+/* History pane */
+.history { flex:1; overflow-y:auto; padding:18px 24px 0; display:flex; flex-direction:column; gap:14px; }
+.history-empty { color:var(--text-4); font-size:13px; padding:60px 0; text-align:center; }
+.history-empty .examples { display:flex; flex-direction:column; gap:6px; align-items:center; margin-top:12px; }
+.history-empty .ex { font-family:var(--mono); font-size:12px; color:var(--accent); cursor:pointer; padding:6px 12px; border:1px solid var(--border); border-radius:6px; background:var(--bg); }
+.history-empty .ex:hover { background:var(--bg-alt); }
+
+.bubble-row { display:flex; }
+.bubble-row.user { justify-content:flex-end; }
+.bubble-row.assistant { justify-content:flex-start; }
+.bubble { max-width:78%; padding:10px 14px; border-radius:10px; font-size:13px; line-height:1.45; }
+.bubble.user { background:var(--bg-alt); color:var(--text); border:1px solid var(--border); }
+.bubble.assistant { background:var(--bg); color:var(--text); border:1px solid var(--border); width:78%; }
+.bubble.assistant.error { border-color:#e58a8a; background:#fdf3f3; }
+
+.sql-details { margin:0 0 8px; }
+.sql-details summary { cursor:pointer; font-size:11px; color:var(--text-3); padding:2px 0; user-select:none; }
+.sql-details summary:hover { color:var(--text); }
+.sql-details pre { margin:6px 0 0; padding:10px 12px; background:var(--bg-page); border:1px solid var(--border); border-radius:6px; font-family:var(--mono); font-size:11px; color:var(--text); white-space:pre-wrap; overflow-x:auto; }
+
+.results-table-wrap { overflow-x:auto; max-height:380px; overflow-y:auto; border:1px solid var(--border); border-radius:6px; }
+.results-table { width:100%; border-collapse:collapse; font-size:11px; font-family:var(--mono); }
+.results-table th, .results-table td { padding:5px 8px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.results-table th { background:var(--bg-alt); font-weight:600; color:var(--text-2); position:sticky; top:0; z-index:1; }
+.results-table tr:last-child td { border-bottom:none; }
+.no-rows { padding:14px; color:var(--text-4); font-size:12px; text-align:center; }
+
+.bubble-foot { margin-top:8px; font-size:10px; color:var(--text-4); font-family:var(--mono); }
+
+.thinking { color:var(--text-3); font-style:italic; font-size:12px; }
+.thinking::after { content:''; display:inline-block; width:6px; animation:dotpulse 1s infinite; }
+@keyframes dotpulse { 0%,80%,100% { opacity:.3 } 40% { opacity:1 } }
+
+/* Input pane */
+.composer { border-top:1px solid var(--border); padding:12px 24px 14px; background:var(--bg); display:flex; flex-direction:column; gap:6px; }
+.composer-row { display:flex; gap:8px; align-items:flex-end; }
+#chat-input { flex:1; resize:none; min-height:36px; max-height:120px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-family:inherit; font-size:13px; line-height:1.4; color:var(--text); background:var(--bg); }
+#chat-input:focus { outline:none; border-color:var(--accent); }
+.ask-btn { background:var(--text); color:#fff; border:none; padding:9px 16px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; min-height:36px; }
+.ask-btn:hover { opacity:.9; }
+.ask-btn:disabled { opacity:.4; cursor:not-allowed; }
+.composer-foot { font-size:10px; color:var(--text-4); font-family:var(--mono); }
+
+@media (max-width: 900px) {
+  .bubble { max-width:92%; }
+  .bubble.assistant { width:92%; }
+}
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+<!-- Sidebar (rendered by sidebar.js) -->
+<div class="bs-sidebar" id="bsSidebar"></div>
+
+<!-- Main content -->
+<div class="main-content">
+
+<div class="chat-hdr">
+  <h1>Chat <span>natural-language SQL over the live database</span></h1>
+  <div class="hint">~$0.001/query · 50/day cap</div>
+</div>
+
+<div id="history" class="history">
+  <div class="history-empty">
+    Ask anything about properties, ARV, deals, or pipeline. Examples:
+    <div class="examples">
+      <div class="ex" data-q="show me 10 grade-A flips from the last 30 days">show me 10 grade-A flips from the last 30 days</div>
+      <div class="ex" data-q="how many properties are currently in_escrow?">how many properties are currently in_escrow?</div>
+      <div class="ex" data-q="which agents have done the most double-ended deals in 2026?">which agents have done the most double-ended deals in 2026?</div>
+    </div>
+  </div>
+</div>
+
+<form id="composer" class="composer" autocomplete="off">
+  <div class="composer-row">
+    <textarea id="chat-input" placeholder="Ask a question..." rows="1"></textarea>
+    <button type="submit" class="ask-btn" id="ask-btn">Ask</button>
+  </div>
+  <div class="composer-foot">Enter to send · Shift+Enter for newline</div>
+</form>
+
+</div><!-- /main-content -->
+</div><!-- /app-shell -->
+
+<script>
+// ========== SUPABASE CLIENT ==========
+// Mirror pipeline.html's init pattern — inline URL + anon key.
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+
+// Edge Function endpoint — derived from the project ref.
+const CHAT_SQL_ENDPOINT='https://pwrnywsojomrygsiezzi.functions.supabase.co/chat-sql';
+
+// ========== HELPERS ==========
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
+
+function fmtCell(v){
+  if(v===null||v===undefined)return '';
+  if(typeof v==='object')return JSON.stringify(v);
+  return String(v);
+}
+
+function renderResultsTable(rows){
+  if(!Array.isArray(rows)||rows.length===0){
+    return '<div class="no-rows">No rows.</div>';
+  }
+  // Union of keys, preserving first-row order then appending new ones.
+  const cols=[];
+  const seen=new Set();
+  for(const r of rows){
+    for(const k of Object.keys(r||{})){
+      if(!seen.has(k)){seen.add(k);cols.push(k);}
+    }
+  }
+  let html='<div class="results-table-wrap"><table class="results-table"><thead><tr>';
+  for(const c of cols)html+=`<th>${escapeHtml(c)}</th>`;
+  html+='</tr></thead><tbody>';
+  for(const r of rows){
+    html+='<tr>';
+    for(const c of cols){
+      const v=fmtCell(r?.[c]);
+      html+=`<td title="${escapeHtml(v)}">${escapeHtml(v)}</td>`;
+    }
+    html+='</tr>';
+  }
+  html+='</tbody></table></div>';
+  return html;
+}
+
+function clearEmptyState(){
+  const empty=document.querySelector('.history-empty');
+  if(empty)empty.remove();
+}
+
+function appendUserBubble(question){
+  const row=document.createElement('div');
+  row.className='bubble-row user';
+  const bub=document.createElement('div');
+  bub.className='bubble user';
+  bub.textContent=question;
+  row.appendChild(bub);
+  document.getElementById('history').appendChild(row);
+  scrollToBottom();
+}
+
+function appendAssistantPlaceholder(){
+  const row=document.createElement('div');
+  row.className='bubble-row assistant';
+  const bub=document.createElement('div');
+  bub.className='bubble assistant';
+  bub.innerHTML='<span class="thinking">Thinking</span>';
+  row.appendChild(bub);
+  document.getElementById('history').appendChild(row);
+  scrollToBottom();
+  return bub;
+}
+
+function fillAssistantBubble(bub,payload){
+  if(payload.error){
+    bub.classList.add('error');
+    let html=`<div><strong>Error:</strong> ${escapeHtml(payload.error)}</div>`;
+    if(payload.sql){
+      html+=`<details class="sql-details" open><summary>SQL Claude generated</summary><pre>${escapeHtml(payload.sql)}</pre></details>`;
+    }
+    bub.innerHTML=html;
+    return;
+  }
+  const tu=payload.tokensUsed||{};
+  const tokens=(tu.in||0)+(tu.out||0);
+  const cacheBits=[];
+  if(tu.cache_read)cacheBits.push(`${tu.cache_read} cached`);
+  const cacheStr=cacheBits.length?' · '+cacheBits.join(' · '):'';
+  let html='';
+  html+=`<details class="sql-details"><summary>SQL Claude generated</summary><pre>${escapeHtml(payload.sql||'')}</pre></details>`;
+  html+=renderResultsTable(payload.results||[]);
+  html+=`<div class="bubble-foot">${escapeHtml(payload.model||'')} · ${tokens} tokens${cacheStr} · ${payload.rowCount||0} row${payload.rowCount===1?'':'s'}</div>`;
+  bub.innerHTML=html;
+}
+
+function scrollToBottom(){
+  const h=document.getElementById('history');
+  h.scrollTop=h.scrollHeight;
+}
+
+// ========== ASK ==========
+async function ask(question){
+  clearEmptyState();
+  appendUserBubble(question);
+  const bub=appendAssistantPlaceholder();
+  const askBtn=document.getElementById('ask-btn');
+  askBtn.disabled=true;
+
+  let payload;
+  try{
+    const sess=await sb.auth.getSession();
+    const token=sess?.data?.session?.access_token;
+    if(!token){
+      payload={error:'No active session — please sign in again.'};
+    } else {
+      const resp=await fetch(CHAT_SQL_ENDPOINT,{
+        method:'POST',
+        headers:{
+          'Authorization':'Bearer '+token,
+          'Content-Type':'application/json',
+        },
+        body:JSON.stringify({question}),
+      });
+      try{
+        payload=await resp.json();
+      } catch(_){
+        payload={error:`HTTP ${resp.status} — non-JSON response`};
+      }
+      if(!resp.ok && !payload?.error){
+        payload={error:`HTTP ${resp.status}`};
+      }
+    }
+  } catch(e){
+    payload={error:'Request failed: '+(e?.message||String(e))};
+  }
+  fillAssistantBubble(bub,payload);
+  scrollToBottom();
+  askBtn.disabled=false;
+  document.getElementById('chat-input').focus();
+}
+
+// ========== INPUT WIRING ==========
+function autoResize(ta){
+  ta.style.height='auto';
+  ta.style.height=Math.min(ta.scrollHeight,120)+'px';
+}
+
+function wireComposer(){
+  const form=document.getElementById('composer');
+  const input=document.getElementById('chat-input');
+  input.addEventListener('input',()=>autoResize(input));
+  input.addEventListener('keydown',(e)=>{
+    if(e.key==='Enter' && !e.shiftKey){
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+  form.addEventListener('submit',(e)=>{
+    e.preventDefault();
+    const q=input.value.trim();
+    if(!q)return;
+    input.value='';
+    autoResize(input);
+    ask(q);
+  });
+
+  // Example chips populate the input.
+  document.querySelectorAll('.history-empty .ex').forEach(el=>{
+    el.addEventListener('click',()=>{
+      input.value=el.dataset.q||el.textContent.trim();
+      autoResize(input);
+      input.focus();
+    });
+  });
+}
+
+// ========== INIT ==========
+(async()=>{
+  await window.authGate();
+  if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
+  window.renderSidebar('chat');
+  wireComposer();
+  document.getElementById('chat-input').focus();
+})();
+</script>
+</body>
+</html>

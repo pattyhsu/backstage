@@ -90,7 +90,11 @@
 
     // Chat as a separated row (not in a section).
     html += '<div class="side-section">';
-    html += '<div class="side-item disabled"><div class="side-icon">' + iconChat() + '</div><span class="side-label">Chat</span></div>';
+    {
+      const isActive = activeKey === 'chat';
+      const cls = 'side-item' + (isActive ? ' active' : '');
+      html += '<a class="' + cls + '" href="chat.html"><div class="side-icon">' + iconChat() + '</div><span class="side-label">Chat</span></a>';
+    }
     html += '</div>';
 
     // Footer: dynamic user + collapse + sign-out.
