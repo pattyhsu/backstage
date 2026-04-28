@@ -205,7 +205,6 @@ select.btn{appearance:auto}
   </div>
   <div class="hr">
     <button class="btn btn-on" id="bf-unread" onclick="setFilter('unread')">Unread <span id="cnt-unread"></span></button>
-    <button class="btn" id="bf-contacted" onclick="setFilter('contacted')">Contacted <span id="cnt-contacted"></span></button>
     <button class="btn" id="bf-potential" onclick="setFilter('potential')">Potential <span id="cnt-potential"></span></button>
     <div style="position:relative;display:inline-block" id="more-filters-wrap">
       <button class="btn" id="more-filters-btn" onclick="document.getElementById('more-filters-drop').classList.toggle('open')" title="More views" style="padding:4px 10px">⋮</button>
@@ -1072,10 +1071,8 @@ function render(){
 async function updateStageCounts(){
   try{
     const{count:ur}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
-    const{count:ct}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).eq('stage','contacted');
     const{count:pt}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).eq('stage','potential');
     const ue=document.getElementById('cnt-unread');if(ue)ue.textContent=ur?'('+ur+')':'';
-    const ce=document.getElementById('cnt-contacted');if(ce)ce.textContent=ct?'('+ct+')':'';
     const pe=document.getElementById('cnt-potential');if(pe)pe.textContent=pt?'('+pt+')':'';
   }catch(e){}
 }
@@ -1089,7 +1086,6 @@ function renderDetailPage(l){
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <button onclick="cls()" style="background:none;border:1px solid var(--border);border-radius:5px;padding:4px 10px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-3)">← Back</button>
       <div style="display:flex;gap:6px">
-        <button onclick="updateListingStatus('${l.mls}','contacted')" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='contacted'?'var(--accent)':'var(--bg)'};color:${l.status==='contacted'?'#fff':'var(--text-3)'};cursor:pointer">Contacted</button>
         <button onclick="updateListingStatus('${l.mls}','potential')" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='potential'?'var(--green)':'var(--bg)'};color:${l.status==='potential'?'#fff':'var(--green)'};cursor:pointer">Potential</button>
         <button onclick="updateListingStatus('${l.mls}','unsold_flip')" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='unsold_flip'?'var(--blue)':'var(--bg)'};color:${l.status==='unsold_flip'?'#fff':'var(--blue)'};cursor:pointer">Unsold Flip</button>
         <button onclick="updateListingStatus('${l.mls}','off_market_lead')" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='off_market_lead'?'var(--purple)':'var(--bg)'};color:${l.status==='off_market_lead'?'#fff':'var(--purple)'};cursor:pointer">Off-Market</button>
@@ -1098,6 +1094,7 @@ function renderDetailPage(l){
       <div data-mls="${l.mls}" data-addr="${detAddrFull}" onclick="openLightbox(this.dataset.mls,this.dataset.addr)" style="width:48px;height:36px;flex-shrink:0;border-radius:4px;overflow:hidden;border:1px solid var(--border);cursor:pointer;background:var(--bg-alt);display:flex;align-items:center;justify-content:center"><img src="${getThumbUrl(l.mls)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none';this.parentElement.innerHTML='<span style=&quot;font-size:8px;color:var(--text-4)&quot;>no photo</span>'"></div>
       <span style="font-size:16px;font-weight:800">${l.address}, ${l.city}, CA ${l.zip}</span>
       <span style="font-size:16px;font-weight:800;color:var(--accent)">· ${F(l.price)}</span>
+      ${l.changeType?`<span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:10px;background:var(--accent-bg,#fef3c7);color:var(--accent);border:1px solid var(--accent);text-transform:uppercase;letter-spacing:.4px">${escapeHtml(l.changeType)}</span>`:''}
       <a href="${redfin}" target="_blank"><img src="https://www.redfin.com/favicon.ico" style="width:14px;height:14px;opacity:0.7" onerror="this.style.display='none'"></a>
       <a href="${zillow}" target="_blank"><img src="https://www.zillow.com/favicon.ico" style="width:14px;height:14px;opacity:0.7" onerror="this.style.display='none'"></a></div>
     <div style="font-size:11px;color:var(--text-3);margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -1117,7 +1114,7 @@ function renderDetailPage(l){
     <div id="comp-col" style="margin-bottom:14px"></div>
     <div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:.5px;margin-bottom:6px">DEAL ANALYSIS</div>${detHTML(l)}</div>
     <div class="toggle-section" style="margin-bottom:8px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">PROPERTY & SHOWING <span>▸</span></div><div class="toggle-body"><div class="si">
-      <span><b>Status:</b> ${l.changeType||'—'}</span><span><b>Sale Type:</b> ${l.saleType||'—'}</span><span><b>Listed:</b> ${l.listDate||'—'}</span><span><b>Occupancy:</b> ${l.occupancy||'—'}</span><span><b>Occupant:</b> ${l.occupantType||'—'}</span><span><b>Contact:</b> ${l.contactName||'—'} ${l.contactPhone||''}</span><span><b>Lockbox:</b> ${l.lockboxType||'—'} ${l.lockboxLocation?'@ '+l.lockboxLocation:''}</span><span><b>Gate Code:</b> ${l.gateCode||'—'}</span></div></div></div>
+      <span><b>Sale Type:</b> ${l.saleType||'—'}</span><span><b>Listed:</b> ${l.listDate||'—'}</span><span><b>Occupancy:</b> ${l.occupancy||'—'}</span><span><b>Occupant:</b> ${l.occupantType||'—'}</span><span><b>Contact:</b> ${l.contactName||'—'} ${l.contactPhone||''}</span><span><b>Lockbox:</b> ${l.lockboxType||'—'} ${l.lockboxLocation?'@ '+l.lockboxLocation:''}</span><span><b>Gate Code:</b> ${l.gateCode||'—'}</span></div></div></div>
     <div class="toggle-section" style="margin-bottom:14px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">AGENT & BROKER <span>▸</span></div><div class="toggle-body"><div class="agb">
       <span><b>Agent:</b> ${l.agent||'—'}${renderAgentDeBadge(l)}</span><span><b>DRE#:</b> ${l.agentDre||'—'}</span><span><b>Email:</b> ${l.agentEmail||'—'}</span><span><b>Phone:</b> ${l.agentPhone||'—'}</span><span><b>Office:</b> ${l.agentOfficePhone||'—'}</span><span><b>Broker:</b> ${l.broker||'—'}</span><span><b>Broker DRE#:</b> ${l.brokerDre||'—'}</span><span><b>MLS#:</b> ${l.mls}</span>${l.pipelineStage?`<span><b>🏗 In project:</b> ${pipelineStageLabel(l.pipelineStage)} <a href="project-detail.html?mls=${encodeURIComponent(l.mls)}">→ view</a></span>`:''}</div></div></div></div>`;
   document.getElementById('detPage').innerHTML=h;
@@ -1127,7 +1124,7 @@ function renderDetailPage(l){
 
 function opn(m,prefetched){active=m;document.querySelector('.main').classList.add('detail-view');const l=prefetched||listings.find(x=>x.mls===active);if(l){delete compCache[l.mls];renderDetailPage(l);loadComps(l);const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');let polls=0;const poll=setInterval(()=>{polls++;if(compCache[l.mls]||polls>20){clearInterval(poll);document.getElementById('comp-col').innerHTML=compsPanel(l);const cm=getComps(l);if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}}},300);setTimeout(()=>calcDeal(id,l.price,l.sqft),100);}}
 function cls(){active=null;document.querySelector('.main').classList.remove('detail-view');render();}
-function setFilter(f){currentFilter=f;cityFilters.clear();tagFilters.clear();updateCityBtn();updateTagBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','contacted','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
+function setFilter(f){currentFilter=f;cityFilters.clear();tagFilters.clear();updateCityBtn();updateTagBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
 function toggleCityFilter(city){if(cityFilters.has(city))cityFilters.delete(city);else cityFilters.add(city);updateCityBtn();render();}
 function cfSelectAll(){const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;cityFilters.add(cb.value);});updateCityBtn();render();}
 function cfSelectNone(){cityFilters.clear();const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateCityBtn();render();}
