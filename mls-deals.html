@@ -38,6 +38,8 @@ body{overflow:hidden;height:100vh}
 #tf-drop.open{display:block}
 #tf-drop label{display:flex;align-items:center;gap:8px;padding:5px 12px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer}
 #tf-drop label:hover{background:var(--bg-alt)}
+#more-filters-drop{display:none}
+#more-filters-drop.open{display:block}
 .sp{position:relative}
 .sp:hover::after{content:attr(data-school);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#fff;color:var(--text);font-size:11px;font-weight:500;padding:4px 8px;border-radius:4px;border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,.12);white-space:nowrap;z-index:100;pointer-events:none}
 
@@ -100,7 +102,7 @@ body{overflow:hidden;height:100vh}
 .det-full{grid-column:1/-1}
 
 /* List header + rows */
-.th-p{display:grid;grid-template-columns:52px 1fr 85px 100px 220px 70px 110px 100px 70px 70px 70px;align-items:center;padding:8px 10px;background:var(--bg-alt);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.4px;gap:4px}
+.th-p{display:grid;grid-template-columns:32px 52px 1fr 85px 100px 220px 70px 110px 100px 70px 70px 70px;align-items:center;padding:8px 10px;background:var(--bg-alt);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.4px;gap:4px}
 #lh{position:sticky;top:0;z-index:20;background:var(--bg-alt)}
 .th-sort{cursor:pointer;user-select:none}
 .th-sort:hover{color:var(--text)}
@@ -108,7 +110,7 @@ body{overflow:hidden;height:100vh}
 .rw:hover{background:var(--bg-alt)}
 .rw.act,.rw.sel{background:var(--accent-dim)}
 .rw.archived{display:none}
-.rm-p{display:grid;grid-template-columns:52px 1fr 85px 100px 220px 70px 110px 100px 70px 70px 70px;align-items:center;padding:8px 10px;font-size:13px;font-weight:500;gap:4px}
+.rm-p{display:grid;grid-template-columns:32px 52px 1fr 85px 100px 220px 70px 110px 100px 70px 70px 70px;align-items:center;padding:8px 10px;font-size:13px;font-weight:500;gap:4px}
 
 /* Address + subtext */
 .at{font-weight:700;color:var(--text);font-size:13px}
@@ -191,25 +193,35 @@ select.btn{appearance:auto}
         <label><input type="checkbox" value="Already flipped" onchange="toggleTagFilter(this.value)">Already flipped</label>
       </div>
     </div>
-    <button class="btn" id="de-btn" onclick="toggleDeFilter()"
-            title="Show only listings whose agent has ≥1 double-end since 2023"
-            style="min-width:auto" disabled>🔁 DE only</button>
+    <div style="position:relative;display:inline-block" id="addr-search-wrap">
+      <input type="text" id="addr-search" placeholder="Search address…"
+             oninput="onAddrSearch(this.value)"
+             onfocus="onAddrSearch(this.value)"
+             autocomplete="off"
+             style="padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;min-width:200px;font-family:inherit;background:var(--bg);color:var(--text-1)" />
+      <div id="addr-search-drop" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:280px;max-height:300px;overflow-y:auto;padding:4px 0"></div>
+    </div>
     <div class="hdr-meta"><span id="tc">0</span> listings</div>
   </div>
   <div class="hr">
     <button class="btn btn-on" id="bf-unread" onclick="setFilter('unread')">Unread <span id="cnt-unread"></span></button>
     <button class="btn" id="bf-contacted" onclick="setFilter('contacted')">Contacted <span id="cnt-contacted"></span></button>
     <button class="btn" id="bf-potential" onclick="setFilter('potential')">Potential <span id="cnt-potential"></span></button>
-    <button class="btn" id="bf-unsold_flip" onclick="setFilter('unsold_flip')">Unsold Flips</button>
     <button class="btn" id="bf-off_market_lead" onclick="setFilter('off_market_lead')">Off-Market</button>
-    <button class="btn" id="bf-archived" onclick="setFilter('archived')">Archive</button>
-    <button class="btn" id="bf-all" onclick="setFilter('all')">All</button>
+    <div style="position:relative;display:inline-block" id="more-filters-wrap">
+      <button class="btn" id="more-filters-btn" onclick="document.getElementById('more-filters-drop').classList.toggle('open')" title="More views" style="padding:4px 10px">⋮</button>
+      <div id="more-filters-drop" style="position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:160px;padding:4px 0">
+        <button class="btn" id="bf-unsold_flip" onclick="setFilter('unsold_flip');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">Unsold Flips</button>
+        <button class="btn" id="bf-archived" onclick="setFilter('archived');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">Archive</button>
+        <button class="btn" id="bf-all" onclick="setFilter('all');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">All</button>
+      </div>
+    </div>
     <span id="db-status" style="font-size:10px;color:var(--text-4)"></span>
   </div>
 </div>
 
 <div class="main">
-  <div class="ls" id="ls"><div id="lh"></div><div id="lb"></div></div>
+  <div class="ls" id="ls"><div id="bulk-action-bar" style="display:none;position:sticky;top:0;z-index:50;background:var(--accent-bg,#fef3c7);border:1px solid var(--accent);border-radius:var(--radius);padding:8px 14px;margin:0 0 10px 0;gap:10px;align-items:center;font-size:13px;font-weight:600"><span id="bulk-count">0 selected</span><button class="btn" onclick="bulkArchive()" style="background:var(--red);color:#fff;border-color:var(--red)">Archive selected</button><button class="btn" onclick="bulkClear()">Cancel</button></div><div id="lh"></div><div id="lb"></div></div>
   <div class="detail-page" id="detPage"></div>
 </div>
 
@@ -471,8 +483,10 @@ async function findComps(listing){
 const MAX_LIST_PRICE=2500000;
 let listings=[],sel=new Set(),archived=new Set(),sort_='priority',active=null,compCache={};
 let currentFilter='unread',cityFilters=new Set(),tagFilters=new Set();
-// Brief AD: "DE only" filter toggle. Stays off until user toggles; resets on stage switch.
-let deOnlyFilter=false;
+// Brief AJ: bulk-archive selection set. In-memory only; cleared on bulk-archive
+// completion or Cancel. List-card render preserves checked state via
+// selectedMls.has(l.mls).
+const selectedMls=new Set();
 // Agent double-end counts — seller-side DE rows since 2023-01-01, keyed by lowercased email/name.
 // Populated once per page load via fetchAgentDeCounts() after `listings` loads. Email-primary,
 // name-fallback over disjoint listing populations (no double-counting).
@@ -1026,16 +1040,17 @@ function calcDeal(id,listPrice,sqft){
 function getArvVal(l){if(l.lockedArv)return l.lockedArv;const cm=compCache[l.mls];return(cm&&cm.hp)?cm.hp*l.sqft:0;}
 function getGapVal(l){const cm=compCache[l.mls];if(!cm||!cm.hp)return 0;const arv=l.lockedArv||(cm.hp*l.sqft);if(!arv)return 0;const eConst=l.lockedConstruction||estimateConstruction(l.sqft,l.mls);const target=Math.round((arv*(1-SELL_PCT)-eConst)/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT));return l.price-target;}
 function toggleSort(col){if(sort_===col+'-asc')sort_=col+'-desc';else if(sort_===col+'-desc')sort_='priority';else sort_=col+'-asc';render();}
-function getSorted(){let d=[...listings];if(cityFilters.size)d=d.filter(l=>cityFilters.has(l.city.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())));if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));if(deOnlyFilter)d=d.filter(l=>agentDeCountFor(l)>0);const sStr=(s)=>(s||'').toString().toLowerCase();if(sort_==='priority')d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));else if(sort_==='price-asc')d.sort((a,b)=>a.price-b.price);else if(sort_==='price-desc')d.sort((a,b)=>b.price-a.price);else if(sort_==='ppsf-asc')d.sort((a,b)=>a.ppsf-b.ppsf);else if(sort_==='ppsf-desc')d.sort((a,b)=>b.ppsf-a.ppsf);else if(sort_==='dom-asc')d.sort((a,b)=>dom(a.listDate)-dom(b.listDate));else if(sort_==='dom-desc')d.sort((a,b)=>dom(b.listDate)-dom(a.listDate));else if(sort_==='arv-asc')d.sort((a,b)=>getArvVal(a)-getArvVal(b));else if(sort_==='arv-desc')d.sort((a,b)=>getArvVal(b)-getArvVal(a));else if(sort_==='gap-asc')d.sort((a,b)=>getGapVal(a)-getGapVal(b));else if(sort_==='gap-desc')d.sort((a,b)=>getGapVal(b)-getGapVal(a));else if(sort_==='address-asc')d.sort((a,b)=>sStr(a.address).localeCompare(sStr(b.address)));else if(sort_==='address-desc')d.sort((a,b)=>sStr(b.address).localeCompare(sStr(a.address)));else if(sort_==='city-asc')d.sort((a,b)=>sStr(a.city).localeCompare(sStr(b.city)));else if(sort_==='city-desc')d.sort((a,b)=>sStr(b.city).localeCompare(sStr(a.city)));else if(sort_==='status-asc')d.sort((a,b)=>sStr(a.changeType).localeCompare(sStr(b.changeType)));else if(sort_==='status-desc')d.sort((a,b)=>sStr(b.changeType).localeCompare(sStr(a.changeType)));return d;}
+function getSorted(){let d=[...listings];if(cityFilters.size)d=d.filter(l=>cityFilters.has(l.city.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())));if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));const sStr=(s)=>(s||'').toString().toLowerCase();if(sort_==='priority')d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));else if(sort_==='price-asc')d.sort((a,b)=>a.price-b.price);else if(sort_==='price-desc')d.sort((a,b)=>b.price-a.price);else if(sort_==='ppsf-asc')d.sort((a,b)=>a.ppsf-b.ppsf);else if(sort_==='ppsf-desc')d.sort((a,b)=>b.ppsf-a.ppsf);else if(sort_==='dom-asc')d.sort((a,b)=>dom(a.listDate)-dom(b.listDate));else if(sort_==='dom-desc')d.sort((a,b)=>dom(b.listDate)-dom(a.listDate));else if(sort_==='arv-asc')d.sort((a,b)=>getArvVal(a)-getArvVal(b));else if(sort_==='arv-desc')d.sort((a,b)=>getArvVal(b)-getArvVal(a));else if(sort_==='gap-asc')d.sort((a,b)=>getGapVal(a)-getGapVal(b));else if(sort_==='gap-desc')d.sort((a,b)=>getGapVal(b)-getGapVal(a));else if(sort_==='address-asc')d.sort((a,b)=>sStr(a.address).localeCompare(sStr(b.address)));else if(sort_==='address-desc')d.sort((a,b)=>sStr(b.address).localeCompare(sStr(a.address)));else if(sort_==='city-asc')d.sort((a,b)=>sStr(a.city).localeCompare(sStr(b.city)));else if(sort_==='city-desc')d.sort((a,b)=>sStr(b.city).localeCompare(sStr(a.city)));else if(sort_==='status-asc')d.sort((a,b)=>sStr(a.changeType).localeCompare(sStr(b.changeType)));else if(sort_==='status-desc')d.sort((a,b)=>sStr(b.changeType).localeCompare(sStr(a.changeType)));return d;}
 
 function render(){
   const data=getSorted();
   const sa=c=>sort_===c+'-asc'?'↑':sort_===c+'-desc'?'↓':'';
-  document.getElementById('lh').innerHTML=`<div class="th-p"><span></span><span class="th-sort" onclick="toggleSort('address')">ADDRESS ${sa('address')}</span><span class="th-sort" onclick="toggleSort('city')">CITY ${sa('city')}</span><span class="tr th-sort" style="padding-right:14px" onclick="toggleSort('price')">LIST PRICE ${sa('price')}</span><span>NOTES</span><span class="tr th-sort" style="padding-right:10px" onclick="toggleSort('ppsf')">$/SF ${sa('ppsf')}</span><span>SCHOOLS</span><span class="th-sort" onclick="toggleSort('status')">STATUS ${sa('status')}</span><span class="tr th-sort" onclick="toggleSort('dom')">DOM ${sa('dom')}</span><span class="tr th-sort" onclick="toggleSort('arv')">ARV ${sa('arv')}</span><span class="tr th-sort" style="padding-right:10px" onclick="toggleSort('gap')">GAP ${sa('gap')}</span></div>`;
+  document.getElementById('lh').innerHTML=`<div class="th-p"><span></span><span></span><span class="th-sort" onclick="toggleSort('address')">ADDRESS ${sa('address')}</span><span class="th-sort" onclick="toggleSort('city')">CITY ${sa('city')}</span><span class="tr th-sort" style="padding-right:14px" onclick="toggleSort('price')">LIST PRICE ${sa('price')}</span><span>NOTES</span><span class="tr th-sort" style="padding-right:10px" onclick="toggleSort('ppsf')">$/SF ${sa('ppsf')}</span><span>SCHOOLS</span><span class="th-sort" onclick="toggleSort('status')">STATUS ${sa('status')}</span><span class="tr th-sort" onclick="toggleSort('dom')">DOM ${sa('dom')}</span><span class="tr th-sort" onclick="toggleSort('arv')">ARV ${sa('arv')}</span><span class="tr th-sort" style="padding-right:10px" onclick="toggleSort('gap')">GAP ${sa('gap')}</span></div>`;
   let h='';data.forEach(l=>{const d=dom(l.listDate),dc=d<=7?'dn':d>=30?'do':'dm';
     const thumbSrc=getThumbUrl(l.mls);
     const addrFull=l.address+', '+l.city+', CA '+l.zip;
     h+=`<div class="rw ${active===l.mls?'act':''}" onclick="opn('${l.mls}')"><div class="rm-p">
+      <input type="checkbox" class="row-select" data-mls="${l.mls}" ${selectedMls.has(l.mls)?'checked':''} onclick="event.stopPropagation();toggleRowSelect('${l.mls}',this.checked)" style="margin:0;width:18px;height:18px;cursor:pointer;justify-self:center">
       <div style="width:48px;height:36px;flex-shrink:0"><img class="rw-thumb" src="${thumbSrc}" alt="" data-mls="${l.mls}" data-addr="${addrFull.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();openLightbox(this.dataset.mls,this.dataset.addr)" onerror="this.style.display='none'"></div>
       <div><div class="at">${l.address} <a href="https://www.google.com/search?q=redfin+${encodeURIComponent(l.address+' '+l.city+' CA')}&btnI=1" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;vertical-align:middle"><img src="https://www.redfin.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a> <a href="https://www.zillow.com/homes/${encodeURIComponent(l.address+', '+l.city+', CA '+l.zip)}_rb/" target="_blank" onclick="event.stopPropagation()" style="vertical-align:middle"><img src="https://www.zillow.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div><div class="as">${l.beds}bd/${l.baths}ba · ${l.sqft.toLocaleString()} sf</div>${l.tags.map(tg).join('')}</div>
       <span style="color:var(--text-3);font-weight:600;font-size:12px">${(l.city||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}</span>
@@ -1051,6 +1066,7 @@ function render(){
   document.getElementById('lb').innerHTML=h;
   document.getElementById('tc').textContent=data.length;
   updateStageCounts();
+  renderBulkActionBar();
   bulkLoadDealScores(data.map(l=>l.mls));
 }
 async function updateStageCounts(){
@@ -1111,18 +1127,25 @@ function renderDetailPage(l){
 
 function opn(m){active=m;document.querySelector('.main').classList.add('detail-view');const l=listings.find(x=>x.mls===active);if(l){delete compCache[l.mls];renderDetailPage(l);loadComps(l);const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');let polls=0;const poll=setInterval(()=>{polls++;if(compCache[l.mls]||polls>20){clearInterval(poll);document.getElementById('comp-col').innerHTML=compsPanel(l);const cm=getComps(l);if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}}},300);setTimeout(()=>calcDeal(id,l.price,l.sqft),100);}}
 function cls(){active=null;document.querySelector('.main').classList.remove('detail-view');render();}
-function setFilter(f){currentFilter=f;cityFilters.clear();tagFilters.clear();deOnlyFilter=false;updateCityBtn();updateTagBtn();updateDeBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','contacted','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
+function setFilter(f){currentFilter=f;cityFilters.clear();tagFilters.clear();updateCityBtn();updateTagBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','contacted','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
 function toggleCityFilter(city){if(cityFilters.has(city))cityFilters.delete(city);else cityFilters.add(city);updateCityBtn();render();}
 function cfSelectAll(){const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;cityFilters.add(cb.value);});updateCityBtn();render();}
 function cfSelectNone(){cityFilters.clear();const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateCityBtn();render();}
 function updateCityBtn(){const btn=document.getElementById('cf-btn');if(!cityFilters.size)btn.textContent='All Cities ▾';else if(cityFilters.size===1)btn.textContent=[...cityFilters][0]+' ▾';else btn.textContent=cityFilters.size+' Cities ▾';}
-document.addEventListener('click',e=>{const wrap=document.getElementById('cf-wrap');const drop=document.getElementById('cf-drop');if(wrap&&drop&&!wrap.contains(e.target))drop.classList.remove('open');const tw=document.getElementById('tf-wrap');const td=document.getElementById('tf-drop');if(tw&&td&&!tw.contains(e.target))td.classList.remove('open');});
+document.addEventListener('click',e=>{const wrap=document.getElementById('cf-wrap');const drop=document.getElementById('cf-drop');if(wrap&&drop&&!wrap.contains(e.target))drop.classList.remove('open');const tw=document.getElementById('tf-wrap');const td=document.getElementById('tf-drop');if(tw&&td&&!tw.contains(e.target))td.classList.remove('open');const mw=document.getElementById('more-filters-wrap');const md=document.getElementById('more-filters-drop');if(mw&&md&&!mw.contains(e.target))md.classList.remove('open');const aw=document.getElementById('addr-search-wrap');const ad=document.getElementById('addr-search-drop');if(aw&&ad&&!aw.contains(e.target))ad.style.display='none';});
 function toggleTagFilter(tag){if(tagFilters.has(tag))tagFilters.delete(tag);else tagFilters.add(tag);updateTagBtn();render();}
 function tfSelectAll(){const cbs=document.querySelectorAll('#tf-drop input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;tagFilters.add(cb.value);});updateTagBtn();render();}
 function tfSelectNone(){tagFilters.clear();const cbs=document.querySelectorAll('#tf-drop input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateTagBtn();render();}
 function updateTagBtn(){const btn=document.getElementById('tf-btn');if(!tagFilters.size)btn.textContent='All Tags ▾';else if(tagFilters.size===1)btn.textContent=[...tagFilters][0]+' ▾';else btn.textContent=tagFilters.size+' Tags ▾';}
-function toggleDeFilter(){deOnlyFilter=!deOnlyFilter;updateDeBtn();render();}
-function updateDeBtn(){const btn=document.getElementById('de-btn');if(!btn)return;btn.disabled=!deCacheReady;btn.className='btn'+(deOnlyFilter?' btn-on':'');}
+// Brief AJ: bulk-archive selection + address search.
+function toggleRowSelect(mls,checked){if(checked)selectedMls.add(mls);else selectedMls.delete(mls);renderBulkActionBar();}
+function renderBulkActionBar(){const bar=document.getElementById('bulk-action-bar');if(!bar)return;const n=selectedMls.size;if(n===0){bar.style.display='none';return;}bar.style.display='flex';const c=document.getElementById('bulk-count');if(c)c.textContent=`${n} selected`;}
+function bulkClear(){selectedMls.clear();document.querySelectorAll('.row-select').forEach(cb=>cb.checked=false);renderBulkActionBar();}
+async function bulkArchive(){const n=selectedMls.size;if(n===0)return;if(!confirm(`Archive ${n} listing${n===1?'':'s'}? They'll move to the Archive stage and disappear from this view (use the ⋮ menu → Archive to view + restore).`))return;const mlsList=[...selectedMls];const{error}=await sb.from('properties').update({stage:'archived',archived_at:new Date().toISOString(),updated_at:new Date().toISOString()}).in('mls',mlsList);if(error){alert(`Bulk archive failed: ${error.message}`);return;}selectedMls.clear();renderBulkActionBar();await loadListings(currentFilter);updateStageCounts();}
+let _addrSearchTimer=null;
+function onAddrSearch(q){clearTimeout(_addrSearchTimer);_addrSearchTimer=setTimeout(()=>doAddrSearch(q),120);}
+function doAddrSearch(q){const drop=document.getElementById('addr-search-drop');if(!drop)return;const query=(q||'').trim().toLowerCase();if(!query){drop.style.display='none';drop.innerHTML='';return;}const matches=listings.filter(l=>(l.address||'').toLowerCase().includes(query)).slice(0,10);if(matches.length===0){drop.style.display='block';drop.innerHTML=`<div style="padding:8px 12px;font-size:12px;color:var(--text-4)">No matches in current view.</div>`;return;}drop.style.display='block';drop.innerHTML=matches.map(l=>`<div onclick="onAddrSearchPick('${l.mls}')" style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--row-hover,rgba(0,0,0,0.03))'" onmouseout="this.style.background=''"><div style="font-weight:600">${escapeHtml(l.address||'(no address)')}</div><div style="font-size:11px;color:var(--text-4)">${escapeHtml(l.city||'')} · ${l.mls} · ${FK(l.price||0)}</div></div>`).join('');}
+function onAddrSearchPick(mls){const drop=document.getElementById('addr-search-drop');if(drop)drop.style.display='none';const input=document.getElementById('addr-search');if(input)input.value='';const l=listings.find(x=>x.mls===mls);if(l)opn(mls);}
 
 
 async function refetchComps(mls){const l=listings.find(x=>x.mls===mls);if(!l)return;const mid=mls.replace(/[^a-zA-Z0-9]/g,'');
@@ -1322,10 +1345,6 @@ async function fetchAgentDeCounts(){
     console.log(`[fetchAgentDeCounts] ${deCountByEmail.size} email-keyed agents, ${deCountByName.size} name-keyed agents flagged as DE since 2023-01-01`);
     // Re-render so any already-open detail pane picks up the pill.
     render();
-    // Also refresh the DE-only filter button's disabled state —
-    // it stays greyed until the cache resolves, per Brief AD
-    // Option Y race-handling.
-    updateDeBtn();
     if(active){const l=listings.find(x=>x.mls===active);if(l)renderDetailPage(l);}
   }catch(e){console.error('[fetchAgentDeCounts]',e);}
 }
