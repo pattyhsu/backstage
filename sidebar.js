@@ -20,12 +20,21 @@
 (function () {
   const NAV = [
     {
+      label: 'Pipeline',
+      items: [
+        { key: 'pipeline', label: 'Pipeline', href: 'pipeline.html', icon: iconPipeline() },
+      ],
+    },
+    {
+      label: 'Calendar',
+      items: [
+        { key: 'calendar', label: 'Calendar', href: null, icon: iconCalendar() },
+      ],
+    },
+    {
       label: 'Acquisitions',
       items: [
-        { key: 'deals',    label: 'MLS Deals', href: 'mls-deals.html', icon: iconDeals() },
-        { key: 'pipeline', label: 'Pipeline',  href: 'pipeline.html',  icon: iconPipeline() },
-        { key: 'offers',   label: 'Offers',    href: null,             icon: iconOffers() },
-        { key: 'showings', label: 'Showings',  href: null,             icon: iconShowings() },
+        { key: 'deals', label: 'MLS Deals', href: 'mls-deals.html', icon: iconDeals() },
       ],
     },
     {
@@ -139,8 +148,7 @@
 
   function iconDeals()        { return '<svg viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>'; }
   function iconPipeline()     { return '<svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>'; }
-  function iconOffers()       { return '<svg viewBox="0 0 24 24"><path d="M4 4h16v4H4zM4 12h16v4H4zM4 20h16"/></svg>'; }
-  function iconShowings()     { return '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'; }
+  function iconCalendar()     { return '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'; }
   function iconConstruction() { return '<svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9v12M15 9v12"/></svg>'; }
   function iconListings()     { return '<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>'; }
   function iconComps()        { return '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>'; }
