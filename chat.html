@@ -340,11 +340,87 @@ function wireComposer(){
   });
 }
 
+// ========== HISTORY (Brief AT) ==========
+// Fetch the user's last 50 saved chat turns and render them as bubble
+// pairs. RLS gates the SELECT so each user sees only their own rows.
+async function loadHistory(){
+  try{
+    const {data,error}=await sb
+      .from('chat_history')
+      .select('*')
+      .order('created_at',{ascending:false})
+      .limit(50);
+    if(error){
+      console.warn('[chat] history load failed:',error.message);
+      return;
+    }
+    if(!data||data.length===0)return;
+    // Display chronologically — DESC fetch flipped to oldest-first.
+    const turns=[...data].reverse();
+    clearEmptyState();
+    for(const t of turns)renderSavedTurn(t);
+    scrollToBottom();
+  } catch(e){
+    console.warn('[chat] history load threw:',e);
+  }
+}
+
+function renderSavedTurn(t){
+  // User bubble — same shape as appendUserBubble produces.
+  const userRow=document.createElement('div');
+  userRow.className='bubble-row user';
+  const userBub=document.createElement('div');
+  userBub.className='bubble user';
+  userBub.textContent=t.question||'';
+  userRow.appendChild(userBub);
+  document.getElementById('history').appendChild(userRow);
+
+  // Assistant bubble — fill directly from saved fields, mirroring
+  // fillAssistantBubble's output. Schema stores totals only (no
+  // per-pass breakdown), so the footer is simpler than live turns.
+  const asstRow=document.createElement('div');
+  asstRow.className='bubble-row assistant';
+  const asstBub=document.createElement('div');
+  asstBub.className='bubble assistant';
+  if(t.error){
+    asstBub.classList.add('error');
+    let html=`<div><strong>Error:</strong> ${escapeHtml(t.error)}</div>`;
+    if(t.sql){
+      html+=`<details class="sql-details"><summary>SQL Claude generated</summary><pre>${escapeHtml(t.sql)}</pre></details>`;
+    }
+    asstBub.innerHTML=html;
+  } else {
+    const rowCount=t.row_count??0;
+    const rowLabel=`${rowCount.toLocaleString()} row${rowCount===1?'':'s'}`;
+    const tokensIn=t.tokens_in??0;
+    const tokensOut=t.tokens_out??0;
+    const cacheRead=t.cache_read??0;
+    const cacheCreate=t.cache_create??0;
+    const totalIn=tokensIn+cacheRead+cacheCreate;
+    const foot=
+      `${escapeHtml(t.model||'')} · `+
+      `${totalIn.toLocaleString()} in / ${tokensOut.toLocaleString()} out · `+
+      rowLabel;
+    let html='';
+    if(t.analysis){
+      html+=`<div class="analysis-text">${escapeHtml(t.analysis)}</div>`;
+    }
+    if(t.sql){
+      html+=`<details class="sql-details"><summary>SQL Claude generated</summary><pre>${escapeHtml(t.sql)}</pre></details>`;
+    }
+    html+=`<div class="bubble-foot">${foot}</div>`;
+    asstBub.innerHTML=html;
+  }
+  asstRow.appendChild(asstBub);
+  document.getElementById('history').appendChild(asstRow);
+}
+
 // ========== INIT ==========
 (async()=>{
   await window.authGate();
   if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
   window.renderSidebar('chat');
+  await loadHistory();
   wireComposer();
   document.getElementById('chat-input').focus();
 })();
