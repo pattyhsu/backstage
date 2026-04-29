@@ -1305,7 +1305,7 @@ function mapRowToListing(r){
 }
 
 async function loadListings(status){
-  let query=sb.from('properties').select('*').not('mls','is',null).neq('change_type','sold').order('imported_at',{ascending:false}).limit(500);
+  let query=sb.from('properties').select('*').not('mls','is',null).neq('change_type','sold').order('imported_at',{ascending:false}).limit(2000);
   if(status==='unread')query=query.eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
   else if(status==='archived')query=query.or(`stage.eq.archived,list_price.gt.${MAX_LIST_PRICE}`);
   else if(status==='off_market_lead')query=query.eq('stage','off_market_lead');
