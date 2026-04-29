@@ -275,84 +275,43 @@ function pipelineStageLabel(s){
 
 // ========== PHOTO SUPPORT ==========
 const PHOTO_BASE='https://photos.dottyhomes.com';
-const photoCountCache={};
 
 function getThumbUrl(mls){return `${PHOTO_BASE}/${mls}/${mls}_01.jpg`;}
 
 // Lightbox state
 let lbMls='';
 
-async function fetchPhotoCount(mls){
-  if(photoCountCache[mls]!=null)return photoCountCache[mls];
-  // Check if listing has photo_files from Supabase
-  const listing=listings.find(l=>l.mls===mls);
-  if(listing?.photoFiles?.length){
-    photoCountCache[mls]=listing.photoFiles.length;
-    return listing.photoFiles.length;
-  }
-  // Fallback: sequential probe (for listings not yet backfilled)
-  return null;
-}
-
 function openLightbox(mls,addr){
   lbMls=mls;
   const myMls=mls;
   const addrEl=document.getElementById('lbAddr');
-  addrEl.textContent=addr+' (loading…)';
   const grid=document.getElementById('lbGrid');
   grid.innerHTML='';
   document.getElementById('photoLightbox').classList.add('open');
   document.addEventListener('keydown',lbKeyHandler);
 
   const listing=listings.find(l=>l.mls===mls);
+  const count=listing?.photoCount||0;
 
-  // If we have photo_files from Supabase, use them directly
-  if(listing?.photoFiles?.length){
-    const files=listing.photoFiles;
-    addrEl.textContent=addr+' ('+files.length+(files.length===1?' photo':' photos')+')';
-    photoCountCache[mls]=files.length;
-    files.forEach(fname=>{
-      const url=`${PHOTO_BASE}/${mls}/${fname}`;
-      const el=document.createElement('img');
-      el.src=url;
-      el.onclick=function(){
-        if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
-        else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
-      };
-      grid.appendChild(el);
-    });
+  if(!count){
+    addrEl.textContent=`${addr} (no photos)`;
     return;
   }
+  addrEl.textContent=`${addr} (${count}${count===1?' photo':' photos'})`;
 
-  // Fallback: sequential probe for listings without photo_files
-  let i=1;
-  function loadNext(){
-    if(lbMls!==myMls)return;
+  for(let i=1;i<=count;i++){
+    if(lbMls!==myMls)return;  // user navigated away
     const num=String(i).padStart(2,'0');
     const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
-    const img=new Image();
-    img.onload=function(){
-      if(lbMls!==myMls)return;
-      const el=document.createElement('img');
-      el.src=url;
-      el.onclick=function(){
-        if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
-        else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
-      };
-      grid.appendChild(el);
-      addrEl.textContent=addr+' ('+i+(i===1?' photo':' photos')+')';
-      i++;
-      loadNext();
+    const el=document.createElement('img');
+    el.src=url;
+    el.onerror=function(){this.style.display='none';};
+    el.onclick=function(){
+      if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
+      else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
     };
-    img.onerror=function(){
-      if(lbMls!==myMls)return;
-      const count=i-1;
-      photoCountCache[mls]=count;
-      if(count===0)addrEl.textContent=addr+' (no photos)';
-    };
-    img.src=url;
+    grid.appendChild(el);
   }
-  loadNext();
 }
 function closeLightbox(){
   document.getElementById('photoLightbox').classList.remove('open');
@@ -670,6 +629,24 @@ function refreshDealCardPill(mls){
   // List-card pills for this MLS may exist multiple times if the same
   // listing appears across filter views; update them all in place.
   document.querySelectorAll('.ds-card-pill[data-ds-mls="'+mls+'"]').forEach(el=>{el.outerHTML=renderDealGradePill(mls);});
+}
+function refreshRowComps(mls){
+  // Called per-MLS after batchFetchComps loads comps. Updates ARV +
+  // GAP cells in place. No full-row rebuild.
+  const l=listings.find(x=>x.mls===mls);
+  if(!l)return;
+  const arvEl=document.querySelector(`[data-cell="arv"][data-mls="${CSS.escape(mls)}"]`);
+  if(arvEl)arvEl.innerHTML=getArvLabel(l);
+  const gapEl=document.querySelector(`[data-cell="gap"][data-mls="${CSS.escape(mls)}"]`);
+  if(gapEl)gapEl.innerHTML=getGapLabel(l);
+}
+function refreshRowDePill(mls){
+  // Called once per row after fetchAgentDeCounts populates the DE
+  // caches. Updates the DE-card pill in place.
+  const l=listings.find(x=>x.mls===mls);
+  if(!l)return;
+  const el=document.querySelector(`[data-cell="de-pill"][data-mls="${CSS.escape(mls)}"]`);
+  if(el)el.innerHTML=renderAgentDeCardPill(l);
 }
 async function ensureDealScore(mls,mid){
   if(!dealScoreCache[mls]||dealScoreCache[mls].state==='pending'){
@@ -1053,14 +1030,14 @@ function render(){
       <div style="width:48px;height:36px;flex-shrink:0"><img class="rw-thumb" src="${thumbSrc}" alt="" data-mls="${l.mls}" data-addr="${addrFull.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();openLightbox(this.dataset.mls,this.dataset.addr)" onerror="this.style.display='none'"></div>
       <div><div class="at">${l.address} <a href="https://www.google.com/search?q=redfin+${encodeURIComponent(l.address+' '+l.city+' CA')}&btnI=1" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;vertical-align:middle"><img src="https://www.redfin.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a> <a href="https://www.zillow.com/homes/${encodeURIComponent(l.address+', '+l.city+', CA '+l.zip)}_rb/" target="_blank" onclick="event.stopPropagation()" style="vertical-align:middle"><img src="https://www.zillow.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div><div class="as">${l.beds}bd/${l.baths}ba · ${l.sqft.toLocaleString()} sf</div>${l.tags.map(tg).join('')}</div>
       <span style="color:var(--text-3);font-weight:600;font-size:12px">${(l.city||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}</span>
-      <span class="tr" style="font-weight:600;font-size:12px;padding-right:14px">${FK(l.price)}${renderDealGradePill(l.mls)}${renderAgentDeCardPill(l)}</span>
+      <span class="tr" style="font-weight:600;font-size:12px;padding-right:14px">${FK(l.price)}${renderDealGradePill(l.mls)}<span data-cell="de-pill" data-mls="${l.mls}">${renderAgentDeCardPill(l)}</span></span>
       <input type="text" id="rownotes-${l.mls.replace(/[^a-zA-Z0-9]/g,'')}" data-mls="${l.mls}" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onkeydown="event.stopPropagation()" oninput="rowNotesInput(this)" onblur="rowNotesBlur(this)" value="${(l.notes||'').replace(/"/g,'&quot;')}" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box;height:28px">
       <span class="tr" style="font-size:11px;color:var(--text-3);padding-right:10px">${l.ppsf?'$'+Math.round(l.ppsf):'—'}</span>
       <span style="white-space:nowrap">${l.elem?`<span class="sp ${l.elem.r>=7?'sh':l.elem.r>=5?'sm':'sl'}" data-school="${l.elem.n}"><span class="lv">E</span>${l.elem.r}</span>`:''} ${l.mid?`<span class="sp ${l.mid.r>=7?'sh':l.mid.r>=5?'sm':'sl'}" data-school="${l.mid.n}"><span class="lv">M</span>${l.mid.r}</span>`:''} ${l.high?`<span class="sp ${l.high.r>=7?'sh':l.high.r>=5?'sm':'sl'}" data-school="${l.high.n}"><span class="lv">H</span>${l.high.r}</span>`:''}</span>
       <span style="font-size:10px;font-weight:600;color:${l.changeType==='coming soon'?'var(--purple)':l.changeType==='new'?'var(--green)':'var(--text-4)'}">${(l.changeType||'—').replace(/\b\w/g,c=>c.toUpperCase())}</span>
       <span class="tr ${dc}" style="font-weight:600;font-size:12px">${d}d</span>
-      <span class="tr" style="font-weight:600;font-size:12px;color:var(--accent)">${getArvLabel(l)}</span>
-      <span class="tr" style="font-weight:600;font-size:12px;padding-right:10px">${getGapLabel(l)}</span>
+      <span class="tr" data-cell="arv" data-mls="${l.mls}" style="font-weight:600;font-size:12px;color:var(--accent)">${getArvLabel(l)}</span>
+      <span class="tr" data-cell="gap" data-mls="${l.mls}" style="font-weight:600;font-size:12px;padding-right:10px">${getGapLabel(l)}</span>
     </div></div>`;});
   document.getElementById('lb').innerHTML=h;
   document.getElementById('tc').textContent=data.length;
@@ -1317,7 +1294,7 @@ function mapRowToListing(r){
     elem:r.elementary_rating||r.elementary_school?{r:r.elementary_rating||0,n:r.elementary_school||''}:null,
     mid:(r.middle_rating||r.middle_school)&&(r.middle_school!==r.elementary_school)?{r:r.middle_rating||0,n:r.middle_school||''}:null,
     high:r.high_rating||r.high_school?{r:r.high_rating||0,n:r.high_school||''}:null,
-    tags,customTags:r.custom_tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null,photoFiles:r.photo_files||null,pipelineStage:r.pipeline_stage||null};
+    tags,customTags:r.custom_tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null,photoCount:r.photo_count||0,pipelineStage:r.pipeline_stage||null};
 }
 
 async function loadListings(status){
@@ -1399,8 +1376,8 @@ async function fetchAgentDeCounts(){
     }
     deCacheReady=true;
     console.log(`[fetchAgentDeCounts] ${deCountByEmail.size} email-keyed agents, ${deCountByName.size} name-keyed agents flagged as DE since 2023-01-01`);
-    // Re-render so any already-open detail pane picks up the pill.
-    render();
+    // Re-render DE pills in place (no full render() — avoids load-flash).
+    listings.forEach(l=>refreshRowDePill(l.mls));
     if(active){const l=listings.find(x=>x.mls===active);if(l)renderDetailPage(l);}
   }catch(e){console.error('[fetchAgentDeCounts]',e);}
 }
@@ -1432,7 +1409,8 @@ async function batchFetchComps(){
   while(todo.length>0){
     const batch=todo.slice(0,BATCH);
     await Promise.all(batch.map(async l=>{try{compCache[l.mls]=await findComps({mls:l.mls,sqft:l.sqft,address:l.address,city:l.city,zip:l.zip,high:l.high,elem:l.elem,mid:l.mid,latitude:l.latitude,longitude:l.longitude});}catch(e){}}));
-    render();console.log(`[Comps] Batch loaded for ${batch.length} listings (${todo.length-batch.length} remaining)`);
+    batch.forEach(l=>refreshRowComps(l.mls));
+    console.log(`[Comps] Batch loaded for ${batch.length} listings (${todo.length-batch.length} remaining)`);
     todo=listings.filter(l=>!compCache[l.mls]&&l.sqft>0);
   }
 }
