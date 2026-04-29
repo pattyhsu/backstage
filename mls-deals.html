@@ -290,28 +290,38 @@ function openLightbox(mls,addr){
   document.getElementById('photoLightbox').classList.add('open');
   document.addEventListener('keydown',lbKeyHandler);
 
+  // Header: set once from photo_count (CSV-derived). No tickup.
   const listing=listings.find(l=>l.mls===mls);
   const count=listing?.photoCount||0;
+  addrEl.textContent=count>0
+    ?`${addr} (${count}${count===1?' photo':' photos'})`
+    :addr;
 
-  if(!count){
-    addrEl.textContent=`${addr} (no photos)`;
-    return;
-  }
-  addrEl.textContent=`${addr} (${count}${count===1?' photo':' photos'})`;
-
-  for(let i=1;i<=count;i++){
-    if(lbMls!==myMls)return;  // user navigated away
+  // Grid: sequential probe, stop on first 404. Same as the original
+  // pre-AM behavior — finds however many photos R2 actually has,
+  // independent of photo_count.
+  let i=1;
+  function loadNext(){
+    if(lbMls!==myMls)return;
     const num=String(i).padStart(2,'0');
     const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
-    const el=document.createElement('img');
-    el.src=url;
-    el.onerror=function(){this.style.display='none';};
-    el.onclick=function(){
-      if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
-      else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
+    const img=new Image();
+    img.onload=function(){
+      if(lbMls!==myMls)return;
+      const el=document.createElement('img');
+      el.src=url;
+      el.onclick=function(){
+        if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
+        else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
+      };
+      grid.appendChild(el);
+      i++;
+      loadNext();
     };
-    grid.appendChild(el);
+    img.onerror=function(){/* stop probing */};
+    img.src=url;
   }
+  loadNext();
 }
 function closeLightbox(){
   document.getElementById('photoLightbox').classList.remove('open');
