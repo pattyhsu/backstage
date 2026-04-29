@@ -189,7 +189,7 @@ async function loadProject(){
 
   // Property row.
   const {data:rows,error:pErr}=await sb.from('properties')
-    .select('id, mls, address, city, zip, beds, baths, sqft, year_built, list_price, sale_price, sold_date, pipeline_stage, locked_arv, locked_construction')
+    .select('id, mls, address, city, zip, beds, baths, sqft, year_built, list_price, sale_price, sold_date, pipeline_stage, locked_arv, locked_construction, escrow_start_date, target_close_date')
     .eq('mls',mls)
     .limit(1);
   if(pErr){
@@ -288,6 +288,19 @@ function renderPage(arvRow,gradeRow){
             <option value="__exit__">— Out of pipeline</option>
           </select>
         </div>
+        <div class="move-row" id="escrowDatesRow" style="display:none">
+          <label>Escrow dates:</label>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; flex:1">
+            <div style="display:flex; flex-direction:column">
+              <label for="escrowStartInput" style="font-size:11px; color:var(--text-3); margin-bottom:2px">Escrow start</label>
+              <input type="date" id="escrowStartInput" oninput="onEscrowStartChange()" style="padding:5px 8px; border:1px solid var(--border); border-radius:4px; font-family:inherit" />
+            </div>
+            <div style="display:flex; flex-direction:column">
+              <label for="targetCloseInput" style="font-size:11px; color:var(--text-3); margin-bottom:2px">Target close</label>
+              <input type="date" id="targetCloseInput" oninput="onTargetCloseChange()" style="padding:5px 8px; border:1px solid var(--border); border-radius:4px; font-family:inherit" />
+            </div>
+          </div>
+        </div>
         <div class="move-row" style="align-items:flex-start">
           <label for="moveNote" style="margin-top:6px">Note:</label>
           <textarea id="moveNote" placeholder="Optional context (e.g. 'Offer accepted at $1.05M', 'Fell out of escrow — buyer financing')"></textarea>
@@ -301,6 +314,8 @@ function renderPage(arvRow,gradeRow){
       <h2>Stage History</h2>
       ${renderHistoryList()}
     </div>
+
+    ${renderEscrowDatesSection()}
 
     <div class="section stub">
       <h2>Construction</h2>
@@ -383,6 +398,25 @@ async function moveStage(){
   const note=(noteEl.value||'').trim()||null;
   const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
 
+  // Escrow date capture — required when transitioning to in_escrow.
+  let escrowStart=null, targetClose=null;
+  if(toStage==='in_escrow'){
+    const startEl=document.getElementById('escrowStartInput');
+    const closeEl=document.getElementById('targetCloseInput');
+    escrowStart=(startEl&&startEl.value)||null;
+    targetClose=(closeEl&&closeEl.value)||null;
+    if(!escrowStart||!targetClose){
+      msgEl.className='move-msg err';
+      msgEl.textContent='Both escrow start + target close dates required when moving to In Escrow.';
+      return;
+    }
+    if(targetClose<escrowStart){
+      msgEl.className='move-msg err';
+      msgEl.textContent='Target close must be on or after escrow start.';
+      return;
+    }
+  }
+
   saving=true;
   btn.disabled=true;
   msgEl.textContent='Saving...';
@@ -402,9 +436,14 @@ async function moveStage(){
     return;
   }
 
-  // 2. Update denormalized cache on properties.
+  // 2. Update denormalized cache on properties (+ escrow dates if applicable).
+  const updatePayload={pipeline_stage: toStage, updated_at: new Date().toISOString()};
+  if(toStage==='in_escrow'){
+    updatePayload.escrow_start_date=escrowStart;
+    updatePayload.target_close_date=targetClose;
+  }
   const {error:pErr}=await sb.from('properties')
-    .update({pipeline_stage: toStage, updated_at: new Date().toISOString()})
+    .update(updatePayload)
     .eq('mls', currentProperty.mls);
   if(pErr){
     saving=false; btn.disabled=false;
@@ -421,6 +460,136 @@ async function moveStage(){
   await loadProject();
 }
 window.moveStage=moveStage;
+
+// ========== ESCROW DATES ==========
+// Track whether the user has manually edited target_close_date — if they
+// have, don't clobber it when escrow_start_date changes.
+let _userEditedTargetClose=false;
+
+function onEscrowStartChange(){
+  const start=document.getElementById('escrowStartInput').value;
+  const closeInput=document.getElementById('targetCloseInput');
+  if(start&&!_userEditedTargetClose&&!closeInput.value){
+    // Hint: escrow_start + 30 days. JS Date math, no library needed.
+    const d=new Date(start+'T00:00:00');
+    d.setDate(d.getDate()+30);
+    closeInput.value=d.toISOString().slice(0,10);
+  }
+}
+
+function onTargetCloseChange(){
+  _userEditedTargetClose=true;
+}
+window.onEscrowStartChange=onEscrowStartChange;
+window.onTargetCloseChange=onTargetCloseChange;
+
+// Show/hide the inline escrow dates row when the stage select changes.
+// Wired up via delegation on the container so it survives re-renders.
+document.addEventListener('change',e=>{
+  if(!e.target||e.target.id!=='newStageSelect')return;
+  const row=document.getElementById('escrowDatesRow');
+  if(!row)return;
+  if(e.target.value==='in_escrow'){
+    row.style.display='flex';
+    // Pre-fill from existing property record if user is just touching up.
+    const startInput=document.getElementById('escrowStartInput');
+    const closeInput=document.getElementById('targetCloseInput');
+    if(currentProperty&&currentProperty.escrow_start_date&&!startInput.value){
+      startInput.value=currentProperty.escrow_start_date;
+    }
+    if(currentProperty&&currentProperty.target_close_date&&!closeInput.value){
+      closeInput.value=currentProperty.target_close_date;
+      _userEditedTargetClose=true;
+    }
+  } else {
+    row.style.display='none';
+  }
+});
+
+function renderEscrowDatesSection(){
+  if(!currentProperty||currentProperty.pipeline_stage!=='in_escrow')return '';
+  const start=currentProperty.escrow_start_date;
+  const close=currentProperty.target_close_date;
+  const hasBoth=!!start&&!!close;
+  const hasOne=!!start||!!close;
+  const id='escrowDates';
+  return `
+    <div class="section">
+      <h2>Escrow Dates</h2>
+      <div id="${id}-display" style="display:flex; gap:24px; flex-wrap:wrap; align-items:center">
+        ${hasBoth
+          ? `<div><span style="font-size:11px; color:var(--text-4); text-transform:uppercase; letter-spacing:.5px">Escrow start</span><div style="font-weight:600">${escapeHtml(fmtDate(start))}</div></div>
+             <div><span style="font-size:11px; color:var(--text-4); text-transform:uppercase; letter-spacing:.5px">Target close</span><div style="font-weight:600">${escapeHtml(fmtDate(close))}</div></div>
+             <button class="move-btn" style="background:var(--bg); color:var(--text); border:1px solid var(--border)" onclick="openEscrowDatesEdit()">Edit dates</button>`
+          : hasOne
+            ? `<div style="color:var(--amber); font-size:13px">Partial: only ${start?'start':'close'} set. <button class="move-btn" onclick="openEscrowDatesEdit()" style="margin-left:8px">Complete</button></div>`
+            : `<div style="color:var(--text-4); font-size:13px">Escrow dates not set. <button class="move-btn" onclick="openEscrowDatesEdit()" style="margin-left:8px">Set dates</button></div>`}
+      </div>
+      <div id="${id}-edit" style="display:none; margin-top:12px">
+        <div class="move-row">
+          <label>Escrow start:</label>
+          <input type="date" id="esEditStart" value="${start||''}" />
+        </div>
+        <div class="move-row">
+          <label>Target close:</label>
+          <input type="date" id="esEditClose" value="${close||''}" />
+        </div>
+        <button class="move-btn" onclick="saveEscrowDates()">Save</button>
+        <button class="move-btn" onclick="cancelEscrowDatesEdit()" style="margin-left:8px; background:var(--bg); color:var(--text); border:1px solid var(--border)">Cancel</button>
+        <div class="move-msg" id="esEditMsg"></div>
+      </div>
+    </div>
+  `;
+}
+
+function openEscrowDatesEdit(){
+  document.getElementById('escrowDates-display').style.display='none';
+  document.getElementById('escrowDates-edit').style.display='block';
+}
+
+function cancelEscrowDatesEdit(){
+  document.getElementById('escrowDates-edit').style.display='none';
+  document.getElementById('escrowDates-display').style.display='flex';
+  document.getElementById('esEditMsg').textContent='';
+}
+
+async function saveEscrowDates(){
+  const startEl=document.getElementById('esEditStart');
+  const closeEl=document.getElementById('esEditClose');
+  const msgEl=document.getElementById('esEditMsg');
+  const start=startEl.value||null;
+  const close=closeEl.value||null;
+  msgEl.className='move-msg';
+  msgEl.textContent='';
+  if(!start||!close){
+    msgEl.className='move-msg err';
+    msgEl.textContent='Both dates required.';
+    return;
+  }
+  if(close<start){
+    msgEl.className='move-msg err';
+    msgEl.textContent='Target close must be on or after escrow start.';
+    return;
+  }
+  msgEl.textContent='Saving...';
+  const {error}=await sb.from('properties').update({
+    escrow_start_date: start,
+    target_close_date: close,
+    updated_at: new Date().toISOString(),
+  }).eq('mls', currentProperty.mls);
+  if(error){
+    msgEl.className='move-msg err';
+    msgEl.textContent='Save failed: '+error.message;
+    return;
+  }
+  msgEl.className='move-msg ok';
+  msgEl.textContent='Saved.';
+  await loadProject();
+}
+
+window.openEscrowDatesEdit=openEscrowDatesEdit;
+window.cancelEscrowDatesEdit=cancelEscrowDatesEdit;
+window.saveEscrowDates=saveEscrowDates;
 
 // ========== INIT ==========
 (async()=>{
