@@ -280,6 +280,18 @@ function getThumbUrl(mls){return `${PHOTO_BASE}/${mls}/${mls}_01.jpg`;}
 // Lightbox state
 let lbMls='';
 
+// Look up photo_count for any MLS — main listings first, then walk
+// compCache so comp-click lightboxes also get an upfront count.
+function findPhotoCount(mls){
+  const l=listings.find(x=>x.mls===mls);
+  if(l)return l.photoCount||0;
+  for(const k in compCache){
+    const found=compCache[k]?.comps?.find(c=>c.mls===mls);
+    if(found)return found.photoCount||0;
+  }
+  return 0;
+}
+
 function openLightbox(mls,addr){
   lbMls=mls;
   const myMls=mls;
@@ -290,8 +302,8 @@ function openLightbox(mls,addr){
   document.addEventListener('keydown',lbKeyHandler);
 
   // Header: set once from photo_count (CSV-derived). No tickup.
-  const listing=listings.find(l=>l.mls===mls);
-  const count=listing?.photoCount||0;
+  // Look in `listings` first (main rows), then walk compCache for comp clicks.
+  const count=findPhotoCount(mls);
   addrEl.textContent=count>0
     ?`${addr} (${count}${count===1?' photo':' photos'})`
     :addr;
@@ -430,6 +442,7 @@ async function findComps(listing){
       isAsking:isUnsoldFlip,
       typePriority:{dotty:0,flips:1,halfflips:1,unsold_flip:1,general:2}[compType]??2,
       doubleEnded:comp.double_ended===true,
+      photoCount:comp.photo_count||0,
     });
   }
   results.sort((a,b)=>(a.schoolMatch?0:1)-(b.schoolMatch?0:1)||(a.typePriority-b.typePriority)||((a.dist??999)-(b.dist??999)));
