@@ -71,6 +71,8 @@ body { overflow:hidden; height:100vh; }
 .bubble.assistant { background:var(--bg); color:var(--text); border:1px solid var(--border); width:78%; }
 .bubble.assistant.error { border-color:#e58a8a; background:#fdf3f3; }
 
+.analysis-text { font-size:14px; line-height:1.5; white-space:pre-wrap; margin-bottom:12px; color:var(--text); }
+
 .sql-details { margin:0 0 8px; }
 .sql-details summary { cursor:pointer; font-size:11px; color:var(--text-3); padding:2px 0; user-select:none; }
 .sql-details summary:hover { color:var(--text); }
@@ -228,14 +230,32 @@ function fillAssistantBubble(bub,payload){
     return;
   }
   const tu=payload.tokensUsed||{};
-  const tokens=(tu.in||0)+(tu.out||0);
-  const cacheBits=[];
-  if(tu.cache_read)cacheBits.push(`${tu.cache_read} cached`);
-  const cacheStr=cacheBits.length?' · '+cacheBits.join(' · '):'';
+  const pass1In=(tu.in||0)+(tu.cache_read||0)+(tu.cache_create||0);
+  const pass1Out=tu.out||0;
+  const pass2In=(tu.pass2_in||0)+(tu.pass2_cache_read||0)+(tu.pass2_cache_create||0);
+  const pass2Out=tu.pass2_out||0;
+  const rowCount=payload.rowCount||0;
+  const rowLabel=`${rowCount.toLocaleString()} row${rowCount===1?'':'s'}`;
+  const foot=
+    `${escapeHtml(payload.model||'')} · `+
+    `pass1: ${pass1In.toLocaleString()} in / ${pass1Out.toLocaleString()} out · `+
+    `pass2: ${pass2In.toLocaleString()} in / ${pass2Out.toLocaleString()} out · `+
+    rowLabel;
+
   let html='';
+  // Analysis text — primary content, plain prose with preserved line breaks.
+  if(payload.analysis){
+    html+=`<div class="analysis-text">${escapeHtml(payload.analysis)}</div>`;
+  }
+  // SQL details — always shown collapsed for transparency.
   html+=`<details class="sql-details"><summary>SQL Claude generated</summary><pre>${escapeHtml(payload.sql||'')}</pre></details>`;
-  html+=renderResultsTable(payload.results||[]);
-  html+=`<div class="bubble-foot">${escapeHtml(payload.model||'')} · ${tokens} tokens${cacheStr} · ${payload.rowCount||0} row${payload.rowCount===1?'':'s'}</div>`;
+  // Results details — only when there are rows. On empty, the analysis
+  // string already explains the situation; rendering a "No rows" table
+  // would be redundant.
+  if(rowCount>0){
+    html+=`<details class="sql-details"><summary>Results (${rowCount.toLocaleString()} rows)</summary>${renderResultsTable(payload.results||[])}</details>`;
+  }
+  html+=`<div class="bubble-foot">${foot}</div>`;
   bub.innerHTML=html;
 }
 
