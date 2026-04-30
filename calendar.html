@@ -114,6 +114,24 @@ body { overflow:hidden; height:100vh; }
 }
 .toggle-views button.on { background:var(--text); color:var(--bg); }
 
+.deal-jumper {
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:var(--bg);
+  color:var(--text-3);
+  font-size:11px; font-weight:600;
+  padding:4px 28px 4px 11px;
+  font-family:inherit;
+  cursor:pointer;
+  appearance:none;
+  -webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23999' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 10px center;
+  max-width:240px;
+}
+.deal-jumper:hover { border-color:var(--text-3); }
+
 /* BANNER */
 .banner {
   background:var(--amber-bg);
@@ -183,16 +201,6 @@ body { overflow:hidden; height:100vh; }
   display:flex; gap:14px;
 }
 .listing-block-header .meta b { color:var(--text-3); font-weight:600; }
-.listing-block-header .progress {
-  background:var(--bg);
-  border:1px solid var(--border);
-  border-radius:12px;
-  padding:2px 10px;
-  font-size:11px; font-weight:700;
-  color:var(--text-3);
-}
-.listing-block-header .progress.has-overdue { color:var(--red); border-color:var(--red); background:var(--red-bg); }
-
 .listing-block-body { padding:0; }
 .listing-milestone-row {
   display:grid;
@@ -431,6 +439,9 @@ body { overflow:hidden; height:100vh; }
         <span class="chip cat-design" data-cat="design">Design</span>
         <span class="chip" data-toggle="completed">Show completed</span>
       </div>
+      <select id="dealJumper" class="deal-jumper" aria-label="Jump to deal">
+        <option value="">Jump to deal…</option>
+      </select>
       <div class="toggle-views">
         <button data-view="date">By date</button>
         <button class="on" data-view="listing">By listing</button>
@@ -570,9 +581,29 @@ window.sb=sb;
     });
   }
 
+  // ─── Deal jumper dropdown — populates from in_escrow deals ────
+  function populateDealJumper() {
+    const sel = document.getElementById('dealJumper');
+    if (!sel) return;
+    const seen = new Map();
+    for (const m of milestones) {
+      if (!m.mls || seen.has(m.mls)) continue;
+      const label = (m.address || '(no address)') + (m.city ? ' · ' + m.city : '');
+      seen.set(m.mls, label);
+    }
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">Jump to deal…</option>'
+      + Array.from(seen.entries())
+          .sort((a, b) => a[1].localeCompare(b[1]))
+          .map(([mls, label]) => '<option value="' + escapeHtml(mls) + '">' + escapeHtml(label) + '</option>')
+          .join('');
+    if (prev && seen.has(prev)) sel.value = prev;
+  }
+
   // ─── Render orchestrator ──────────────────────────────────────
   function renderAll() {
     renderBanner();
+    populateDealJumper();
     const empty = document.getElementById('empty-state');
     if (milestones.length === 0) {
       empty.style.display = 'block';
@@ -642,7 +673,7 @@ window.sb=sb;
         ? ' <span style="color:' + (closeCountdown < 0 ? 'var(--red)' : 'var(--text-3)') + '">(' + (closeCountdown < 0 ? Math.abs(closeCountdown)+'d ago' : closeCountdown+'d') + ')</span>'
         : '';
 
-      html += '<div class="listing-block">';
+      html += '<div class="listing-block" data-mls="' + escapeHtml(first.mls || '') + '">';
       html += '  <div class="listing-block-header">';
       html += '    <a class="addr" href="' + escapeHtml(detailHref(first.mls)) + '">' + escapeHtml(first.address || '(no address)') + '</a>';
       if (first.city) html += '    <span class="city">· ' + escapeHtml(first.city) + '</span>';
@@ -650,11 +681,6 @@ window.sb=sb;
       if (first.escrowStart) html += '      <span><b>Escrow:</b> ' + escapeHtml(fmtMD(first.escrowStart)) + '</span>';
       if (first.targetClose) html += '      <span><b>Target close:</b> ' + escapeHtml(fmtMD(first.targetClose)) + closeSuffix + '</span>';
       html += '    </span>';
-      const progClass = overdueCount > 0 ? 'progress has-overdue' : 'progress';
-      const progLabel = overdueCount > 0
-        ? overdueCount + ' overdue · ' + doneCount + '/' + totalCount + ' done'
-        : doneCount + '/' + totalCount + ' done';
-      html += '    <span class="' + progClass + '">' + escapeHtml(progLabel) + '</span>';
       html += '  </div>';
       html += '  <div class="listing-block-body">';
       for (const m of g.items) {
@@ -984,14 +1010,26 @@ window.sb=sb;
   }
 
   // ─── Toggle views ─────────────────────────────────────────────
+  function setActiveView(view) {
+    activeView = view;
+    document.querySelectorAll('.toggle-views button').forEach(b => b.classList.toggle('on', b.dataset.view === view));
+    document.querySelectorAll('[data-pane]').forEach(p => {
+      p.style.display = (p.dataset.pane === view) ? 'block' : 'none';
+    });
+  }
   document.querySelectorAll('.toggle-views button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.toggle-views button').forEach(b => b.classList.remove('on'));
-      btn.classList.add('on');
-      activeView = btn.dataset.view;
-      document.querySelectorAll('[data-pane]').forEach(p => {
-        p.style.display = (p.dataset.pane === activeView) ? 'block' : 'none';
-      });
+    btn.addEventListener('click', () => setActiveView(btn.dataset.view));
+  });
+
+  // ─── Deal jumper — scroll to the selected listing's section ───
+  document.getElementById('dealJumper').addEventListener('change', e => {
+    const mls = e.target.value;
+    if (!mls) return;
+    if (activeView !== 'listing') setActiveView('listing');
+    // Defer scroll one frame so the pane has time to display:block.
+    requestAnimationFrame(() => {
+      const block = document.querySelector('.listing-block[data-mls="' + CSS.escape(mls) + '"]');
+      if (block) block.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
 
