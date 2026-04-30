@@ -189,7 +189,7 @@ async function loadProject(){
 
   // Property row.
   const {data:rows,error:pErr}=await sb.from('properties')
-    .select('id, mls, address, city, zip, beds, baths, sqft, year_built, list_price, sale_price, sold_date, pipeline_stage, locked_arv, locked_construction, escrow_start_date, target_close_date')
+    .select('id, mls, address, city, zip, beds, baths, sqft, year_built, list_price, sale_price, sold_date, pipeline_stage, locked_arv, locked_construction, escrow_start_date, target_close_date, contingency_removal_date')
     .eq('mls',mls)
     .limit(1);
   if(pErr){
@@ -296,6 +296,10 @@ function renderPage(arvRow,gradeRow){
               <input type="date" id="escrowStartInput" oninput="onEscrowStartChange()" style="padding:5px 8px; border:1px solid var(--border); border-radius:4px; font-family:inherit" />
             </div>
             <div style="display:flex; flex-direction:column">
+              <label for="contingencyRemovalInput" style="font-size:11px; color:var(--text-3); margin-bottom:2px">Physical contingency removal</label>
+              <input type="date" id="contingencyRemovalInput" oninput="onContingencyRemovalChange()" style="padding:5px 8px; border:1px solid var(--border); border-radius:4px; font-family:inherit" />
+            </div>
+            <div style="display:flex; flex-direction:column">
               <label for="targetCloseInput" style="font-size:11px; color:var(--text-3); margin-bottom:2px">Target close</label>
               <input type="date" id="targetCloseInput" oninput="onTargetCloseChange()" style="padding:5px 8px; border:1px solid var(--border); border-radius:4px; font-family:inherit" />
             </div>
@@ -398,21 +402,28 @@ async function moveStage(){
   const note=(noteEl.value||'').trim()||null;
   const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
 
-  // Escrow date capture — required when transitioning to in_escrow.
-  let escrowStart=null, targetClose=null;
+  // Escrow date capture — all three required when transitioning to in_escrow.
+  let escrowStart=null, targetClose=null, contingencyRemoval=null;
   if(toStage==='in_escrow'){
     const startEl=document.getElementById('escrowStartInput');
     const closeEl=document.getElementById('targetCloseInput');
+    const crdEl=document.getElementById('contingencyRemovalInput');
     escrowStart=(startEl&&startEl.value)||null;
     targetClose=(closeEl&&closeEl.value)||null;
-    if(!escrowStart||!targetClose){
+    contingencyRemoval=(crdEl&&crdEl.value)||null;
+    if(!escrowStart||!targetClose||!contingencyRemoval){
       msgEl.className='move-msg err';
-      msgEl.textContent='Both escrow start + target close dates required when moving to In Escrow.';
+      msgEl.textContent='Escrow start, physical contingency removal, and target close dates are all required when moving to In Escrow.';
       return;
     }
-    if(targetClose<escrowStart){
+    if(contingencyRemoval<escrowStart){
       msgEl.className='move-msg err';
-      msgEl.textContent='Target close must be on or after escrow start.';
+      msgEl.textContent='Physical contingency removal must be on or after escrow start.';
+      return;
+    }
+    if(targetClose<contingencyRemoval){
+      msgEl.className='move-msg err';
+      msgEl.textContent='Target close must be on or after physical contingency removal.';
       return;
     }
   }
@@ -441,6 +452,7 @@ async function moveStage(){
   if(toStage==='in_escrow'){
     updatePayload.escrow_start_date=escrowStart;
     updatePayload.target_close_date=targetClose;
+    updatePayload.contingency_removal_date=contingencyRemoval;
   }
   const {error:pErr}=await sb.from('properties')
     .update(updatePayload)
@@ -452,13 +464,14 @@ async function moveStage(){
     return;
   }
 
-  // Brief AP — seed escrow milestones on transitions into in_escrow.
+  // Brief AP/AU — seed escrow milestones on transitions into in_escrow.
   // Soft-fail; milestone-seed failure must not block the stage move.
-  if(toStage==='in_escrow' && escrowStart && targetClose){
+  if(toStage==='in_escrow' && escrowStart && targetClose && contingencyRemoval){
     const{error:rpcErr}=await sb.rpc('seed_escrow_milestones',{
       p_property_id: currentProperty.id,
       p_escrow_start_date: escrowStart,
       p_target_close_date: targetClose,
+      p_contingency_removal_date: contingencyRemoval,
     });
     if(rpcErr)console.warn('[moveStage] seed_escrow_milestones failed:',rpcErr.message);
   }
@@ -473,26 +486,40 @@ async function moveStage(){
 window.moveStage=moveStage;
 
 // ========== ESCROW DATES ==========
-// Track whether the user has manually edited target_close_date — if they
-// have, don't clobber it when escrow_start_date changes.
+// Track whether the user has manually edited target_close_date /
+// contingency_removal_date — if they have, don't clobber it when
+// escrow_start_date changes.
 let _userEditedTargetClose=false;
+let _userEditedContingencyRemoval=false;
 
 function onEscrowStartChange(){
   const start=document.getElementById('escrowStartInput').value;
   const closeInput=document.getElementById('targetCloseInput');
-  if(start&&!_userEditedTargetClose&&!closeInput.value){
+  const crdInput=document.getElementById('contingencyRemovalInput');
+  if(start&&!_userEditedTargetClose&&closeInput&&!closeInput.value){
     // Hint: escrow_start + 30 days. JS Date math, no library needed.
     const d=new Date(start+'T00:00:00');
     d.setDate(d.getDate()+30);
     closeInput.value=d.toISOString().slice(0,10);
+  }
+  if(start&&!_userEditedContingencyRemoval&&crdInput&&!crdInput.value){
+    // Hint: escrow_start + 17 days (CAR RPA default).
+    const d=new Date(start+'T00:00:00');
+    d.setDate(d.getDate()+17);
+    crdInput.value=d.toISOString().slice(0,10);
   }
 }
 
 function onTargetCloseChange(){
   _userEditedTargetClose=true;
 }
+
+function onContingencyRemovalChange(){
+  _userEditedContingencyRemoval=true;
+}
 window.onEscrowStartChange=onEscrowStartChange;
 window.onTargetCloseChange=onTargetCloseChange;
+window.onContingencyRemovalChange=onContingencyRemovalChange;
 
 // Show/hide the inline escrow dates row when the stage select changes.
 // Wired up via delegation on the container so it survives re-renders.
@@ -505,12 +532,17 @@ document.addEventListener('change',e=>{
     // Pre-fill from existing property record if user is just touching up.
     const startInput=document.getElementById('escrowStartInput');
     const closeInput=document.getElementById('targetCloseInput');
+    const crdInput=document.getElementById('contingencyRemovalInput');
     if(currentProperty&&currentProperty.escrow_start_date&&!startInput.value){
       startInput.value=currentProperty.escrow_start_date;
     }
     if(currentProperty&&currentProperty.target_close_date&&!closeInput.value){
       closeInput.value=currentProperty.target_close_date;
       _userEditedTargetClose=true;
+    }
+    if(currentProperty&&currentProperty.contingency_removal_date&&crdInput&&!crdInput.value){
+      crdInput.value=currentProperty.contingency_removal_date;
+      _userEditedContingencyRemoval=true;
     }
   } else {
     row.style.display='none';
@@ -521,6 +553,7 @@ function renderEscrowDatesSection(){
   if(!currentProperty||currentProperty.pipeline_stage!=='in_escrow')return '';
   const start=currentProperty.escrow_start_date;
   const close=currentProperty.target_close_date;
+  const crd=currentProperty.contingency_removal_date;
   const hasBoth=!!start&&!!close;
   const hasOne=!!start||!!close;
   const id='escrowDates';
@@ -530,6 +563,7 @@ function renderEscrowDatesSection(){
       <div id="${id}-display" style="display:flex; gap:24px; flex-wrap:wrap; align-items:center">
         ${hasBoth
           ? `<div><span style="font-size:11px; color:var(--text-4); text-transform:uppercase; letter-spacing:.5px">Escrow start</span><div style="font-weight:600">${escapeHtml(fmtDate(start))}</div></div>
+             <div><span style="font-size:11px; color:var(--text-4); text-transform:uppercase; letter-spacing:.5px">Contingency removed</span><div style="font-weight:600">${crd?escapeHtml(fmtDate(crd)):'—'}</div></div>
              <div><span style="font-size:11px; color:var(--text-4); text-transform:uppercase; letter-spacing:.5px">Target close</span><div style="font-weight:600">${escapeHtml(fmtDate(close))}</div></div>
              <button class="move-btn" style="background:var(--bg); color:var(--text); border:1px solid var(--border)" onclick="openEscrowDatesEdit()">Edit dates</button>`
           : hasOne
@@ -539,7 +573,11 @@ function renderEscrowDatesSection(){
       <div id="${id}-edit" style="display:none; margin-top:12px">
         <div class="move-row">
           <label>Escrow start:</label>
-          <input type="date" id="esEditStart" value="${start||''}" />
+          <input type="date" id="esEditStart" value="${start||''}" oninput="onEsEditStartChange()" />
+        </div>
+        <div class="move-row">
+          <label>Physical contingency removal:</label>
+          <input type="date" id="esEditCRD" value="${crd||''}" oninput="onEsEditCRDChange()" />
         </div>
         <div class="move-row">
           <label>Target close:</label>
@@ -552,6 +590,25 @@ function renderEscrowDatesSection(){
     </div>
   `;
 }
+
+// Edit-form default-fill: when ESD changes and CRD is empty (and the
+// user hasn't manually edited it during this edit session), default to
+// ESD + 17 days.
+let _userEditedEsEditCRD=false;
+function onEsEditStartChange(){
+  const start=document.getElementById('esEditStart').value;
+  const crdInput=document.getElementById('esEditCRD');
+  if(start&&crdInput&&!_userEditedEsEditCRD&&!crdInput.value){
+    const d=new Date(start+'T00:00:00');
+    d.setDate(d.getDate()+17);
+    crdInput.value=d.toISOString().slice(0,10);
+  }
+}
+function onEsEditCRDChange(){
+  _userEditedEsEditCRD=true;
+}
+window.onEsEditStartChange=onEsEditStartChange;
+window.onEsEditCRDChange=onEsEditCRDChange;
 
 function openEscrowDatesEdit(){
   document.getElementById('escrowDates-display').style.display='none';
@@ -567,25 +624,33 @@ function cancelEscrowDatesEdit(){
 async function saveEscrowDates(){
   const startEl=document.getElementById('esEditStart');
   const closeEl=document.getElementById('esEditClose');
+  const crdEl=document.getElementById('esEditCRD');
   const msgEl=document.getElementById('esEditMsg');
   const start=startEl.value||null;
   const close=closeEl.value||null;
+  const crd=crdEl?(crdEl.value||null):null;
   msgEl.className='move-msg';
   msgEl.textContent='';
-  if(!start||!close){
+  if(!start||!close||!crd){
     msgEl.className='move-msg err';
-    msgEl.textContent='Both dates required.';
+    msgEl.textContent='Escrow start, physical contingency removal, and target close are all required.';
     return;
   }
-  if(close<start){
+  if(crd<start){
     msgEl.className='move-msg err';
-    msgEl.textContent='Target close must be on or after escrow start.';
+    msgEl.textContent='Physical contingency removal must be on or after escrow start.';
+    return;
+  }
+  if(close<crd){
+    msgEl.className='move-msg err';
+    msgEl.textContent='Target close must be on or after physical contingency removal.';
     return;
   }
   msgEl.textContent='Saving...';
   const {error}=await sb.from('properties').update({
     escrow_start_date: start,
     target_close_date: close,
+    contingency_removal_date: crd,
     updated_at: new Date().toISOString(),
   }).eq('mls', currentProperty.mls);
   if(error){
@@ -594,12 +659,13 @@ async function saveEscrowDates(){
     return;
   }
 
-  // Brief AP — seed (or no-op if already seeded) escrow milestones.
+  // Brief AP/AU — seed (or no-op if already seeded) escrow milestones.
   // Idempotent on (property_id, milestone_key).
   const{error:rpcErr}=await sb.rpc('seed_escrow_milestones',{
     p_property_id: currentProperty.id,
     p_escrow_start_date: start,
     p_target_close_date: close,
+    p_contingency_removal_date: crd,
   });
   if(rpcErr)console.warn('[saveEscrowDates] seed_escrow_milestones failed:',rpcErr.message);
 

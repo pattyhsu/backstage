@@ -936,7 +936,7 @@ window.sb=sb;
   function wireRowEvents(pane) {
     pane.querySelectorAll('[data-action]').forEach(el => {
       const action = el.dataset.action;
-      const id = Number(el.dataset.id);
+      const id = el.dataset.id;
       if (!id) return;
       if (el.tagName === 'INPUT' && el.type === 'checkbox' && action === 'toggle') {
         el.addEventListener('change', (e) => { e.stopPropagation(); markComplete(id, el.checked); });
