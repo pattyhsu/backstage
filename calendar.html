@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calendar — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js"></script>
+<style>
+/* === CALENDAR — page-local layout only ===
+   Shared shell + sidebar tokens come from backstage.css.
+   Three views (date / listing / month) toggle via [data-view] buttons. */
+
+body { overflow:hidden; height:100vh; }
+
+.app-shell { display:flex; height:100vh; }
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+.bs-sidebar.collapsed { width:56px; }
+.bs-sidebar.collapsed .side-brand span, .bs-sidebar.collapsed .side-section-label, .bs-sidebar.collapsed .side-label, .bs-sidebar.collapsed .side-user-name, .bs-sidebar.collapsed .lock-btn { display:none; }
+.bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+.bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+.bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+.bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+.bs-sidebar.collapsed .side-user { justify-content:center; }
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.lock-btn:hover { color:var(--text); }
+.collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
+.collapse-btn:hover { color:var(--text); }
+
+.main { flex:1; display:flex; flex-direction:column; min-width:0; overflow-y:auto; background:var(--bg-page); }
+
+/* HEADER */
+.page-header {
+  display:flex; align-items:center; gap:14px;
+  padding:18px 28px 14px;
+  background:var(--bg-page);
+  border-bottom:1px solid var(--border);
+  flex-wrap:wrap;
+}
+.page-title {
+  font-size:18px; font-weight:700;
+  color:var(--accent);
+  letter-spacing:.3px;
+}
+.filters { display:flex; gap:6px; flex-wrap:wrap; flex:1; }
+.chip {
+  padding:4px 11px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  font-size:11px; font-weight:600;
+  background:var(--bg);
+  color:var(--text-3);
+  cursor:pointer;
+  user-select:none;
+}
+.chip.on { background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
+.chip.cat-doc.on { background:var(--blue-bg); color:var(--blue); border-color:var(--blue); }
+.chip.cat-contingency.on { background:var(--amber-bg); color:var(--amber); border-color:var(--amber); }
+.chip.cat-walkthrough.on { background:var(--purple-bg); color:var(--purple); border-color:var(--purple); }
+.chip.cat-task.on { background:var(--green-bg); color:var(--green); border-color:var(--green); }
+
+.toggle-views {
+  display:flex; gap:0;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+  margin-left:auto;
+}
+.toggle-views button {
+  padding:5px 14px; border:none; background:var(--bg);
+  font-size:11px; font-weight:600; cursor:pointer;
+  color:var(--text-3); font-family:inherit;
+}
+.toggle-views button.on { background:var(--text); color:var(--bg); }
+
+/* BANNER */
+.banner {
+  background:var(--amber-bg);
+  border:1px solid var(--amber);
+  color:var(--amber);
+  padding:10px 16px;
+  margin:8px 28px 0;
+  border-radius:var(--radius);
+  font-size:12px;
+}
+.banner-overdue { background:var(--red-bg); border-color:var(--red); color:var(--red); }
+
+/* EMPTY */
+.empty-state {
+  margin:40px 28px;
+  padding:40px 28px;
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  text-align:center;
+  color:var(--text-3);
+}
+.empty-state h2 { margin:0 0 8px; font-size:16px; color:var(--text); font-weight:700; }
+.empty-state p { margin:0; font-size:13px; }
+.empty-state a { color:var(--accent); text-decoration:none; font-weight:600; }
+.empty-state a:hover { text-decoration:underline; }
+
+/* PANES */
+.list-pane { padding:8px 28px 40px; }
+.listing-pane { padding:8px 28px 40px; }
+.month-pane { padding:4px 28px 40px; }
+
+/* BY-LISTING (default) */
+.listing-filter-bar {
+  display:flex; align-items:center; gap:10px; padding:4px 0 12px;
+  font-size:12px;
+}
+.listing-filter-bar .label { color:var(--text-4); font-weight:600; }
+.sort-note { font-size:11px; color:var(--text-4); }
+
+.listing-block {
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  margin-bottom:14px;
+  overflow:hidden;
+}
+.listing-block-header {
+  padding:12px 16px;
+  background:linear-gradient(to right, var(--bg-alt), var(--bg));
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:12px;
+  flex-wrap:wrap;
+}
+.listing-block-header .addr {
+  font-size:14px; font-weight:700; color:var(--text);
+  text-decoration:none;
+}
+.listing-block-header .addr:hover { color:var(--accent); }
+.listing-block-header .city {
+  font-size:12px; color:var(--text-3);
+  margin-left:-6px;
+}
+.listing-block-header .meta {
+  font-size:11px; color:var(--text-4);
+  margin-left:auto;
+  display:flex; gap:14px;
+}
+.listing-block-header .meta b { color:var(--text-3); font-weight:600; }
+.listing-block-header .progress {
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:2px 10px;
+  font-size:11px; font-weight:700;
+  color:var(--text-3);
+}
+.listing-block-header .progress.has-overdue { color:var(--red); border-color:var(--red); background:var(--red-bg); }
+
+.listing-block-body { padding:0; }
+.listing-milestone-row {
+  display:grid;
+  grid-template-columns:22px 80px 1fr 90px 110px;
+  align-items:center;
+  gap:12px;
+  padding:8px 16px;
+  border-bottom:1px solid var(--border);
+  cursor:pointer;
+  font-size:13px;
+}
+.listing-milestone-row:last-child { border-bottom:none; }
+.listing-milestone-row:hover { background:var(--bg-alt); }
+.listing-milestone-row input[type="checkbox"] {
+  width:16px; height:16px; cursor:pointer; accent-color:var(--accent); justify-self:center;
+}
+.listing-milestone-row.done { opacity:.5; }
+.listing-milestone-row.done .ms-name { text-decoration:line-through; color:var(--text-3); }
+.listing-milestone-row.overdue { background:rgba(192,57,43,.04); }
+
+.ms-date {
+  font-family:var(--mono); font-size:11px; font-weight:600;
+  color:var(--text-3);
+  text-align:right;
+}
+.ms-date.today { color:var(--accent); font-weight:800; }
+.ms-date.overdue { color:var(--red); font-weight:800; }
+.ms-date .relative { display:block; font-size:9px; color:var(--text-4); font-weight:500; margin-top:1px; }
+.ms-date.overdue .relative { color:var(--red); }
+
+.ms-name { font-weight:600; }
+.ms-name .dotty-flag { font-size:8px; color:var(--text-4); font-weight:700; margin-left:6px; vertical-align:middle; letter-spacing:.4px; }
+.ms-anchor { font-size:10px; color:var(--text-4); text-align:center; }
+.ms-cat-pill {
+  font-size:9px; font-weight:700;
+  padding:2px 8px;
+  border-radius:8px;
+  letter-spacing:.4px;
+  text-transform:uppercase;
+  text-align:center;
+  width:fit-content;
+}
+.ms-cat-pill.cat-doc { background:var(--blue-bg); color:var(--blue); }
+.ms-cat-pill.cat-contingency { background:var(--amber-bg); color:var(--amber); }
+.ms-cat-pill.cat-walkthrough { background:var(--purple-bg); color:var(--purple); }
+.ms-cat-pill.cat-task { background:var(--green-bg); color:var(--green); }
+
+/* BY-DATE */
+.day-group { margin-bottom:18px; }
+.day-group-header {
+  display:flex; align-items:baseline; gap:12px;
+  padding:12px 0 6px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:6px;
+}
+.day-label {
+  font-size:11px; font-weight:700; color:var(--text-4);
+  letter-spacing:.6px; text-transform:uppercase;
+}
+.day-date { font-size:11px; color:var(--text-4); }
+.day-count { margin-left:auto; font-size:11px; color:var(--text-4); }
+.day-group.overdue .day-label { color:var(--red); }
+.day-group.today .day-label { color:var(--accent); }
+
+.milestone-row {
+  display:grid;
+  grid-template-columns:22px 1fr 240px 110px 110px;
+  align-items:center;
+  gap:12px;
+  padding:9px 8px;
+  border-radius:var(--radius-sm);
+  cursor:pointer;
+}
+.milestone-row:hover { background:var(--bg); }
+.milestone-row input[type="checkbox"] {
+  width:16px; height:16px; cursor:pointer; accent-color:var(--accent);
+}
+.milestone-row.done { opacity:.5; }
+.milestone-row.done .milestone-name { text-decoration:line-through; color:var(--text-3); }
+.milestone-name { font-size:13px; font-weight:600; }
+.milestone-required-flag {
+  font-size:9px; color:var(--text-4); font-weight:700;
+  margin-left:6px; vertical-align:middle; letter-spacing:.4px;
+}
+.listing-link {
+  font-size:12px; color:var(--text-3);
+  text-decoration:none;
+}
+.listing-link:hover { color:var(--accent); }
+.listing-mls { font-family:var(--mono); font-size:10px; color:var(--text-4); margin-left:4px; }
+.due-date {
+  font-size:11px; font-family:var(--mono); color:var(--text-3);
+  text-align:right;
+}
+.due-date.overdue { color:var(--red); font-weight:700; }
+.due-date.today { color:var(--accent); font-weight:700; }
+.cat-pill {
+  font-size:9px; font-weight:700;
+  padding:2px 8px;
+  border-radius:8px;
+  letter-spacing:.4px;
+  text-transform:uppercase;
+  display:inline-block;
+  text-align:center;
+  width:fit-content;
+}
+.cat-pill.cat-doc { background:var(--blue-bg); color:var(--blue); }
+.cat-pill.cat-contingency { background:var(--amber-bg); color:var(--amber); }
+.cat-pill.cat-walkthrough { background:var(--purple-bg); color:var(--purple); }
+.cat-pill.cat-task { background:var(--green-bg); color:var(--green); }
+
+/* EXPANDED detail */
+.expanded {
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:14px 16px;
+  margin:4px 0 10px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px 24px;
+}
+.expanded label { font-size:10px; font-weight:600; color:var(--text-4); text-transform:uppercase; letter-spacing:.4px; display:block; margin-bottom:3px; }
+.expanded .field-value { font-size:13px; }
+.expanded textarea { width:100%; padding:6px 8px; font-size:12px; border:1px solid var(--border); border-radius:4px; font-family:inherit; resize:vertical; min-height:50px; }
+.expanded .actions { grid-column:1 / -1; display:flex; gap:8px; margin-top:4px; }
+.btn {
+  padding:5px 14px;
+  border:1px solid var(--border);
+  border-radius:5px;
+  font-size:11px; font-weight:600;
+  background:var(--bg);
+  cursor:pointer;
+  font-family:inherit;
+  color:var(--text);
+}
+.btn:hover { background:var(--bg-alt); }
+.btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+.btn.primary:hover { background:var(--accent-hover); }
+.btn.warn { color:var(--red); }
+
+/* MONTH */
+.month-header {
+  display:flex; align-items:center; gap:14px;
+  padding:10px 0;
+  flex-wrap:wrap;
+}
+.month-title {
+  font-size:16px; font-weight:700; color:var(--text);
+  letter-spacing:.3px;
+}
+.month-nav { display:flex; gap:4px; }
+.month-nav button {
+  width:28px; height:28px; padding:0;
+  border:1px solid var(--border); background:var(--bg);
+  border-radius:4px; cursor:pointer; font-family:inherit;
+  font-size:12px; color:var(--text-3);
+}
+.month-today-btn {
+  padding:4px 10px;
+  border:1px solid var(--border);
+  background:var(--bg);
+  border-radius:4px;
+  font-size:11px; font-weight:600;
+  cursor:pointer; font-family:inherit;
+  color:var(--text-3);
+}
+.legend {
+  margin-left:auto;
+  display:flex; gap:12px;
+  font-size:10px; color:var(--text-4);
+  flex-wrap:wrap;
+}
+.legend-item { display:flex; align-items:center; gap:4px; }
+.legend-dot { width:10px; height:10px; border-radius:2px; display:inline-block; }
+
+.weekday-headers {
+  display:grid; grid-template-columns:repeat(7, 1fr); gap:4px;
+  padding:4px 0;
+}
+.weekday {
+  font-size:9px; font-weight:700; color:var(--text-4);
+  letter-spacing:.6px; text-transform:uppercase;
+  padding:4px 6px;
+}
+.month-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; }
+.day-cell {
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:5px;
+  min-height:100px;
+  padding:5px 6px;
+  display:flex; flex-direction:column; gap:3px;
+}
+.day-cell.today { border:2px solid var(--accent); background:var(--accent-dim); padding:4px 5px; }
+.day-cell.outside-month { background:var(--bg-alt); }
+.day-cell.outside-month .day-num { color:var(--text-4); }
+.day-cell.weekend { background:var(--bg-page); }
+.day-num { font-size:10px; font-weight:700; color:var(--text-3); margin-bottom:1px; }
+.day-cell.today .day-num { color:var(--accent); font-weight:800; font-size:11px; }
+
+.event-pill {
+  font-size:10px;
+  padding:2px 5px;
+  border-radius:3px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  cursor:pointer;
+  font-weight:600;
+  border-left:2px solid transparent;
+}
+.event-pill .listing-init {
+  font-family:var(--mono);
+  font-size:8px;
+  font-weight:700;
+  opacity:.6;
+  margin-left:3px;
+}
+.event-pill.cat-doc { background:var(--blue-bg); color:var(--blue); border-left-color:var(--blue); }
+.event-pill.cat-contingency { background:var(--amber-bg); color:var(--amber); border-left-color:var(--amber); }
+.event-pill.cat-walkthrough { background:var(--purple-bg); color:var(--purple); border-left-color:var(--purple); }
+.event-pill.cat-task { background:var(--green-bg); color:var(--green); border-left-color:var(--green); }
+.event-pill.overdue { background:var(--red-bg); color:var(--red); border-left:3px solid var(--red); font-weight:800; }
+.event-pill.done { opacity:.45; text-decoration:line-through; font-weight:500; }
+.event-pill.coe { background:var(--green); color:#fff; font-weight:800; border-left-color:var(--green); }
+.event-pill.coe .listing-init { opacity:.85; color:#fff; }
+.day-overflow { font-size:9px; color:var(--text-4); margin-top:2px; cursor:pointer; }
+
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <div class="bs-sidebar" id="bsSidebar"></div>
+
+  <div class="main">
+
+    <div class="page-header">
+      <div class="page-title">Calendar</div>
+      <div class="filters" id="filterChips">
+        <span class="chip on" data-cat="all">All</span>
+        <span class="chip cat-doc" data-cat="document">Documents</span>
+        <span class="chip cat-contingency" data-cat="contingency">Contingencies</span>
+        <span class="chip cat-walkthrough" data-cat="walkthrough">Walkthroughs</span>
+        <span class="chip cat-task" data-cat="task">Tasks</span>
+        <span class="chip" data-toggle="overdue">Overdue only</span>
+        <span class="chip" data-toggle="completed">Show completed</span>
+      </div>
+      <div class="toggle-views">
+        <button data-view="date">By date</button>
+        <button class="on" data-view="listing">By listing</button>
+        <button data-view="month">Month</button>
+      </div>
+    </div>
+
+    <div id="banner" class="banner" style="display:none"></div>
+
+    <div id="empty-state" class="empty-state" style="display:none"></div>
+
+    <div class="list-pane" data-pane="date" style="display:none"></div>
+    <div class="listing-pane" data-pane="listing"></div>
+    <div class="month-pane" data-pane="month" style="display:none"></div>
+
+  </div>
+</div>
+
+<script>
+// ========== SUPABASE CLIENT ==========
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+</script>
+
+<script>
+(async () => {
+  await window.authGate();
+  if (!window.CURRENT_USER_ROLE) return;
+  window.renderSidebar('calendar');
+
+  // ─── State ────────────────────────────────────────────────────
+  let milestones = [];
+  let activeFilter = { cat: 'all', overdueOnly: false, showCompleted: false };
+  let activeView = 'listing';
+  let expandedId = null;
+  let monthAnchor = startOfMonth(new Date());
+
+  // ─── Helpers ──────────────────────────────────────────────────
+  function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
+
+  function todayStr() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function parseDate(s) {
+    if (!s) return null;
+    const [y,m,d] = s.split('-').map(Number);
+    return new Date(y, m-1, d);
+  }
+  function daysBetween(aStr, bStr) {
+    const a = parseDate(aStr), b = parseDate(bStr);
+    if (!a || !b) return null;
+    return Math.round((b - a) / (1000*60*60*24));
+  }
+  function fmtMD(s) {
+    const d = parseDate(s); if (!d) return '';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[d.getMonth()] + ' ' + d.getDate();
+  }
+  function relativeLabel(dateStr) {
+    const today = todayStr();
+    const diff = daysBetween(today, dateStr);
+    if (diff === null) return '';
+    if (diff < 0) return Math.abs(diff) + 'd ago';
+    if (diff === 0) return 'today';
+    if (diff === 1) return 'tomorrow';
+    if (diff < 7) return 'in ' + diff + 'd';
+    if (diff < 14) return 'next week';
+    return 'in ' + diff + 'd';
+  }
+  function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function addMonths(d, n) { return new Date(d.getFullYear(), d.getMonth()+n, 1); }
+  function isoLocal(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function listingInit(addr) {
+    if (!addr) return '';
+    return String(addr).toUpperCase().slice(0, 16);
+  }
+  function detailHref(mls) {
+    if (!mls) return '#';
+    return 'project-detail.html?mls=' + encodeURIComponent(mls);
+  }
+  function catLabelFor(cat) {
+    return ({ document: 'Doc', contingency: 'Contingency', walkthrough: 'Walkthrough', task: 'Task' })[cat] || (cat || 'Task');
+  }
+
+  // ─── Load (single query, JOIN templates + properties) ─────────
+  async function loadMilestones() {
+    const { data, error } = await sb
+      .from('escrow_milestones')
+      .select(`
+        id, property_id, milestone_key, display_name, due_date,
+        completed, completed_at, completed_by, notes,
+        escrow_milestone_templates ( category, required, default_anchor, default_offset_days ),
+        properties!inner ( mls, address, city, escrow_start_date, target_close_date, pipeline_stage )
+      `)
+      .eq('properties.pipeline_stage', 'in_escrow')
+      .order('due_date', { ascending: true });
+
+    if (error) {
+      console.error('[calendar] load failed:', error);
+      milestones = [];
+      renderAll();
+      return;
+    }
+    milestones = (data || []).map(r => ({
+      id: r.id,
+      property_id: r.property_id,
+      milestone_key: r.milestone_key,
+      display_name: r.display_name,
+      due_date: r.due_date,
+      completed: !!r.completed,
+      completed_at: r.completed_at,
+      completed_by: r.completed_by,
+      notes: r.notes || '',
+      category: r.escrow_milestone_templates?.category || 'task',
+      required: r.escrow_milestone_templates?.required !== false,
+      anchor: r.escrow_milestone_templates?.default_anchor || null,
+      offsetDays: r.escrow_milestone_templates?.default_offset_days,
+      mls: r.properties?.mls,
+      address: r.properties?.address,
+      city: r.properties?.city,
+      escrowStart: r.properties?.escrow_start_date,
+      targetClose: r.properties?.target_close_date,
+    }));
+    renderAll();
+  }
+
+  // ─── Filter ───────────────────────────────────────────────────
+  function applyFilter(rows) {
+    const today = todayStr();
+    return rows.filter(m => {
+      if (!activeFilter.showCompleted && m.completed) return false;
+      if (activeFilter.overdueOnly && (m.completed || !m.due_date || m.due_date >= today)) return false;
+      if (activeFilter.cat !== 'all' && m.category !== activeFilter.cat) return false;
+      return true;
+    });
+  }
+
+  // ─── Render orchestrator ──────────────────────────────────────
+  function renderAll() {
+    renderBanner();
+    const empty = document.getElementById('empty-state');
+    if (milestones.length === 0) {
+      empty.style.display = 'block';
+      empty.innerHTML = '<h2>No deals currently in escrow</h2>'
+        + '<p>Move a deal to In Escrow on <a href="pipeline.html">Pipeline</a>, then set escrow + target-close dates on the project detail page to start tracking milestones here.</p>';
+      document.querySelectorAll('[data-pane]').forEach(p => p.style.display = 'none');
+      return;
+    }
+    empty.style.display = 'none';
+    document.querySelectorAll('[data-pane]').forEach(p => {
+      p.style.display = (p.dataset.pane === activeView) ? 'block' : 'none';
+    });
+    renderListPane();
+    renderListingPane();
+    renderMonthPane();
+  }
+
+  function renderBanner() {
+    const banner = document.getElementById('banner');
+    const today = todayStr();
+    const overdue = milestones.filter(m => !m.completed && m.due_date && m.due_date < today);
+    if (overdue.length === 0) { banner.style.display = 'none'; return; }
+    const dealCount = new Set(overdue.map(m => m.property_id)).size;
+    banner.style.display = 'block';
+    banner.className = 'banner banner-overdue';
+    banner.innerHTML = '<strong>Heads up:</strong> ' + overdue.length + ' overdue milestone' + (overdue.length===1?'':'s') + ' across ' + dealCount + ' deal' + (dealCount===1?'':'s') + '.';
+  }
+
+  // ─── BY-LISTING pane (default) ────────────────────────────────
+  function renderListingPane() {
+    const pane = document.querySelector('[data-pane="listing"]');
+    const rows = applyFilter(milestones);
+
+    const byProp = new Map();
+    for (const m of rows) {
+      if (!byProp.has(m.property_id)) byProp.set(m.property_id, []);
+      byProp.get(m.property_id).push(m);
+    }
+    const groups = Array.from(byProp.entries()).map(([pid, items]) => ({
+      pid,
+      items: items.sort((a,b) => (a.due_date||'').localeCompare(b.due_date||'')),
+      first: items[0],
+    }));
+    groups.sort((a, b) => {
+      const ac = a.first.targetClose || '9999-12-31';
+      const bc = b.first.targetClose || '9999-12-31';
+      return ac.localeCompare(bc);
+    });
+
+    const dealCount = byProp.size;
+    let html = '';
+    html += '<div class="listing-filter-bar">';
+    html += '  <span class="label">Showing ' + dealCount + ' deal' + (dealCount===1?'':'s') + '</span>';
+    html += '  <span style="flex:1"></span>';
+    html += '  <span class="sort-note">Sorted by: closest COE first</span>';
+    html += '</div>';
+
+    const today = todayStr();
+    for (const g of groups) {
+      const first = g.first;
+      const fullForProp = milestones.filter(m => m.property_id === g.pid);
+      const totalCount = fullForProp.length;
+      const doneCount = fullForProp.filter(m => m.completed).length;
+      const overdueCount = fullForProp.filter(m => !m.completed && m.due_date && m.due_date < today).length;
+      const closeCountdown = first.targetClose ? daysBetween(today, first.targetClose) : null;
+      const closeSuffix = (closeCountdown !== null)
+        ? ' <span style="color:' + (closeCountdown < 0 ? 'var(--red)' : 'var(--text-3)') + '">(' + (closeCountdown < 0 ? Math.abs(closeCountdown)+'d ago' : closeCountdown+'d') + ')</span>'
+        : '';
+
+      html += '<div class="listing-block">';
+      html += '  <div class="listing-block-header">';
+      html += '    <a class="addr" href="' + escapeHtml(detailHref(first.mls)) + '">' + escapeHtml(first.address || '(no address)') + '</a>';
+      if (first.city) html += '    <span class="city">· ' + escapeHtml(first.city) + '</span>';
+      html += '    <span class="meta">';
+      if (first.escrowStart) html += '      <span><b>Escrow:</b> ' + escapeHtml(fmtMD(first.escrowStart)) + '</span>';
+      if (first.targetClose) html += '      <span><b>Target close:</b> ' + escapeHtml(fmtMD(first.targetClose)) + closeSuffix + '</span>';
+      html += '    </span>';
+      const progClass = overdueCount > 0 ? 'progress has-overdue' : 'progress';
+      const progLabel = overdueCount > 0
+        ? overdueCount + ' overdue · ' + doneCount + '/' + totalCount + ' done'
+        : doneCount + '/' + totalCount + ' done';
+      html += '    <span class="' + progClass + '">' + escapeHtml(progLabel) + '</span>';
+      html += '  </div>';
+      html += '  <div class="listing-block-body">';
+      for (const m of g.items) {
+        html += renderListingRow(m);
+        if (expandedId === m.id) html += renderExpanded(m);
+      }
+      html += '  </div>';
+      html += '</div>';
+    }
+    pane.innerHTML = html || '<div class="empty-state"><p>No milestones match the current filters.</p></div>';
+    wireRowEvents(pane);
+  }
+
+  function renderListingRow(m) {
+    const today = todayStr();
+    const isOverdue = !m.completed && m.due_date && m.due_date < today;
+    const isToday = m.due_date === today;
+    const cls = ['listing-milestone-row'];
+    if (m.completed) cls.push('done');
+    if (isOverdue) cls.push('overdue');
+    const dateCls = ['ms-date'];
+    if (isToday) dateCls.push('today');
+    if (isOverdue) dateCls.push('overdue');
+    const rel = relativeLabel(m.due_date);
+    const dotty = (m.milestone_key || '').startsWith('dotty_') ? '<span class="dotty-flag">DOTTY</span>' : '';
+    const anchor = (m.offsetDays === 0) ? 'close'
+      : (typeof m.offsetDays === 'number')
+        ? (m.offsetDays > 0 ? '+' : '') + m.offsetDays + 'd'
+        : '';
+    const catLabel = catLabelFor(m.category);
+    let html = '<div class="' + cls.join(' ') + '" data-id="' + m.id + '">';
+    html += '  <input type="checkbox" data-action="toggle" data-id="' + m.id + '"' + (m.completed?' checked':'') + '>';
+    html += '  <span class="' + dateCls.join(' ') + '">' + escapeHtml(isToday ? 'Today' : fmtMD(m.due_date)) + (rel ? '<span class="relative">' + escapeHtml(isToday ? fmtMD(m.due_date) : rel) + '</span>' : '') + '</span>';
+    html += '  <span class="ms-name">' + escapeHtml(m.display_name) + dotty + '</span>';
+    html += '  <span class="ms-anchor">' + escapeHtml(anchor) + '</span>';
+    html += '  <span class="ms-cat-pill cat-' + escapeHtml(m.category || 'task') + '">' + escapeHtml(catLabel) + '</span>';
+    html += '</div>';
+    return html;
+  }
+
+  function renderExpanded(m) {
+    const anchorText = (m.anchor && typeof m.offsetDays === 'number')
+      ? m.anchor + ' ' + (m.offsetDays >= 0 ? '+ ' + m.offsetDays : '- ' + Math.abs(m.offsetDays)) + ' days'
+      : '—';
+    const required = m.required ? 'Yes' : 'Optional';
+    const skipBtn = !m.required
+      ? '<button class="btn warn" data-action="skip" data-id="' + m.id + '">Skip (not required)</button>'
+      : '';
+    let html = '<div class="expanded" data-expanded-for="' + m.id + '">';
+    html += '  <div><label>Listing</label><div class="field-value"><a href="' + escapeHtml(detailHref(m.mls)) + '" style="color:var(--accent)">' + escapeHtml(m.address || '(no address)') + (m.city ? ', ' + escapeHtml(m.city) : '') + '</a></div></div>';
+    html += '  <div><label>Due date</label><div class="field-value">';
+    html += '    <input type="date" data-action="due-date" data-id="' + m.id + '" value="' + escapeHtml(m.due_date || '') + '" style="font-family:var(--mono); font-size:12px; padding:3px 6px; border:1px solid var(--border); border-radius:4px;">';
+    html += '  </div></div>';
+    html += '  <div><label>Anchor</label><div class="field-value" style="color:var(--text-3); font-size:12px">' + escapeHtml(anchorText) + '</div></div>';
+    html += '  <div><label>Required</label><div class="field-value" style="color:var(--text-3); font-size:12px">' + escapeHtml(required) + '</div></div>';
+    html += '  <div style="grid-column:1 / -1;"><label>Notes</label><textarea data-action="note" data-id="' + m.id + '" placeholder="Optional context">' + escapeHtml(m.notes || '') + '</textarea></div>';
+    html += '  <div class="actions">';
+    html += '    <button class="btn primary" data-action="' + (m.completed ? 'uncomplete' : 'complete') + '" data-id="' + m.id + '">' + (m.completed ? 'Mark incomplete' : 'Mark complete') + '</button>';
+    html += '    ' + skipBtn;
+    html += '    <button class="btn" data-action="collapse" data-id="' + m.id + '">Close</button>';
+    html += '  </div>';
+    html += '</div>';
+    return html;
+  }
+
+  // ─── BY-DATE pane ─────────────────────────────────────────────
+  function renderListPane() {
+    const pane = document.querySelector('[data-pane="date"]');
+    const rows = applyFilter(milestones).sort((a,b) => (a.due_date||'').localeCompare(b.due_date||''));
+    const today = todayStr();
+
+    const buckets = {
+      overdue:  { label: 'Overdue',   subLabel: 'past dates',  rows: [] },
+      today:    { label: 'Today',     subLabel: fmtMD(today),  rows: [] },
+      tomorrow: { label: 'Tomorrow',  subLabel: '',            rows: [] },
+      thisWeek: { label: 'This week', subLabel: '',            rows: [] },
+      nextWeek: { label: 'Next week', subLabel: '',            rows: [] },
+      later:    { label: 'Later',     subLabel: '',            rows: [] },
+    };
+    const todayD = parseDate(today);
+    const tomorrow = new Date(todayD.getTime() + 86400000);
+    const tomorrowStr = isoLocal(tomorrow);
+    const endThisWeek = new Date(todayD.getTime() + 7*86400000);
+    const endNextWeek = new Date(todayD.getTime() + 14*86400000);
+    buckets.tomorrow.subLabel = fmtMD(tomorrowStr);
+    buckets.thisWeek.subLabel = fmtMD(isoLocal(new Date(todayD.getTime()+2*86400000))) + ' – ' + fmtMD(isoLocal(new Date(endThisWeek.getTime()-86400000)));
+    buckets.nextWeek.subLabel = fmtMD(isoLocal(endThisWeek)) + ' – ' + fmtMD(isoLocal(new Date(endNextWeek.getTime()-86400000)));
+    buckets.later.subLabel    = fmtMD(isoLocal(endNextWeek)) + ' onward';
+
+    for (const m of rows) {
+      if (!m.due_date) { buckets.later.rows.push(m); continue; }
+      if (m.due_date < today) buckets.overdue.rows.push(m);
+      else if (m.due_date === today) buckets.today.rows.push(m);
+      else if (m.due_date === tomorrowStr) buckets.tomorrow.rows.push(m);
+      else if (m.due_date < isoLocal(endThisWeek)) buckets.thisWeek.rows.push(m);
+      else if (m.due_date < isoLocal(endNextWeek)) buckets.nextWeek.rows.push(m);
+      else buckets.later.rows.push(m);
+    }
+
+    let html = '';
+    const order = [
+      ['overdue',  'overdue'],
+      ['today',    'today'],
+      ['tomorrow', ''],
+      ['thisWeek', ''],
+      ['nextWeek', ''],
+      ['later',    ''],
+    ];
+    for (const [key, extraCls] of order) {
+      const b = buckets[key];
+      if (b.rows.length === 0) continue;
+      const dgCls = 'day-group' + (extraCls ? ' ' + extraCls : '');
+      html += '<div class="' + dgCls + '">';
+      html += '  <div class="day-group-header">';
+      html += '    <span class="day-label">' + escapeHtml(b.label) + '</span>';
+      html += '    <span class="day-date">' + escapeHtml(b.subLabel) + '</span>';
+      html += '    <span class="day-count">' + b.rows.length + ' item' + (b.rows.length===1?'':'s') + '</span>';
+      html += '  </div>';
+      for (const m of b.rows) {
+        html += renderDateRow(m);
+        if (expandedId === m.id) html += renderExpanded(m);
+      }
+      html += '</div>';
+    }
+    pane.innerHTML = html || '<div class="empty-state"><p>No milestones match the current filters.</p></div>';
+    wireRowEvents(pane);
+  }
+
+  function renderDateRow(m) {
+    const today = todayStr();
+    const isOverdue = !m.completed && m.due_date && m.due_date < today;
+    const isToday = m.due_date === today;
+    const cls = ['milestone-row'];
+    if (m.completed) cls.push('done');
+    const dateCls = ['due-date'];
+    if (isToday) dateCls.push('today');
+    if (isOverdue) dateCls.push('overdue');
+    const dueLabel = !m.due_date ? '—'
+      : isToday ? 'Today'
+      : isOverdue ? fmtMD(m.due_date) + ' (' + Math.abs(daysBetween(today, m.due_date)) + 'd ago)'
+      : fmtMD(m.due_date);
+    const dotty = (m.milestone_key || '').startsWith('dotty_') ? ' <span class="milestone-required-flag">DOTTY</span>' : '';
+    const reqFlag = !m.required ? ' <span class="milestone-required-flag">OPT</span>' : '';
+    const catLabel = catLabelFor(m.category);
+    const listingTxt = (m.address || '') + (m.city ? ', ' + m.city : '');
+    let html = '<div class="' + cls.join(' ') + '" data-id="' + m.id + '">';
+    html += '  <input type="checkbox" data-action="toggle" data-id="' + m.id + '"' + (m.completed?' checked':'') + '>';
+    html += '  <span class="milestone-name">' + escapeHtml(m.display_name) + dotty + reqFlag + '</span>';
+    html += '  <a class="listing-link" href="' + escapeHtml(detailHref(m.mls)) + '">' + escapeHtml(listingTxt) + (m.mls ? '<span class="listing-mls">' + escapeHtml(m.mls) + '</span>' : '') + '</a>';
+    html += '  <span class="' + dateCls.join(' ') + '">' + escapeHtml(dueLabel) + (m.completed ? ' ✓' : '') + '</span>';
+    html += '  <span class="cat-pill cat-' + escapeHtml(m.category || 'task') + '">' + escapeHtml(catLabel) + '</span>';
+    html += '</div>';
+    return html;
+  }
+
+  // ─── MONTH pane ───────────────────────────────────────────────
+  function renderMonthPane() {
+    const pane = document.querySelector('[data-pane="month"]');
+    const rows = applyFilter(milestones);
+
+    const monthStart = monthAnchor;
+    const gridStart = new Date(monthStart);
+    gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+    const gridDays = 42;
+    const byDay = new Map();
+    for (const m of rows) {
+      if (!m.due_date) continue;
+      if (!byDay.has(m.due_date)) byDay.set(m.due_date, []);
+      byDay.get(m.due_date).push(m);
+    }
+
+    const today = todayStr();
+    const monthsShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth()+1, 0);
+
+    let html = '';
+    html += '<div class="month-header">';
+    html += '  <div class="month-nav">';
+    html += '    <button title="Previous month" data-action="month-prev">‹</button>';
+    html += '    <button title="Next month" data-action="month-next">›</button>';
+    html += '  </div>';
+    html += '  <div class="month-title">' + monthsShort[monthStart.getMonth()] + ' ' + monthStart.getDate() + ' – ' + monthsShort[monthEnd.getMonth()] + ' ' + monthEnd.getDate() + ', ' + monthStart.getFullYear() + '</div>';
+    html += '  <button class="month-today-btn" data-action="month-today">Today</button>';
+    html += '  <div class="legend">';
+    html += '    <span class="legend-item"><span class="legend-dot" style="background:var(--blue)"></span>Doc</span>';
+    html += '    <span class="legend-item"><span class="legend-dot" style="background:var(--amber)"></span>Contingency</span>';
+    html += '    <span class="legend-item"><span class="legend-dot" style="background:var(--purple)"></span>Walkthrough</span>';
+    html += '    <span class="legend-item"><span class="legend-dot" style="background:var(--green)"></span>Task</span>';
+    html += '    <span class="legend-item"><span class="legend-dot" style="background:var(--red)"></span>Overdue</span>';
+    html += '  </div>';
+    html += '</div>';
+    html += '<div class="weekday-headers">';
+    for (const w of ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']) html += '<div class="weekday">' + w + '</div>';
+    html += '</div>';
+    html += '<div class="month-grid">';
+
+    for (let i = 0; i < gridDays; i++) {
+      const cellD = new Date(gridStart.getTime() + i*86400000);
+      const cellStr = isoLocal(cellD);
+      const inMonth = (cellD.getMonth() === monthStart.getMonth());
+      const isToday = (cellStr === today);
+      const isWeekend = (cellD.getDay() === 0 || cellD.getDay() === 6);
+      const cls = ['day-cell'];
+      if (!inMonth) cls.push('outside-month');
+      if (isToday) cls.push('today');
+      if (isWeekend) cls.push('weekend');
+      html += '<div class="' + cls.join(' ') + '">';
+      const monthLabel = (cellD.getDate() === 1) ? monthsShort[cellD.getMonth()] + ' 1' : String(cellD.getDate());
+      html += '  <div class="day-num">' + escapeHtml(monthLabel + (isToday ? ' · Today' : '')) + '</div>';
+      const dayRows = byDay.get(cellStr) || [];
+      const maxShow = 4;
+      const shown = dayRows.slice(0, maxShow);
+      for (const m of shown) {
+        const isCOE = (m.milestone_key === 'close_of_escrow') || (m.offsetDays === 0);
+        const isOverdue = !m.completed && m.due_date < today;
+        const pillCls = ['event-pill'];
+        if (isCOE) pillCls.push('coe');
+        else pillCls.push('cat-' + (m.category || 'task'));
+        if (isOverdue && !isCOE) pillCls.push('overdue');
+        if (m.completed) pillCls.push('done');
+        const title = (m.display_name || '') + ' · ' + (m.address || '') + (m.city ? ', ' + m.city : '');
+        html += '<div class="' + pillCls.join(' ') + '" data-action="open" data-id="' + m.id + '" title="' + escapeHtml(title) + '">';
+        if (isCOE) {
+          html += 'COE · ' + escapeHtml(listingInit(m.address));
+        } else {
+          html += escapeHtml(m.display_name || '') + '<span class="listing-init">' + escapeHtml(listingInit(m.address)) + '</span>';
+        }
+        html += '</div>';
+      }
+      if (dayRows.length > maxShow) {
+        html += '<div class="day-overflow">+ ' + (dayRows.length - maxShow) + ' more</div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    pane.innerHTML = html;
+    wireMonthEvents(pane);
+  }
+
+  // ─── Mutations ────────────────────────────────────────────────
+  async function markComplete(id, completed) {
+    const { error } = await sb.from('escrow_milestones').update({
+      completed,
+      completed_at: completed ? new Date().toISOString() : null,
+      completed_by: completed ? (window.CURRENT_USER?.id || null) : null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    if (error) { alert('Mark complete failed: ' + error.message); return; }
+    await loadMilestones();
+  }
+
+  async function editDueDate(id, newDate) {
+    const { error } = await sb.from('escrow_milestones').update({
+      due_date: newDate,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    if (error) { alert('Date update failed: ' + error.message); return; }
+    await loadMilestones();
+  }
+
+  async function skipOptional(id) {
+    const { error } = await sb.from('escrow_milestones').update({
+      completed: true,
+      completed_at: new Date().toISOString(),
+      completed_by: window.CURRENT_USER?.id || null,
+      notes: 'Skipped — N/A',
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    if (error) { alert('Skip failed: ' + error.message); return; }
+    await loadMilestones();
+  }
+
+  async function saveNote(id, notes) {
+    const { error } = await sb.from('escrow_milestones').update({
+      notes,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    if (error) console.warn('Save note failed:', error.message);
+    const local = milestones.find(m => m.id === id);
+    if (local) local.notes = notes;
+  }
+
+  // ─── Event wiring ─────────────────────────────────────────────
+  function wireRowEvents(pane) {
+    pane.querySelectorAll('[data-action]').forEach(el => {
+      const action = el.dataset.action;
+      const id = Number(el.dataset.id);
+      if (!id) return;
+      if (el.tagName === 'INPUT' && el.type === 'checkbox' && action === 'toggle') {
+        el.addEventListener('change', (e) => { e.stopPropagation(); markComplete(id, el.checked); });
+        el.addEventListener('click', e => e.stopPropagation());
+      } else if (el.tagName === 'INPUT' && el.type === 'date' && action === 'due-date') {
+        el.addEventListener('change', (e) => { e.stopPropagation(); editDueDate(id, el.value); });
+        el.addEventListener('click', e => e.stopPropagation());
+      } else if (el.tagName === 'TEXTAREA' && action === 'note') {
+        el.addEventListener('blur', () => saveNote(id, el.value));
+        el.addEventListener('click', e => e.stopPropagation());
+      } else if (action === 'complete') {
+        el.addEventListener('click', (e) => { e.stopPropagation(); markComplete(id, true); });
+      } else if (action === 'uncomplete') {
+        el.addEventListener('click', (e) => { e.stopPropagation(); markComplete(id, false); });
+      } else if (action === 'skip') {
+        el.addEventListener('click', (e) => { e.stopPropagation(); skipOptional(id); });
+      } else if (action === 'collapse') {
+        el.addEventListener('click', (e) => { e.stopPropagation(); expandedId = null; renderAll(); });
+      }
+    });
+    pane.querySelectorAll('[data-id]').forEach(row => {
+      if (row.classList.contains('listing-milestone-row') || row.classList.contains('milestone-row')) {
+        row.addEventListener('click', (e) => {
+          if (e.target.closest('a, input, textarea, button')) return;
+          const id = Number(row.dataset.id);
+          expandedId = (expandedId === id) ? null : id;
+          renderAll();
+        });
+      }
+    });
+  }
+
+  function wireMonthEvents(pane) {
+    pane.querySelectorAll('[data-action="month-prev"]').forEach(b => b.addEventListener('click', () => { monthAnchor = addMonths(monthAnchor, -1); renderMonthPane(); }));
+    pane.querySelectorAll('[data-action="month-next"]').forEach(b => b.addEventListener('click', () => { monthAnchor = addMonths(monthAnchor,  1); renderMonthPane(); }));
+    pane.querySelectorAll('[data-action="month-today"]').forEach(b => b.addEventListener('click', () => { monthAnchor = startOfMonth(new Date()); renderMonthPane(); }));
+    pane.querySelectorAll('[data-action="open"]').forEach(p => {
+      p.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = Number(p.dataset.id);
+        activeView = 'listing';
+        document.querySelectorAll('.toggle-views button').forEach(b => b.classList.toggle('on', b.dataset.view === 'listing'));
+        expandedId = id;
+        renderAll();
+      });
+    });
+  }
+
+  // ─── Toggle views ─────────────────────────────────────────────
+  document.querySelectorAll('.toggle-views button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.toggle-views button').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      activeView = btn.dataset.view;
+      document.querySelectorAll('[data-pane]').forEach(p => {
+        p.style.display = (p.dataset.pane === activeView) ? 'block' : 'none';
+      });
+    });
+  });
+
+  // ─── Filter chips ─────────────────────────────────────────────
+  document.querySelectorAll('#filterChips .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      if (chip.dataset.cat) {
+        document.querySelectorAll('#filterChips .chip[data-cat]').forEach(c => c.classList.remove('on'));
+        chip.classList.add('on');
+        activeFilter.cat = chip.dataset.cat;
+      } else if (chip.dataset.toggle === 'overdue') {
+        chip.classList.toggle('on');
+        activeFilter.overdueOnly = chip.classList.contains('on');
+      } else if (chip.dataset.toggle === 'completed') {
+        chip.classList.toggle('on');
+        activeFilter.showCompleted = chip.classList.contains('on');
+      }
+      renderAll();
+    });
+  });
+
+  // ─── Init ─────────────────────────────────────────────────────
+  await loadMilestones();
+})();
+</script>
+
+</body>
+</html>
