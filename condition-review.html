@@ -153,11 +153,11 @@
   <select id="fCity" onchange="resetAndLoad()"><option value="">All Cities</option></select>
   <select id="fTier" onchange="resetAndLoad()">
     <option value="">All Tiers</option>
-    <option value="1">1 — Teardown</option>
-    <option value="2">2 — Distressed</option>
-    <option value="3">3 — Half-ass flip</option>
-    <option value="4">4 — Solid flip</option>
-    <option value="5">5 — High-end</option>
+    <option value="1">1 — Distressed</option>
+    <option value="2">2 — Dated (livable)</option>
+    <option value="3">3 — Modern (livable)</option>
+    <option value="4">4 — Lipstick flip</option>
+    <option value="5">5 — Nice flip</option>
   </select>
   <select id="fConfidence" onchange="resetAndLoad()">
     <option value="">All Confidence</option>
@@ -189,7 +189,7 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;  // expose for auth.js
 
-const TIER_LABELS={1:'Teardown / gut',2:'Distressed',3:'Half-ass flip',4:'Solid flip',5:'High-end / new'};
+const TIER_LABELS={1:'Distressed',2:'Dated (livable)',3:'Modern (livable)',4:'Lipstick flip',5:'Nice flip'};
 const PAGE_SIZE=20;
 let currentPage=0;
 let totalCount=0;
