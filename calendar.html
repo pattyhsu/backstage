@@ -65,6 +65,13 @@ body { overflow:hidden; height:100vh; }
   box-sizing:border-box;
 }
 
+/* Pin filter chips + view toggle to the top of the scrolling .main pane */
+.main > .page-header {
+  position:sticky;
+  top:0;
+  z-index:10;
+}
+
 /* HEADER */
 .page-header {
   display:flex; align-items:center; gap:14px;
@@ -90,10 +97,8 @@ body { overflow:hidden; height:100vh; }
   user-select:none;
 }
 .chip.on { background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
-.chip.cat-doc.on { background:var(--blue-bg); color:var(--blue); border-color:var(--blue); }
-.chip.cat-contingency.on { background:var(--amber-bg); color:var(--amber); border-color:var(--amber); }
-.chip.cat-walkthrough.on { background:var(--purple-bg); color:var(--purple); border-color:var(--purple); }
-.chip.cat-task.on { background:var(--green-bg); color:var(--green); border-color:var(--green); }
+.chip.cat-acquisition.on { background:var(--amber-bg); color:var(--amber); border-color:var(--amber); }
+.chip.cat-design.on      { background:var(--purple-bg); color:var(--purple); border-color:var(--purple); }
 
 .toggle-views {
   display:flex; gap:0;
@@ -191,7 +196,7 @@ body { overflow:hidden; height:100vh; }
 .listing-block-body { padding:0; }
 .listing-milestone-row {
   display:grid;
-  grid-template-columns:22px 80px 1fr 90px 110px;
+  grid-template-columns:22px 60px 1fr 100px 110px;
   align-items:center;
   gap:12px;
   padding:8px 16px;
@@ -215,12 +220,10 @@ body { overflow:hidden; height:100vh; }
 }
 .ms-date.today { color:var(--accent); font-weight:800; }
 .ms-date.overdue { color:var(--red); font-weight:800; }
-.ms-date .relative { display:block; font-size:9px; color:var(--text-4); font-weight:500; margin-top:1px; }
-.ms-date.overdue .relative { color:var(--red); }
 
 .ms-name { font-weight:600; }
 .ms-name .dotty-flag { font-size:8px; color:var(--text-4); font-weight:700; margin-left:6px; vertical-align:middle; letter-spacing:.4px; }
-.ms-anchor { font-size:10px; color:var(--text-4); text-align:center; }
+.ms-relative { font-family:var(--mono); font-size:11px; color:var(--text-3); text-align:center; }
 .ms-cat-pill {
   font-size:9px; font-weight:700;
   padding:2px 8px;
@@ -230,10 +233,8 @@ body { overflow:hidden; height:100vh; }
   text-align:center;
   width:fit-content;
 }
-.ms-cat-pill.cat-doc { background:var(--blue-bg); color:var(--blue); }
-.ms-cat-pill.cat-contingency { background:var(--amber-bg); color:var(--amber); }
-.ms-cat-pill.cat-walkthrough { background:var(--purple-bg); color:var(--purple); }
-.ms-cat-pill.cat-task { background:var(--green-bg); color:var(--green); }
+.ms-cat-pill.cat-acquisition { background:var(--amber-bg); color:var(--amber); }
+.ms-cat-pill.cat-design      { background:var(--purple-bg); color:var(--purple); }
 
 /* BY-DATE */
 .day-group { margin-bottom:18px; }
@@ -294,10 +295,8 @@ body { overflow:hidden; height:100vh; }
   text-align:center;
   width:fit-content;
 }
-.cat-pill.cat-doc { background:var(--blue-bg); color:var(--blue); }
-.cat-pill.cat-contingency { background:var(--amber-bg); color:var(--amber); }
-.cat-pill.cat-walkthrough { background:var(--purple-bg); color:var(--purple); }
-.cat-pill.cat-task { background:var(--green-bg); color:var(--green); }
+.cat-pill.cat-acquisition { background:var(--amber-bg); color:var(--amber); }
+.cat-pill.cat-design      { background:var(--purple-bg); color:var(--purple); }
 
 /* EXPANDED detail */
 .expanded {
@@ -407,10 +406,8 @@ body { overflow:hidden; height:100vh; }
   opacity:.6;
   margin-left:3px;
 }
-.event-pill.cat-doc { background:var(--blue-bg); color:var(--blue); border-left-color:var(--blue); }
-.event-pill.cat-contingency { background:var(--amber-bg); color:var(--amber); border-left-color:var(--amber); }
-.event-pill.cat-walkthrough { background:var(--purple-bg); color:var(--purple); border-left-color:var(--purple); }
-.event-pill.cat-task { background:var(--green-bg); color:var(--green); border-left-color:var(--green); }
+.event-pill.cat-acquisition { background:var(--amber-bg); color:var(--amber); border-left-color:var(--amber); }
+.event-pill.cat-design      { background:var(--purple-bg); color:var(--purple); border-left-color:var(--purple); }
 .event-pill.overdue { background:var(--red-bg); color:var(--red); border-left:3px solid var(--red); font-weight:800; }
 .event-pill.done { opacity:.45; text-decoration:line-through; font-weight:500; }
 .event-pill.coe { background:var(--green); color:#fff; font-weight:800; border-left-color:var(--green); }
@@ -430,11 +427,8 @@ body { overflow:hidden; height:100vh; }
       <div class="page-title">Calendar</div>
       <div class="filters" id="filterChips">
         <span class="chip on" data-cat="all">All</span>
-        <span class="chip cat-doc" data-cat="document">Documents</span>
-        <span class="chip cat-contingency" data-cat="contingency">Contingencies</span>
-        <span class="chip cat-walkthrough" data-cat="walkthrough">Walkthroughs</span>
-        <span class="chip cat-task" data-cat="task">Tasks</span>
-        <span class="chip" data-toggle="overdue">Overdue only</span>
+        <span class="chip cat-acquisition" data-cat="acquisition">Acquisition</span>
+        <span class="chip cat-design" data-cat="design">Design</span>
         <span class="chip" data-toggle="completed">Show completed</span>
       </div>
       <div class="toggle-views">
@@ -471,7 +465,7 @@ window.sb=sb;
 
   // ─── State ────────────────────────────────────────────────────
   let milestones = [];
-  let activeFilter = { cat: 'all', overdueOnly: false, showCompleted: false };
+  let activeFilter = { cat: 'all', showCompleted: false };
   let activeView = 'listing';
   let expandedId = null;
   let monthAnchor = startOfMonth(new Date());
@@ -495,8 +489,7 @@ window.sb=sb;
   }
   function fmtMD(s) {
     const d = parseDate(s); if (!d) return '';
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return months[d.getMonth()] + ' ' + d.getDate();
+    return (d.getMonth()+1) + '/' + d.getDate();
   }
   function relativeLabel(dateStr) {
     const today = todayStr();
@@ -523,7 +516,7 @@ window.sb=sb;
     return 'project-detail.html?mls=' + encodeURIComponent(mls);
   }
   function catLabelFor(cat) {
-    return ({ document: 'Doc', contingency: 'Contingency', walkthrough: 'Walkthrough', task: 'Task' })[cat] || (cat || 'Task');
+    return ({ acquisition: 'Acquisition', design: 'Design' })[cat] || (cat || '');
   }
 
   // ─── Load (single query, JOIN templates + properties) ─────────
@@ -555,7 +548,7 @@ window.sb=sb;
       completed_at: r.completed_at,
       completed_by: r.completed_by,
       notes: r.notes || '',
-      category: r.escrow_milestone_templates?.category || 'task',
+      category: r.escrow_milestone_templates?.category || '',
       required: r.escrow_milestone_templates?.required !== false,
       anchor: r.escrow_milestone_templates?.default_anchor || null,
       offsetDays: r.escrow_milestone_templates?.default_offset_days,
@@ -570,10 +563,8 @@ window.sb=sb;
 
   // ─── Filter ───────────────────────────────────────────────────
   function applyFilter(rows) {
-    const today = todayStr();
     return rows.filter(m => {
       if (!activeFilter.showCompleted && m.completed) return false;
-      if (activeFilter.overdueOnly && (m.completed || !m.due_date || m.due_date >= today)) return false;
       if (activeFilter.cat !== 'all' && m.category !== activeFilter.cat) return false;
       return true;
     });
@@ -689,17 +680,13 @@ window.sb=sb;
     if (isOverdue) dateCls.push('overdue');
     const rel = relativeLabel(m.due_date);
     const dotty = (m.milestone_key || '').startsWith('dotty_') ? '<span class="dotty-flag">DOTTY</span>' : '';
-    const anchor = (m.offsetDays === 0) ? 'close'
-      : (typeof m.offsetDays === 'number')
-        ? (m.offsetDays > 0 ? '+' : '') + m.offsetDays + 'd'
-        : '';
     const catLabel = catLabelFor(m.category);
     let html = '<div class="' + cls.join(' ') + '" data-id="' + m.id + '">';
     html += '  <input type="checkbox" data-action="toggle" data-id="' + m.id + '"' + (m.completed?' checked':'') + '>';
-    html += '  <span class="' + dateCls.join(' ') + '">' + escapeHtml(isToday ? 'Today' : fmtMD(m.due_date)) + (rel ? '<span class="relative">' + escapeHtml(isToday ? fmtMD(m.due_date) : rel) + '</span>' : '') + '</span>';
+    html += '  <span class="' + dateCls.join(' ') + '">' + escapeHtml(fmtMD(m.due_date)) + '</span>';
     html += '  <span class="ms-name">' + escapeHtml(m.display_name) + dotty + '</span>';
-    html += '  <span class="ms-anchor">' + escapeHtml(anchor) + '</span>';
-    html += '  <span class="ms-cat-pill cat-' + escapeHtml(m.category || 'task') + '">' + escapeHtml(catLabel) + '</span>';
+    html += '  <span class="ms-relative">' + escapeHtml(rel) + '</span>';
+    html += '  <span class="ms-cat-pill cat-' + escapeHtml(m.category || '') + '">' + escapeHtml(catLabel) + '</span>';
     html += '</div>';
     return html;
   }
@@ -814,7 +801,7 @@ window.sb=sb;
     html += '  <span class="milestone-name">' + escapeHtml(m.display_name) + dotty + reqFlag + '</span>';
     html += '  <a class="listing-link" href="' + escapeHtml(detailHref(m.mls)) + '">' + escapeHtml(listingTxt) + (m.mls ? '<span class="listing-mls">' + escapeHtml(m.mls) + '</span>' : '') + '</a>';
     html += '  <span class="' + dateCls.join(' ') + '">' + escapeHtml(dueLabel) + (m.completed ? ' ✓' : '') + '</span>';
-    html += '  <span class="cat-pill cat-' + escapeHtml(m.category || 'task') + '">' + escapeHtml(catLabel) + '</span>';
+    html += '  <span class="cat-pill cat-' + escapeHtml(m.category || '') + '">' + escapeHtml(catLabel) + '</span>';
     html += '</div>';
     return html;
   }
@@ -836,7 +823,6 @@ window.sb=sb;
     }
 
     const today = todayStr();
-    const monthsShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth()+1, 0);
 
     let html = '';
@@ -845,13 +831,11 @@ window.sb=sb;
     html += '    <button title="Previous month" data-action="month-prev">‹</button>';
     html += '    <button title="Next month" data-action="month-next">›</button>';
     html += '  </div>';
-    html += '  <div class="month-title">' + monthsShort[monthStart.getMonth()] + ' ' + monthStart.getDate() + ' – ' + monthsShort[monthEnd.getMonth()] + ' ' + monthEnd.getDate() + ', ' + monthStart.getFullYear() + '</div>';
+    html += '  <div class="month-title">' + (monthStart.getMonth()+1) + '/' + monthStart.getDate() + ' – ' + (monthEnd.getMonth()+1) + '/' + monthEnd.getDate() + ', ' + monthStart.getFullYear() + '</div>';
     html += '  <button class="month-today-btn" data-action="month-today">Today</button>';
     html += '  <div class="legend">';
-    html += '    <span class="legend-item"><span class="legend-dot" style="background:var(--blue)"></span>Doc</span>';
-    html += '    <span class="legend-item"><span class="legend-dot" style="background:var(--amber)"></span>Contingency</span>';
-    html += '    <span class="legend-item"><span class="legend-dot" style="background:var(--purple)"></span>Walkthrough</span>';
-    html += '    <span class="legend-item"><span class="legend-dot" style="background:var(--green)"></span>Task</span>';
+    html += '    <span class="legend-item"><span class="legend-dot" style="background:var(--amber)"></span>Acquisition</span>';
+    html += '    <span class="legend-item"><span class="legend-dot" style="background:var(--purple)"></span>Design</span>';
     html += '    <span class="legend-item"><span class="legend-dot" style="background:var(--red)"></span>Overdue</span>';
     html += '  </div>';
     html += '</div>';
@@ -871,7 +855,7 @@ window.sb=sb;
       if (isToday) cls.push('today');
       if (isWeekend) cls.push('weekend');
       html += '<div class="' + cls.join(' ') + '">';
-      const monthLabel = (cellD.getDate() === 1) ? monthsShort[cellD.getMonth()] + ' 1' : String(cellD.getDate());
+      const monthLabel = (cellD.getDate() === 1) ? (cellD.getMonth()+1) + '/1' : String(cellD.getDate());
       html += '  <div class="day-num">' + escapeHtml(monthLabel + (isToday ? ' · Today' : '')) + '</div>';
       const dayRows = byDay.get(cellStr) || [];
       const maxShow = 4;
@@ -881,7 +865,7 @@ window.sb=sb;
         const isOverdue = !m.completed && m.due_date < today;
         const pillCls = ['event-pill'];
         if (isCOE) pillCls.push('coe');
-        else pillCls.push('cat-' + (m.category || 'task'));
+        else pillCls.push('cat-' + (m.category || ''));
         if (isOverdue && !isCOE) pillCls.push('overdue');
         if (m.completed) pillCls.push('done');
         const title = (m.display_name || '') + ' · ' + (m.address || '') + (m.city ? ', ' + m.city : '');
@@ -1018,9 +1002,6 @@ window.sb=sb;
         document.querySelectorAll('#filterChips .chip[data-cat]').forEach(c => c.classList.remove('on'));
         chip.classList.add('on');
         activeFilter.cat = chip.dataset.cat;
-      } else if (chip.dataset.toggle === 'overdue') {
-        chip.classList.toggle('on');
-        activeFilter.overdueOnly = chip.classList.contains('on');
       } else if (chip.dataset.toggle === 'completed') {
         chip.classList.toggle('on');
         activeFilter.showCompleted = chip.classList.contains('on');
