@@ -452,6 +452,17 @@ async function moveStage(){
     return;
   }
 
+  // Brief AP — seed escrow milestones on transitions into in_escrow.
+  // Soft-fail; milestone-seed failure must not block the stage move.
+  if(toStage==='in_escrow' && escrowStart && targetClose){
+    const{error:rpcErr}=await sb.rpc('seed_escrow_milestones',{
+      p_property_id: currentProperty.id,
+      p_escrow_start_date: escrowStart,
+      p_target_close_date: targetClose,
+    });
+    if(rpcErr)console.warn('[moveStage] seed_escrow_milestones failed:',rpcErr.message);
+  }
+
   saving=false;
   btn.disabled=false;
   noteEl.value='';
@@ -582,6 +593,16 @@ async function saveEscrowDates(){
     msgEl.textContent='Save failed: '+error.message;
     return;
   }
+
+  // Brief AP — seed (or no-op if already seeded) escrow milestones.
+  // Idempotent on (property_id, milestone_key).
+  const{error:rpcErr}=await sb.rpc('seed_escrow_milestones',{
+    p_property_id: currentProperty.id,
+    p_escrow_start_date: start,
+    p_target_close_date: close,
+  });
+  if(rpcErr)console.warn('[saveEscrowDates] seed_escrow_milestones failed:',rpcErr.message);
+
   msgEl.className='move-msg ok';
   msgEl.textContent='Saved.';
   await loadProject();
