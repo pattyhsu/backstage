@@ -155,9 +155,10 @@
     <option value="">All Tiers</option>
     <option value="1">1 — Distressed</option>
     <option value="2">2 — Dated (livable)</option>
-    <option value="3">3 — Modern (livable)</option>
-    <option value="4">4 — Lipstick flip</option>
-    <option value="5">5 — Nice flip</option>
+    <option value="3">3 — Modern (owner)</option>
+    <option value="4">4 — Lived-in flip-quality</option>
+    <option value="5">5 — Lipstick flip</option>
+    <option value="6">6 — Nice flip</option>
   </select>
   <select id="fConfidence" onchange="resetAndLoad()">
     <option value="">All Confidence</option>
@@ -189,7 +190,7 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;  // expose for auth.js
 
-const TIER_LABELS={1:'Distressed',2:'Dated (livable)',3:'Modern (livable)',4:'Lipstick flip',5:'Nice flip'};
+const TIER_LABELS={1:'Distressed',2:'Dated (livable)',3:'Modern (owner)',4:'Lived-in flip-quality',5:'Lipstick flip',6:'Nice flip'};
 const PAGE_SIZE=20;
 let currentPage=0;
 let totalCount=0;
@@ -269,7 +270,7 @@ function renderCard(p){
     ? photos.map(url=>`<img src="${esc(url)}" loading="lazy" onclick="openLightbox(${esc(JSON.stringify(photos))})">`).join('')
     : '<div style="padding:20px;color:var(--text-4);font-size:13px">No sample photos stored</div>';
 
-  const tierBtns=[1,2,3,4,5].map(t=>{
+  const tierBtns=[1,2,3,4,5,6].map(t=>{
     const cls=t===p.condition_tier?(isOverridden?'tier-btn overridden':'tier-btn active'):'tier-btn';
     return `<button class="${cls}" onclick="overrideTier('${p.id}',${t},this)">${t}</button>`;
   }).join('');
