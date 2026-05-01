@@ -37,7 +37,7 @@
   .card-top { display:grid; grid-template-columns:auto 1fr; gap:0; }
 
   /* Photo strip */
-  .photo-strip { display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:3px; padding:12px; max-width:520px; background:var(--bg-page); }
+  .photo-strip { display:grid; grid-template-columns:repeat(4, 1fr); gap:4px; padding:12px; width:520px; background:var(--bg-page); align-content:start; }
   .photo-strip img { width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:var(--radius-sm); cursor:pointer; }
   .photo-strip img:hover { opacity:.85; }
 
@@ -280,19 +280,24 @@ async function loadCards(){
 }
 
 function renderCard(p){
-  // Synthesize R2 URLs from photo_count instead of reading
-  // condition_sample_photos (which stores Toshiba file:// paths from
-  // Phase 2's worker — not browser-loadable). Show all photos so the
-  // reviewer can see what vision didn't see.
-  const photos=photoUrls(p.mls, p.photo_count||0);
+  // Show 4 preview thumbnails (photos 1, 5, 10, 15) on the card.
+  // Clicking any of them opens the lightbox at that photo's position
+  // with full-gallery navigation across all photo_count photos.
+  // Falls back gracefully when photo_count < 15.
+  const totalPhotos=p.photo_count||0;
+  const previewNums=[1,5,10,15].filter(n=>n<=totalPhotos);
   const price=p.sale_price||p.list_price;
   const priceStr=price?'$'+Number(price).toLocaleString():'—';
   const tierLabel=TIER_LABELS[p.condition_tier]||'—';
   const isOverridden=p.condition_overridden===true;
 
-  const photoHtml=photos.length>0
-    ? photos.map((url,idx)=>`<img src="${esc(url)}" loading="lazy" onerror="this.style.display='none'" onclick="openLightbox('${esc(p.mls)}', ${p.photo_count||0}, ${idx})">`).join('')
-    : `<div style="padding:20px;color:var(--text-4);font-size:13px">No photos available (photo_count=${p.photo_count||0})</div>`;
+  const photoHtml=previewNums.length>0
+    ? previewNums.map(n=>{
+        const url=`${PHOTO_BASE}/${p.mls}/${p.mls}_${String(n).padStart(2,'0')}.jpg`;
+        const idx=n-1;  // 0-based for openLightbox
+        return `<img src="${esc(url)}" loading="lazy" onerror="this.style.display='none'" onclick="openLightbox('${esc(p.mls)}', ${totalPhotos}, ${idx})" title="Photo ${n} of ${totalPhotos} — click to browse all">`;
+      }).join('')
+    : `<div style="padding:20px;color:var(--text-4);font-size:13px">No photos available (photo_count=${totalPhotos})</div>`;
 
   const tierBtns=[1,2,3,4,5,6].map(t=>{
     const cls=t===p.condition_tier?(isOverridden?'tier-btn overridden':'tier-btn active'):'tier-btn';
