@@ -60,11 +60,15 @@
   .confidence-tag.medium { background:var(--amber-bg); color:var(--amber); }
   .confidence-tag.low { background:var(--red-bg); color:var(--red); }
 
-  .tier-buttons { display:flex; gap:4px; margin-left:auto; }
+  .tier-buttons { display:flex; gap:4px; margin-left:auto; align-items:center; }
   .tier-btn { width:36px; height:32px; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); font-family:var(--mono); font-size:13px; font-weight:600; color:var(--text-3); cursor:pointer; transition:all .12s; }
   .tier-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
   .tier-btn.active { border-color:var(--accent); background:var(--accent); color:#fff; }
   .tier-btn.overridden { border-color:var(--blue); background:var(--blue); color:#fff; }
+  .tier-divider { width:1px; height:24px; background:var(--border); margin:0 4px; }
+  .reviewed-btn { padding:0 10px; height:32px; border:1.5px solid var(--green); border-radius:var(--radius-sm); background:var(--bg); font-family:inherit; font-size:12.5px; font-weight:600; color:var(--green); cursor:pointer; transition:all .12s; display:inline-flex; align-items:center; gap:4px; }
+  .reviewed-btn:hover { background:var(--green-bg); }
+  .reviewed-btn:disabled { opacity:.4; cursor:default; border-color:var(--border); color:var(--text-4); background:var(--bg); }
 
   .overridden-badge { font-size:11px; font-weight:600; padding:3px 8px; border-radius:10px; background:var(--blue-bg); color:var(--blue); text-transform:uppercase; letter-spacing:.5px; }
 
@@ -303,6 +307,10 @@ function renderCard(p){
     const cls=t===p.condition_tier?(isOverridden?'tier-btn overridden':'tier-btn active'):'tier-btn';
     return `<button class="${cls}" onclick="overrideTier('${p.id}',${t},this)">${t}</button>`;
   }).join('');
+  // Confirm-as-reviewed button — calls overrideTier with the current tier so
+  // condition_overridden flips to true without changing the tier number.
+  // Disabled if already overridden (no point clicking again).
+  const reviewedBtn = `<span class="tier-divider"></span><button class="reviewed-btn" ${isOverridden?'disabled title="Already reviewed"':`onclick="overrideTier('${p.id}',${p.condition_tier},event.currentTarget.parentElement.querySelectorAll('.tier-btn')[${p.condition_tier-1}])" title="Confirm AI tier (mark reviewed)"`}>✓ Reviewed</button>`;
 
   return `
     <div class="prop-card" data-id="${p.id}">
@@ -324,8 +332,8 @@ function renderCard(p){
       <div class="score-row">
         <span class="score-label">Tier <strong>${p.condition_tier}</strong> — ${tierLabel}</span>
         <span class="confidence-tag ${p.condition_confidence||''}">${p.condition_confidence||'—'}</span>
-        ${isOverridden?'<span class="overridden-badge">Overridden</span>':''}
-        <div class="tier-buttons">${tierBtns}</div>
+        ${isOverridden?'<span class="overridden-badge">Reviewed</span>':''}
+        <div class="tier-buttons">${tierBtns}${reviewedBtn}</div>
       </div>
     </div>`;
 }
