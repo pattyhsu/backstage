@@ -1191,7 +1191,9 @@ async function onAddrSearchPick(mls){
     alert(`Could not load listing ${mls}: ${error?.message||'not found'}`);
     return;
   }
-  opn(mls,mapRowToListing(data));
+  const mapped=mapRowToListing(data);
+  if(!listings.find(x=>x.mls===mls))listings.push(mapped);
+  opn(mls,mapped);
 }
 
 
