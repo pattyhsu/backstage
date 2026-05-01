@@ -1069,8 +1069,8 @@ function render(){
 }
 async function updateStageCounts(){
   try{
-    const{count:ur}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
-    const{count:pt}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).eq('stage','potential');
+    const{count:ur}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).neq('change_type','sold').eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
+    const{count:pt}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).neq('change_type','sold').eq('stage','potential');
     const ue=document.getElementById('cnt-unread');if(ue)ue.textContent=ur?'('+ur+')':'';
     const pe=document.getElementById('cnt-potential');if(pe)pe.textContent=pt?'('+pt+')':'';
   }catch(e){}
