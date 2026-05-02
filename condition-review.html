@@ -360,13 +360,20 @@ async function overrideTier(id,newTier,btnEl){
   const label=card.querySelector('.score-label');
   label.innerHTML=`<strong>${TIER_LABELS[newTier]}</strong>`;
 
-  // Add overridden badge if not present
+  // Add reviewed badge if not present
   const scoreRow=card.querySelector('.score-row');
   if(!scoreRow.querySelector('.overridden-badge')){
     const badge=document.createElement('span');
     badge.className='overridden-badge';
-    badge.textContent='Overridden';
+    badge.textContent='Reviewed';
     scoreRow.querySelector('.confidence-tag').after(badge);
+  }
+
+  // Disable the ✓ Reviewed button so it doesn't look clickable post-action
+  const reviewedBtn=card.querySelector('.reviewed-btn');
+  if(reviewedBtn){
+    reviewedBtn.disabled=true;
+    reviewedBtn.title='Already reviewed';
   }
 
   await updateStats();
