@@ -27,6 +27,17 @@
   .filter-toggle { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--text-3); cursor:pointer; }
   .filter-toggle input { accent-color:var(--accent); }
 
+  /* Custom button-based dropdowns (Tesla-friendly; replaces native <select>) */
+  .chip-btn { padding: 7px 12px; background: var(--bg-page); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-family: var(--sans); font-size: 13px; cursor: pointer; min-width: 140px; text-align: left; display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .chip-btn:hover { border-color: var(--border-hover); }
+  .chip-btn::after { content: ''; display: inline-block; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid currentColor; opacity: .55; flex-shrink: 0; }
+  .chip-wrap { position: relative; display: inline-block; }
+  .chip-drop { display: none; position: absolute; top: 100%; left: 0; margin-top: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 12px rgba(0,0,0,.1); z-index: 999; min-width: 200px; max-height: 320px; overflow-y: auto; padding: 4px 0; }
+  .chip-drop.open { display: block; }
+  .chip-drop button { display: block; width: 100%; text-align: left; padding: 7px 12px; border: none; background: none; font-family: inherit; font-size: 13px; color: var(--text); cursor: pointer; }
+  .chip-drop button:hover { background: var(--bg-alt); }
+  .chip-drop button.selected { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
+
   /* Card grid */
   .card-grid { padding:24px; display:grid; grid-template-columns:1fr; gap:20px; }
 
@@ -160,22 +171,31 @@
 </div>
 
 <div class="filter-bar">
-  <select id="fCity" onchange="resetAndLoad()"><option value="">All Cities</option></select>
-  <select id="fTier" onchange="resetAndLoad()">
-    <option value="">All Conditions</option>
-    <option value="1">Distressed</option>
-    <option value="2">Dated (livable)</option>
-    <option value="3">Modern (owner)</option>
-    <option value="4">Lived-in flip-quality</option>
-    <option value="5">Cosmetic refresh (orig kitchen)</option>
-    <option value="6">Nice flip</option>
-  </select>
-  <select id="fConfidence" onchange="resetAndLoad()">
-    <option value="">All Confidence</option>
-    <option value="low">Low</option>
-    <option value="medium">Medium</option>
-    <option value="high">High</option>
-  </select>
+  <div class="chip-wrap" id="fCity-wrap">
+    <button class="chip-btn" id="fCity-btn" onclick="event.stopPropagation();toggleChipDrop('fCity-drop')"><span id="fCity-label">All Cities</span></button>
+    <div class="chip-drop" id="fCity-drop"></div>
+  </div>
+  <div class="chip-wrap" id="fTier-wrap">
+    <button class="chip-btn" id="fTier-btn" onclick="event.stopPropagation();toggleChipDrop('fTier-drop')"><span id="fTier-label">All Conditions</span></button>
+    <div class="chip-drop" id="fTier-drop">
+      <button onclick="setTierFilter('')" class="selected">All Conditions</button>
+      <button onclick="setTierFilter('1')">Distressed</button>
+      <button onclick="setTierFilter('2')">Dated (livable)</button>
+      <button onclick="setTierFilter('3')">Modern (owner)</button>
+      <button onclick="setTierFilter('4')">Lived-in flip-quality</button>
+      <button onclick="setTierFilter('5')">Cosmetic refresh (orig kitchen)</button>
+      <button onclick="setTierFilter('6')">Nice flip</button>
+    </div>
+  </div>
+  <div class="chip-wrap" id="fConfidence-wrap">
+    <button class="chip-btn" id="fConfidence-btn" onclick="event.stopPropagation();toggleChipDrop('fConfidence-drop')"><span id="fConfidence-label">All Confidence</span></button>
+    <div class="chip-drop" id="fConfidence-drop">
+      <button onclick="setConfidenceFilter('')" class="selected">All Confidence</button>
+      <button onclick="setConfidenceFilter('low')">Low</button>
+      <button onclick="setConfidenceFilter('medium')">Medium</button>
+      <button onclick="setConfidenceFilter('high')">High</button>
+    </div>
+  </div>
   <label class="filter-toggle">
     <input type="checkbox" id="fUnreviewed" onchange="resetAndLoad()">
     Unreviewed only
@@ -219,6 +239,9 @@ const PAGE_SIZE=20;
 let currentPage=0;
 let totalCount=0;
 
+// Filter state (replaces native <select> .value reads — Tesla-friendly).
+let filters={city:'',tier:'',confidence:''};
+
 // ========== INIT ==========
 async function init(){
   await populateCityDropdown();
@@ -230,9 +253,79 @@ async function populateCityDropdown(){
   const{data}=await sb.from('properties').select('city').not('condition_tier','is',null).not('city','is',null);
   if(!data)return;
   const cities=[...new Set(data.map(r=>r.city))].filter(Boolean).sort();
-  const sel=document.getElementById('fCity');
-  cities.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  const drop=document.getElementById('fCity-drop');
+  // Always-first "All Cities" option, marked selected by default.
+  let html=`<button onclick="setCityFilter('')" class="selected">All Cities</button>`;
+  html+=cities.map(c=>`<button onclick="setCityFilter(${JSON.stringify(c)})">${esc(c)}</button>`).join('');
+  drop.innerHTML=html;
 }
+
+// ========== FILTER DROPDOWN HELPERS ==========
+function toggleChipDrop(dropId){
+  const drop=document.getElementById(dropId);
+  if(!drop)return;
+  const wasOpen=drop.classList.contains('open');
+  // Close all chip-drops first so only one is open at a time.
+  document.querySelectorAll('.chip-drop').forEach(d=>d.classList.remove('open'));
+  if(!wasOpen) drop.classList.add('open');
+}
+
+function setCityFilter(value){
+  filters.city=value;
+  document.getElementById('fCity-label').textContent=value||'All Cities';
+  const drop=document.getElementById('fCity-drop');
+  drop.querySelectorAll('button').forEach(b=>b.classList.remove('selected'));
+  // Mark the clicked button (the one whose onclick matches this value) selected.
+  drop.querySelectorAll('button').forEach(b=>{
+    const oc=b.getAttribute('onclick')||'';
+    if(oc===`setCityFilter(${JSON.stringify(value)})`) b.classList.add('selected');
+  });
+  drop.classList.remove('open');
+  resetAndLoad();
+}
+
+function setTierFilter(value){
+  filters.tier=value;
+  const labels={'':'All Conditions','1':'Distressed','2':'Dated (livable)','3':'Modern (owner)','4':'Lived-in flip-quality','5':'Cosmetic refresh (orig kitchen)','6':'Nice flip'};
+  document.getElementById('fTier-label').textContent=labels[value]||'All Conditions';
+  const drop=document.getElementById('fTier-drop');
+  drop.querySelectorAll('button').forEach(b=>b.classList.remove('selected'));
+  drop.querySelectorAll('button').forEach(b=>{
+    const oc=b.getAttribute('onclick')||'';
+    if(oc===`setTierFilter('${value}')`) b.classList.add('selected');
+  });
+  drop.classList.remove('open');
+  resetAndLoad();
+}
+
+function setConfidenceFilter(value){
+  filters.confidence=value;
+  const labels={'':'All Confidence',low:'Low',medium:'Medium',high:'High'};
+  document.getElementById('fConfidence-label').textContent=labels[value]||'All Confidence';
+  const drop=document.getElementById('fConfidence-drop');
+  drop.querySelectorAll('button').forEach(b=>b.classList.remove('selected'));
+  drop.querySelectorAll('button').forEach(b=>{
+    const oc=b.getAttribute('onclick')||'';
+    if(oc===`setConfidenceFilter('${value}')`) b.classList.add('selected');
+  });
+  drop.classList.remove('open');
+  resetAndLoad();
+}
+
+// Outside-click + Escape close any open chip-drop.
+document.addEventListener('click',e=>{
+  document.querySelectorAll('.chip-wrap').forEach(wrap=>{
+    if(!wrap.contains(e.target)){
+      const drop=wrap.querySelector('.chip-drop');
+      if(drop) drop.classList.remove('open');
+    }
+  });
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    document.querySelectorAll('.chip-drop').forEach(d=>d.classList.remove('open'));
+  }
+});
 
 async function updateStats(){
   const{count:total}=await sb.from('properties').select('*',{count:'exact',head:true}).not('condition_tier','is',null);
@@ -252,10 +345,10 @@ async function loadCards(){
     .not('condition_tier','is',null)
     .order('condition_scored_at',{ascending:false});
 
-  // Filters
-  const city=document.getElementById('fCity').value;
-  const tier=document.getElementById('fTier').value;
-  const conf=document.getElementById('fConfidence').value;
+  // Filters (filter state lives in the module-level `filters` object)
+  const city=filters.city;
+  const tier=filters.tier;
+  const conf=filters.confidence;
   const unreviewed=document.getElementById('fUnreviewed').checked;
 
   if(city) query=query.eq('city',city);
