@@ -427,14 +427,12 @@ async function findComps(listing){
   if(r1.error)console.error('[Supabase sold]',r1.error);
   if(r2.error)console.error('[Supabase flips]',r2.error);
   const allComps=[...(r1.data||[]),...(r2.data||[])];
-  console.log(`[findComps] ${listing.address}: sqft=${sqft} range=${sqftMin}-${sqftMax} cutoff=${cutoffStr} lat=${lat} lon=${lon}`);
-  console.log(`[findComps] box=${boxFilter?`${boxFilter.latMin.toFixed(4)}-${boxFilter.latMax.toFixed(4)}, ${boxFilter.lngMin.toFixed(4)}-${boxFilter.lngMax.toFixed(4)}`:'none'}`);
-  console.log(`[findComps] sold query returned ${r1.data?.length||0} rows, flips query returned ${r2.data?.length||0} rows`);
-  if(r1.data?.length)console.log('[findComps] first sold comp:',r1.data[0].address,r1.data[0].city,r1.data[0].sqft,r1.data[0].sold_date,r1.data[0].latitude,r1.data[0].longitude);
-  // Debug: check if specific comps are in the raw results
-  const debugAddrs=['woodcrest','baker','1425','1501'];
-  allComps.forEach(c=>{const a=(c.address||'').toLowerCase();if(debugAddrs.some(d=>a.includes(d)))console.log('[findComps] FOUND IN RAW:',c.address,c.city,'sqft='+c.sqft,'sold='+c.sold_date,'lat='+c.latitude,'change_type='+c.change_type,'comp_type='+c.comp_type);});
-  if(!allComps.some(c=>{const a=(c.address||'').toLowerCase();return debugAddrs.some(d=>a.includes(d));}))console.log('[findComps] Woodcrest/Baker NOT in raw query results — check change_type, sqft, sold_date, or lat/lng in Supabase');
+  // Fix #6: surface silent SQL-level exclusion when subject has no geocoded coords.
+  // SQL bbox filter (q1/q2) is skipped above (boxFilter null), so the JS-side falls
+  // back to city-name match — but comps with missing coords + non-matching city are
+  // still excluded by the JS loop below. This warns when the subject itself has no
+  // coords; comps without coords are silently excluded by SQL bbox in the normal path.
+  if(!lat||!lon)console.warn(`[findComps] subject ${listing.mls} has no geocoded coords; box filter skipped, comps without coords may be excluded by SQL bbox filter`);
 
   const listingHs=(listing.high?.n||'').toLowerCase().trim(),listingHsR=listing.high?.r||0;
   const results=[];
@@ -470,7 +468,9 @@ async function findComps(listing){
     });
   }
   results.sort((a,b)=>(a.schoolMatch?0:1)-(b.schoolMatch?0:1)||(a.typePriority-b.typePriority)||((a.dist??999)-(b.dist??999)));
-  // Deduplicate by address: keep the most recent (first after sort by date desc) per address
+  // Deduplicate by address: keep the first occurrence after the sort above
+  // (school match → type priority → distance asc), so the kept row is the
+  // strongest comp for that address, not the most recent.
   // Strip street suffixes (ST, AVE, DR, etc.) so "13522 Carnaby" and "13522 Carnaby ST" match
   const normAddr=s=>s.toLowerCase().replace(/\b(st|street|ave|avenue|blvd|boulevard|dr|drive|ln|lane|ct|court|cir|circle|pl|place|way|rd|road|ter|terrace)\b/g,'').replace(/[^a-z0-9]/g,'');
   const seen=new Set();
@@ -847,7 +847,7 @@ function recalcCompSummary(mid){
   const activeMls=Object.keys(compCache).find(k=>k.replace(/[^a-zA-Z0-9]/g,'')===mid);
   if(!activeMls||!compCache[activeMls])return;
   const all=compCache[activeMls].comps,checked=[];
-  cbs.forEach((cb,i)=>{if(cb.checked&&all[i])checked.push(all[i]);});
+  cbs.forEach(cb=>{const idx=parseInt(cb.dataset.compIdx,10);if(cb.checked&&!isNaN(idx)&&all[idx])checked.push(all[idx]);});
   const avg=arr=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;
   const ppsfs=checked.map(c=>c.psf).filter(Boolean);
   const sc=document.getElementById('comp-summary-'+mid);
@@ -1125,7 +1125,7 @@ function render(){
       <div style="width:48px;height:36px;flex-shrink:0"><img class="rw-thumb" src="${thumbSrc}" alt="" data-mls="${l.mls}" data-addr="${addrFull.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();openLightbox(this.dataset.mls,this.dataset.addr)" onerror="this.style.display='none'"></div>
       <div><div class="at">${l.address} <a href="https://www.google.com/search?q=redfin+${encodeURIComponent(l.address+' '+l.city+' CA')}&btnI=1" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;vertical-align:middle"><img src="https://www.redfin.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a> <a href="https://www.zillow.com/homes/${encodeURIComponent(l.address+', '+l.city+', CA '+l.zip)}_rb/" target="_blank" onclick="event.stopPropagation()" style="vertical-align:middle"><img src="https://www.zillow.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div><div class="as">${l.beds}bd/${l.baths}ba · ${l.sqft.toLocaleString()} sf</div>${l.tags.map(tg).join('')}</div>
       <span style="color:var(--text-3);font-weight:600;font-size:12px">${(l.city||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}</span>
-      <span class="tr" style="font-weight:600;font-size:12px;padding-right:14px">${FK(l.price)}${renderDealGradePill(l.mls)}<span data-cell="de-pill" data-mls="${l.mls}">${renderAgentDeCardPill(l)}</span></span>
+      <span class="tr" style="font-weight:600;font-size:12px;padding-right:14px">${FK(l.price)}${currentFilter==='archived'&&l.price>MAX_LIST_PRICE&&l.status!=='archived'?' <span class="tag" style="background:var(--bg-alt);color:var(--text-3);border:none;font-size:9px;letter-spacing:.4px" title="Auto-hidden because list_price exceeds the $2.5M cap; not user-archived">OVER CAP</span>':''}${renderDealGradePill(l.mls)}<span data-cell="de-pill" data-mls="${l.mls}">${renderAgentDeCardPill(l)}</span></span>
       <input type="text" id="rownotes-${l.mls.replace(/[^a-zA-Z0-9]/g,'')}" data-mls="${l.mls}" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onkeydown="event.stopPropagation()" oninput="rowNotesInput(this)" onblur="rowNotesBlur(this)" value="${(l.notes||'').replace(/"/g,'&quot;')}" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box;height:28px">
       <span class="tr" style="font-size:11px;color:var(--text-3);padding-right:10px">${l.ppsf?'$'+Math.round(l.ppsf):'—'}</span>
       <span style="white-space:nowrap">${l.elem?`<span class="sp ${l.elem.r>=7?'sh':l.elem.r>=5?'sm':'sl'}" data-school="${l.elem.n}"><span class="lv">E</span>${l.elem.r}</span>`:''} ${l.mid?`<span class="sp ${l.mid.r>=7?'sh':l.mid.r>=5?'sm':'sl'}" data-school="${l.mid.n}"><span class="lv">M</span>${l.mid.r}</span>`:''} ${l.high?`<span class="sp ${l.high.r>=7?'sh':l.high.r>=5?'sm':'sl'}" data-school="${l.high.n}"><span class="lv">H</span>${l.high.r}</span>`:''}</span>
@@ -1142,6 +1142,10 @@ function render(){
 }
 async function updateStageCounts(){
   try{
+    // Keep the unread count query in sync with loadListings('unread') (L1406):
+    // same .not('mls','is',null) + .neq('change_type','sold') + .eq('stage','unread')
+    // + .or(list_price.is.null,list_price.lte.${MAX_LIST_PRICE}) chain so the badge
+    // count never disagrees with the rendered listing count.
     const{count:ur}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).neq('change_type','sold').eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
     const{count:pt}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).neq('change_type','sold').eq('stage','potential');
     const ue=document.getElementById('cnt-unread');if(ue)ue.textContent=ur?'('+ur+')':'';
@@ -1193,8 +1197,9 @@ function renderDetailPage(l){
   renderTagToggles(l.mls,id);
 }
 
-function opn(m,prefetched){active=m;document.querySelector('.main').classList.add('detail-view');const l=prefetched||listings.find(x=>x.mls===active);if(l){delete compCache[l.mls];renderDetailPage(l);loadComps(l);const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');let polls=0;const poll=setInterval(()=>{polls++;if(compCache[l.mls]||polls>20){clearInterval(poll);document.getElementById('comp-col').innerHTML=compsPanel(l);const cm=getComps(l);if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}}},300);setTimeout(()=>calcDeal(id,l.price,l.sqft),100);}}
-function cls(){active=null;document.querySelector('.main').classList.remove('detail-view');render();}
+let openCompPoll=null;
+function opn(m,prefetched){if(openCompPoll){clearInterval(openCompPoll);openCompPoll=null;}active=m;document.querySelector('.main').classList.add('detail-view');const l=prefetched||listings.find(x=>x.mls===active);if(l){renderDetailPage(l);loadComps(l);const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');let polls=0;openCompPoll=setInterval(()=>{if(active!==m){clearInterval(openCompPoll);openCompPoll=null;return;}polls++;if(compCache[l.mls]||polls>20){clearInterval(openCompPoll);openCompPoll=null;document.getElementById('comp-col').innerHTML=compsPanel(l);const cm=getComps(l);if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}}},300);requestAnimationFrame(()=>calcDeal(id,l.price,l.sqft));}}
+function cls(){if(openCompPoll){clearInterval(openCompPoll);openCompPoll=null;}active=null;document.querySelector('.main').classList.remove('detail-view');render();}
 function setFilter(f){if(active){active=null;document.querySelector('.main').classList.remove('detail-view');}currentFilter=f;cityFilters.clear();tagFilters.clear();updateCityBtn();updateTagBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
 function toggleCityFilter(city){if(cityFilters.has(city))cityFilters.delete(city);else cityFilters.add(city);updateCityBtn();render();}
 function cfSelectAll(){const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;cityFilters.add(cb.value);});updateCityBtn();render();}
@@ -1362,6 +1367,7 @@ async function toggleLockConstruction(mls,id){
     if(error){console.error('unlock construction failed',error);alert('Unlock construction failed: '+error.message);return;}
     l.lockedConstruction=null;
     constIsCustom[id]=false;
+    setNumVal('const-'+id,estimateConstruction(l.sqft,l.mls));
   } else {
     // Lock current construction value
     const cVal=getNumVal('const-'+id);
@@ -1512,7 +1518,7 @@ async function batchFetchComps(){
   if(!todo.length)return;
   while(todo.length>0){
     const batch=todo.slice(0,BATCH);
-    await Promise.all(batch.map(async l=>{try{compCache[l.mls]=await findComps({mls:l.mls,sqft:l.sqft,address:l.address,city:l.city,zip:l.zip,high:l.high,elem:l.elem,mid:l.mid,latitude:l.latitude,longitude:l.longitude});}catch(e){}}));
+    await Promise.all(batch.map(async l=>{try{compCache[l.mls]=await findComps({mls:l.mls,sqft:l.sqft,address:l.address,city:l.city,zip:l.zip,high:l.high,elem:l.elem,mid:l.mid,latitude:l.latitude,longitude:l.longitude});}catch(e){console.error('[batchFetchComps] findComps failed for',l.mls,e);compCache[l.mls]={comps:[],hp:0,error:true};}}));
     batch.forEach(l=>refreshRowComps(l.mls));
     console.log(`[Comps] Batch loaded for ${batch.length} listings (${todo.length-batch.length} remaining)`);
     todo=listings.filter(l=>!compCache[l.mls]&&l.sqft>0);
