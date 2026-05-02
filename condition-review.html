@@ -60,8 +60,8 @@
   .confidence-tag.medium { background:var(--amber-bg); color:var(--amber); }
   .confidence-tag.low { background:var(--red-bg); color:var(--red); }
 
-  .tier-buttons { display:flex; gap:4px; margin-left:auto; align-items:center; }
-  .tier-btn { width:36px; height:32px; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); font-family:var(--mono); font-size:13px; font-weight:600; color:var(--text-3); cursor:pointer; transition:all .12s; }
+  .tier-buttons { display:flex; gap:4px; margin-left:auto; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+  .tier-btn { padding:0 10px; height:32px; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); font-family:var(--sans); font-size:12.5px; font-weight:500; color:var(--text-3); cursor:pointer; transition:all .12s; white-space:nowrap; }
   .tier-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
   .tier-btn.active { border-color:var(--accent); background:var(--accent); color:#fff; }
   .tier-btn.overridden { border-color:var(--blue); background:var(--blue); color:#fff; }
@@ -162,13 +162,13 @@
 <div class="filter-bar">
   <select id="fCity" onchange="resetAndLoad()"><option value="">All Cities</option></select>
   <select id="fTier" onchange="resetAndLoad()">
-    <option value="">All Tiers</option>
-    <option value="1">1 — Distressed</option>
-    <option value="2">2 — Dated (livable)</option>
-    <option value="3">3 — Modern (owner)</option>
-    <option value="4">4 — Lived-in flip-quality</option>
-    <option value="5">5 — Cosmetic refresh (orig kitchen)</option>
-    <option value="6">6 — Nice flip</option>
+    <option value="">All Conditions</option>
+    <option value="1">Distressed</option>
+    <option value="2">Dated (livable)</option>
+    <option value="3">Modern (owner)</option>
+    <option value="4">Lived-in flip-quality</option>
+    <option value="5">Cosmetic refresh (orig kitchen)</option>
+    <option value="6">Nice flip</option>
   </select>
   <select id="fConfidence" onchange="resetAndLoad()">
     <option value="">All Confidence</option>
@@ -305,7 +305,7 @@ function renderCard(p){
 
   const tierBtns=[1,2,3,4,5,6].map(t=>{
     const cls=t===p.condition_tier?(isOverridden?'tier-btn overridden':'tier-btn active'):'tier-btn';
-    return `<button class="${cls}" onclick="overrideTier('${p.id}',${t},this)">${t}</button>`;
+    return `<button class="${cls}" onclick="overrideTier('${p.id}',${t},this)">${esc(TIER_LABELS[t])}</button>`;
   }).join('');
   // Confirm-as-reviewed button — calls overrideTier with the current tier so
   // condition_overridden flips to true without changing the tier number.
@@ -330,7 +330,7 @@ function renderCard(p){
         </div>
       </div>
       <div class="score-row">
-        <span class="score-label">Tier <strong>${p.condition_tier}</strong> — ${tierLabel}</span>
+        <span class="score-label"><strong>${esc(tierLabel)}</strong></span>
         <span class="confidence-tag ${p.condition_confidence||''}">${p.condition_confidence||'—'}</span>
         ${isOverridden?'<span class="overridden-badge">Reviewed</span>':''}
         <div class="tier-buttons">${tierBtns}${reviewedBtn}</div>
@@ -358,7 +358,7 @@ async function overrideTier(id,newTier,btnEl){
 
   // Update score label
   const label=card.querySelector('.score-label');
-  label.innerHTML=`Tier <strong>${newTier}</strong> — ${TIER_LABELS[newTier]}`;
+  label.innerHTML=`<strong>${TIER_LABELS[newTier]}</strong>`;
 
   // Add overridden badge if not present
   const scoreRow=card.querySelector('.score-row');
