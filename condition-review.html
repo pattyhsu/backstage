@@ -167,7 +167,7 @@
     <option value="2">2 — Dated (livable)</option>
     <option value="3">3 — Modern (owner)</option>
     <option value="4">4 — Lived-in flip-quality</option>
-    <option value="5">5 — Lipstick flip</option>
+    <option value="5">5 — Cosmetic refresh (orig kitchen)</option>
     <option value="6">6 — Nice flip</option>
   </select>
   <select id="fConfidence" onchange="resetAndLoad()">
@@ -203,7 +203,7 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;  // expose for auth.js
 
-const TIER_LABELS={1:'Distressed',2:'Dated (livable)',3:'Modern (owner)',4:'Lived-in flip-quality',5:'Lipstick flip',6:'Nice flip'};
+const TIER_LABELS={1:'Distressed',2:'Dated (livable)',3:'Modern (owner)',4:'Lived-in flip-quality',5:'Cosmetic refresh (orig kitchen)',6:'Nice flip'};
 const PHOTO_BASE='https://photos.dottyhomes.com';
 // Synthesize R2 URLs from MLS + photo_count. Photo files in R2 are named
 // ${mls}_NN.jpg with 2-digit zero-padded NN starting at 01 (per Brief AM).
