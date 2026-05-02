@@ -40,6 +40,30 @@ body{overflow:hidden;height:100vh}
 #tf-drop label:hover{background:var(--bg-alt)}
 #more-filters-drop{display:none}
 #more-filters-drop.open{display:block}
+
+/* === Tesla-friendly custom dropdowns for the comp panel ===
+   Native <select> popups don't render on Tesla's browser, so the three
+   tolerance selects (radius/sqft/months) and the per-comp retag select are
+   replaced with button + floating div pairs styled to match the same size
+   as the originals. CSS triangle (::after) is used for the chevron because
+   Tesla doesn't render unicode arrows. */
+.cmp-wrap{position:relative;display:inline-block}
+.cmp-drop-btn{padding:3px 16px 3px 6px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:inherit;background:var(--bg);color:var(--text);cursor:pointer;line-height:1.4;position:relative}
+.cmp-drop-btn::after{content:'';position:absolute;right:5px;top:50%;transform:translateY(-25%);width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-top:4px solid currentColor;opacity:.55}
+.cmp-drop{display:none;position:absolute;top:100%;left:0;margin-top:2px;background:var(--bg);border:1px solid var(--border);border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:70px;padding:2px 0}
+.cmp-drop.open{display:block}
+.cmp-drop button{display:block;width:100%;text-align:left;padding:4px 8px;border:none;background:none;font-family:inherit;font-size:10px;color:var(--text);cursor:pointer}
+.cmp-drop button:hover{background:var(--bg-alt)}
+.cmp-drop button.selected{background:var(--bg-alt);color:var(--accent);font-weight:600}
+
+.retag-wrap{position:relative;display:inline-block;margin-right:3px}
+.retag-btn{padding:1px 12px 1px 3px;border:1px solid transparent;border-radius:3px;font-family:inherit;font-size:8px;font-weight:700;cursor:pointer;text-transform:uppercase;line-height:1.3;position:relative}
+.retag-btn::after{content:'';position:absolute;right:3px;top:50%;transform:translateY(-25%);width:0;height:0;border-left:2.5px solid transparent;border-right:2.5px solid transparent;border-top:3px solid currentColor;opacity:.6}
+.retag-drop{display:none;position:absolute;top:100%;left:0;margin-top:2px;background:var(--bg);border:1px solid var(--border);border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:60px;padding:2px 0}
+.retag-drop.open{display:block}
+.retag-drop button{display:block;width:100%;text-align:left;padding:3px 7px;border:none;background:none;font-family:inherit;font-size:8px;font-weight:700;cursor:pointer;text-transform:uppercase}
+.retag-drop button:hover{background:var(--bg-alt)}
+
 .sp{position:relative}
 .sp:hover::after{content:attr(data-school);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#fff;color:var(--text);font-size:11px;font-weight:500;padding:4px 8px;border-radius:4px;border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,.12);white-space:nowrap;z-index:100;pointer-events:none}
 
@@ -507,12 +531,41 @@ function compSchools(c){if(!c.highSchool&&!c.elemSchool&&!c.midSchool)return'';l
   if(c.highRating){const cl=c.highRating>=7?'sh':c.highRating>=5?'sm':'sl';s+=`<span class="sp ${cl}"><span class="lv">H</span>${c.highRating}</span><span style="font-size:9px;color:var(--text-3)">${shortName(c.highSchool)}</span>`;}
   return s;}
 
+// Tesla-friendly custom dropdown for the per-listing comp tolerance selectors.
+// Renders a button (with the existing `comp-${kind}-${mid}` ID so the rest of
+// the code can still look it up) plus a popup with one button per option.
+// The current value is stored in dataset.value; refetchComps() reads from
+// .dataset.value instead of the old .value.
+const COMP_TOL_LABELS={radius:v=>`${v}mi`,sqft:v=>`±${v}sf`,months:v=>`${v}mo`};
+function compToleranceHtml(mls,mid,kind,defaultValue,options){
+  const lblFn=COMP_TOL_LABELS[kind];
+  const btnId=`comp-${kind}-${mid}`,dropId=`comp-${kind}-drop-${mid}`;
+  const opts=options.map(v=>`<button onclick="event.stopPropagation();setCompTolerance('${mls}','${kind}','${v}')"${v===defaultValue?' class="selected"':''}>${lblFn(v)}</button>`).join('');
+  return`<div class="cmp-wrap"><button id="${btnId}" data-value="${defaultValue}" class="cmp-drop-btn" onclick="event.stopPropagation();toggleCompDrop('${dropId}')">${lblFn(defaultValue)}</button><div id="${dropId}" class="cmp-drop">${opts}</div></div>`;
+}
+function toggleCompDrop(dropId){
+  const drop=document.getElementById(dropId);if(!drop)return;
+  const wasOpen=drop.classList.contains('open');
+  // Close every other comp/retag drop first so only one is open at a time.
+  document.querySelectorAll('.cmp-drop.open,.retag-drop.open').forEach(d=>d.classList.remove('open'));
+  if(!wasOpen)drop.classList.add('open');
+}
+function setCompTolerance(mls,kind,value){
+  const mid=mls.replace(/[^a-zA-Z0-9]/g,'');
+  const btn=document.getElementById(`comp-${kind}-${mid}`);
+  if(btn){btn.dataset.value=value;btn.textContent=COMP_TOL_LABELS[kind](value);}
+  const drop=document.getElementById(`comp-${kind}-drop-${mid}`);
+  if(drop){drop.classList.remove('open');drop.querySelectorAll('button').forEach(b=>b.classList.remove('selected'));
+    drop.querySelectorAll('button').forEach(b=>{const oc=b.getAttribute('onclick')||'';if(oc.indexOf(`'${value}'`)>=0)b.classList.add('selected');});}
+  refetchComps(mls);
+}
+
 function compsPanel(l){
   const cm=getComps(l),mid=l.mls.replace(/[^a-zA-Z0-9]/g,'');
   let h=`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;align-items:center">
-    <select id="comp-radius-${mid}" onchange="refetchComps('${l.mls}')" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:inherit;background:var(--bg)"><option value="0.15">0.15mi</option><option value="0.25" selected>0.25mi</option><option value="0.5">0.5mi</option><option value="0.75">0.75mi</option><option value="1">1mi</option></select>
-    <select id="comp-sqft-${mid}" onchange="refetchComps('${l.mls}')" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:inherit;background:var(--bg)"><option value="150">±150sf</option><option value="200" selected>±200sf</option><option value="250">±250sf</option><option value="300">±300sf</option><option value="400">±400sf</option><option value="500">±500sf</option></select>
-    <select id="comp-months-${mid}" onchange="refetchComps('${l.mls}')" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:inherit;background:var(--bg)"><option value="1">1mo</option><option value="3">3mo</option><option value="6">6mo</option><option value="9">9mo</option><option value="12" selected>12mo</option><option value="24">24mo</option><option value="36">36mo</option></select></div>`;
+    ${compToleranceHtml(l.mls,mid,'radius','0.25',['0.15','0.25','0.5','0.75','1'])}
+    ${compToleranceHtml(l.mls,mid,'sqft','200',['150','200','250','300','400','500'])}
+    ${compToleranceHtml(l.mls,mid,'months','12',['1','3','6','9','12','24','36'])}</div>`;
   h+=`<div id="comp-summary-${mid}">`;
   if(cm.comps.length>0){const avg=arr=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;const prices=cm.comps.map(c=>c.price).filter(Boolean);const ppsfs=cm.comps.map(c=>c.psf).filter(Boolean);const sqfts=cm.comps.map(c=>c.sqft).filter(Boolean);
     h+=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:8px">
@@ -727,17 +780,37 @@ function renderCompMap(l,cm,mid){
 // of hopping to flip-review.html. Skip the select on unsold_flip (active
 // listings matched as comps) and on comps without an MLS — those aren't
 // retaggable. See updateCompType() for the write path.
+// Color/label palette for retag pills. Mirrored on both the trigger button
+// and each option in the popup so the colored-pill identification still works.
+const RETAG_OPTS=[['general','SOLD'],['halfflips','HALF'],['flips','FLIP'],['dotty','DOTTY']];
+function _retagColors(typeKey){
+  // typeKey is a comp_type-style value: 'sold','flips','flip','halfflips','dotty', or canonical-DB 'general'.
+  const isFlip=typeKey==='flips'||typeKey==='flip';
+  const bg=typeKey==='dotty'?'var(--purple-bg)':isFlip?'var(--green-bg)':typeKey==='halfflips'?'var(--amber-bg)':'var(--bg-alt)';
+  const col=typeKey==='dotty'?'var(--purple)':isFlip?'var(--green)':typeKey==='halfflips'?'var(--amber)':'var(--text-4)';
+  return{bg,col};
+}
 function compTypeSelectHtml(c,subjectMid){
   if(!c.mls||c.type==='unsold_flip'){
     const lbl=c.type==='unsold_flip'?'ASKING':'SOLD';
     return`<span style="font-size:8px;font-weight:700;color:var(--text-4);margin-right:3px">${lbl}</span>`;
   }
   const currentDb=c.type==='sold'?'general':c.type==='flip'?'flips':c.type;
-  const bg=c.type==='dotty'?'var(--purple-bg)':(c.type==='flips'||c.type==='flip')?'var(--green-bg)':c.type==='halfflips'?'var(--amber-bg)':'var(--bg-alt)';
-  const col=c.type==='dotty'?'var(--purple)':(c.type==='flips'||c.type==='flip')?'var(--green)':c.type==='halfflips'?'var(--amber)':'var(--text-4)';
-  const opts=[['general','SOLD'],['halfflips','HALF'],['flips','FLIP'],['dotty','DOTTY']];
-  const optsHtml=opts.map(([v,l])=>`<option value="${v}"${v===currentDb?' selected':''}>${l}</option>`).join('');
-  return`<select title="Retag comp type" onchange="event.stopPropagation();updateCompType('${c.mls}','${subjectMid}',this.value)" onclick="event.stopPropagation()" style="font-size:8px;font-weight:700;padding:1px 2px;border-radius:3px;border:1px solid transparent;background:${bg};color:${col};cursor:pointer;margin-right:3px;text-transform:uppercase;font-family:inherit">${optsHtml}</select>`;
+  const{bg,col}=_retagColors(c.type);
+  const currentLbl=(RETAG_OPTS.find(([v])=>v===currentDb)||['general','SOLD'])[1];
+  const compIdSafe=String(c.mls).replace(/[^a-zA-Z0-9]/g,'');
+  const dropId=`retag-drop-${subjectMid}-${compIdSafe}`;
+  const optsHtml=RETAG_OPTS.map(([v,lbl])=>{
+    const oc=_retagColors(v==='general'?'sold':v);
+    return`<button onclick="event.stopPropagation();setCompTypeFromDrop('${c.mls}','${subjectMid}','${v}')" style="background:${oc.bg};color:${oc.col}">${lbl}</button>`;
+  }).join('');
+  return`<div class="retag-wrap"><button title="Retag comp type" class="retag-btn" data-value="${currentDb}" style="background:${bg};color:${col}" onclick="event.stopPropagation();toggleCompDrop('${dropId}')">${currentLbl}</button><div id="${dropId}" class="retag-drop">${optsHtml}</div></div>`;
+}
+// Wrapper so the option-button onclick can close the popup before kicking
+// off the async DB write + re-render that updateCompType performs.
+function setCompTypeFromDrop(compMls,subjectMid,newType){
+  document.querySelectorAll('.retag-drop.open,.cmp-drop.open').forEach(d=>d.classList.remove('open'));
+  updateCompType(compMls,subjectMid,newType);
 }
 async function updateCompType(compMls,subjectMid,newType){
   const{error}=await sb.from('properties').update({comp_type:newType,updated_at:new Date().toISOString()}).eq('mls',compMls);
@@ -1127,7 +1200,12 @@ function toggleCityFilter(city){if(cityFilters.has(city))cityFilters.delete(city
 function cfSelectAll(){const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;cityFilters.add(cb.value);});updateCityBtn();render();}
 function cfSelectNone(){cityFilters.clear();const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateCityBtn();render();}
 function updateCityBtn(){const btn=document.getElementById('cf-btn');if(!cityFilters.size)btn.textContent='All Cities ▾';else if(cityFilters.size===1)btn.textContent=[...cityFilters][0]+' ▾';else btn.textContent=cityFilters.size+' Cities ▾';}
-document.addEventListener('click',e=>{const wrap=document.getElementById('cf-wrap');const drop=document.getElementById('cf-drop');if(wrap&&drop&&!wrap.contains(e.target))drop.classList.remove('open');const tw=document.getElementById('tf-wrap');const td=document.getElementById('tf-drop');if(tw&&td&&!tw.contains(e.target))td.classList.remove('open');const mw=document.getElementById('more-filters-wrap');const md=document.getElementById('more-filters-drop');if(mw&&md&&!mw.contains(e.target))md.classList.remove('open');const aw=document.getElementById('addr-search-wrap');const ad=document.getElementById('addr-search-drop');if(aw&&ad&&!aw.contains(e.target))ad.style.display='none';});
+document.addEventListener('click',e=>{const wrap=document.getElementById('cf-wrap');const drop=document.getElementById('cf-drop');if(wrap&&drop&&!wrap.contains(e.target))drop.classList.remove('open');const tw=document.getElementById('tf-wrap');const td=document.getElementById('tf-drop');if(tw&&td&&!tw.contains(e.target))td.classList.remove('open');const mw=document.getElementById('more-filters-wrap');const md=document.getElementById('more-filters-drop');if(mw&&md&&!mw.contains(e.target))md.classList.remove('open');const aw=document.getElementById('addr-search-wrap');const ad=document.getElementById('addr-search-drop');if(aw&&ad&&!aw.contains(e.target))ad.style.display='none';
+  // Tesla-friendly comp-panel dropdowns (tolerance + retag): close any open
+  // popup when the click is outside its .cmp-wrap / .retag-wrap container.
+  document.querySelectorAll('.cmp-wrap,.retag-wrap').forEach(w=>{if(!w.contains(e.target)){const d=w.querySelector('.cmp-drop,.retag-drop');if(d)d.classList.remove('open');}});});
+// Escape closes every open custom dropdown on the page (filter chips + comp panel).
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.querySelectorAll('.cmp-drop.open,.retag-drop.open').forEach(d=>d.classList.remove('open'));const cf=document.getElementById('cf-drop');if(cf)cf.classList.remove('open');const tf=document.getElementById('tf-drop');if(tf)tf.classList.remove('open');const mf=document.getElementById('more-filters-drop');if(mf)mf.classList.remove('open');}});
 function toggleTagFilter(tag){if(tagFilters.has(tag))tagFilters.delete(tag);else tagFilters.add(tag);updateTagBtn();render();}
 function tfSelectAll(){const cbs=document.querySelectorAll('#tf-drop input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;tagFilters.add(cb.value);});updateTagBtn();render();}
 function tfSelectNone(){tagFilters.clear();const cbs=document.querySelectorAll('#tf-drop input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateTagBtn();render();}
@@ -1198,14 +1276,18 @@ async function onAddrSearchPick(mls){
 
 
 async function refetchComps(mls){const l=listings.find(x=>x.mls===mls);if(!l)return;const mid=mls.replace(/[^a-zA-Z0-9]/g,'');
-  const radius=parseFloat((document.getElementById('comp-radius-'+mid)||{}).value||'0.25');
-  const sqftRange=parseInt((document.getElementById('comp-sqft-'+mid)||{}).value||'150');
-  const months=parseInt((document.getElementById('comp-months-'+mid)||{}).value||'6');
+  // Tolerance state lives in dataset.value on the chip-btn (the old <select>
+  // was replaced with a custom dropdown for Tesla browser compatibility).
+  const radius=parseFloat(((document.getElementById('comp-radius-'+mid)||{}).dataset||{}).value||'0.25');
+  const sqftRange=parseInt(((document.getElementById('comp-sqft-'+mid)||{}).dataset||{}).value||'150');
+  const months=parseInt(((document.getElementById('comp-months-'+mid)||{}).dataset||{}).value||'6');
   delete compCache[mls];
   try{const data=await findComps({...l,radius,sqftRange,months});compCache[mls]=data;document.getElementById('comp-col').innerHTML=compsPanel(l);
-    const re=document.getElementById('comp-radius-'+mid);if(re)re.value=radius;
-    const se=document.getElementById('comp-sqft-'+mid);if(se)se.value=sqftRange;
-    const me=document.getElementById('comp-months-'+mid);if(me)me.value=months;
+    // Re-render replaces the buttons; sync each new button's dataset.value
+    // and visible label so the picker reflects the actually-used tolerance.
+    const re=document.getElementById('comp-radius-'+mid);if(re){re.dataset.value=String(radius);re.textContent=COMP_TOL_LABELS.radius(String(radius));}
+    const se=document.getElementById('comp-sqft-'+mid);if(se){se.dataset.value=String(sqftRange);se.textContent=COMP_TOL_LABELS.sqft(String(sqftRange));}
+    const me=document.getElementById('comp-months-'+mid);if(me){me.dataset.value=String(months);me.textContent=COMP_TOL_LABELS.months(String(months));}
     if(data.hp>0){setNumVal('arv-'+mid,data.hp*l.sqft);calcDeal(mid,l.price,l.sqft);}}catch(e){console.error('Refetch error:',e);}}
 
 // ========== SUPABASE CRUD ==========
