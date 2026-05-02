@@ -173,8 +173,6 @@ body{overflow:hidden;height:100vh}
 .restore-btn{padding:4px 10px;border-radius:var(--radius-sm);border:1px solid var(--green-bg);background:var(--green-bg);color:var(--green);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
 .pc{background:none;border:none;cursor:pointer;font-size:16px;color:var(--text-4);padding:2px 4px}
 .pc:hover{color:var(--text)}
-
-select.btn{appearance:auto}
 </style>
 </head>
 <body>
@@ -374,6 +372,8 @@ function lbKeyHandler(e){
 const geocodeCache={};
 const CITY_COORDS={'cerritos':[33.8583,-118.0647],'long beach':[33.7701,-118.1937],'alhambra':[34.0953,-118.1270],'whittier':[33.9792,-118.0328],'diamond bar':[33.9997,-117.8103],'west covina':[34.0686,-117.9394],'monterey park':[34.0625,-118.1228],'pasadena':[34.1478,-118.1445],'rosemead':[34.0806,-118.0728],'rowland heights':[33.9761,-117.9053],'san gabriel':[34.0961,-118.1058],'south pasadena':[34.1161,-118.1503],'inglewood':[33.9617,-118.3531],'la palma':[33.8464,-118.0467],'buena park':[33.8675,-117.9981],'anaheim':[33.8366,-117.9143],'san clemente':[33.4269,-117.6119],'arcadia':[34.1397,-118.0353],'temple city':[34.1072,-118.0578],'el monte':[34.0686,-118.0276],'covina':[34.0900,-117.8903],'glendora':[34.1361,-117.8653],'duarte':[34.1394,-117.9773],'monrovia':[34.1442,-118.0019],'baldwin park':[34.0853,-117.9609],'la puente':[34.0200,-117.9495],'hacienda heights':[33.9931,-117.9689],'walnut':[34.0203,-117.8653],'pomona':[34.0551,-117.7500],'la verne':[34.1008,-117.7678],'san dimas':[34.1067,-117.8064],'claremont':[34.0967,-117.7197],'azusa':[34.1336,-117.9076],'irwindale':[34.1070,-117.9353],'industry':[33.9697,-117.9365]};
 
+// Browser-side fallback only — fires when properties.latitude/longitude are NULL.
+// Production geocoding is Google-primary in daily_pipeline (Brief AS); this is a last-resort lookup.
 async function geocodeAddress(address,city,zipcode){
   const full=`${address}, ${city}, CA ${zipcode}`.trim();
   const key=full.toLowerCase();
@@ -434,7 +434,7 @@ async function findComps(listing){
   // coords; comps without coords are silently excluded by SQL bbox in the normal path.
   if(!lat||!lon)console.warn(`[findComps] subject ${listing.mls} has no geocoded coords; box filter skipped, comps without coords may be excluded by SQL bbox filter`);
 
-  const listingHs=(listing.high?.n||'').toLowerCase().trim(),listingHsR=listing.high?.r||0;
+  const listingHs=(listing.high?.n||'').toLowerCase().trim();
   const results=[];
   for(const comp of(allComps||[])){
     let dist=null;
@@ -485,7 +485,7 @@ async function findComps(listing){
 // Listings above this list price are auto-archived in the UI (stage stays 'unread' in DB;
 // a price drop below the cap will bring them back into Unread on the next page load).
 const MAX_LIST_PRICE=2500000;
-let listings=[],sel=new Set(),archived=new Set(),sort_='priority',active=null,compCache={};
+let listings=[],sort_='priority',active=null,compCache={};
 let currentFilter='unread',cityFilters=new Set(),tagFilters=new Set();
 // Brief AJ: bulk-archive selection set. In-memory only; cleared on bulk-archive
 // completion or Cancel. List-card render preserves checked state via
@@ -499,10 +499,29 @@ let deCacheReady=false;
 const td_=new Date();
 const F=n=>'$'+Math.round(n).toLocaleString();
 const FK=n=>{if(n>=995000)return'$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';return'$'+Math.round(n/1e3)+'K';};
-const dom=d=>{if(!d)return 0;try{const s=d.replace(/\//g,'-');const p=s.split('-');if(p.length===3){const dt=p[0].length===4?new Date(s):p[2].length===4?new Date(p[2]+'-'+p[0]+'-'+p[1]):new Date(s);if(isNaN(dt))return 0;return Math.max(1,Math.round((td_-dt)/864e5));}return 0;}catch(e){return 0;}};
-function tg(t){const m={'Already flipped':['var(--accent-dim)','var(--accent)'],'Estate / Trust':['var(--purple-bg)','var(--purple)'],'Fixer':['var(--amber-bg)','var(--amber)'],'Dated':['var(--green-bg)','var(--green)'],'Price reduced':['var(--red-bg)','var(--red)']};const c=m[t]||['var(--bg-alt)','var(--text-3)'];return`<span class="tag" style="background:${c[0]};color:${c[1]};border:none">★ ${t}</span>`;}
+const dom=d=>{
+  if(!d)return 0;
+  try{
+    // Normalize separators: "2026/04/29" → "2026-04-29".
+    const s=d.replace(/\//g,'-');
+    const p=s.split('-');
+    if(p.length!==3)return 0;
+    // Branch on which segment is the 4-digit year:
+    //   YYYY-MM-DD (ISO)         → parse as-is
+    //   MM-DD-YYYY (US display)  → reorder to YYYY-MM-DD before parsing
+    //   anything else (fallback) → let Date try the raw string
+    const dt=p[0].length===4
+      ?new Date(s)
+      :p[2].length===4
+        ?new Date(p[2]+'-'+p[0]+'-'+p[1])
+        :new Date(s);
+    if(isNaN(dt))return 0;
+    return Math.max(1,Math.round((td_-dt)/864e5));
+  }catch(e){return 0;}
+};
 const ALL_TAGS=['Fixer','Dated','Estate / Trust','Price reduced','Already flipped'];
 const TAG_COLORS={'Already flipped':['var(--accent-dim)','var(--accent)'],'Estate / Trust':['var(--purple-bg)','var(--purple)'],'Fixer':['var(--amber-bg)','var(--amber)'],'Dated':['var(--green-bg)','var(--green)'],'Price reduced':['var(--red-bg)','var(--red)']};
+function tg(t){const c=TAG_COLORS[t]||['var(--bg-alt)','var(--text-3)'];return`<span class="tag" style="background:${c[0]};color:${c[1]};border:none">★ ${t}</span>`;}
 async function toggleCustomTag(mls,tag){const l=listings.find(x=>x.mls===mls);if(!l)return;const cur=l.tags.includes(tag)?l.tags.filter(t=>t!==tag):[...l.tags,tag];await saveCustomTags(mls,cur);}
 async function saveCustomTags(mls,newTags){const l=listings.find(x=>x.mls===mls);if(!l)return;l.tags=newTags;l.customTags=newTags;const{error}=await sb.from('properties').update({custom_tags:newTags,updated_at:new Date().toISOString()}).eq('mls',mls);if(error)console.error('saveCustomTags error',error);const mid=mls.replace(/[^a-zA-Z0-9]/g,'');renderTagToggles(mls,mid);render();}
 function renderTagToggles(mls,mid){const l=listings.find(x=>x.mls===mls);if(!l)return;const el=document.getElementById('tag-toggles-'+mid);if(!el)return;el.innerHTML=ALL_TAGS.map(t=>{const active=l.tags.includes(t);const c=TAG_COLORS[t]||['var(--bg-alt)','var(--text-3)'];const style=active?`background:${c[0]};color:${c[1]};border:none;cursor:pointer`:`background:var(--bg);color:var(--text-4);border:1px solid var(--border);cursor:pointer;opacity:0.5`;return`<span class="tag" style="${style}" onclick="event.stopPropagation();toggleCustomTag('${mls.replace(/'/g,"\'")}','${t.replace(/'/g,"\'")}')">${active?'★':'☆'} ${t}</span>`;}).join('');}
@@ -521,7 +540,7 @@ function getComps(l){return compCache[l.mls]||{comps:[],hp:0,loading:true};}
 
 async function fetchComps(l){if(compCache[l.mls])return compCache[l.mls];try{const d=await findComps(l);compCache[l.mls]=d;return d;}catch(e){compCache[l.mls]={comps:[],hp:0};return compCache[l.mls];}}
 
-async function loadComps(l){try{const d=await findComps(l);compCache[l.mls]=d;}catch(e){compCache[l.mls]={comps:[],hp:0};}render();if(active===l.mls){const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');document.getElementById('comp-col').innerHTML=compsPanel(l);setTimeout(()=>{const cm=getComps(l);if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}},100);}}
+async function loadComps(l){try{const d=await findComps(l);compCache[l.mls]=d;}catch(e){compCache[l.mls]={comps:[],hp:0,error:true};}render();if(active===l.mls){const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');document.getElementById('comp-col').innerHTML=compsPanel(l);setTimeout(()=>{const cm=getComps(l);if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}},100);}}
 
 function shortName(n){if(!n)return'';return n.replace(/ Elementary School$/,' ES').replace(/ Elementary$/,' ES').replace(/ Middle School$/,' MS').replace(/ Intermediate School$/,' MS').replace(/ High School$/,' HS').replace(/ Senior High School$/,' HS').replace(/ Academy$/,' Acad').replace(/\s*\([^)]+\)\s*/,' ').trim();}
 
@@ -562,7 +581,12 @@ function setCompTolerance(mls,kind,value){
 
 function compsPanel(l){
   const cm=getComps(l),mid=l.mls.replace(/[^a-zA-Z0-9]/g,'');
-  let h=`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;align-items:center">
+  // When the listing has no geocoded coords, findComps falls back to a city
+  // centroid (or all-null) and matches comps by city name only — so the
+  // results may be wildly off the actual property location.
+  const usedFallback=!l.latitude||!l.longitude;
+  const fallbackWarning=usedFallback?`<div style="font-size:10px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber);border-radius:4px;padding:3px 6px;margin-bottom:4px">⚠ No geocoded coords — comps matched by city only</div>`:'';
+  let h=fallbackWarning+`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;align-items:center">
     ${compToleranceHtml(l.mls,mid,'radius','0.25',['0.15','0.25','0.5','0.75','1'])}
     ${compToleranceHtml(l.mls,mid,'sqft','200',['150','200','250','300','400','500'])}
     ${compToleranceHtml(l.mls,mid,'months','12',['1','3','6','9','12','24','36'])}</div>`;
@@ -862,6 +886,7 @@ function recalcCompSummary(mid){
 }
 
 // ========== DEAL ANALYZER ==========
+// Keep these in sync with underwriter/ Python config — drift causes deal_score row's target_buy to disagree with the in-page TARGET BUY.
 const SELL_PCT=0.05,CONST_PCT=0.16,PURCH_EXP_PCT=0.02,PROFIT_TARGET_PCT=0.10;
 let ppIsCustom={},constIsCustom={},listPriceMap={};
 // Rehab ladder loaded from Supabase config table (key=rehab_categories).
@@ -1111,7 +1136,34 @@ function calcDeal(id,listPrice,sqft){
 function getArvVal(l){if(l.lockedArv)return l.lockedArv;const cm=compCache[l.mls];return(cm&&cm.hp)?cm.hp*l.sqft:0;}
 function getGapVal(l){const arv=getArvVal(l);if(!arv)return 0;const eConst=l.lockedConstruction||estimateConstruction(l.sqft,l.mls);const target=Math.round((arv*(1-SELL_PCT)-eConst)/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT));return l.price-target;}
 function toggleSort(col){if(sort_===col+'-asc')sort_=col+'-desc';else if(sort_===col+'-desc')sort_='priority';else sort_=col+'-asc';render();}
-function getSorted(){let d=[...listings];if(cityFilters.size)d=d.filter(l=>cityFilters.has(l.city.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())));if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));const sStr=(s)=>(s||'').toString().toLowerCase();if(sort_==='priority')d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));else if(sort_==='price-asc')d.sort((a,b)=>a.price-b.price);else if(sort_==='price-desc')d.sort((a,b)=>b.price-a.price);else if(sort_==='ppsf-asc')d.sort((a,b)=>a.ppsf-b.ppsf);else if(sort_==='ppsf-desc')d.sort((a,b)=>b.ppsf-a.ppsf);else if(sort_==='dom-asc')d.sort((a,b)=>dom(a.listDate)-dom(b.listDate));else if(sort_==='dom-desc')d.sort((a,b)=>dom(b.listDate)-dom(a.listDate));else if(sort_==='arv-asc')d.sort((a,b)=>getArvVal(a)-getArvVal(b));else if(sort_==='arv-desc')d.sort((a,b)=>getArvVal(b)-getArvVal(a));else if(sort_==='gap-asc')d.sort((a,b)=>getGapVal(a)-getGapVal(b));else if(sort_==='gap-desc')d.sort((a,b)=>getGapVal(b)-getGapVal(a));else if(sort_==='address-asc')d.sort((a,b)=>sStr(a.address).localeCompare(sStr(b.address)));else if(sort_==='address-desc')d.sort((a,b)=>sStr(b.address).localeCompare(sStr(a.address)));else if(sort_==='city-asc')d.sort((a,b)=>sStr(a.city).localeCompare(sStr(b.city)));else if(sort_==='city-desc')d.sort((a,b)=>sStr(b.city).localeCompare(sStr(a.city)));else if(sort_==='status-asc')d.sort((a,b)=>sStr(a.changeType).localeCompare(sStr(b.changeType)));else if(sort_==='status-desc')d.sort((a,b)=>sStr(b.changeType).localeCompare(sStr(a.changeType)));return d;}
+// Dispatch table for getSorted(). Each entry returns a (a,b)=>number comparator
+// for ascending order; descending is handled by sign-flip in getSorted(). The
+// 'priority' key is special-cased (no -asc/-desc suffix) and ignores direction.
+const _sStr=s=>(s||'').toString().toLowerCase();
+const SORTERS={
+  price:   (a,b)=>a.price-b.price,
+  ppsf:    (a,b)=>a.ppsf-b.ppsf,
+  dom:     (a,b)=>dom(a.listDate)-dom(b.listDate),
+  arv:     (a,b)=>getArvVal(a)-getArvVal(b),
+  gap:     (a,b)=>getGapVal(a)-getGapVal(b),
+  address: (a,b)=>_sStr(a.address).localeCompare(_sStr(b.address)),
+  city:    (a,b)=>_sStr(a.city).localeCompare(_sStr(b.city)),
+  status:  (a,b)=>_sStr(a.changeType).localeCompare(_sStr(b.changeType)),
+};
+function getSorted(){
+  let d=[...listings];
+  if(cityFilters.size)d=d.filter(l=>cityFilters.has(l.city.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())));
+  if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));
+  if(sort_==='priority'){d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));return d;}
+  const idx=sort_.lastIndexOf('-');
+  if(idx<0)return d;
+  const key=sort_.slice(0,idx),dir=sort_.slice(idx+1);
+  const cmp=SORTERS[key];
+  if(!cmp)return d;
+  const sign=dir==='desc'?-1:1;
+  d.sort((a,b)=>sign*cmp(a,b));
+  return d;
+}
 
 function render(){
   const data=getSorted();
@@ -1138,7 +1190,6 @@ function render(){
   document.getElementById('tc').textContent=data.length;
   updateStageCounts();
   renderBulkActionBar();
-  bulkLoadDealScores(data.map(l=>l.mls));
 }
 async function updateStageCounts(){
   try{
@@ -1150,7 +1201,11 @@ async function updateStageCounts(){
     const{count:pt}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).neq('change_type','sold').eq('stage','potential');
     const ue=document.getElementById('cnt-unread');if(ue)ue.textContent=ur?'('+ur+')':'';
     const pe=document.getElementById('cnt-potential');if(pe)pe.textContent=pt?'('+pt+')':'';
-  }catch(e){}
+  }catch(e){
+    console.warn('[updateStageCounts] count fetch failed:',e);
+    const ue=document.getElementById('cnt-unread');if(ue)ue.textContent='(?)';
+    const pe=document.getElementById('cnt-potential');if(pe)pe.textContent='(?)';
+  }
 }
 
 function renderDetailPage(l){
@@ -1162,9 +1217,9 @@ function renderDetailPage(l){
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <button onclick="cls()" style="background:none;border:1px solid var(--border);border-radius:5px;padding:4px 10px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-3)">← Back</button>
       <div style="display:flex;gap:6px">
-        <button onclick="updateListingStatus('${l.mls}','potential')" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='potential'?'var(--green)':'var(--bg)'};color:${l.status==='potential'?'#fff':'var(--green)'};cursor:pointer">Potential</button>
-        <button onclick="updateListingStatus('${l.mls}','unsold_flip')" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='unsold_flip'?'var(--blue)':'var(--bg)'};color:${l.status==='unsold_flip'?'#fff':'var(--blue)'};cursor:pointer">Unsold Flip</button>
-        <button onclick="updateListingStatus('${l.mls}','archived');cls()" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${(l.status==='archived'||l.price>MAX_LIST_PRICE)?'var(--red)':'var(--bg)'};color:${(l.status==='archived'||l.price>MAX_LIST_PRICE)?'#fff':'var(--red)'};cursor:pointer">Archive</button></div></div>
+        <button title="Click again to clear status" onclick="updateListingStatus('${l.mls}','potential')" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='potential'?'var(--green)':'var(--bg)'};color:${l.status==='potential'?'#fff':'var(--green)'};cursor:pointer">Potential</button>
+        <button title="Click again to clear status" onclick="updateListingStatus('${l.mls}','unsold_flip')" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='unsold_flip'?'var(--blue)':'var(--bg)'};color:${l.status==='unsold_flip'?'#fff':'var(--blue)'};cursor:pointer">Unsold Flip</button>
+        <button title="Click again to clear status" onclick="updateListingStatus('${l.mls}','archived');cls()" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${(l.status==='archived'||l.price>MAX_LIST_PRICE)?'var(--red)':'var(--bg)'};color:${(l.status==='archived'||l.price>MAX_LIST_PRICE)?'#fff':'var(--red)'};cursor:pointer">Archive</button></div></div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <div data-mls="${l.mls}" data-addr="${detAddrFull}" onclick="openLightbox(this.dataset.mls,this.dataset.addr)" style="width:48px;height:36px;flex-shrink:0;border-radius:4px;overflow:hidden;border:1px solid var(--border);cursor:pointer;background:var(--bg-alt);display:flex;align-items:center;justify-content:center"><img src="${getThumbUrl(l.mls)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none';this.parentElement.innerHTML='<span style=&quot;font-size:8px;color:var(--text-4)&quot;>no photo</span>'"></div>
       <span style="font-size:16px;font-weight:800">${l.address}, ${l.city}, CA ${l.zip}</span>
@@ -1219,7 +1274,11 @@ function updateTagBtn(){const btn=document.getElementById('tf-btn');if(!tagFilte
 function toggleRowSelect(mls,checked){if(checked)selectedMls.add(mls);else selectedMls.delete(mls);renderBulkActionBar();}
 function renderBulkActionBar(){const bar=document.getElementById('bulk-action-bar');if(!bar)return;const n=selectedMls.size;if(n===0){bar.style.display='none';return;}bar.style.display='flex';const c=document.getElementById('bulk-count');if(c)c.textContent=`${n} selected`;}
 function bulkClear(){selectedMls.clear();document.querySelectorAll('.row-select').forEach(cb=>cb.checked=false);renderBulkActionBar();}
-async function bulkArchive(){const n=selectedMls.size;if(n===0)return;if(!confirm(`Archive ${n} listing${n===1?'':'s'}? They'll move to the Archive stage and disappear from this view (use the ⋮ menu → Archive to view + restore).`))return;const mlsList=[...selectedMls];const{error}=await sb.from('properties').update({stage:'archived',archived_at:new Date().toISOString(),updated_at:new Date().toISOString()}).in('mls',mlsList);if(error){alert(`Bulk archive failed: ${error.message}`);return;}selectedMls.clear();renderBulkActionBar();await loadListings(currentFilter);updateStageCounts();}
+async function bulkArchive(){const n=selectedMls.size;if(n===0)return;if(!confirm(`Archive ${n} listing${n===1?'':'s'}? They'll move to the Archive stage and disappear from this view (use the ⋮ menu → Archive to view + restore).`))return;const mlsList=[...selectedMls];const{error}=await sb.from('properties').update({stage:'archived',archived_at:new Date().toISOString(),updated_at:new Date().toISOString()}).in('mls',mlsList);if(error){alert(`Bulk archive failed: ${error.message}`);return;}selectedMls.clear();
+  // Brief flash confirming the archive succeeded before the bar hides on reload.
+  const cntEl=document.getElementById('bulk-count');if(cntEl)cntEl.textContent=`Archived ${n} listing${n===1?'':'s'}`;
+  await new Promise(r=>setTimeout(r,1200));
+  renderBulkActionBar();await loadListings(currentFilter);updateStageCounts();}
 // Server-side address search across all non-sold listings (regardless of
 // current filter scope). Hits Supabase on every debounced keystroke;
 // 120ms debounce keeps the round-trip count reasonable. Click handler
@@ -1441,12 +1500,21 @@ async function loadListings(status){
       if(relisted.size)data=data.filter(r=>!relisted.has(norm(r)));
     }
     listings=(data||[]).map(mapRowToListing);
-    active=null;sel.clear();render();
+    active=null;render();
     const toTitle=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
     const cities=[...new Set(listings.map(l=>toTitle((l.city||'').trim())).filter(Boolean))].sort();
     const cfList=document.getElementById('cf-list');
-    cfList.innerHTML=cities.map(c=>`<label><input type="checkbox" value="${c}" ${cityFilters.has(c)?'checked':''} onchange="toggleCityFilter('${c.replace(/'/g,"\\'")}')">${c}</label>`).join('');
+    // Only rebuild the city checkbox list when the city set actually changes —
+    // otherwise we lose scroll position on every loadListings() call.
+    const newCitiesKey=cities.join('|');
+    if(newCitiesKey!==window._cfListCities){
+      window._cfListCities=newCitiesKey;
+      cfList.innerHTML=cities.map(c=>`<label><input type="checkbox" value="${c}" ${cityFilters.has(c)?'checked':''} onchange="toggleCityFilter('${c.replace(/'/g,"\\'")}')">${c}</label>`).join('');
+    }
     updateCityBtn();
+    // Bulk-load deal scores once per listings load. Cache-checked, so safe
+    // to call alongside the per-MLS path in ensureDealScore (e.g. detail view).
+    bulkLoadDealScores(listings.map(l=>l.mls));
     batchFetchComps();
     fetchAgentDeCounts();
   }catch(e){console.error('Failed to load:',e);}}
