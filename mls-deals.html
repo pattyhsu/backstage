@@ -440,7 +440,6 @@ async function findComps(listing){
     let dist=null;
     if(lat&&lon&&comp.latitude&&comp.longitude){dist=haversine(lat,lon,comp.latitude,comp.longitude);if(dist>radius)continue;}
     else{if((comp.city||'').toLowerCase().trim()!==(listing.city||'').toLowerCase().trim())continue;}
-    const cHsR=comp.high_rating||0;
     // School rating filter removed — show all comps regardless of school zone
     const cHs=(comp.high_school||'').toLowerCase().trim();
     const schoolMatch=!!(listingHs&&cHs&&(listingHs.includes(cHs)||cHs.includes(listingHs)));
@@ -538,9 +537,23 @@ function getGapLabel(l){if(!getArvVal(l))return'<span style="color:var(--text-4)
 
 function getComps(l){return compCache[l.mls]||{comps:[],hp:0,loading:true};}
 
-async function fetchComps(l){if(compCache[l.mls])return compCache[l.mls];try{const d=await findComps(l);compCache[l.mls]=d;return d;}catch(e){compCache[l.mls]={comps:[],hp:0};return compCache[l.mls];}}
-
-async function loadComps(l){try{const d=await findComps(l);compCache[l.mls]=d;}catch(e){compCache[l.mls]={comps:[],hp:0,error:true};}render();if(active===l.mls){const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');document.getElementById('comp-col').innerHTML=compsPanel(l);setTimeout(()=>{const cm=getComps(l);if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}},100);}}
+async function loadComps(l){
+  try{const d=await findComps(l);compCache[l.mls]=d;}
+  catch(e){compCache[l.mls]={comps:[],hp:0,error:true};}
+  render();
+  if(active===l.mls){
+    // We're the canonical render path; cancel opn()'s polling fallback so it
+    // doesn't redundantly render compsPanel after we just did.
+    if(openCompPoll){clearInterval(openCompPoll);openCompPoll=null;}
+    const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
+    document.getElementById('comp-col').innerHTML=compsPanel(l);
+    requestAnimationFrame(()=>{
+      const cm=getComps(l);
+      if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}
+      else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}
+    });
+  }
+}
 
 function shortName(n){if(!n)return'';return n.replace(/ Elementary School$/,' ES').replace(/ Elementary$/,' ES').replace(/ Middle School$/,' MS').replace(/ Intermediate School$/,' MS').replace(/ High School$/,' HS').replace(/ Senior High School$/,' HS').replace(/ Academy$/,' Acad').replace(/\s*\([^)]+\)\s*/,' ').trim();}
 
@@ -597,6 +610,7 @@ function compsPanel(l){
       <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 7px"><div style="font-size:9px;font-weight:600;color:var(--text-4);text-transform:uppercase">Avg Price</div><div style="font-size:13px;font-weight:700;color:var(--accent)">$${Math.round(avg(prices)).toLocaleString()}</div></div>
       <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 7px"><div style="font-size:9px;font-weight:600;color:var(--text-4);text-transform:uppercase">Avg $/SF</div><div style="font-size:15px;font-weight:700;color:var(--accent)">$${Math.round(avg(ppsfs))}</div></div>
       <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 7px"><div style="font-size:9px;font-weight:600;color:var(--text-4);text-transform:uppercase">Avg SqFt</div><div style="font-size:15px;font-weight:700;color:var(--accent)">${Math.round(avg(sqfts)).toLocaleString()}</div></div></div>`;}
+  else if(!cm.loading){h+=`<div style="padding:8px;color:var(--text-4);font-size:11px;font-style:italic">No comps found within current tolerances. Adjust radius/sqft/months above to widen the search.</div>`;}
   h+=`</div>`;
   h+=`<div id="comp-map-${mid}" style="width:100%;height:250px;border-radius:6px;border:1px solid var(--border);margin-bottom:8px;background:var(--bg-alt)"></div>`;
   h+=`<div style="font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:.5px;margin-bottom:4px">COMPS (${cm.comps.length})</div>`;
@@ -882,6 +896,9 @@ function recalcCompSummary(mid){
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 7px"><div style="font-size:9px;font-weight:600;color:var(--text-4);text-transform:uppercase">Avg SqFt</div><div style="font-size:15px;font-weight:700;color:var(--accent)">${Math.round(avg(checked.map(c=>c.sqft).filter(Boolean))).toLocaleString()}</div></div></div>`;
   const avgPsf=checked.length?Math.round(avg(ppsfs)):0;
   const l=listings.find(x=>x.mls===activeMls);
+  // Note: this updates the detail-panel ARV input only — compCache[activeMls].hp
+  // is intentionally NOT mutated, so getArvLabel() in the list view keeps showing
+  // the system's all-comps ARV. Detail = user-trimmed; list = system best-guess.
   if(l&&avgPsf){const newArv=avgPsf*l.sqft;const ae=document.getElementById('comp-arv-'+mid);if(ae)ae.innerHTML=`Avg $/sf: $${avgPsf} → ARV = ${l.sqft.toLocaleString()} sf × $${avgPsf} = ${F(newArv)}`;setNumVal('arv-'+mid,newArv);calcDeal(mid,l.price,l.sqft);}
 }
 
@@ -1253,7 +1270,37 @@ function renderDetailPage(l){
 }
 
 let openCompPoll=null;
-function opn(m,prefetched){if(openCompPoll){clearInterval(openCompPoll);openCompPoll=null;}active=m;document.querySelector('.main').classList.add('detail-view');const l=prefetched||listings.find(x=>x.mls===active);if(l){renderDetailPage(l);loadComps(l);const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');let polls=0;openCompPoll=setInterval(()=>{if(active!==m){clearInterval(openCompPoll);openCompPoll=null;return;}polls++;if(compCache[l.mls]||polls>20){clearInterval(openCompPoll);openCompPoll=null;document.getElementById('comp-col').innerHTML=compsPanel(l);const cm=getComps(l);if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}}},300);requestAnimationFrame(()=>calcDeal(id,l.price,l.sqft));}}
+function opn(m,prefetched){
+  // Cancel any in-flight poll from a previous opn() before starting fresh.
+  if(openCompPoll){clearInterval(openCompPoll);openCompPoll=null;}
+  active=m;
+  document.querySelector('.main').classList.add('detail-view');
+  const l=prefetched||listings.find(x=>x.mls===active);
+  if(l){
+    renderDetailPage(l);
+    loadComps(l);
+    const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
+    let polls=0;
+    // Poll every 300ms (max ~6s) until comps land in compCache, then re-render
+    // the comp-col with the loaded comps and seed the ARV input. The active!==m
+    // guard inside the interval handles the case where the user navigates to a
+    // different listing before this poll finishes.
+    openCompPoll=setInterval(()=>{
+      if(active!==m){clearInterval(openCompPoll);openCompPoll=null;return;}
+      polls++;
+      if(compCache[l.mls]||polls>20){
+        clearInterval(openCompPoll);openCompPoll=null;
+        document.getElementById('comp-col').innerHTML=compsPanel(l);
+        const cm=getComps(l);
+        if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}
+        else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}
+      }
+    },300);
+    // calcDeal needs the DOM nodes from renderDetailPage to exist before reading
+    // input values; rAF defers until after the current paint.
+    requestAnimationFrame(()=>calcDeal(id,l.price,l.sqft));
+  }
+}
 function cls(){if(openCompPoll){clearInterval(openCompPoll);openCompPoll=null;}active=null;document.querySelector('.main').classList.remove('detail-view');render();}
 function setFilter(f){if(active){active=null;document.querySelector('.main').classList.remove('detail-view');}currentFilter=f;cityFilters.clear();tagFilters.clear();updateCityBtn();updateTagBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
 function toggleCityFilter(city){if(cityFilters.has(city))cityFilters.delete(city);else cityFilters.add(city);updateCityBtn();render();}
@@ -1275,6 +1322,11 @@ function toggleRowSelect(mls,checked){if(checked)selectedMls.add(mls);else selec
 function renderBulkActionBar(){const bar=document.getElementById('bulk-action-bar');if(!bar)return;const n=selectedMls.size;if(n===0){bar.style.display='none';return;}bar.style.display='flex';const c=document.getElementById('bulk-count');if(c)c.textContent=`${n} selected`;}
 function bulkClear(){selectedMls.clear();document.querySelectorAll('.row-select').forEach(cb=>cb.checked=false);renderBulkActionBar();}
 async function bulkArchive(){const n=selectedMls.size;if(n===0)return;if(!confirm(`Archive ${n} listing${n===1?'':'s'}? They'll move to the Archive stage and disappear from this view (use the ⋮ menu → Archive to view + restore).`))return;const mlsList=[...selectedMls];const{error}=await sb.from('properties').update({stage:'archived',archived_at:new Date().toISOString(),updated_at:new Date().toISOString()}).in('mls',mlsList);if(error){alert(`Bulk archive failed: ${error.message}`);return;}selectedMls.clear();
+  // Defensively uncheck visible checkboxes so they don't stay checked during
+  // the 1.2s flash window before loadListings re-renders. Inlined (rather than
+  // calling bulkClear) because bulkClear also calls renderBulkActionBar, which
+  // would hide the bar before the success-flash text below has a chance to show.
+  document.querySelectorAll('.row-select').forEach(cb=>cb.checked=false);
   // Brief flash confirming the archive succeeded before the bar hides on reload.
   const cntEl=document.getElementById('bulk-count');if(cntEl)cntEl.textContent=`Archived ${n} listing${n===1?'':'s'}`;
   await new Promise(r=>setTimeout(r,1200));
@@ -1339,14 +1391,23 @@ async function onAddrSearchPick(mls){
 }
 
 
+// Per-MLS generation counter — guards against rapid double-clicks of a tolerance
+// dropdown causing two parallel findComps() calls where the slower (older) one
+// arrives last and overwrites the cache with stale data.
+const refetchGenerations={};
 async function refetchComps(mls){const l=listings.find(x=>x.mls===mls);if(!l)return;const mid=mls.replace(/[^a-zA-Z0-9]/g,'');
   // Tolerance state lives in dataset.value on the chip-btn (the old <select>
   // was replaced with a custom dropdown for Tesla browser compatibility).
   const radius=parseFloat(((document.getElementById('comp-radius-'+mid)||{}).dataset||{}).value||'0.25');
   const sqftRange=parseInt(((document.getElementById('comp-sqft-'+mid)||{}).dataset||{}).value||'150');
   const months=parseInt(((document.getElementById('comp-months-'+mid)||{}).dataset||{}).value||'6');
+  const gen=(refetchGenerations[mls]||0)+1;
+  refetchGenerations[mls]=gen;
   delete compCache[mls];
-  try{const data=await findComps({...l,radius,sqftRange,months});compCache[mls]=data;document.getElementById('comp-col').innerHTML=compsPanel(l);
+  try{const data=await findComps({...l,radius,sqftRange,months});
+    // A newer refetch was started while we were awaiting; discard our stale result.
+    if(refetchGenerations[mls]!==gen)return;
+    compCache[mls]=data;document.getElementById('comp-col').innerHTML=compsPanel(l);
     // Re-render replaces the buttons; sync each new button's dataset.value
     // and visible label so the picker reflects the actually-used tolerance.
     const re=document.getElementById('comp-radius-'+mid);if(re){re.dataset.value=String(radius);re.textContent=COMP_TOL_LABELS.radius(String(radius));}
