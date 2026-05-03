@@ -814,10 +814,10 @@ function renderCompMap(l,cm,mid){
 }
 
 // Inline comp-type selector so you can retag a comp (general / flips /
-// halfflips / dotty) directly from the detail view's comp list instead
-// of hopping to flip-review.html. Skip the select on unsold_flip (active
-// listings matched as comps) and on comps without an MLS — those aren't
-// retaggable. See updateCompType() for the write path.
+// halfflips / dotty) directly from the detail view's comp list. Skip
+// the select on unsold_flip (active listings matched as comps) and on
+// comps without an MLS — those aren't retaggable. See updateCompType()
+// for the write path.
 // Color/label palette for retag pills. Mirrored on both the trigger button
 // and each option in the popup so the colored-pill identification still works.
 const RETAG_OPTS=[['general','SOLD'],['halfflips','HALF'],['flips','FLIP'],['dotty','DOTTY']];

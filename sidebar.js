@@ -30,6 +30,7 @@
       label: 'Acquisitions',
       items: [
         { key: 'deals', label: 'MLS Deals', href: 'mls-deals.html', icon: iconDeals() },
+        { key: 'comps', label: 'Comps DB',  href: 'comps-db.html',  icon: iconComps() },
       ],
     },
     {
@@ -42,11 +43,8 @@
     {
       label: 'Data',
       items: [
-        { key: 'comps',       label: 'Comps DB',    href: 'comps-db.html',         icon: iconComps() },
-        { key: 'flip-review', label: 'Flip Review', href: 'flip-review.html',      icon: iconFlipReview() },
-        { key: 'condition',   label: 'Condition',   href: 'condition-review.html', icon: iconCondition() },
-        { key: 'map',         label: 'Map',         href: 'mls-map.html',          icon: iconMap() },
-        { key: 'import',      label: 'Import Hub',  href: 'import.html',           icon: iconImport() },
+        { key: 'condition', label: 'Condition',  href: 'condition-review.html', icon: iconCondition() },
+        { key: 'import',    label: 'Import Hub', href: 'import.html',           icon: iconImport() },
       ],
     },
     {
@@ -146,9 +144,7 @@
   function iconConstruction() { return '<svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9v12M15 9v12"/></svg>'; }
   function iconListings()     { return '<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>'; }
   function iconComps()        { return '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>'; }
-  function iconFlipReview()   { return '<svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>'; }
   function iconCondition()    { return '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg>'; }
-  function iconMap()          { return '<svg viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>'; }
   function iconImport()       { return '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'; }
   function iconReports()      { return '<svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>'; }
   function iconCapital()      { return '<svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'; }
