@@ -1,0 +1,21 @@
+# Cloudflare Pages headers config.
+#
+# Force shared assets (sidebar.js, auth.js, backstage.css) to revalidate on
+# every load. The browser still caches the file, but it sends an
+# If-Modified-Since on each request and gets a 304 (cheap) until the file
+# actually changes — at which point it picks up the new bytes immediately.
+#
+# Without this, Cloudflare's default + browser default heuristics caused
+# stale sidebar.js to keep rendering deleted nav entries after a deploy
+# (Brief BH, 2026-05-02). The fix needs to live at the deploy layer because
+# the HTMLs include these as plain `<script src="sidebar.js">` with no
+# version query string.
+
+/sidebar.js
+  Cache-Control: no-cache, must-revalidate
+
+/auth.js
+  Cache-Control: no-cache, must-revalidate
+
+/backstage.css
+  Cache-Control: no-cache, must-revalidate
