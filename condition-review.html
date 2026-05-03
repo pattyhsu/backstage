@@ -255,12 +255,13 @@ async function populateCityDropdown(){
   const cities=[...new Set(data.map(r=>r.city))].filter(Boolean).sort();
   const drop=document.getElementById('fCity-drop');
   // Always-first "All Cities" option, marked selected by default.
-  let html=`<button onclick="${esc('setCityFilter('+JSON.stringify('')+')')}" class="selected">All Cities</button>`;
-  // HTML-encode inner double quotes from JSON.stringify so they don't terminate
-  // the onclick attribute. esc() over the rendered call string handles cities
-  // containing &, <, > too. The browser decodes back to ("Cerritos") at parse
-  // time, so setCityFilter receives the same value setCityFilter('') uses.
-  html+=cities.map(c=>`<button onclick="${esc('setCityFilter('+JSON.stringify(c)+')')}">${esc(c)}</button>`).join('');
+  // JSON.stringify produces "Cerritos" — the inner " terminates an onclick="..."
+  // attribute early, breaking the click. esc() doesn't encode " (textContent only
+  // escapes & < >), so we explicitly &quot;-encode the rendered call string. Browser
+  // decodes back to setCityFilter("Cerritos") when reading the attribute.
+  const attrSafe=s=>s.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+  let html=`<button onclick="setCityFilter(&quot;&quot;)" class="selected">All Cities</button>`;
+  html+=cities.map(c=>`<button onclick="${attrSafe('setCityFilter('+JSON.stringify(c)+')')}">${esc(c)}</button>`).join('');
   drop.innerHTML=html;
 }
 
