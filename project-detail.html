@@ -103,6 +103,25 @@ body { overflow:hidden; height:100vh; }
 .history .note { font-size:12px; color:var(--text-3); margin-top:4px; padding-left:10px; border-left:2px solid var(--border); font-style:italic; }
 .empty-history { font-size:12px; color:var(--text-4); font-style:italic; }
 
+/* Read-only section grids (Construction / Listing) */
+.kv-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px 24px; padding:6px 0 4px; }
+.kv-grid .kv label { display:block; font-size:10px; font-weight:700; color:var(--text-4); text-transform:uppercase; letter-spacing:.4px; margin-bottom:3px; }
+.kv-grid .kv .val { font-size:13px; font-weight:600; color:var(--text); }
+.kv-grid .kv .val.dim { color:var(--text-3); font-weight:500; }
+
+/* Milestones mini-list */
+.ms-mini { list-style:none; padding:0; margin:0; }
+.ms-mini li { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.ms-mini li:last-child { border-bottom:none; }
+.ms-mini .ms-due { font-family:var(--mono); font-size:11px; color:var(--text-3); width:64px; flex-shrink:0; }
+.ms-mini .ms-name { flex:1; }
+.ms-mini li.done { opacity:.55; }
+.ms-mini li.done .ms-name { text-decoration:line-through; color:var(--text-3); }
+.ms-mini .ms-status { font-size:10px; font-weight:700; padding:1px 7px; border-radius:8px; letter-spacing:.4px; text-transform:uppercase; }
+.ms-mini .ms-status.done { background:var(--green-bg); color:var(--green); }
+.ms-mini .ms-status.open { background:var(--bg-alt); color:var(--text-3); }
+.ms-mini .ms-status.overdue { background:var(--red-bg); color:var(--red); }
+
 </style>
 </head>
 <body>
@@ -134,15 +153,23 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;
 
-// ========== STAGE CONFIG ==========
-const STAGES=['offered','in_escrow','under_construction','listed'];
-function pipelineStageLabel(s){
-  if(s==null)return 'Out of pipeline';
-  return ({offered:'Offered',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed'})[s]||s;
+// ========== PHASE CONFIG ==========
+// Brief BK: 5 phases on the move dropdown. 'sold' is auto-only (daily_pipeline
+// sets it when it detects the relist closed) so the UI never offers it.
+const PHASES=['pursuing','in_escrow','under_construction','listed','archived'];
+function phaseLabel(s){
+  if(s==null)return 'Unknown';
+  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed',sold:'Sold',archived:'Archived'})[s]||s;
+}
+
+// Construction scope-tier label (read-only; editor inputs ship in BN).
+function scopeTierLabel(t){
+  if(t==null)return '—';
+  return ({1:'1 Cosmetic',2:'2 Medium',3:'3 Heavy'})[t]||String(t);
 }
 
 // ========== HELPERS ==========
-function FK(n){if(!n||!isFinite(n))return '—';if(n>=1e6)return '$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';if(n>=1e3)return '$'+Math.round(n/1e3)+'K';return '$'+n;}
+function FK(n){if(n==null||!isFinite(n))return '—';if(n>=1e6)return '$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';if(n>=1e3)return '$'+Math.round(n/1e3)+'K';return '$'+n;}
 function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
 function relTime(iso){
   if(!iso)return '';
@@ -160,132 +187,230 @@ function fmtDate(iso){
   if(!isFinite(d.getTime()))return '';
   return d.toISOString().slice(0,10);
 }
+function fmtMD(iso){
+  if(!iso)return '—';
+  const d=new Date(iso+(iso.length===10?'T00:00:00':''));
+  if(!isFinite(d.getTime()))return '—';
+  return (d.getMonth()+1)+'/'+d.getDate();
+}
 function userShort(uuid){
   if(!uuid)return 'unknown';
-  // Show first 8 chars; tooltip carries the full uuid via the title attr at the call site.
   return uuid.slice(0,8);
 }
+function todayStr(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
 
-// ========== PARSE QUERY PARAM ==========
-function getMls(){
+// ========== PARSE QUERY PARAMS ==========
+function getQueryParams(){
   const params=new URLSearchParams(location.search);
-  return (params.get('mls')||'').trim();
+  return {
+    dealId:(params.get('deal')||'').trim(),
+    mls:(params.get('mls')||'').trim(),
+  };
 }
 
 // ========== STATE ==========
-let currentProperty=null;
-let stageHistory=[];
+let currentDeal=null;        // row from `deals`
+let propertiesByMls={};      // mls -> properties row (for header rendering)
+let phaseHistory=[];         // rows from deals_phase_history
+let dealMilestones=[];       // rows from deal_milestones
 let saving=false;
+
+// Pick the "primary" properties row to render in the header. For listed
+// deals, prefer the relist_mls (the new MLS# carrying the listing photos
+// + price). Otherwise fall back to buy_side_mls.
+function primaryProperty(){
+  if(!currentDeal)return null;
+  if(currentDeal.phase==='listed' && currentDeal.relist_mls && propertiesByMls[currentDeal.relist_mls]){
+    return propertiesByMls[currentDeal.relist_mls];
+  }
+  if(currentDeal.buy_side_mls && propertiesByMls[currentDeal.buy_side_mls]){
+    return propertiesByMls[currentDeal.buy_side_mls];
+  }
+  if(currentDeal.relist_mls && propertiesByMls[currentDeal.relist_mls]){
+    return propertiesByMls[currentDeal.relist_mls];
+  }
+  return null;
+}
 
 // ========== LOAD ==========
 async function loadProject(){
-  const mls=getMls();
+  const {dealId, mls}=getQueryParams();
   const topBarMls=document.getElementById('topbar-mls');
-  if(topBarMls)topBarMls.textContent=mls?'MLS# '+mls:'';
-  if(!mls){
-    document.getElementById('container').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--text-4)">No <code>?mls=</code> query param. Open this page from the Pipeline kanban or an MLS Deals listing.</div>`;
+
+  if(!dealId && !mls){
+    document.getElementById('container').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--text-4)">No <code>?deal=&lt;uuid&gt;</code> or <code>?mls=&lt;mls&gt;</code> query param. Open this page from the Pipeline kanban or an MLS Deals listing.</div>`;
     return;
   }
 
-  // Property row.
-  const {data:rows,error:pErr}=await sb.from('properties')
-    .select('id, mls, address, city, zip, beds, baths, sqft, year_built, list_price, sale_price, sold_date, pipeline_stage, locked_arv, locked_construction, escrow_start_date, target_close_date, contingency_removal_date')
-    .eq('mls',mls)
-    .limit(1);
-  if(pErr){
-    console.error('[project-detail] property load failed',pErr);
-    document.getElementById('container').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--red)">Failed to load: ${escapeHtml(pErr.message)}</div>`;
-    return;
-  }
-  if(!rows||!rows.length){
-    document.getElementById('container').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--text-4)">No property found with MLS# ${escapeHtml(mls)}.</div>`;
-    return;
-  }
-  currentProperty=rows[0];
-
-  // Optional ARV + grade pulls (best-effort; non-fatal).
-  let arvRow=null, gradeRow=null;
-  try {
-    const {data:arvData}=await sb.from('arv_estimates').select('arv,confidence_label').eq('mls',mls).order('computed_at',{ascending:false}).limit(1);
-    arvRow=(arvData&&arvData[0])||null;
-  } catch(e){ /* ignore */ }
-  try {
-    const {data:gData}=await sb.from('deal_scores').select('grade,spread_pct,status').eq('mls',mls).order('computed_at',{ascending:false}).limit(1);
-    gradeRow=(gData&&gData[0])||null;
-  } catch(e){ /* ignore */ }
-
-  // History.
-  const {data:hist,error:hErr}=await sb.from('pipeline_stage_history')
-    .select('id, mls, from_stage, to_stage, transitioned_at, transitioned_by, note, created_at')
-    .eq('mls',mls)
-    .order('transitioned_at',{ascending:false});
-  if(hErr){
-    console.error('[project-detail] history load failed',hErr);
-    stageHistory=[];
+  // 1. Load the deal row.
+  let dealRow=null, dealErr=null;
+  if(dealId){
+    const {data, error}=await sb.from('deals').select('*').eq('id', dealId).maybeSingle();
+    dealRow=data; dealErr=error;
   } else {
-    stageHistory=hist||[];
+    // Backward-compat fallback: ?mls=<mls>. Match buy_side_mls OR relist_mls.
+    const escMls=mls.replace(/'/g,"''"); // PostgREST or-string is comma-delimited; commas/parens in mls are unlikely but escape single-quotes for safety.
+    const {data, error}=await sb.from('deals')
+      .select('*')
+      .or(`buy_side_mls.eq.${escMls},relist_mls.eq.${escMls}`)
+      .limit(1);
+    if(error){dealErr=error;}
+    else if(data && data.length){dealRow=data[0];}
+    else {
+      // No matching deal — bounce back to mls-deals.html.
+      document.getElementById('container').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--text-4)">No deal found for MLS# ${escapeHtml(mls)}. <a href="mls-deals.html" style="color:var(--accent)">Back to MLS Deals →</a></div>`;
+      return;
+    }
+  }
+  if(dealErr){
+    console.error('[project-detail] deal load failed', dealErr);
+    document.getElementById('container').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--red)">Failed to load deal: ${escapeHtml(dealErr.message)}</div>`;
+    return;
+  }
+  if(!dealRow){
+    document.getElementById('container').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--text-4)">No deal found for the supplied id/mls.</div>`;
+    return;
+  }
+  currentDeal=dealRow;
+
+  if(topBarMls){
+    const labels=[];
+    if(dealRow.buy_side_mls)labels.push('Buy: '+dealRow.buy_side_mls);
+    if(dealRow.relist_mls)labels.push('Relist: '+dealRow.relist_mls);
+    topBarMls.textContent=labels.join(' · ');
   }
 
-  renderPage(arvRow,gradeRow);
+  // 2. Load the linked properties rows (may be one or two).
+  const mlsList=[dealRow.buy_side_mls, dealRow.relist_mls].filter(Boolean);
+  propertiesByMls={};
+  if(mlsList.length){
+    const {data:props, error:pErr}=await sb.from('properties')
+      .select('id, mls, address, city, zip, beds, baths, sqft, year_built, list_price, sale_price, sold_date, locked_arv, locked_construction')
+      .in('mls', mlsList);
+    if(pErr){
+      console.warn('[project-detail] properties load failed (non-fatal)', pErr);
+    } else {
+      for(const r of (props||[])){
+        propertiesByMls[r.mls]=r;
+      }
+    }
+  }
+
+  // 3. ARV + grade lookups (best-effort; prefer primary mls).
+  const primary=primaryProperty();
+  let arvRow=null, gradeRow=null;
+  if(primary){
+    try {
+      const {data:arvData}=await sb.from('arv_estimates').select('arv,confidence_label').eq('mls',primary.mls).order('computed_at',{ascending:false}).limit(1);
+      arvRow=(arvData&&arvData[0])||null;
+    } catch(e){ /* ignore */ }
+    try {
+      const {data:gData}=await sb.from('deal_scores').select('grade,spread_pct,status').eq('mls',primary.mls).order('computed_at',{ascending:false}).limit(1);
+      gradeRow=(gData&&gData[0])||null;
+    } catch(e){ /* ignore */ }
+  }
+
+  // 4. Phase history.
+  const {data:hist, error:hErr}=await sb.from('deals_phase_history')
+    .select('id, deal_id, from_phase, to_phase, transitioned_at, transitioned_by, note')
+    .eq('deal_id', dealRow.id)
+    .order('transitioned_at', {ascending:false});
+  if(hErr){
+    console.error('[project-detail] history load failed', hErr);
+    phaseHistory=[];
+  } else {
+    phaseHistory=hist||[];
+  }
+
+  // 5. Deal milestones (read-only mini-list).
+  const {data:ms, error:msErr}=await sb.from('deal_milestones')
+    .select('id, deal_id, milestone_key, display_name, due_date, completed, completed_at, notes')
+    .eq('deal_id', dealRow.id)
+    .order('due_date', {ascending:true});
+  if(msErr){
+    console.warn('[project-detail] milestones load failed (non-fatal)', msErr);
+    dealMilestones=[];
+  } else {
+    dealMilestones=ms||[];
+  }
+
+  renderPage(arvRow, gradeRow);
 }
 
 // ========== RENDER ==========
 function renderPage(arvRow,gradeRow){
-  const p=currentProperty;
+  const d=currentDeal;
   const role=window.CURRENT_USER_ROLE;
-  const stage=p.pipeline_stage;
-  const stageLabel=pipelineStageLabel(stage);
+  const phase=d.phase;
+  const phaseLbl=phaseLabel(phase);
+  const p=primaryProperty();
 
-  // Days in current stage = age of latest history row matching to_stage.
-  let daysInStageStr='';
-  if(stage){
-    const lastEnter=stageHistory.find(h=>h.to_stage===stage);
-    if(lastEnter)daysInStageStr=' · '+relTime(lastEnter.transitioned_at)+' in stage';
+  // Days in current phase = age of latest history row matching to_phase.
+  let daysInPhaseStr='';
+  const lastEnter=phaseHistory.find(h=>h.to_phase===phase);
+  if(lastEnter)daysInPhaseStr=' · '+relTime(lastEnter.transitioned_at)+' in phase';
+
+  // Build header sub-line from the primary property (may be partly NULL for OFFMKT-).
+  const subParts=[];
+  if(p){
+    if(p.beds!=null && p.beds!==0)subParts.push(p.beds+'bd');
+    if(p.baths!=null && p.baths!==0)subParts.push(p.baths+'ba');
+    if(p.sqft)subParts.push(p.sqft.toLocaleString()+' sf');
+    if(p.year_built)subParts.push('Built '+p.year_built);
   }
+  const subLine=subParts.join(' · ');
 
-  const subParts=[
-    (p.beds!=null&&p.beds!==0)?`${p.beds}bd`:null,
-    (p.baths!=null&&p.baths!==0)?`${p.baths}ba`:null,
-    p.sqft?`${p.sqft.toLocaleString()} sf`:null,
-    p.year_built?`Built ${p.year_built}`:null,
-  ].filter(Boolean).join(' · ');
+  // Address / city for header.
+  const addrText=p?(p.address||'(no address)'):'(no linked properties row)';
+  const cityZipText=p?((p.city||'')+(p.zip?', CA '+p.zip:'')):'';
 
+  // MLS label line for header (both sides if both exist).
+  const mlsLabels=[];
+  if(d.buy_side_mls)mlsLabels.push('Buy MLS# '+d.buy_side_mls);
+  if(d.relist_mls)mlsLabels.push('Relist MLS# '+d.relist_mls);
+
+  // Financials line.
   const finBits=[];
-  if(p.list_price)finBits.push(`<b>List:</b> ${FK(p.list_price)}`);
-  if(p.sale_price)finBits.push(`<b>Sale:</b> ${FK(p.sale_price)}`);
-  if(p.locked_arv)finBits.push(`<b>ARV (locked):</b> ${FK(p.locked_arv)}`);
-  else if(arvRow&&arvRow.arv)finBits.push(`<b>ARV:</b> ${FK(arvRow.arv)}${arvRow.confidence_label?' ('+arvRow.confidence_label+')':''}`);
-  if(gradeRow&&gradeRow.grade)finBits.push(`<b>Grade:</b> ${escapeHtml(gradeRow.grade)}${gradeRow.spread_pct!=null?' · '+(gradeRow.spread_pct).toFixed(1)+'% spread':''}`);
-  if(p.locked_construction)finBits.push(`<b>Construction (locked):</b> ${FK(p.locked_construction)}`);
+  // Prefer the deal-level numbers (canonical for the deal) over the
+  // properties-row list_price (which only reflects the latest MLS snapshot).
+  if(d.list_price)finBits.push(`<b>List:</b> ${FK(d.list_price)}`);
+  else if(p && p.list_price)finBits.push(`<b>List:</b> ${FK(p.list_price)}`);
+  if(d.sale_price)finBits.push(`<b>Sale:</b> ${FK(d.sale_price)}`);
+  else if(p && p.sale_price)finBits.push(`<b>Sale:</b> ${FK(p.sale_price)}`);
+  if(p && p.locked_arv)finBits.push(`<b>ARV (locked):</b> ${FK(p.locked_arv)}`);
+  else if(arvRow && arvRow.arv)finBits.push(`<b>ARV:</b> ${FK(arvRow.arv)}${arvRow.confidence_label?' ('+arvRow.confidence_label+')':''}`);
+  if(gradeRow && gradeRow.grade)finBits.push(`<b>Grade:</b> ${escapeHtml(gradeRow.grade)}${gradeRow.spread_pct!=null?' · '+(gradeRow.spread_pct).toFixed(1)+'% spread':''}`);
+  if(p && p.locked_construction)finBits.push(`<b>Construction (locked):</b> ${FK(p.locked_construction)}`);
 
-  // Stage transition options.
-  const stageOptions=STAGES.map(s=>{
-    const sel=(s===stage)?' selected disabled':'';
-    return `<option value="${s}"${sel}>${escapeHtml(pipelineStageLabel(s))}${s===stage?' (current)':''}</option>`;
+  // Phase transition options (5 phases; current one disabled).
+  const phaseOptions=PHASES.map(s=>{
+    const sel=(s===phase)?' selected disabled':'';
+    return `<option value="${s}"${sel}>${escapeHtml(phaseLabel(s))}${s===phase?' (current)':''}</option>`;
   }).join('');
 
   let html=`
     <div class="header-block">
-      <h1>${escapeHtml(p.address||'(no address)')}</h1>
-      <p class="sub">${escapeHtml((p.city||'')+(p.zip?', CA '+p.zip:''))} · MLS# ${escapeHtml(p.mls)}${subParts?' · '+escapeHtml(subParts):''}</p>
+      <h1>${escapeHtml(addrText)}</h1>
+      <p class="sub">${escapeHtml(cityZipText)}${cityZipText && mlsLabels.length?' · ':''}${escapeHtml(mlsLabels.join(' · '))}${subLine?' · '+escapeHtml(subLine):''}</p>
       <div class="stage-row">
-        <span class="${'stage-pill'+(stage?'':' empty')}">${escapeHtml(stageLabel)}</span>
-        <span class="age">${escapeHtml(daysInStageStr)}</span>
+        <span class="${'stage-pill'+(phase?'':' empty')}">${escapeHtml(phaseLbl)}</span>
+        <span class="age">${escapeHtml(daysInPhaseStr)}</span>
         <a class="acq-link" href="mls-deals.html" title="No ?mls= deep-link yet — find this listing manually in MLS Deals.">View acquisition data →</a>
       </div>
       ${finBits.length?`<div class="financials">${finBits.join(' · ')}</div>`:''}
     </div>
 
     <div class="section">
-      <h2>Stage Transition</h2>
+      <h2>Phase Transition</h2>
       <div class="move-form">
         <div class="move-row">
           <label for="newStageSelect">Move to:</label>
           <select id="newStageSelect">
-            <option value="" disabled selected>Choose stage...</option>
-            ${stageOptions}
-            <option disabled>──────────</option>
-            <option value="__exit__">— Out of pipeline</option>
+            <option value="" disabled selected>Choose phase...</option>
+            ${phaseOptions}
           </select>
         </div>
         <div class="move-row" id="escrowDatesRow" style="display:none">
@@ -315,21 +440,14 @@ function renderPage(arvRow,gradeRow){
     </div>
 
     <div class="section">
-      <h2>Stage History</h2>
+      <h2>Phase History</h2>
       ${renderHistoryList()}
     </div>
 
     ${renderEscrowDatesSection()}
-
-    <div class="section stub">
-      <h2>Construction</h2>
-      <div class="stub-msg">Coming soon — Sprint 5 Field Ops agent will populate scope, GC, line items, photos, and timeline here.</div>
-    </div>
-
-    <div class="section stub">
-      <h2>Listing</h2>
-      <div class="stub-msg">Coming soon — Sprint 5 Sales agent will populate listing copy, photo selection, MLS publish status, and showings.</div>
-    </div>
+    ${renderConstructionSection()}
+    ${renderListingSection()}
+    ${renderMilestonesSection()}
   `;
 
   // FINANCING — owner only.
@@ -350,7 +468,7 @@ function renderPage(arvRow,gradeRow){
 
     <div class="section stub">
       <h2>Docs</h2>
-      <div class="stub-msg">Coming soon — uploaded PDFs (purchase contract, disclosures, permits, inspections) keyed off this MLS.</div>
+      <div class="stub-msg">Coming soon — uploaded PDFs (purchase contract, disclosures, permits, inspections) keyed off this deal.</div>
     </div>
   `;
 
@@ -358,13 +476,13 @@ function renderPage(arvRow,gradeRow){
 }
 
 function renderHistoryList(){
-  if(!stageHistory.length){
+  if(!phaseHistory.length){
     return `<div class="empty-history">No transitions recorded yet. The first move via the dropdown above will start the audit trail.</div>`;
   }
   let html='<ul class="history">';
-  for(const h of stageHistory){
-    const fromLbl=h.from_stage?pipelineStageLabel(h.from_stage):'(entered pipeline)';
-    const toLbl=h.to_stage?pipelineStageLabel(h.to_stage):'(left pipeline)';
+  for(const h of phaseHistory){
+    const fromLbl=h.from_phase?phaseLabel(h.from_phase):'(deal opened)';
+    const toLbl=h.to_phase?phaseLabel(h.to_phase):'(deal closed)';
     const who=h.transitioned_by?userShort(h.transitioned_by):'unknown';
     html+=`<li>
       <div><span class="when">${escapeHtml(fmtDate(h.transitioned_at))} · ${escapeHtml(relTime(h.transitioned_at))}</span><span class="who" title="${escapeHtml(h.transitioned_by||'')}">by ${escapeHtml(who)}</span></div>
@@ -376,7 +494,72 @@ function renderHistoryList(){
   return html;
 }
 
-// ========== STAGE TRANSITION ==========
+// ---------- Construction read-only section (BK; editor lands in BN) ----------
+function renderConstructionSection(){
+  if(!currentDeal || currentDeal.phase!=='under_construction')return '';
+  const d=currentDeal;
+  const completionPct=(d.rehab_actual!=null && d.rehab_budget && d.rehab_budget>0)
+    ? ((d.rehab_actual/d.rehab_budget)*100).toFixed(0)+'%'
+    : '—';
+  const rows=[
+    ['Scope', scopeTierLabel(d.scope_tier)],
+    ['Rehab budget', d.rehab_budget!=null?FK(d.rehab_budget):'—'],
+    ['Rehab actual', d.rehab_actual!=null?FK(d.rehab_actual):'—'],
+    ['Completion', completionPct],
+    ['GC / crew', d.gc_crew||'—'],
+    ['Construction start', d.construction_start_date?fmtDate(d.construction_start_date):'—'],
+    ['Construction complete', d.construction_complete_date?fmtDate(d.construction_complete_date):'—'],
+  ];
+  let html=`<div class="section"><h2>Construction</h2><div class="kv-grid">`;
+  for(const [lbl, val] of rows){
+    const dim=(val==='—');
+    html+=`<div class="kv"><label>${escapeHtml(lbl)}</label><div class="val${dim?' dim':''}">${escapeHtml(val)}</div></div>`;
+  }
+  html+=`</div><div class="stub-msg" style="font-size:11px;color:var(--text-4);font-style:italic;margin-top:8px">Editor inputs ship in Brief BN.</div></div>`;
+  return html;
+}
+
+// ---------- Listing read-only section ----------
+function renderListingSection(){
+  if(!currentDeal || currentDeal.phase!=='listed')return '';
+  const d=currentDeal;
+  const rows=[
+    ['List price', d.list_price!=null?FK(d.list_price):'—'],
+    ['List date', d.list_date?fmtDate(d.list_date):'—'],
+    ['Accepted offer', d.accepted_offer_price!=null?FK(d.accepted_offer_price):'—'],
+    ['Accepted offer date', d.accepted_offer_date?fmtDate(d.accepted_offer_date):'—'],
+    ['Sale close date', d.sale_close_date?fmtDate(d.sale_close_date):'—'],
+    ['Sale price', d.sale_price!=null?FK(d.sale_price):'—'],
+  ];
+  let html=`<div class="section"><h2>Listing</h2><div class="kv-grid">`;
+  for(const [lbl, val] of rows){
+    const dim=(val==='—');
+    html+=`<div class="kv"><label>${escapeHtml(lbl)}</label><div class="val${dim?' dim':''}">${escapeHtml(val)}</div></div>`;
+  }
+  html+=`</div></div>`;
+  return html;
+}
+
+// ---------- Milestones mini-list ----------
+function renderMilestonesSection(){
+  if(!dealMilestones.length)return '';
+  const today=todayStr();
+  let html=`<div class="section"><h2>Milestones</h2><ul class="ms-mini">`;
+  for(const m of dealMilestones){
+    const overdue=!m.completed && m.due_date && m.due_date < today;
+    const cls=m.completed?'done':(overdue?'overdue':'open');
+    const statusLbl=m.completed?'Done':(overdue?'Overdue':'Open');
+    html+=`<li class="${m.completed?'done':''}">
+      <span class="ms-due">${escapeHtml(fmtMD(m.due_date))}</span>
+      <span class="ms-name">${escapeHtml(m.display_name||m.milestone_key||'')}</span>
+      <span class="ms-status ${cls}">${escapeHtml(statusLbl)}</span>
+    </li>`;
+  }
+  html+=`</ul><div class="stub-msg" style="font-size:11px;color:var(--text-4);font-style:italic;margin-top:8px">Mark complete + edit due dates on <a href="calendar.html" style="color:var(--accent)">Calendar</a>.</div></div>`;
+  return html;
+}
+
+// ========== PHASE TRANSITION ==========
 async function moveStage(){
   if(saving)return;
   const sel=document.getElementById('newStageSelect');
@@ -389,14 +572,14 @@ async function moveStage(){
   const raw=(sel.value||'').trim();
   if(!raw){
     msgEl.className='move-msg err';
-    msgEl.textContent='Pick a stage first.';
+    msgEl.textContent='Pick a phase first.';
     return;
   }
-  const toStage=(raw==='__exit__')?null:raw;
-  const fromStage=currentProperty.pipeline_stage;
-  if(toStage===fromStage){
+  const toPhase=raw;
+  const fromPhase=currentDeal.phase;
+  if(toPhase===fromPhase){
     msgEl.className='move-msg err';
-    msgEl.textContent='Already in that stage.';
+    msgEl.textContent='Already in that phase.';
     return;
   }
   const note=(noteEl.value||'').trim()||null;
@@ -404,7 +587,7 @@ async function moveStage(){
 
   // Escrow date capture — all three required when transitioning to in_escrow.
   let escrowStart=null, targetClose=null, contingencyRemoval=null;
-  if(toStage==='in_escrow'){
+  if(toPhase==='in_escrow'){
     const startEl=document.getElementById('escrowStartInput');
     const closeEl=document.getElementById('targetCloseInput');
     const crdEl=document.getElementById('contingencyRemovalInput');
@@ -432,63 +615,53 @@ async function moveStage(){
   btn.disabled=true;
   msgEl.textContent='Saving...';
 
-  // 1. Append history row (source of truth).
-  const {error:hErr}=await sb.from('pipeline_stage_history').insert({
-    mls: currentProperty.mls,
-    from_stage: fromStage,
-    to_stage: toStage,
+  // 1. Update the deal row (phase + maybe escrow dates).
+  // The Postgres trigger from migration 027 fires server-side on phase
+  // transition into in_escrow with all 3 dates set, seeding the
+  // deal_milestones rows automatically. UI does NOT call seed_deal_milestones
+  // here (moved to saveEscrowDates() for the date-edit path on already-
+  // in_escrow deals).
+  const updatePayload={phase: toPhase, updated_at: new Date().toISOString()};
+  if(toPhase==='in_escrow'){
+    updatePayload.escrow_start_date=escrowStart;
+    updatePayload.target_close_date=targetClose;
+    updatePayload.contingency_removal_date=contingencyRemoval;
+  }
+  const {error:dErr}=await sb.from('deals')
+    .update(updatePayload)
+    .eq('id', currentDeal.id);
+  if(dErr){
+    saving=false; btn.disabled=false;
+    msgEl.className='move-msg err';
+    msgEl.textContent='Deal update failed: '+dErr.message;
+    return;
+  }
+
+  // 2. Append phase-history row.
+  const {error:hErr}=await sb.from('deals_phase_history').insert({
+    deal_id: currentDeal.id,
+    from_phase: fromPhase,
+    to_phase: toPhase,
     transitioned_by: userId,
     note: note,
   });
   if(hErr){
     saving=false; btn.disabled=false;
     msgEl.className='move-msg err';
-    msgEl.textContent='History insert failed: '+hErr.message;
+    msgEl.textContent='History insert failed (phase update succeeded; reconcile later): '+hErr.message;
     return;
-  }
-
-  // 2. Update denormalized cache on properties (+ escrow dates if applicable).
-  const updatePayload={pipeline_stage: toStage, updated_at: new Date().toISOString()};
-  if(toStage==='in_escrow'){
-    updatePayload.escrow_start_date=escrowStart;
-    updatePayload.target_close_date=targetClose;
-    updatePayload.contingency_removal_date=contingencyRemoval;
-  }
-  const {error:pErr}=await sb.from('properties')
-    .update(updatePayload)
-    .eq('mls', currentProperty.mls);
-  if(pErr){
-    saving=false; btn.disabled=false;
-    msgEl.className='move-msg err';
-    msgEl.textContent='Properties update failed (history row was written; reconcile later): '+pErr.message;
-    return;
-  }
-
-  // Brief AP/AU — seed escrow milestones on transitions into in_escrow.
-  // Soft-fail; milestone-seed failure must not block the stage move.
-  if(toStage==='in_escrow' && escrowStart && targetClose && contingencyRemoval){
-    const{error:rpcErr}=await sb.rpc('seed_escrow_milestones',{
-      p_property_id: currentProperty.id,
-      p_escrow_start_date: escrowStart,
-      p_target_close_date: targetClose,
-      p_contingency_removal_date: contingencyRemoval,
-    });
-    if(rpcErr)console.warn('[moveStage] seed_escrow_milestones failed:',rpcErr.message);
   }
 
   saving=false;
   btn.disabled=false;
   noteEl.value='';
   msgEl.className='move-msg ok';
-  msgEl.textContent='Moved to '+(toStage?pipelineStageLabel(toStage):'Out of pipeline')+'.';
+  msgEl.textContent='Moved to '+phaseLabel(toPhase)+'.';
   await loadProject();
 }
 window.moveStage=moveStage;
 
-// ========== ESCROW DATES ==========
-// Track whether the user has manually edited target_close_date /
-// contingency_removal_date — if they have, don't clobber it when
-// escrow_start_date changes.
+// ========== ESCROW DATES (date-only edits on already-in_escrow deals) ==========
 let _userEditedTargetClose=false;
 let _userEditedContingencyRemoval=false;
 
@@ -497,51 +670,42 @@ function onEscrowStartChange(){
   const closeInput=document.getElementById('targetCloseInput');
   const crdInput=document.getElementById('contingencyRemovalInput');
   if(start&&!_userEditedTargetClose&&closeInput&&!closeInput.value){
-    // Hint: escrow_start + 30 days. JS Date math, no library needed.
     const d=new Date(start+'T00:00:00');
     d.setDate(d.getDate()+30);
     closeInput.value=d.toISOString().slice(0,10);
   }
   if(start&&!_userEditedContingencyRemoval&&crdInput&&!crdInput.value){
-    // Hint: escrow_start + 17 days (CAR RPA default).
     const d=new Date(start+'T00:00:00');
     d.setDate(d.getDate()+17);
     crdInput.value=d.toISOString().slice(0,10);
   }
 }
-
-function onTargetCloseChange(){
-  _userEditedTargetClose=true;
-}
-
-function onContingencyRemovalChange(){
-  _userEditedContingencyRemoval=true;
-}
+function onTargetCloseChange(){_userEditedTargetClose=true;}
+function onContingencyRemovalChange(){_userEditedContingencyRemoval=true;}
 window.onEscrowStartChange=onEscrowStartChange;
 window.onTargetCloseChange=onTargetCloseChange;
 window.onContingencyRemovalChange=onContingencyRemovalChange;
 
-// Show/hide the inline escrow dates row when the stage select changes.
-// Wired up via delegation on the container so it survives re-renders.
+// Show/hide the inline escrow dates row when the phase select changes.
 document.addEventListener('change',e=>{
   if(!e.target||e.target.id!=='newStageSelect')return;
   const row=document.getElementById('escrowDatesRow');
   if(!row)return;
   if(e.target.value==='in_escrow'){
     row.style.display='flex';
-    // Pre-fill from existing property record if user is just touching up.
+    // Pre-fill from the deal record if user is just touching up.
     const startInput=document.getElementById('escrowStartInput');
     const closeInput=document.getElementById('targetCloseInput');
     const crdInput=document.getElementById('contingencyRemovalInput');
-    if(currentProperty&&currentProperty.escrow_start_date&&!startInput.value){
-      startInput.value=currentProperty.escrow_start_date;
+    if(currentDeal&&currentDeal.escrow_start_date&&!startInput.value){
+      startInput.value=currentDeal.escrow_start_date;
     }
-    if(currentProperty&&currentProperty.target_close_date&&!closeInput.value){
-      closeInput.value=currentProperty.target_close_date;
+    if(currentDeal&&currentDeal.target_close_date&&!closeInput.value){
+      closeInput.value=currentDeal.target_close_date;
       _userEditedTargetClose=true;
     }
-    if(currentProperty&&currentProperty.contingency_removal_date&&crdInput&&!crdInput.value){
-      crdInput.value=currentProperty.contingency_removal_date;
+    if(currentDeal&&currentDeal.contingency_removal_date&&crdInput&&!crdInput.value){
+      crdInput.value=currentDeal.contingency_removal_date;
       _userEditedContingencyRemoval=true;
     }
   } else {
@@ -550,10 +714,10 @@ document.addEventListener('change',e=>{
 });
 
 function renderEscrowDatesSection(){
-  if(!currentProperty||currentProperty.pipeline_stage!=='in_escrow')return '';
-  const start=currentProperty.escrow_start_date;
-  const close=currentProperty.target_close_date;
-  const crd=currentProperty.contingency_removal_date;
+  if(!currentDeal||currentDeal.phase!=='in_escrow')return '';
+  const start=currentDeal.escrow_start_date;
+  const close=currentDeal.target_close_date;
+  const crd=currentDeal.contingency_removal_date;
   const hasBoth=!!start&&!!close;
   const hasOne=!!start||!!close;
   const id='escrowDates';
@@ -591,9 +755,6 @@ function renderEscrowDatesSection(){
   `;
 }
 
-// Edit-form default-fill: when ESD changes and CRD is empty (and the
-// user hasn't manually edited it during this edit session), default to
-// ESD + 17 days.
 let _userEditedEsEditCRD=false;
 function onEsEditStartChange(){
   const start=document.getElementById('esEditStart').value;
@@ -604,9 +765,7 @@ function onEsEditStartChange(){
     crdInput.value=d.toISOString().slice(0,10);
   }
 }
-function onEsEditCRDChange(){
-  _userEditedEsEditCRD=true;
-}
+function onEsEditCRDChange(){_userEditedEsEditCRD=true;}
 window.onEsEditStartChange=onEsEditStartChange;
 window.onEsEditCRDChange=onEsEditCRDChange;
 
@@ -614,7 +773,6 @@ function openEscrowDatesEdit(){
   document.getElementById('escrowDates-display').style.display='none';
   document.getElementById('escrowDates-edit').style.display='block';
 }
-
 function cancelEscrowDatesEdit(){
   document.getElementById('escrowDates-edit').style.display='none';
   document.getElementById('escrowDates-display').style.display='flex';
@@ -647,27 +805,29 @@ async function saveEscrowDates(){
     return;
   }
   msgEl.textContent='Saving...';
-  const {error}=await sb.from('properties').update({
+  const {error}=await sb.from('deals').update({
     escrow_start_date: start,
     target_close_date: close,
     contingency_removal_date: crd,
     updated_at: new Date().toISOString(),
-  }).eq('mls', currentProperty.mls);
+  }).eq('id', currentDeal.id);
   if(error){
     msgEl.className='move-msg err';
     msgEl.textContent='Save failed: '+error.message;
     return;
   }
 
-  // Brief AP/AU — seed (or no-op if already seeded) escrow milestones.
-  // Idempotent on (property_id, milestone_key).
-  const{error:rpcErr}=await sb.rpc('seed_escrow_milestones',{
-    p_property_id: currentProperty.id,
+  // Brief BK / D5 — keep the explicit RPC call here on the date-edit path.
+  // The auto-seed trigger only fires on phase transition into in_escrow,
+  // not on date-only updates of an already-in_escrow deal. Idempotent on
+  // (deal_id, milestone_key).
+  const{error:rpcErr}=await sb.rpc('seed_deal_milestones',{
+    p_deal_id: currentDeal.id,
     p_escrow_start_date: start,
     p_target_close_date: close,
     p_contingency_removal_date: crd,
   });
-  if(rpcErr)console.warn('[saveEscrowDates] seed_escrow_milestones failed:',rpcErr.message);
+  if(rpcErr)console.warn('[saveEscrowDates] seed_deal_milestones failed:',rpcErr.message);
 
   msgEl.className='move-msg ok';
   msgEl.textContent='Saved.';

@@ -522,53 +522,115 @@ window.sb=sb;
     if (!addr) return '';
     return String(addr).toUpperCase().slice(0, 16);
   }
-  function detailHref(mls) {
-    if (!mls) return '#';
-    return 'project-detail.html?mls=' + encodeURIComponent(mls);
+  function detailHref(dealId) {
+    if (!dealId) return '#';
+    return 'project-detail.html?deal=' + encodeURIComponent(dealId);
   }
   function catLabelFor(cat) {
     return ({ acquisition: 'Acquisition', design: 'Design' })[cat] || (cat || '');
   }
+  function phaseLabel(p) {
+    if (p == null) return '—';
+    return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed',sold:'Sold',archived:'Archived'})[p] || p;
+  }
 
-  // ─── Load (single query, JOIN templates + properties) ─────────
+  // ─── Load (Brief BK: deal_milestones → deals → properties) ────
+  // 3-pass batch load:
+  //   1. deal_milestones + template join
+  //   2. deals.in('id', [...deal ids...])
+  //   3. properties.in('mls', [...buy_side + relist mls...])
+  // Then enrich each milestone with deal phase + the right properties row
+  // (relist preferred when phase='listed', else buy_side).
   async function loadMilestones() {
-    const { data, error } = await sb
-      .from('escrow_milestones')
+    const { data: msRows, error: msErr } = await sb
+      .from('deal_milestones')
       .select(`
-        id, property_id, milestone_key, display_name, due_date,
+        id, deal_id, milestone_key, display_name, due_date,
         completed, completed_at, completed_by, notes,
-        escrow_milestone_templates ( category, required, default_anchor, default_offset_days ),
-        properties!inner ( mls, address, city, escrow_start_date, target_close_date, pipeline_stage )
+        escrow_milestone_templates ( category, required, default_anchor, default_offset_days )
       `)
-      .eq('properties.pipeline_stage', 'in_escrow')
       .order('due_date', { ascending: true });
 
-    if (error) {
-      console.error('[calendar] load failed:', error);
+    if (msErr) {
+      console.error('[calendar] milestones load failed:', msErr);
       milestones = [];
       renderAll();
       return;
     }
-    milestones = (data || []).map(r => ({
-      id: r.id,
-      property_id: r.property_id,
-      milestone_key: r.milestone_key,
-      display_name: r.display_name,
-      due_date: r.due_date,
-      completed: !!r.completed,
-      completed_at: r.completed_at,
-      completed_by: r.completed_by,
-      notes: r.notes || '',
-      category: r.escrow_milestone_templates?.category || '',
-      required: r.escrow_milestone_templates?.required !== false,
-      anchor: r.escrow_milestone_templates?.default_anchor || null,
-      offsetDays: r.escrow_milestone_templates?.default_offset_days,
-      mls: r.properties?.mls,
-      address: r.properties?.address,
-      city: r.properties?.city,
-      escrowStart: r.properties?.escrow_start_date,
-      targetClose: r.properties?.target_close_date,
-    }));
+    const rawRows = msRows || [];
+    if (!rawRows.length) {
+      milestones = [];
+      renderAll();
+      return;
+    }
+
+    // Pass 2: deals.
+    const dealIds = Array.from(new Set(rawRows.map(r => r.deal_id).filter(Boolean)));
+    const dealsByMls = {};  // not used directly — mapped below
+    const dealById = {};
+    if (dealIds.length) {
+      const { data: dRows, error: dErr } = await sb.from('deals')
+        .select('id, phase, buy_side_mls, relist_mls, escrow_start_date, target_close_date')
+        .in('id', dealIds);
+      if (dErr) {
+        console.warn('[calendar] deals load failed (non-fatal):', dErr);
+      } else {
+        for (const d of (dRows || [])) dealById[d.id] = d;
+      }
+    }
+
+    // Pass 3: properties.
+    const allMls = new Set();
+    for (const d of Object.values(dealById)) {
+      if (d.buy_side_mls) allMls.add(d.buy_side_mls);
+      if (d.relist_mls) allMls.add(d.relist_mls);
+    }
+    const propsByMls = {};
+    if (allMls.size) {
+      const { data: pRows, error: pErr } = await sb.from('properties')
+        .select('mls, address, city')
+        .in('mls', Array.from(allMls));
+      if (pErr) {
+        console.warn('[calendar] properties load failed (non-fatal):', pErr);
+      } else {
+        for (const p of (pRows || [])) propsByMls[p.mls] = p;
+      }
+    }
+
+    // Enrich.
+    milestones = rawRows.map(r => {
+      const deal = dealById[r.deal_id] || null;
+      // Per D7: for listed phase prefer relist_mls; else buy_side_mls.
+      let primaryMls = null;
+      if (deal) {
+        if (deal.phase === 'listed' && deal.relist_mls && propsByMls[deal.relist_mls]) primaryMls = deal.relist_mls;
+        else if (deal.buy_side_mls && propsByMls[deal.buy_side_mls]) primaryMls = deal.buy_side_mls;
+        else if (deal.relist_mls && propsByMls[deal.relist_mls]) primaryMls = deal.relist_mls;
+      }
+      const prop = primaryMls ? propsByMls[primaryMls] : null;
+      return {
+        id: r.id,
+        deal_id: r.deal_id,
+        milestone_key: r.milestone_key,
+        display_name: r.display_name,
+        due_date: r.due_date,
+        completed: !!r.completed,
+        completed_at: r.completed_at,
+        completed_by: r.completed_by,
+        notes: r.notes || '',
+        category: r.escrow_milestone_templates?.category || '',
+        required: r.escrow_milestone_templates?.required !== false,
+        anchor: r.escrow_milestone_templates?.default_anchor || null,
+        offsetDays: r.escrow_milestone_templates?.default_offset_days,
+        // Deal-derived fields:
+        dealPhase: deal ? deal.phase : null,
+        mls: primaryMls,
+        address: prop ? prop.address : null,
+        city: prop ? prop.city : null,
+        escrowStart: deal ? deal.escrow_start_date : null,
+        targetClose: deal ? deal.target_close_date : null,
+      };
+    });
     renderAll();
   }
 
@@ -581,21 +643,23 @@ window.sb=sb;
     });
   }
 
-  // ─── Deal jumper dropdown — populates from in_escrow deals ────
+  // ─── Deal jumper dropdown — populates from deals with milestones ────
+  // Brief BK: now keyed by deal_id (was mls). Label per D7 includes phase.
   function populateDealJumper() {
     const sel = document.getElementById('dealJumper');
     if (!sel) return;
     const seen = new Map();
     for (const m of milestones) {
-      if (!m.mls || seen.has(m.mls)) continue;
-      const label = (m.address || '(no address)') + (m.city ? ' · ' + m.city : '');
-      seen.set(m.mls, label);
+      if (!m.deal_id || seen.has(m.deal_id)) continue;
+      const phaseSuffix = m.dealPhase ? ' (' + phaseLabel(m.dealPhase) + ')' : '';
+      const label = (m.address || '(no address)') + (m.city ? ' · ' + m.city : '') + phaseSuffix;
+      seen.set(m.deal_id, label);
     }
     const prev = sel.value;
     sel.innerHTML = '<option value="">Jump to deal…</option>'
       + Array.from(seen.entries())
           .sort((a, b) => a[1].localeCompare(b[1]))
-          .map(([mls, label]) => '<option value="' + escapeHtml(mls) + '">' + escapeHtml(label) + '</option>')
+          .map(([dealId, label]) => '<option value="' + escapeHtml(dealId) + '">' + escapeHtml(label) + '</option>')
           .join('');
     if (prev && seen.has(prev)) sel.value = prev;
   }
@@ -607,7 +671,7 @@ window.sb=sb;
     const empty = document.getElementById('empty-state');
     if (milestones.length === 0) {
       empty.style.display = 'block';
-      empty.innerHTML = '<h2>No deals currently in escrow</h2>'
+      empty.innerHTML = '<h2>No deal milestones to show</h2>'
         + '<p>Move a deal to In Escrow on <a href="pipeline.html">Pipeline</a>, then set escrow + target-close dates on the project detail page to start tracking milestones here.</p>';
       document.querySelectorAll('[data-pane]').forEach(p => p.style.display = 'none');
       return;
@@ -626,24 +690,26 @@ window.sb=sb;
     const today = todayStr();
     const overdue = milestones.filter(m => !m.completed && m.due_date && m.due_date < today);
     if (overdue.length === 0) { banner.style.display = 'none'; return; }
-    const dealCount = new Set(overdue.map(m => m.property_id)).size;
+    const dealCount = new Set(overdue.map(m => m.deal_id)).size;
     banner.style.display = 'block';
     banner.className = 'banner banner-overdue';
     banner.innerHTML = '<strong>Heads up:</strong> ' + overdue.length + ' overdue milestone' + (overdue.length===1?'':'s') + ' across ' + dealCount + ' deal' + (dealCount===1?'':'s') + '.';
   }
 
   // ─── BY-LISTING pane (default) ────────────────────────────────
+  // Brief BK / D7: group by deal_id (was property_id). Header label is
+  // "<address> (<phase>)" so users can tell in_escrow vs listed at a glance.
   function renderListingPane() {
     const pane = document.querySelector('[data-pane="listing"]');
     const rows = applyFilter(milestones);
 
-    const byProp = new Map();
+    const byDeal = new Map();
     for (const m of rows) {
-      if (!byProp.has(m.property_id)) byProp.set(m.property_id, []);
-      byProp.get(m.property_id).push(m);
+      if (!byDeal.has(m.deal_id)) byDeal.set(m.deal_id, []);
+      byDeal.get(m.deal_id).push(m);
     }
-    const groups = Array.from(byProp.entries()).map(([pid, items]) => ({
-      pid,
+    const groups = Array.from(byDeal.entries()).map(([did, items]) => ({
+      did,
       items: items.sort((a,b) => (a.due_date||'').localeCompare(b.due_date||'')),
       first: items[0],
     }));
@@ -653,7 +719,7 @@ window.sb=sb;
       return ac.localeCompare(bc);
     });
 
-    const dealCount = byProp.size;
+    const dealCount = byDeal.size;
     let html = '';
     html += '<div class="listing-filter-bar">';
     html += '  <span class="label">Showing ' + dealCount + ' deal' + (dealCount===1?'':'s') + '</span>';
@@ -664,18 +730,15 @@ window.sb=sb;
     const today = todayStr();
     for (const g of groups) {
       const first = g.first;
-      const fullForProp = milestones.filter(m => m.property_id === g.pid);
-      const totalCount = fullForProp.length;
-      const doneCount = fullForProp.filter(m => m.completed).length;
-      const overdueCount = fullForProp.filter(m => !m.completed && m.due_date && m.due_date < today).length;
       const closeCountdown = first.targetClose ? daysBetween(today, first.targetClose) : null;
       const closeSuffix = (closeCountdown !== null)
         ? ' <span style="color:' + (closeCountdown < 0 ? 'var(--red)' : 'var(--text-3)') + '">(' + (closeCountdown < 0 ? Math.abs(closeCountdown)+'d ago' : closeCountdown+'d') + ')</span>'
         : '';
+      const phaseSuffix = first.dealPhase ? ' <span style="color:var(--text-3);font-weight:500">(' + escapeHtml(phaseLabel(first.dealPhase)) + ')</span>' : '';
 
-      html += '<div class="listing-block" data-mls="' + escapeHtml(first.mls || '') + '">';
+      html += '<div class="listing-block" data-deal="' + escapeHtml(g.did || '') + '">';
       html += '  <div class="listing-block-header">';
-      html += '    <a class="addr" href="' + escapeHtml(detailHref(first.mls)) + '">' + escapeHtml(first.address || '(no address)') + '</a>';
+      html += '    <a class="addr" href="' + escapeHtml(detailHref(g.did)) + '">' + escapeHtml(first.address || '(no address)') + phaseSuffix + '</a>';
       if (first.city) html += '    <span class="city">· ' + escapeHtml(first.city) + '</span>';
       html += '    <span class="meta">';
       if (first.escrowStart) html += '      <span><b>Escrow:</b> ' + escapeHtml(fmtMD(first.escrowStart)) + '</span>';
@@ -726,7 +789,7 @@ window.sb=sb;
       ? '<button class="btn warn" data-action="skip" data-id="' + m.id + '">Skip (not required)</button>'
       : '';
     let html = '<div class="expanded" data-expanded-for="' + m.id + '">';
-    html += '  <div><label>Listing</label><div class="field-value"><a href="' + escapeHtml(detailHref(m.mls)) + '" style="color:var(--accent)">' + escapeHtml(m.address || '(no address)') + (m.city ? ', ' + escapeHtml(m.city) : '') + '</a></div></div>';
+    html += '  <div><label>Listing</label><div class="field-value"><a href="' + escapeHtml(detailHref(m.deal_id)) + '" style="color:var(--accent)">' + escapeHtml(m.address || '(no address)') + (m.city ? ', ' + escapeHtml(m.city) : '') + '</a></div></div>';
     html += '  <div><label>Due date</label><div class="field-value">';
     html += '    <input type="date" data-action="due-date" data-id="' + m.id + '" value="' + escapeHtml(m.due_date || '') + '" style="font-family:var(--mono); font-size:12px; padding:3px 6px; border:1px solid var(--border); border-radius:4px;">';
     html += '  </div></div>';
@@ -825,7 +888,7 @@ window.sb=sb;
     let html = '<div class="' + cls.join(' ') + '" data-id="' + m.id + '">';
     html += '  <input type="checkbox" data-action="toggle" data-id="' + m.id + '"' + (m.completed?' checked':'') + '>';
     html += '  <span class="milestone-name">' + escapeHtml(m.display_name) + dotty + reqFlag + '</span>';
-    html += '  <a class="listing-link" href="' + escapeHtml(detailHref(m.mls)) + '">' + escapeHtml(listingTxt) + (m.mls ? '<span class="listing-mls">' + escapeHtml(m.mls) + '</span>' : '') + '</a>';
+    html += '  <a class="listing-link" href="' + escapeHtml(detailHref(m.deal_id)) + '">' + escapeHtml(listingTxt) + (m.mls ? '<span class="listing-mls">' + escapeHtml(m.mls) + '</span>' : '') + '</a>';
     html += '  <span class="' + dateCls.join(' ') + '">' + escapeHtml(dueLabel) + (m.completed ? ' ✓' : '') + '</span>';
     html += '  <span class="cat-pill cat-' + escapeHtml(m.category || '') + '">' + escapeHtml(catLabel) + '</span>';
     html += '</div>';
@@ -913,9 +976,9 @@ window.sb=sb;
     wireMonthEvents(pane);
   }
 
-  // ─── Mutations ────────────────────────────────────────────────
+  // ─── Mutations (Brief BK: target deal_milestones) ────────────
   async function markComplete(id, completed) {
-    const { error } = await sb.from('escrow_milestones').update({
+    const { error } = await sb.from('deal_milestones').update({
       completed,
       completed_at: completed ? new Date().toISOString() : null,
       completed_by: completed ? (window.CURRENT_USER?.id || null) : null,
@@ -926,7 +989,7 @@ window.sb=sb;
   }
 
   async function editDueDate(id, newDate) {
-    const { error } = await sb.from('escrow_milestones').update({
+    const { error } = await sb.from('deal_milestones').update({
       due_date: newDate,
       updated_at: new Date().toISOString(),
     }).eq('id', id);
@@ -935,7 +998,7 @@ window.sb=sb;
   }
 
   async function skipOptional(id) {
-    const { error } = await sb.from('escrow_milestones').update({
+    const { error } = await sb.from('deal_milestones').update({
       completed: true,
       completed_at: new Date().toISOString(),
       completed_by: window.CURRENT_USER?.id || null,
@@ -947,7 +1010,7 @@ window.sb=sb;
   }
 
   async function saveNote(id, notes) {
-    const { error } = await sb.from('escrow_milestones').update({
+    const { error } = await sb.from('deal_milestones').update({
       notes,
       updated_at: new Date().toISOString(),
     }).eq('id', id);
@@ -985,7 +1048,8 @@ window.sb=sb;
       if (row.classList.contains('listing-milestone-row') || row.classList.contains('milestone-row')) {
         row.addEventListener('click', (e) => {
           if (e.target.closest('a, input, textarea, button')) return;
-          const id = Number(row.dataset.id);
+          // Brief AU: deal_milestones.id is a uuid; keep it as a string.
+          const id = row.dataset.id;
           expandedId = (expandedId === id) ? null : id;
           renderAll();
         });
@@ -1000,7 +1064,8 @@ window.sb=sb;
     pane.querySelectorAll('[data-action="open"]').forEach(p => {
       p.addEventListener('click', (e) => {
         e.stopPropagation();
-        const id = Number(p.dataset.id);
+        // Brief AU: deal_milestones.id is a uuid; keep it as a string.
+        const id = p.dataset.id;
         activeView = 'listing';
         document.querySelectorAll('.toggle-views button').forEach(b => b.classList.toggle('on', b.dataset.view === 'listing'));
         expandedId = id;
@@ -1023,12 +1088,12 @@ window.sb=sb;
 
   // ─── Deal jumper — scroll to the selected listing's section ───
   document.getElementById('dealJumper').addEventListener('change', e => {
-    const mls = e.target.value;
-    if (!mls) return;
+    const dealId = e.target.value;
+    if (!dealId) return;
     if (activeView !== 'listing') setActiveView('listing');
     // Defer scroll one frame so the pane has time to display:block.
     requestAnimationFrame(() => {
-      const block = document.querySelector('.listing-block[data-mls="' + CSS.escape(mls) + '"]');
+      const block = document.querySelector('.listing-block[data-deal="' + CSS.escape(dealId) + '"]');
       if (block) block.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });

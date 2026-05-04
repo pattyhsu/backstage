@@ -114,15 +114,17 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;
 
-// ========== STAGE CONFIG ==========
-const STAGES=['offered','in_escrow','under_construction','listed'];
-function pipelineStageLabel(s){
+// ========== PHASE CONFIG ==========
+// Brief BK: kanban shows 4 active phases. 'sold' + 'archived' are real
+// deal phases but excluded from the board (filtered out by the query).
+const PHASES=['pursuing','in_escrow','under_construction','listed'];
+function phaseLabel(s){
   if(s==null)return '—';
-  return ({offered:'Offered',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed'})[s]||s;
+  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed'})[s]||s;
 }
 
 // ========== HELPERS ==========
-function FK(n){if(!n||!isFinite(n))return '';if(n>=1e6)return '$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';if(n>=1e3)return '$'+Math.round(n/1e3)+'K';return '$'+n;}
+function FK(n){if(n==null||!isFinite(n))return '';if(n>=1e6)return '$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';if(n>=1e3)return '$'+Math.round(n/1e3)+'K';return '$'+n;}
 function relTime(iso){
   if(!iso)return '';
   const t=new Date(iso).getTime();if(!isFinite(t))return '';
@@ -137,64 +139,102 @@ function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'
 
 // ========== DATA LOAD ==========
 async function loadPipeline(){
-  // Fetch all properties currently in pipeline.
-  const {data:props,error:pErr}=await sb.from('properties')
-    .select('id, mls, address, city, list_price, sale_price, pipeline_stage, sqft, beds, baths')
-    .not('pipeline_stage','is',null)
-    .order('mls');
-  if(pErr){console.error('[pipeline] properties load failed',pErr);renderError(pErr.message);return;}
+  // Fetch all in-flight deals (exclude sold + archived).
+  const {data:deals, error:dErr}=await sb.from('deals')
+    .select('id, phase, buy_side_mls, relist_mls, list_price, escrow_start_date, target_close_date, created_at')
+    .not('phase','in','(sold,archived)')
+    .order('created_at');
+  if(dErr){console.error('[pipeline] deals load failed',dErr);renderError(dErr.message);return;}
 
-  // Fetch latest history row per mls to compute "days in current stage".
-  // Cheap-and-simple: pull all rows, take the most recent transitioned_at per mls.
-  const inflightMls=(props||[]).map(p=>p.mls).filter(Boolean);
-  let latestByMls={};
-  if(inflightMls.length){
-    const {data:hist,error:hErr}=await sb.from('pipeline_stage_history')
-      .select('mls, transitioned_at, to_stage, transitioned_by')
-      .in('mls',inflightMls)
+  const dealRows=deals||[];
+
+  // Batch-fetch all linked properties in ONE query. For each deal, prefer
+  // the relist_mls row when phase='listed' (carries the new listing's
+  // address/price/photos); else fall back to buy_side_mls.
+  const allMls=new Set();
+  for(const d of dealRows){
+    if(d.buy_side_mls)allMls.add(d.buy_side_mls);
+    if(d.relist_mls)allMls.add(d.relist_mls);
+  }
+  const propsByMls={};
+  if(allMls.size){
+    const {data:props, error:pErr}=await sb.from('properties')
+      .select('mls, address, city, list_price, sale_price, sqft, beds, baths')
+      .in('mls', Array.from(allMls));
+    if(pErr){console.warn('[pipeline] properties load failed (non-fatal)',pErr);}
+    for(const r of (props||[])){propsByMls[r.mls]=r;}
+  }
+
+  // Days-in-phase: batch-fetch phase history for all deals, take latest
+  // transition where to_phase = current phase.
+  const dealIds=dealRows.map(d=>d.id);
+  const latestByDeal={};
+  if(dealIds.length){
+    const {data:hist, error:hErr}=await sb.from('deals_phase_history')
+      .select('deal_id, to_phase, transitioned_at')
+      .in('deal_id', dealIds)
       .order('transitioned_at',{ascending:false});
     if(hErr){console.warn('[pipeline] history load failed (non-fatal)',hErr);}
-    for(const row of (hist||[])){
-      if(!latestByMls[row.mls])latestByMls[row.mls]=row;
+    for(const h of (hist||[])){
+      // Only first-seen (i.e. latest) row per (deal_id, to_phase).
+      const k=h.deal_id+'|'+h.to_phase;
+      if(!latestByDeal[k])latestByDeal[k]=h;
     }
   }
 
-  renderBoard(props||[],latestByMls);
+  renderBoard(dealRows, propsByMls, latestByDeal);
 }
 
-function renderBoard(props,latestByMls){
-  const byStage={};
-  for(const s of STAGES)byStage[s]=[];
-  for(const p of props){
-    if(byStage[p.pipeline_stage])byStage[p.pipeline_stage].push(p);
+function renderBoard(deals, propsByMls, latestByDeal){
+  const byPhase={};
+  for(const s of PHASES)byPhase[s]=[];
+  for(const d of deals){
+    if(byPhase[d.phase])byPhase[d.phase].push(d);
   }
 
   let html='';
-  for(const stage of STAGES){
-    const rows=byStage[stage]||[];
+  for(const phase of PHASES){
+    const rows=byPhase[phase]||[];
     html+=`<div class="col">
-      <div class="col-hdr"><span class="name">${escapeHtml(pipelineStageLabel(stage))}</span><span class="cnt">${rows.length}</span></div>
+      <div class="col-hdr"><span class="name">${escapeHtml(phaseLabel(phase))}</span><span class="cnt">${rows.length}</span></div>
       <div class="col-body">`;
     if(!rows.length){
-      html+=`<div class="col-empty">No deals in this stage</div>`;
+      html+=`<div class="col-empty">No deals in this phase</div>`;
     } else {
-      for(const p of rows){
-        const latest=latestByMls[p.mls];
-        const age=latest?relTime(latest.transitioned_at):'';
-        const priceStr=p.list_price?FK(p.list_price):(p.sale_price?FK(p.sale_price):'');
-        const sub=[
+      for(const d of rows){
+        // Pick the primary properties row for header rendering. Listed
+        // deals: prefer relist_mls (the new MLS#); else buy_side_mls.
+        let primaryMls=null;
+        if(phase==='listed' && d.relist_mls && propsByMls[d.relist_mls])primaryMls=d.relist_mls;
+        else if(d.buy_side_mls && propsByMls[d.buy_side_mls])primaryMls=d.buy_side_mls;
+        else if(d.relist_mls && propsByMls[d.relist_mls])primaryMls=d.relist_mls;
+        const p=primaryMls?propsByMls[primaryMls]:null;
+
+        const latest=latestByDeal[d.id+'|'+phase];
+        const age=latest?relTime(latest.transitioned_at):relTime(d.created_at);
+
+        // Price: prefer the deal's list_price (canonical), else fall back
+        // to the linked property row. May be NULL for OFFMKT- deals.
+        const priceVal=(d.list_price!=null)?d.list_price:(p?(p.list_price||p.sale_price):null);
+        const priceStr=priceVal?FK(priceVal):'';
+
+        const sub=p?[
           (p.beds!=null&&p.beds!==0)?`${p.beds}bd`:null,
           (p.baths!=null&&p.baths!==0)?`${p.baths}ba`:null,
           p.sqft?`${p.sqft.toLocaleString()} sf`:null,
-        ].filter(Boolean).join(' / ');
-        const href='project-detail.html?mls='+encodeURIComponent(p.mls);
+        ].filter(Boolean).join(' / '):'';
+
+        const addrText=p?(p.address||'(no address)'):'(no linked properties row)';
+        const cityText=p?(p.city||''):'';
+        const href='project-detail.html?deal='+encodeURIComponent(d.id);
+
         html+=`<a class="card" href="${href}">
-          <div class="addr">${escapeHtml(p.address||'(no address)')}</div>
-          <div class="city">${escapeHtml(p.city||'')}</div>
+          <div class="addr">${escapeHtml(addrText)}</div>
+          <div class="city">${escapeHtml(cityText)}</div>
           ${sub?`<div class="sub">${escapeHtml(sub)}</div>`:''}
           <div class="meta">
             <span class="price">${priceStr}</span>
-            <span class="age">${age?'in stage '+age:''}</span>
+            <span class="age">${age?'in phase '+age:''}</span>
           </div>
         </a>`;
       }
@@ -203,9 +243,9 @@ function renderBoard(props,latestByMls){
   }
   document.getElementById('board').innerHTML=html;
 
-  const total=props.length;
+  const total=deals.length;
   document.getElementById('pipe-summary').textContent=total?`(${total} deal${total===1?'':'s'} in pipeline)`:'(empty)';
-  const summaryParts=STAGES.map(s=>`${pipelineStageLabel(s)}: ${(byStage[s]||[]).length}`);
+  const summaryParts=PHASES.map(s=>`${phaseLabel(s)}: ${(byPhase[s]||[]).length}`);
   document.getElementById('pipe-totals').textContent=summaryParts.join(' · ');
 }
 

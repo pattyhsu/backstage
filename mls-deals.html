@@ -287,11 +287,11 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;  // expose for auth.js
 
-// ========== PIPELINE STAGE HELPER (mirrors pipeline.html / project-detail.html) ==========
-// 3-stage canonical list per migration 011: offered → in_escrow → under_construction.
-function pipelineStageLabel(s){
+// ========== DEAL PHASE HELPER (mirrors pipeline.html / project-detail.html) ==========
+// Brief BK: deals model uses pursuing/in_escrow/under_construction/listed/sold/archived.
+function dealPhaseLabel(s){
   if(s==null)return '—';
-  return ({offered:'Offered',in_escrow:'In Escrow',under_construction:'Under Construction'})[s]||s;
+  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed',sold:'Sold',archived:'Archived'})[s]||s;
 }
 
 // ========== PHOTO SUPPORT ==========
@@ -1111,7 +1111,7 @@ function resetPP(id,lp,sq){ppIsCustom[id]=false;const r=document.getElementById(
 function detHTML(l){
   const cm=getComps(l),liveArv=cm.hp*l.sqft,arv=l.lockedArv||liveArv,id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
   return`<div class="cb" style="position:relative">
-    ${!l.pipelineStage?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><button id="open-offer-${id}" onclick="event.stopPropagation();openOffer('${l.mls}')" style="padding:6px 12px;border-radius:5px;border:1px solid var(--accent);font-size:12px;font-weight:700;font-family:inherit;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap" title="Move this listing into Pipeline at the Offered stage">📤 Open offer</button><span style="font-size:11px;color:var(--text-4)">Start Pipeline tracking for this deal.</span></div>`:''}
+    ${!l.dealId?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><button id="open-offer-${id}" onclick="event.stopPropagation();openOffer('${l.mls}')" style="padding:6px 12px;border-radius:5px;border:1px solid var(--accent);font-size:12px;font-weight:700;font-family:inherit;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap" title="Open Pipeline tracking at the Pursuing phase (acquisition lead)">📤 Open offer</button><button id="mark-as-listing-${id}" onclick="event.stopPropagation();markAsListing('${l.mls}')" style="padding:6px 12px;border-radius:5px;border:1px solid var(--purple);font-size:12px;font-weight:700;font-family:inherit;background:var(--purple-bg,#f3eaff);color:var(--purple);cursor:pointer;white-space:nowrap" title="Mark this MLS listing as the relist of one of our under_construction deals">🏷 Mark as our listing</button><span style="font-size:11px;color:var(--text-4)">Start Pipeline tracking for this deal.</span></div>`:''}
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--text-4);flex-shrink:0;width:100px">ARV</span>
       <input type="text" id="arv-${id}" value="${F(arv)}" oninput="calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--accent);font-family:inherit;background:var(--bg)">
       <button id="lock-arv-${id}" onclick="event.stopPropagation();toggleLockArv('${l.mls}','${id}')" style="padding:4px 10px;border-radius:5px;border:1px solid ${l.lockedArv?'var(--green)':'var(--border)'};font-size:11px;font-weight:600;font-family:inherit;background:${l.lockedArv?'var(--green-bg)':'var(--bg)'};color:${l.lockedArv?'var(--green)':'var(--text-3)'};cursor:pointer;white-space:nowrap">${l.lockedArv?'🔒 Locked':'Lock ARV'}</button>
@@ -1263,7 +1263,7 @@ function renderDetailPage(l){
     <div class="toggle-section" style="margin-bottom:8px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">PROPERTY & SHOWING <span>▸</span></div><div class="toggle-body"><div class="si">
       <span><b>Sale Type:</b> ${l.saleType||'—'}</span><span><b>Listed:</b> ${l.listDate||'—'}</span><span><b>Occupancy:</b> ${l.occupancy||'—'}</span><span><b>Occupant:</b> ${l.occupantType||'—'}</span><span><b>Contact:</b> ${l.contactName||'—'} ${l.contactPhone||''}</span><span><b>Lockbox:</b> ${l.lockboxType||'—'} ${l.lockboxLocation?'@ '+l.lockboxLocation:''}</span><span><b>Gate Code:</b> ${l.gateCode||'—'}</span></div></div></div>
     <div class="toggle-section" style="margin-bottom:14px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">AGENT & BROKER <span>▸</span></div><div class="toggle-body"><div class="agb">
-      <span><b>Agent:</b> ${l.agent||'—'}${renderAgentDeBadge(l)}</span><span><b>DRE#:</b> ${l.agentDre||'—'}</span><span><b>Email:</b> ${l.agentEmail||'—'}</span><span><b>Phone:</b> ${l.agentPhone||'—'}</span><span><b>Office:</b> ${l.agentOfficePhone||'—'}</span><span><b>Broker:</b> ${l.broker||'—'}</span><span><b>Broker DRE#:</b> ${l.brokerDre||'—'}</span><span><b>MLS#:</b> ${l.mls}</span>${l.pipelineStage?`<span><b>🏗 In project:</b> ${pipelineStageLabel(l.pipelineStage)} <a href="project-detail.html?mls=${encodeURIComponent(l.mls)}">→ view</a></span>`:''}</div></div></div></div>`;
+      <span><b>Agent:</b> ${l.agent||'—'}${renderAgentDeBadge(l)}</span><span><b>DRE#:</b> ${l.agentDre||'—'}</span><span><b>Email:</b> ${l.agentEmail||'—'}</span><span><b>Phone:</b> ${l.agentPhone||'—'}</span><span><b>Office:</b> ${l.agentOfficePhone||'—'}</span><span><b>Broker:</b> ${l.broker||'—'}</span><span><b>Broker DRE#:</b> ${l.brokerDre||'—'}</span><span><b>MLS#:</b> ${l.mls}</span>${l.dealId?`<span data-cell="deal-pill" data-mls="${l.mls}"><b>🏗 In project:</b> ${dealPhaseLabel(l.dealPhase)} <a href="project-detail.html?deal=${encodeURIComponent(l.dealId)}">→ view</a></span>`:''}</div></div></div></div>`;
   document.getElementById('detPage').innerHTML=h;
   document.getElementById('comp-col').innerHTML=compsPanel(l);
   renderTagToggles(l.mls,id);
@@ -1423,39 +1423,281 @@ function rowNotesInput(el){const mls=el.dataset.mls;clearTimeout(_rowNotesTimers
 function rowNotesBlur(el){const mls=el.dataset.mls;clearTimeout(_rowNotesTimers[mls]);saveRowNotes(el);}
 async function saveRowNotes(el){const mls=el.dataset.mls;const val=el.value;const li=listings.find(x=>x.mls===mls);if(li&&li.notes===val){el.style.borderColor='var(--border)';return;}el.style.borderColor='var(--accent)';const{error}=await sb.from('properties').update({notes:val,updated_at:new Date().toISOString()}).eq('mls',mls);if(error){el.style.borderColor='var(--red)';return;}if(li)li.notes=val;el.style.borderColor='var(--green)';setTimeout(()=>{el.style.borderColor='var(--border)';},1200);const mid=mls.replace(/[^a-zA-Z0-9]/g,'');const det=document.getElementById('notes2-'+mid);if(det&&det.value!==val)det.value=val;}
 
-// Brief T (post-mid-gate): open the Pipeline for this listing at the Offered
-// stage. Writes pipeline_stage='offered' on the property + appends a
-// {from_stage:null, to_stage:'offered'} row to pipeline_stage_history. The
-// history insert is mls-keyed (matches the wider schema convention — no
-// property_id lookup needed). Disables the button during submit to guard
-// against double-clicks. Re-renders the detail pane on success so the
-// "🏗 In project" link appears and the button disappears.
+// Brief BK: open the Pipeline for this listing by inserting a deals row
+// at phase='pursuing' with buy_side_mls = this MLS#. Appends a
+// {from_phase:null, to_phase:'pursuing'} row to deals_phase_history.
+// Disables the button during submit to guard against double-clicks.
+// Re-renders the detail pane on success so the "🏗 In project" link
+// appears and the button disappears.
 async function openOffer(mls){
   const l=listings.find(x=>x.mls===mls);if(!l)return;
-  if(l.pipelineStage){console.warn('openOffer: listing already in pipeline',mls);return;}
+  if(l.dealId){console.warn('openOffer: listing already linked to deal',mls);return;}
   const id=mls.replace(/[^a-zA-Z0-9]/g,'');
   const btn=document.getElementById('open-offer-'+id);
   if(btn){btn.disabled=true;btn.style.opacity='0.6';btn.style.cursor='wait';btn.textContent='Opening…';}
   try{
-    const{error:pErr}=await sb.from('properties')
-      .update({pipeline_stage:'offered',updated_at:new Date().toISOString()})
-      .eq('mls',mls);
-    if(pErr)throw pErr;
-    const{error:hErr}=await sb.from('pipeline_stage_history').insert({
-      mls,
-      from_stage:null,
-      to_stage:'offered',
-      note:'Pipeline opened from MLS Deals',
+    const{data:newDeal,error:insErr}=await sb.from('deals')
+      .insert({buy_side_mls: mls, phase: 'pursuing'})
+      .select('id').single();
+    if(insErr)throw insErr;
+    const{error:hErr}=await sb.from('deals_phase_history').insert({
+      deal_id: newDeal.id,
+      from_phase: null,
+      to_phase: 'pursuing',
+      note: 'Pipeline opened from MLS Deals',
     });
     if(hErr)throw hErr;
-    l.pipelineStage='offered';
+    l.dealId=newDeal.id;
+    l.dealPhase='pursuing';
     renderDetailPage(l);
+    refreshRowDealPill(mls);
   }catch(e){
     console.warn('openOffer failed',e);
     alert('Open offer failed: '+(e&&e.message?e.message:String(e)));
     if(btn){btn.disabled=false;btn.style.opacity='';btn.style.cursor='pointer';btn.textContent='📤 Open offer';}
   }
 }
+
+// Brief BK: batch-fetch deal rows that reference any visible MLS# (either
+// buy_side_mls or relist_mls). Decorate each listing with l.dealId +
+// l.dealPhase so the "🏗 In project" pill renders the deal phase, and the
+// "Open offer" / "Mark as listing" buttons disappear when a deal exists.
+async function decorateListingsWithDeals(){
+  if(!listings.length)return;
+  const allMls=listings.map(l=>l.mls).filter(Boolean);
+  if(!allMls.length)return;
+  // PostgREST .or() takes a single comma-delimited expression. Each
+  // individual filter (.in()) uses parens around the value list. To
+  // combine two .in() conditions in one .or(), pass them as a single
+  // string with commas separating the disjuncts. Quote each MLS for
+  // safety against commas/parens in the id.
+  const list=allMls.map(m=>'"'+String(m).replace(/"/g,'\\"')+'"').join(',');
+  const orExpr='buy_side_mls.in.('+list+'),relist_mls.in.('+list+')';
+  let deals=[];
+  try{
+    const{data,error}=await sb.from('deals')
+      .select('id, phase, buy_side_mls, relist_mls')
+      .or(orExpr);
+    if(error){console.warn('[decorateListingsWithDeals] failed',error);return;}
+    deals=data||[];
+  }catch(e){
+    console.warn('[decorateListingsWithDeals] failed',e);
+    return;
+  }
+  // Build mls -> {dealId, dealPhase}. If the same MLS appears as both
+  // buy_side and relist on different deals (uncommon — typically would
+  // be the SAME deal), prefer the most-active phase: prefer non-archived
+  // > non-sold > anything.
+  const byMls={};
+  const phaseRank=p=>{
+    if(p==='archived')return 0;
+    if(p==='sold')return 1;
+    return 2;
+  };
+  const consider=(mls,deal)=>{
+    if(!mls)return;
+    const ex=byMls[mls];
+    if(!ex || phaseRank(deal.phase) > phaseRank(ex.dealPhase)){
+      byMls[mls]={dealId: deal.id, dealPhase: deal.phase};
+    }
+  };
+  for(const d of deals){
+    consider(d.buy_side_mls, d);
+    consider(d.relist_mls, d);
+  }
+  // Decorate + refresh per-row pill.
+  for(const l of listings){
+    const m=byMls[l.mls];
+    if(m){
+      l.dealId=m.dealId;
+      l.dealPhase=m.dealPhase;
+    } else {
+      l.dealId=null;
+      l.dealPhase=null;
+    }
+    refreshRowDealPill(l.mls);
+  }
+  // Re-render detail page if open — the "🏗 In project" pill / Open offer
+  // button visibility may have changed.
+  if(active){const l=listings.find(x=>x.mls===active);if(l)renderDetailPage(l);}
+}
+
+// Brief BK: surgical update of the "🏗 In project" pill for one row,
+// invoked after openOffer/markAsListing or after the bulk decorate pass.
+// Mirrors refreshRowDePill / refreshRowComps; no full re-render.
+function refreshRowDealPill(mls){
+  // Currently rendered inside the detail pane only (next to MLS# in the
+  // Agent & Broker section). The list-card has no deal pill; if/when one
+  // is added it would refresh here too.
+  if(active===mls){
+    const l=listings.find(x=>x.mls===mls);
+    if(l)renderDetailPage(l);
+  }
+}
+
+// Brief BK / D2: address-match an MLS-listed property against the existing
+// under_construction deals to detect the relist-of-our-flip case. On a
+// single match: confirm + link (relist_mls=mls, phase='listed'). On zero
+// or multiple matches: open a picker modal so the user chooses (or creates
+// an orphan listing with buy_side_mls=NULL).
+async function markAsListing(mls){
+  const l=listings.find(x=>x.mls===mls);if(!l)return;
+  if(l.dealId){alert('This listing is already linked to a deal.');return;}
+
+  // 1. Fetch under_construction candidates.
+  const {data:cands, error:cErr}=await sb.from('deals')
+    .select('id, buy_side_mls, relist_mls, created_at')
+    .eq('phase','under_construction');
+  if(cErr){alert('Failed to load candidates: '+cErr.message);return;}
+  const candidates=cands||[];
+
+  // 2. Resolve each candidate's address via properties (batch fetch).
+  const candMls=candidates.map(c=>c.buy_side_mls).filter(Boolean);
+  const addrByMls={};
+  if(candMls.length){
+    const {data:props}=await sb.from('properties')
+      .select('mls, address, city')
+      .in('mls', candMls);
+    for(const p of (props||[])){addrByMls[p.mls]=p;}
+  }
+
+  // 3. Address-match: case-insensitive substring match on the street
+  // component. Pull the leading numeric+street tokens (strip unit/suite).
+  const streetOf=raw=>{
+    if(!raw)return '';
+    // Strip apt/unit suffix; keep the leading "<#> <street>" chunk.
+    const cleaned=String(raw).replace(/\s*(?:apt|unit|ste|suite|#)\.?\s*[\w\-]+/i,'').trim();
+    return cleaned.toLowerCase();
+  };
+  const myStreet=streetOf(l.address);
+  const matches=[];
+  for(const c of candidates){
+    const candProp=c.buy_side_mls?addrByMls[c.buy_side_mls]:null;
+    const candAddr=candProp?candProp.address:'';
+    const candStreet=streetOf(candAddr);
+    if(myStreet && candStreet && (candStreet.includes(myStreet) || myStreet.includes(candStreet))){
+      matches.push({deal:c, addr:candAddr, city:candProp?candProp.city:''});
+    }
+  }
+
+  // 4. Single match → confirm + link.
+  if(matches.length===1){
+    const m=matches[0];
+    const d=m.deal;
+    const sinceStr=d.created_at?new Date(d.created_at).toISOString().slice(0,10):'?';
+    const ok=confirm('This looks like the relist of '+m.addr+(m.city?', '+m.city:'')+' (under_construction since '+sinceStr+'). Link?');
+    if(!ok)return;
+    await applyMarkAsListing(d.id, mls, l, 'under_construction');
+    return;
+  }
+
+  // 5. Zero or multiple → modal picker.
+  openMarkAsListingPicker(matches, mls, l);
+}
+
+// Modal picker for markAsListing. Shows candidates + "Create new orphan
+// listing" option. On pick: link relist_mls + flip phase to 'listed'.
+function openMarkAsListingPicker(matches, mls, l){
+  // Build a lightweight modal inline. Reuses the same overlay pattern as
+  // openConstEditor / openArchive.
+  const overlayId='mal-modal';
+  const existing=document.getElementById(overlayId);
+  if(existing)existing.remove();
+
+  const matchHtml=matches.length
+    ? matches.map((m,i)=>{
+        const d=m.deal;
+        const sinceStr=d.created_at?new Date(d.created_at).toISOString().slice(0,10):'?';
+        return `<div class="mal-row" data-idx="${i}" style="padding:10px 14px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;cursor:pointer;background:var(--bg)" onmouseover="this.style.background='var(--bg-alt)'" onmouseout="this.style.background='var(--bg)'">
+          <div style="font-weight:600;font-size:13px">${escapeHtml(m.addr||'(no address)')}${m.city?', '+escapeHtml(m.city):''}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:2px;font-family:var(--mono)">Buy MLS# ${escapeHtml(d.buy_side_mls||'(none)')} · Under construction since ${escapeHtml(sinceStr)}</div>
+        </div>`;
+      }).join('')
+    : `<div style="padding:10px 14px;color:var(--text-4);font-size:12px;font-style:italic">No address-matched candidates among under_construction deals.</div>`;
+
+  const html=`<div id="${overlayId}" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center" onclick="if(event.target.id==='${overlayId}')document.getElementById('${overlayId}').remove()">
+    <div style="background:var(--bg);max-width:560px;width:90%;max-height:80vh;overflow-y:auto;border-radius:8px;padding:18px 20px 16px;box-shadow:0 8px 32px rgba(0,0,0,.18)">
+      <div style="font-size:14px;font-weight:700;margin-bottom:6px">Mark as our listing — pick the source deal</div>
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:12px">Listing: <b>${escapeHtml(l.address||'')}${l.city?', '+escapeHtml(l.city):''}</b> · MLS# ${escapeHtml(mls)}</div>
+      <div style="font-size:11px;color:var(--text-4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">${matches.length===0?'No address matches found' : matches.length+' candidate'+(matches.length===1?'':'s')}</div>
+      <div id="mal-list">${matchHtml}</div>
+      <div style="border-top:1px solid var(--border);margin:12px 0 8px"></div>
+      <div class="mal-row" data-idx="orphan" style="padding:10px 14px;border:1px dashed var(--border);border-radius:6px;cursor:pointer;background:var(--bg)" onmouseover="this.style.background='var(--bg-alt)'" onmouseout="this.style.background='var(--bg)'">
+        <div style="font-weight:600;font-size:13px">＋ Create new orphan listing</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px">Insert a deal with relist_mls only (buy_side_mls=NULL). Use when the under_construction source isn't tracked here.</div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px">
+        <button onclick="document.getElementById('${overlayId}').remove()" style="padding:5px 14px;border:1px solid var(--border);background:var(--bg);border-radius:5px;font-family:inherit;font-size:12px;cursor:pointer">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  // Wire up the row clicks.
+  document.querySelectorAll('#'+overlayId+' .mal-row').forEach(row=>{
+    row.addEventListener('click', async ()=>{
+      const idx=row.dataset.idx;
+      document.getElementById(overlayId).remove();
+      if(idx==='orphan'){
+        await applyMarkAsListing(null, mls, l, null);
+      } else {
+        const m=matches[Number(idx)];
+        if(m)await applyMarkAsListing(m.deal.id, mls, l, 'under_construction');
+      }
+    });
+  });
+}
+
+// Apply the mark-as-listing operation. If dealId is set: update existing
+// deal (relist_mls=mls, phase='listed'). If dealId is null: create a new
+// orphan deal with buy_side_mls=NULL, relist_mls=mls.
+async function applyMarkAsListing(dealId, mls, l, fromPhase){
+  const today=new Date().toISOString().slice(0,10);
+  const listPrice=l.price||null;
+  try{
+    let resolvedDealId=dealId;
+    if(dealId){
+      // Link existing under_construction deal as relist.
+      const {error:uErr}=await sb.from('deals').update({
+        relist_mls: mls,
+        phase: 'listed',
+        list_price: listPrice,
+        list_date: today,
+        updated_at: new Date().toISOString(),
+      }).eq('id', dealId);
+      if(uErr)throw uErr;
+    } else {
+      // Insert new orphan deal — relist only.
+      const {data:newDeal, error:iErr}=await sb.from('deals').insert({
+        buy_side_mls: null,
+        relist_mls: mls,
+        phase: 'listed',
+        list_price: listPrice,
+        list_date: today,
+      }).select('id').single();
+      if(iErr)throw iErr;
+      resolvedDealId=newDeal.id;
+    }
+    // History row.
+    const {error:hErr}=await sb.from('deals_phase_history').insert({
+      deal_id: resolvedDealId,
+      from_phase: fromPhase,  // 'under_construction' for the link path; null for orphan
+      to_phase: 'listed',
+      note: dealId
+        ? 'Linked relist via Mark as our listing (MLS Deals)'
+        : 'Orphan listing via Mark as our listing (MLS Deals)',
+    });
+    if(hErr)throw hErr;
+    // Decorate listing in-place + re-render.
+    l.dealId=resolvedDealId;
+    l.dealPhase='listed';
+    renderDetailPage(l);
+    refreshRowDealPill(mls);
+  }catch(e){
+    console.warn('applyMarkAsListing failed',e);
+    alert('Mark as listing failed: '+(e&&e.message?e.message:String(e)));
+  }
+}
+window.markAsListing=markAsListing;
 
 async function toggleLockArv(mls,id){
   const l=listings.find(x=>x.mls===mls);if(!l)return;
@@ -1524,7 +1766,11 @@ function mapRowToListing(r){
     elem:r.elementary_rating||r.elementary_school?{r:r.elementary_rating||0,n:r.elementary_school||''}:null,
     mid:(r.middle_rating||r.middle_school)&&(r.middle_school!==r.elementary_school)?{r:r.middle_rating||0,n:r.middle_school||''}:null,
     high:r.high_rating||r.high_school?{r:r.high_rating||0,n:r.high_school||''}:null,
-    tags,customTags:r.custom_tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null,photoCount:r.photo_count||0,pipelineStage:r.pipeline_stage||null};
+    tags,customTags:r.custom_tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null,photoCount:r.photo_count||0,
+    // Brief BK: deal linkage now lives on the deals table (decorated in
+    // decorateListingsWithDeals after loadListings()). Drop the legacy
+    // properties.pipeline_stage column.
+    dealId:null,dealPhase:null};
 }
 
 async function loadListings(status){
@@ -1576,6 +1822,9 @@ async function loadListings(status){
     // Bulk-load deal scores once per listings load. Cache-checked, so safe
     // to call alongside the per-MLS path in ensureDealScore (e.g. detail view).
     bulkLoadDealScores(listings.map(l=>l.mls));
+    // Brief BK: decorate each listing with its deal id+phase (if any). One
+    // batch query against deals; updates the "🏗 In project" pill per row.
+    decorateListingsWithDeals();
     batchFetchComps();
     fetchAgentDeCounts();
   }catch(e){console.error('Failed to load:',e);}}
