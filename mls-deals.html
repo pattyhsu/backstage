@@ -620,6 +620,7 @@ function compsPanel(l){
   const avgPsf=cm.comps.length?Math.round(cm.comps.map(c=>c.psf).filter(Boolean).reduce((a,b)=>a+b,0)/cm.comps.filter(c=>c.psf).length):0;
   h+=`<div class="ab" id="comp-arv-${mid}">Avg $/sf: $${avgPsf} → ARV = ${l.sqft.toLocaleString()} sf × $${avgPsf} = ${F(avgPsf*l.sqft)}</div>`;
   h+=renderArvEstimateBlock(l.mls,mid);
+  if(l.city==='CERRITOS')h+=renderSmartCompsPanel(l,mid);
   h+=renderDealScoreBlock(l.mls,mid);
   setTimeout(()=>ensureArvEstimate(l.mls,mid),50);
   setTimeout(()=>ensureDealScore(l.mls,mid),50);
@@ -679,8 +680,97 @@ async function ensureArvEstimate(mls,mid){
   }catch(e){arvEstimateCache[mls]={state:'missing'};}
   const el=document.getElementById('arv-est-'+mid);
   if(el)el.outerHTML=renderArvEstimateBlock(mls,mid);
+  // Smart-comps panel reads from the same arv_estimates row — refresh
+  // it once the cache is populated. Cerritos-only.
+  const smartEl=document.getElementById('smart-comps-'+mid);
+  if(smartEl){
+    const listing=listings.find(x=>x.mls===mls);
+    if(listing&&listing.city==='CERRITOS'){
+      smartEl.outerHTML=renderSmartCompsPanel(listing,mid);
+    }
+  }
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+// ========== SMART COMP PANEL (DA — Cerritos only) ====================
+// Reads `arv_estimates.smart_comps_arv` + `smart_comps_confidence` +
+// `smart_comps_data` (jsonb), populated by `python -m
+// arv_estimator.per_city.cerritos_smart_comps --predict-active`. Pairs
+// with v4 ARV — disagreement |Δ| green ≤3% / amber 3-7% / red >7%.
+// Cerritos-only via the `l.city==='CERRITOS'` filter in compsPanel().
+function renderSmartCompsPanel(l,mid){
+  // Reuse arvEstimateCache — same arv_estimates row carries both v4
+  // (via headline_arv) and DA (via smart_comps_arv). When the cache
+  // has the row, just render. When it's pending/missing, show a
+  // pending strip.
+  const c=arvEstimateCache[l.mls];
+  if(!c||c.state==='pending'||c.state==='missing'){
+    return `<div class="ab" id="smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (DA): pending — runs nightly</div>`;
+  }
+  if(c.state==='error')return '';
+  const r=c.row;
+  if(r.smart_comps_arv==null||!r.smart_comps_data){
+    return `<div class="ab" id="smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (DA): not yet scored</div>`;
+  }
+  const data=r.smart_comps_data,conf=(r.smart_comps_confidence||'').toLowerCase();
+  const v4=r.headline_arv,smart=r.smart_comps_arv;
+  let dis=null,disColor='var(--text-4)',disBg='var(--bg)';
+  if(v4&&smart){
+    dis=(smart-v4)/v4*100;
+    const a=Math.abs(dis);
+    if(a<=3){disColor='var(--green)';disBg='var(--green-bg)';}
+    else if(a<=7){disColor='var(--amber)';disBg='var(--amber-bg)';}
+    else{disColor='var(--red)';disBg='var(--red-bg)';}
+  }
+  const confStyle=conf==='high'?'background:var(--green-bg);color:var(--green)':conf==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
+  const confPill=`<span style="${confStyle};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:8px">${(conf||'?').toUpperCase()}</span>`;
+  const disPill=dis!=null?`<span style="background:${disBg};color:${disColor};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:6px">Δ vs v4 ${dis>=0?'+':''}${dis.toFixed(1)}%</span>`:'';
+  const radius=data.anchor_radius_miles!=null?data.anchor_radius_miles:'?';
+  const n=data.n_anchors!=null?data.n_anchors:'?';
+  const ppsf=data.ppsf_today_t6!=null?Math.round(data.ppsf_today_t6):'—';
+  const flags=Array.isArray(data.flags)?data.flags:[];
+  const flagsHtml=flags.length?`<div style="font-size:10px;color:var(--text-4);margin-top:2px">flags: ${flags.map(f=>escapeHtml(String(f))).join(', ')}</div>`:'';
+  let compsRows='';
+  const comps=Array.isArray(data.comps)?data.comps:[];
+  if(comps.length){
+    const head=`<thead><tr style="font-size:9px;font-weight:700;color:var(--text-4);text-transform:uppercase">
+      <th style="text-align:left;padding:3px 4px">Mi</th>
+      <th style="text-align:left;padding:3px 4px">Tier</th>
+      <th style="text-align:left;padding:3px 4px">Sold</th>
+      <th style="text-align:right;padding:3px 4px">Sale</th>
+      <th style="text-align:right;padding:3px 4px">$/sf</th>
+      <th style="text-align:right;padding:3px 4px">$/sf today</th>
+      <th style="text-align:right;padding:3px 4px">$/sf T6</th>
+      <th style="text-align:right;padding:3px 4px">w</th></tr></thead>`;
+    const body=comps.map(co=>{
+      const t=co.condition_tier;
+      const tierStr=t===6?'T6':t===5?'T5*':t===4?'T4*':`T${t}`;
+      const tCol=t===6?'var(--green)':t===5?'var(--amber)':'var(--text-3)';
+      return `<tr style="font-size:11px;border-top:1px solid var(--border)">
+        <td style="padding:3px 4px">${(co.distance_miles||0).toFixed(2)}</td>
+        <td style="padding:3px 4px;color:${tCol};font-weight:600">${tierStr}</td>
+        <td style="padding:3px 4px;color:var(--text-3)">${(co.sold_date||'').slice(0,7)}</td>
+        <td style="padding:3px 4px;text-align:right">${co.sale_price?'$'+Math.round(co.sale_price/1000)+'K':'—'}</td>
+        <td style="padding:3px 4px;text-align:right;color:var(--text-3)">$${Math.round(co.raw_ppsf||0)}</td>
+        <td style="padding:3px 4px;text-align:right">$${Math.round(co.ppsf_today||0)}</td>
+        <td style="padding:3px 4px;text-align:right;font-weight:600">$${Math.round(co.ppsf_t6_today||0)}</td>
+        <td style="padding:3px 4px;text-align:right;color:var(--text-4)">${((co.weight||0)*100).toFixed(0)}%</td></tr>`;
+    }).join('');
+    compsRows=`<table style="width:100%;border-collapse:collapse;margin-top:6px">${head}<tbody>${body}</tbody></table>
+      <div style="font-size:10px;color:var(--text-4);margin-top:4px">*T4/T5 upcast to T6-equivalent via v4 coefficients</div>`;
+  }else{
+    compsRows=`<div style="padding:6px;color:var(--text-4);font-size:11px;font-style:italic">No anchor comps</div>`;
+  }
+  return `<div class="ab" id="smart-comps-${mid}" style="display:block">
+    <div>Smart comps (DA): ${F(smart)}${confPill}${disPill}</div>
+    <details style="margin-top:6px">
+      <summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Anchors (${n} within ${radius}mi · $${ppsf}/sf median T6-eq)</summary>
+      ${flagsHtml}
+      ${compsRows}
+    </details>
+  </div>`;
+}
+// ========== END SMART COMP PANEL ====================================
 // ========== END ARV ESTIMATOR ==========
 
 // ========== DEAL SCORER — grade pill + score breakdown =============
