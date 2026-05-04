@@ -620,6 +620,7 @@ function compsPanel(l){
   const avgPsf=cm.comps.length?Math.round(cm.comps.map(c=>c.psf).filter(Boolean).reduce((a,b)=>a+b,0)/cm.comps.filter(c=>c.psf).length):0;
   h+=`<div class="ab" id="comp-arv-${mid}">Avg $/sf: $${avgPsf} → ARV = ${l.sqft.toLocaleString()} sf × $${avgPsf} = ${F(avgPsf*l.sqft)}</div>`;
   h+=renderArvEstimateBlock(l.mls,mid);
+  if(l.city==='CERRITOS')h+=renderV4ArvBlock(l,mid);
   if(l.city==='CERRITOS')h+=renderSmartCompsPanel(l,mid);
   h+=renderDealScoreBlock(l.mls,mid);
   setTimeout(()=>ensureArvEstimate(l.mls,mid),50);
@@ -680,8 +681,15 @@ async function ensureArvEstimate(mls,mid){
   }catch(e){arvEstimateCache[mls]={state:'missing'};}
   const el=document.getElementById('arv-est-'+mid);
   if(el)el.outerHTML=renderArvEstimateBlock(mls,mid);
-  // Smart-comps panel reads from the same arv_estimates row — refresh
-  // it once the cache is populated. Cerritos-only.
+  // v4 + smart-comps panels read from the same arv_estimates row — refresh
+  // them once the cache is populated. Cerritos-only.
+  const v4El=document.getElementById('v4-arv-'+mid);
+  if(v4El){
+    const listing=listings.find(x=>x.mls===mls);
+    if(listing&&listing.city==='CERRITOS'){
+      v4El.outerHTML=renderV4ArvBlock(listing,mid);
+    }
+  }
   const smartEl=document.getElementById('smart-comps-'+mid);
   if(smartEl){
     const listing=listings.find(x=>x.mls===mls);
@@ -691,6 +699,33 @@ async function ensureArvEstimate(mls,mid){
   }
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+// ========== V4 ARV BLOCK (per-city Cerritos regression) ===============
+// Reads `arv_estimates.cerritos_v4_arv` + `cerritos_v4_confidence` +
+// `cerritos_v4_data` (jsonb), populated by `python -m
+// arv_estimator.per_city.cerritos_smart_comps --predict-active` (which
+// internally calls cerritos_v4.predict()). Cerritos-only via the
+// `l.city==='CERRITOS'` filter in compsPanel(). v4 is a per-city
+// hierarchical regression — no comp table to expand. Just the number,
+// confidence pill, and a tiny note pointing at the model file.
+function renderV4ArvBlock(l,mid){
+  const c=arvEstimateCache[l.mls];
+  if(!c||c.state==='pending'||c.state==='missing'){
+    return `<div class="ab" id="v4-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v4 Cerritos): pending — runs nightly</div>`;
+  }
+  if(c.state==='error')return '';
+  const r=c.row;
+  if(r.cerritos_v4_arv==null){
+    return `<div class="ab" id="v4-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v4 Cerritos): pending — runs nightly</div>`;
+  }
+  const conf=(r.cerritos_v4_confidence||'').toLowerCase();
+  const confStyle=conf==='high'?'background:var(--green-bg);color:var(--green)':conf==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
+  const confPill=`<span style="${confStyle};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:8px">${(conf||'?').toUpperCase()}</span>`;
+  return `<div class="ab" id="v4-arv-${mid}" style="display:block">
+    <div>ARV estimate (v4 Cerritos): ${F(r.cerritos_v4_arv)}${confPill}</div>
+    <div style="font-size:10px;color:var(--text-4);margin-top:4px">Per-city hierarchical regression — see arv_estimator/models/cerritos_v4.pkl</div>
+  </div>`;
+}
 
 // ========== SMART COMP PANEL (DA — Cerritos only) ====================
 // Reads `arv_estimates.smart_comps_arv` + `smart_comps_confidence` +
