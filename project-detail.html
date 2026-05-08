@@ -96,12 +96,17 @@ body { overflow:hidden; height:100vh; }
 .uw-bar { margin-top:12px; padding:12px 16px; background:var(--accent-dim); border:1px solid var(--accent-dim2); border-radius:6px; display:flex; align-items:center; gap:22px; flex-wrap:wrap; }
 .uw-stat { display:flex; flex-direction:column; }
 .uw-label { font-size:10px; color:var(--text-4); font-weight:600; letter-spacing:.06em; text-transform:uppercase; margin-bottom:2px; }
-.uw-value { font-size:15px; font-weight:700; color:var(--text); }
+.uw-value { font-size:15px; font-weight:700; color:var(--text); padding:1px 3px; border-radius:3px; transition:background 0.1s; }
+.uw-value[data-stat] { cursor:text; }
+.uw-value[data-stat]:hover { background:rgba(156,124,60,0.12); }
+.uw-value[data-stat]:focus { outline:none; background:rgba(156,124,60,0.18); }
+.uw-value.editing { background:var(--bg); padding:0; }
+.uw-value input { width:80px; font:inherit; border:1px solid var(--accent); border-radius:3px; padding:1px 4px; outline:none; background:var(--bg); color:var(--text); }
 .uw-value-large { font-size:17px; }
 .uw-lock { font-size:10px; color:var(--text-4); margin-left:4px; }
 .uw-sep { color:var(--border-strong); font-size:14px; }
-.uw-edit { margin-left:auto; color:var(--accent); font-size:11px; align-self:center; text-decoration:none; }
-.uw-edit:hover { text-decoration:underline; }
+.uw-error { display:inline-block; margin-left:6px; font-size:11px; color:var(--red); animation:fadeOut 3s forwards; }
+@keyframes fadeOut { 0%, 70% { opacity:1; } 100% { opacity:0; } }
 .profit-pos { color:var(--green); }
 .profit-neg { color:var(--red); }
 
@@ -265,6 +270,23 @@ let propertiesByMls={};      // mls -> properties row (for header rendering)
 let phaseHistory=[];         // rows from deals_phase_history
 let dealMilestones=[];       // rows from deal_milestones
 let saving=false;
+
+// BQ inline-edit state — last-rendered underwriting bar context. Stashed
+// here so the inline-edit handlers can recompute profit + re-render the
+// bar without a full loadProject().
+let uwCtx=null;              // {arvRow, gradeRow, deCount, activeMls, financingClosing}
+
+// BQ — pure profit calc. Same constants as the BP renderPage block
+// (financing+closing falls back to 3% of the buy price when the
+// deal_scores estimates are missing).
+function recomputeProfit({offer, arv, construction, financingClosing}){
+  if(offer==null || arv==null || construction==null)return {dollar:null, pct:null, fc:null};
+  let fc=financingClosing;
+  if(fc==null)fc=offer*0.03;
+  const dollar=arv - offer - construction - fc;
+  const pct=arv>0?(dollar/arv*100):null;
+  return {dollar, pct, fc};
+}
 
 // Pick the "primary" properties row to render in the header. For listed
 // deals, prefer the relist_mls (the new MLS# carrying the listing photos
@@ -569,34 +591,36 @@ function renderPage(arvRow,gradeRow,deCount){
   // otherwise approximate financing+closing as 3% of the buy price (matches
   // the rehab-estimator's combined-cost convention in the v1 detail panel
   // on mls-deals — see breakdown_json keys financing / purchase_close /
-  // sale_close which sum to roughly 3% of list).
-  let financingClosing=null;
+  // sale_close which sum to roughly 3% of list). Calc lives in
+  // recomputeProfit() so BQ inline-edit can call it on every keystroke.
+  let dealScoresFC=null;
   if(gradeRow){
     const fin=gradeRow.financing_estimate;
     const cls=gradeRow.closing_estimate;
-    if(fin!=null && cls!=null)financingClosing=fin+cls;
+    if(fin!=null && cls!=null)dealScoresFC=fin+cls;
   }
-  if(financingClosing==null && buyVal!=null)financingClosing=buyVal*0.03;
-  const haveAll=(arvVal!=null && constrVal!=null && buyVal!=null && financingClosing!=null);
-  const profit=haveAll?(arvVal - buyVal - constrVal - financingClosing):null;
-  const profitPct=(haveAll && arvVal>0)?(profit/arvVal*100):null;
+  const _pp=recomputeProfit({offer:buyVal, arv:arvVal, construction:constrVal, financingClosing:dealScoresFC});
+  const profit=_pp.dollar;
+  const profitPct=_pp.pct;
 
-  function fmtUw(v,locked){
-    if(v==null)return `<div class="uw-value" style="color:var(--text-4)">— not set</div>`;
-    return `<div class="uw-value">${FK(v)}${locked?'<span class="uw-lock">🔒</span>':''}</div>`;
+  // BQ — stash context so inline-edit handlers can re-render the bar.
+  // buyStat: 'offer' or 'bought' depending on phase.
+  const buyStat=buyIsOffer?'offer':'bought';
+  uwCtx={arvRow, gradeRow, deCount, activeMls, dealScoresFC, buyStat};
+
+  function fmtUw(v,locked,statKey){
+    const attrs=statKey?` tabindex="0" data-stat="${statKey}"`:'';
+    if(v==null)return `<div class="uw-value" style="color:var(--text-4)"${attrs}>— not set</div>`;
+    return `<div class="uw-value"${attrs}>${FK(v)}${locked?'<span class="uw-lock">🔒</span>':''}</div>`;
   }
   function profitHtml(){
-    if(profit==null)return `<div class="uw-value" style="color:var(--text-4)">— pending</div>`;
+    if(profit==null)return `<div class="uw-value uw-value-large" id="uwProfit" style="color:var(--text-4)">— pending</div>`;
     const cls=profit>=0?'profit-pos':'profit-neg';
     const sign=profit>=0?'+':'-';
     const dollars=FK(Math.abs(profit));
     const pct=profitPct!=null?` <span style="font-size:13px;font-weight:600">(${(profitPct>=0?'+':'')}${profitPct.toFixed(1)}%)</span>`:'';
-    return `<div class="uw-value uw-value-large ${cls}">${sign}${dollars}${pct}</div>`;
+    return `<div class="uw-value uw-value-large ${cls}" id="uwProfit">${sign}${dollars}${pct}</div>`;
   }
-
-  // Edit/Set-locks deep-link target.
-  const editLabel=(arvLocked||constrLocked)?'Edit →':'Set locks →';
-  const editHref=`mls-deals.html?mls=${encodeURIComponent(activeMls||'')}`;
 
   // === PHOTO THUMB ===
   let thumbHtml;
@@ -624,24 +648,23 @@ function renderPage(arvRow,gradeRow,deCount){
         <div class="uw-bar">
           <div class="uw-stat">
             <div class="uw-label">${buyLabel}</div>
-            ${fmtUw(buyVal,false)}
+            ${fmtUw(buyVal,false,buyStat)}
           </div>
           <div class="uw-sep">·</div>
           <div class="uw-stat">
             <div class="uw-label">ARV</div>
-            ${fmtUw(arvVal,arvLocked)}
+            ${fmtUw(arvVal,arvLocked,'arv')}
           </div>
           <div class="uw-sep">·</div>
           <div class="uw-stat">
             <div class="uw-label">Construction</div>
-            ${fmtUw(constrVal,constrLocked)}
+            ${fmtUw(constrVal,constrLocked,'construction')}
           </div>
           <div class="uw-sep">·</div>
           <div class="uw-stat">
             <div class="uw-label">Profit</div>
             ${profitHtml()}
           </div>
-          <a href="${editHref}" class="uw-edit">${editLabel}</a>
         </div>
       </div>
     </div>
@@ -726,6 +749,196 @@ function renderPage(arvRow,gradeRow,deCount){
   `;
 
   document.getElementById('container').innerHTML=html;
+
+  // BQ — wire inline-edit handlers for the 4 underwriting stats.
+  wireUwEdits();
+}
+
+// ========== BQ INLINE-EDIT (underwriting bar) ==========
+//
+// Each .uw-value[data-stat] is click/keyboard-activatable. Click swaps
+// the rendered text with a number input pre-filled in K-units. Enter or
+// blur → save (stat-routed update to deals.offer_price /
+// deals.purchase_price / properties.locked_arv /
+// properties.locked_construction). Escape → cancel. Empty save → silent
+// revert (no NULL writes; explicit clear UI is out of scope per brief).
+// On every keystroke, profit recomputes live using the in-progress
+// input value combined with the other stats' last-saved values.
+
+function _kFromDollars(v){return v==null?'':String(Math.round(v/1000));}
+function _currentStatValue(stat){
+  const d=currentDeal;
+  const p=primaryProperty();
+  if(stat==='offer')       return d.offer_price;
+  if(stat==='bought')      return d.purchase_price;
+  if(stat==='arv')         return p?p.locked_arv:null;
+  if(stat==='construction')return p?p.locked_construction:null;
+  return null;
+}
+function _showInlineError(el, msg){
+  // Strip any existing error first.
+  const prev=el.querySelector('.uw-error');
+  if(prev)prev.remove();
+  const e=document.createElement('span');
+  e.className='uw-error';
+  e.textContent=msg;
+  el.appendChild(e);
+  setTimeout(()=>{ if(e.parentNode)e.remove(); }, 3100);
+}
+
+function wireUwEdits(){
+  const els=document.querySelectorAll('.uw-value[data-stat]');
+  els.forEach(el=>{
+    el.addEventListener('click', ()=>_beginEdit(el));
+    el.addEventListener('keydown', (e)=>{
+      if(e.key==='Enter'||e.key===' '){ e.preventDefault(); _beginEdit(el); }
+    });
+  });
+}
+
+function _beginEdit(el){
+  if(el.classList.contains('editing'))return;
+  const stat=el.dataset.stat;
+  const cur=_currentStatValue(stat);
+  el.classList.add('editing');
+  const input=document.createElement('input');
+  input.type='number';
+  input.min='0';
+  input.step='1';
+  input.value=_kFromDollars(cur);
+  el.innerHTML='';
+  el.appendChild(input);
+  input.focus();
+  input.select();
+
+  let committed=false;
+  let cancelled=false;
+
+  // Live profit recompute as Patty types.
+  input.addEventListener('input', ()=>_liveProfitPreview(stat, input.value));
+  input.addEventListener('keydown', async (e)=>{
+    if(e.key==='Enter'){ e.preventDefault(); committed=true; await _commitEdit(el, stat, input.value); }
+    else if(e.key==='Escape'){ e.preventDefault(); cancelled=true; _cancelEdit(el); }
+  });
+  input.addEventListener('blur', async ()=>{
+    if(committed||cancelled)return;
+    committed=true;
+    await _commitEdit(el, stat, input.value);
+  });
+}
+
+function _cancelEdit(el){
+  el.classList.remove('editing');
+  rerenderUwBar();
+}
+
+async function _commitEdit(el, stat, raw){
+  const trimmed=(raw==null?'':String(raw).trim());
+  // Empty → silent revert per brief.
+  if(trimmed===''){ _cancelEdit(el); return; }
+  const k=Number(trimmed);
+  if(!isFinite(k)){ _showInlineError(el, 'invalid number'); setTimeout(()=>_cancelEdit(el), 100); return; }
+  if(k<0){ _showInlineError(el, 'must be ≥ 0'); setTimeout(()=>_cancelEdit(el), 100); return; }
+  if(k>50000){ _showInlineError(el, 'value out of range'); setTimeout(()=>_cancelEdit(el), 100); return; }
+
+  const dollars=k*1000;
+  const ok=await saveUwValue(stat, dollars, el);
+  if(!ok)return; // saveUwValue handles its own error display + leaves input open
+  // Success — re-render the bar with fresh state.
+  el.classList.remove('editing');
+  await reloadDealAndProperty();
+  rerenderUwBar();
+}
+
+async function saveUwValue(stat, dollarValue, el){
+  const nowIso=new Date().toISOString();
+  const activeMls=uwCtx?uwCtx.activeMls:null;
+  let result;
+  if(stat==='offer'){
+    result=await sb.from('deals').update({offer_price:dollarValue, updated_at:nowIso}).eq('id', currentDeal.id);
+  } else if(stat==='bought'){
+    result=await sb.from('deals').update({purchase_price:dollarValue, updated_at:nowIso}).eq('id', currentDeal.id);
+  } else if(stat==='arv'){
+    if(!activeMls){ _showInlineError(el, 'no MLS# resolved'); return false; }
+    result=await sb.from('properties').update({locked_arv:dollarValue, updated_at:nowIso}).eq('mls', activeMls);
+  } else if(stat==='construction'){
+    if(!activeMls){ _showInlineError(el, 'no MLS# resolved'); return false; }
+    result=await sb.from('properties').update({locked_construction:dollarValue, updated_at:nowIso}).eq('mls', activeMls);
+  } else {
+    _showInlineError(el, 'unknown stat'); return false;
+  }
+  if(result && result.error){
+    console.error('[BQ saveUwValue] failed', stat, result.error);
+    _showInlineError(el, result.error.message||'save failed');
+    return false;
+  }
+  return true;
+}
+
+// Refetch deal + active properties row so the bar re-renders against DB.
+async function reloadDealAndProperty(){
+  if(!currentDeal)return;
+  const {data:dRow}=await sb.from('deals').select('*').eq('id', currentDeal.id).maybeSingle();
+  if(dRow)currentDeal=dRow;
+  const activeMls=uwCtx?uwCtx.activeMls:null;
+  if(activeMls){
+    const {data:pRow}=await sb.from('properties')
+      .select('id, mls, address, city, zip, beds, baths, sqft, lot_size, pool, year_built, list_price, sale_price, sold_date, locked_arv, locked_construction, elementary_school, middle_school, high_school, elementary_rating, middle_rating, high_rating, agent_name, agent_email, agent_broker, double_ended, photo_count, change_type')
+      .eq('mls', activeMls).maybeSingle();
+    if(pRow)propertiesByMls[activeMls]=pRow;
+  }
+}
+
+// Re-render only the underwriting bar in place. Calls renderPage() which
+// rebuilds the full container — fine here because the page state
+// (currentDeal, propertiesByMls, phaseHistory, dealMilestones, uwCtx)
+// is intact and renderPage is cheap.
+function rerenderUwBar(){
+  if(!uwCtx)return;
+  renderPage(uwCtx.arvRow, uwCtx.gradeRow, uwCtx.deCount);
+}
+
+// Live profit preview. Reads the in-progress input value for `editingStat`,
+// pulls the other stats from currentDeal/primaryProperty(), recomputes,
+// and writes into #uwProfit.
+function _liveProfitPreview(editingStat, rawK){
+  const trimmed=(rawK==null?'':String(rawK).trim());
+  const kNum=trimmed===''?null:Number(trimmed);
+  const inProgressDollars=(kNum!=null && isFinite(kNum) && kNum>=0)?kNum*1000:null;
+
+  const d=currentDeal;
+  const p=primaryProperty();
+  const buyIsOffer=(d.phase==='pursuing'||d.phase==='lost');
+  let offer=buyIsOffer?d.offer_price:d.purchase_price;
+  let arv=p?p.locked_arv:null;
+  let construction=p?p.locked_construction:null;
+
+  // ARV / construction fall back to auto sources when no lock is set
+  // (matches renderPage). Only the deal_scores rehab_estimate +
+  // arv_estimates headline_arv are reasonable defaults; pull from uwCtx.
+  if(arv==null && uwCtx && uwCtx.arvRow && uwCtx.arvRow.headline_arv!=null)arv=uwCtx.arvRow.headline_arv;
+  if(construction==null && uwCtx && uwCtx.gradeRow && uwCtx.gradeRow.rehab_estimate!=null)construction=uwCtx.gradeRow.rehab_estimate;
+
+  if(editingStat==='offer'||editingStat==='bought')offer=inProgressDollars;
+  else if(editingStat==='arv')arv=inProgressDollars;
+  else if(editingStat==='construction')construction=inProgressDollars;
+
+  const fc=uwCtx?uwCtx.dealScoresFC:null;
+  const {dollar, pct}=recomputeProfit({offer, arv, construction, financingClosing:fc});
+  const target=document.getElementById('uwProfit');
+  if(!target)return;
+  if(dollar==null){
+    target.className='uw-value uw-value-large';
+    target.style.color='var(--text-4)';
+    target.textContent='— pending';
+    return;
+  }
+  target.style.color='';
+  target.className='uw-value uw-value-large '+(dollar>=0?'profit-pos':'profit-neg');
+  const sign=dollar>=0?'+':'-';
+  const dollars=FK(Math.abs(dollar));
+  const pctStr=pct!=null?` <span style="font-size:13px;font-weight:600">(${(pct>=0?'+':'')}${pct.toFixed(1)}%)</span>`:'';
+  target.innerHTML=`${sign}${dollars}${pctStr}`;
 }
 
 function renderHistoryList(){
