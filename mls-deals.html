@@ -1642,6 +1642,15 @@ async function decorateListingsWithDeals(){
     }
     refreshRowDealPill(l.mls);
   }
+  // Brief BO: filter out listings linked to deals past pursuing/lost.
+  // Those are tracked on pipeline.html / project-detail.html — not
+  // browsed here. Pursuing + lost stay visible (in the Potential group
+  // per the sync trigger setting stage='potential') so Patty can keep
+  // eyes on them. in_escrow / under_construction / listed / sold /
+  // archived disappear entirely from mls-deals.
+  const before=listings.length;
+  listings=listings.filter(l=>!l.dealPhase||l.dealPhase==='pursuing'||l.dealPhase==='lost');
+  if(listings.length!==before)render();
   // Re-render detail page if open — the "🏗 In project" pill / Open offer
   // button visibility may have changed.
   if(active){const l=listings.find(x=>x.mls===active);if(l)renderDetailPage(l);}
