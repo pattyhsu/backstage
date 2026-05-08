@@ -1475,8 +1475,11 @@ async function doAddrSearch(q){
   // ilike does case-insensitive substring match. We need to escape any
   // % or _ in the user's query so they're treated literally.
   const escaped=query.replace(/[%_]/g,c=>`\\${c}`);
-  const{data,error}=await sb.from('properties')
+  // Brief BO: filter OFFMKT- rows (off-market acquisitions belong in
+  // off-market.html when BM ships, not in mls-deals search).
+  let{data,error}=await sb.from('properties')
     .select('mls,address,city,list_price,change_type,stage')
+    .not('mls','like','OFFMKT-%')
     .ilike('address',`%${escaped}%`)
     .not('change_type','eq','sold')
     .limit(10);
@@ -1485,6 +1488,25 @@ async function doAddrSearch(q){
     drop.style.display='block';
     drop.innerHTML=`<div style="padding:8px 12px;font-size:12px;color:var(--red)">Search error: ${escapeHtml(error.message)}</div>`;
     return;
+  }
+  // Brief BO: also filter out listings linked to deals past pursuing/lost
+  // (mirrors the loadListings filter for consistency). Listings tied to
+  // an in-flight deal are tracked on pipeline.html / project-detail.html.
+  if(data&&data.length){
+    const list=data.map(r=>'"'+String(r.mls).replace(/"/g,'\\"')+'"').join(',');
+    const{data:blockers}=await sb.from('deals')
+      .select('buy_side_mls,relist_mls,phase')
+      .or('buy_side_mls.in.('+list+'),relist_mls.in.('+list+')');
+    if(mySeq!==_addrSearchSeq)return; // stale
+    if(blockers&&blockers.length){
+      const blocked=new Set();
+      for(const d of blockers){
+        if(d.phase==='pursuing'||d.phase==='lost')continue;
+        if(d.buy_side_mls)blocked.add(d.buy_side_mls);
+        if(d.relist_mls)blocked.add(d.relist_mls);
+      }
+      data=data.filter(r=>!blocked.has(r.mls));
+    }
   }
   if(!data||data.length===0){
     drop.style.display='block';
