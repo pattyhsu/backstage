@@ -464,6 +464,8 @@ async function findComps(listing){
       typePriority:{dotty:0,flips:1,halfflips:1,unsold_flip:1,general:2}[compType]??2,
       doubleEnded:comp.double_ended===true,
       photoCount:comp.photo_count||0,
+      conditionTier:comp.condition_tier||null,
+      isDotty:comp.is_dotty===true,
     });
   }
   results.sort((a,b)=>(a.schoolMatch?0:1)-(b.schoolMatch?0:1)||(a.typePriority-b.typePriority)||((a.dist??999)-(b.dist??999)));
@@ -938,60 +940,113 @@ function renderCompMap(l,cm,mid){
   if(cm.comps.some(c=>c.lat))map.fitBounds(bounds,40);
 }
 
-// Inline comp-type selector so you can retag a comp (general / flips /
-// halfflips / dotty) directly from the detail view's comp list. Skip
-// the select on unsold_flip (active listings matched as comps) and on
-// comps without an MLS — those aren't retaggable. See updateCompType()
-// for the write path.
-// Color/label palette for retag pills. Mirrored on both the trigger button
-// and each option in the popup so the colored-pill identification still works.
-const RETAG_OPTS=[['general','SOLD'],['halfflips','HALF'],['flips','FLIP'],['dotty','DOTTY']];
-function _retagColors(typeKey){
-  // typeKey is a comp_type-style value: 'sold','flips','flip','halfflips','dotty', or canonical-DB 'general'.
-  const isFlip=typeKey==='flips'||typeKey==='flip';
-  const bg=typeKey==='dotty'?'var(--purple-bg)':isFlip?'var(--green-bg)':typeKey==='halfflips'?'var(--amber-bg)':'var(--bg-alt)';
-  const col=typeKey==='dotty'?'var(--purple)':isFlip?'var(--green)':typeKey==='halfflips'?'var(--amber)':'var(--text-4)';
-  return{bg,col};
+// Brief BS — Inline tier selector replaces the legacy SOLD/HALF/FLIP/DOTTY
+// retag dropdown. Patty can correct a comp's condition_tier (1-6) or flag
+// it as DOTTY directly from the detail view's comp list, instead of having
+// to bounce to condition-review.html. Skip on unsold_flip (active listings
+// matched as comps) and on comps without an MLS — those aren't retaggable.
+// See updateCompTier() for the write path.
+//
+// Menu shows full labels (option b from BS spec); chip on the row shows
+// just the tier number (option a). Order: T6 at top → T1 at bottom →
+// DOTTY at the end, with the parenthetical hints clarifying the
+// non-monotonicity to sale price.
+const TIER_OPTS=[
+  [6,'T6','Tier 6 — Nice flip (highest sale)'],
+  [5,'T5','Tier 5 — Cosmetic refresh'],
+  [4,'T4','Tier 4 — Lived-in flip'],
+  [3,'T3','Tier 3 — Modern owner-grade'],
+  [2,'T2','Tier 2 — Dated (livable)'],
+  [1,'T1','Tier 1 — Distressed (lowest sale)'],
+  ['dotty','DOTTY','DOTTY — Our property'],
+];
+// Gradient red→green across tiers 1-6. DOTTY gets purple.
+function _tierColors(tier,isDotty){
+  if(isDotty)return{bg:'var(--purple-bg)',col:'var(--purple)'};
+  if(!tier||tier<1||tier>6)return{bg:'var(--bg-alt)',col:'var(--text-4)'};
+  // Lerp red(192,57,43) → green(45,138,78) across t∈[0,1]
+  const t=(tier-1)/5;
+  const r=Math.round(192+(45-192)*t);
+  const g=Math.round(57+(138-57)*t);
+  const b=Math.round(43+(78-43)*t);
+  return{bg:`rgba(${r},${g},${b},0.13)`,col:`rgb(${r},${g},${b})`};
 }
 function compTypeSelectHtml(c,subjectMid){
   if(!c.mls||c.type==='unsold_flip'){
     const lbl=c.type==='unsold_flip'?'ASKING':'SOLD';
     return`<span style="font-size:8px;font-weight:700;color:var(--text-4);margin-right:3px">${lbl}</span>`;
   }
-  const currentDb=c.type==='sold'?'general':c.type==='flip'?'flips':c.type;
-  const{bg,col}=_retagColors(c.type);
-  const currentLbl=(RETAG_OPTS.find(([v])=>v===currentDb)||['general','SOLD'])[1];
+  const isDotty=c.isDotty===true;
+  const tier=c.conditionTier;
+  const currentKey=isDotty?'dotty':(tier||null);
+  const{bg,col}=_tierColors(tier,isDotty);
+  const currentChipLbl=isDotty?'DOTTY':(tier?'T'+tier:'?');
   const compIdSafe=String(c.mls).replace(/[^a-zA-Z0-9]/g,'');
   const dropId=`retag-drop-${subjectMid}-${compIdSafe}`;
-  const optsHtml=RETAG_OPTS.map(([v,lbl])=>{
-    const oc=_retagColors(v==='general'?'sold':v);
-    return`<button onclick="event.stopPropagation();setCompTypeFromDrop('${c.mls}','${subjectMid}','${v}')" style="background:${oc.bg};color:${oc.col}">${lbl}</button>`;
+  const optsHtml=TIER_OPTS.map(([v,_chip,full])=>{
+    const oc=_tierColors(v==='dotty'?null:v, v==='dotty');
+    const isCur=v===currentKey;
+    return`<button onclick="event.stopPropagation();setTierFromDrop('${c.mls}','${subjectMid}','${v}')" style="background:${oc.bg};color:${oc.col};${isCur?'font-weight:800;':''}padding:5px 10px;font-size:10px;text-transform:none;letter-spacing:0">${full}${isCur?' ✓':''}</button>`;
   }).join('');
-  return`<div class="retag-wrap"><button title="Retag comp type" class="retag-btn" data-value="${currentDb}" style="background:${bg};color:${col}" onclick="event.stopPropagation();toggleCompDrop('${dropId}')">${currentLbl}</button><div id="${dropId}" class="retag-drop">${optsHtml}</div></div>`;
+  return`<div class="retag-wrap"><button title="Retag comp condition tier" class="retag-btn" data-value="${currentKey||''}" style="background:${bg};color:${col}" onclick="event.stopPropagation();toggleCompDrop('${dropId}')">${currentChipLbl}</button><div id="${dropId}" class="retag-drop" style="min-width:230px">${optsHtml}</div></div>`;
 }
 // Wrapper so the option-button onclick can close the popup before kicking
-// off the async DB write + re-render that updateCompType performs.
-function setCompTypeFromDrop(compMls,subjectMid,newType){
+// off the async DB write + re-render that updateCompTier performs.
+function setTierFromDrop(compMls,subjectMid,newKey){
   document.querySelectorAll('.retag-drop.open,.cmp-drop.open').forEach(d=>d.classList.remove('open'));
-  updateCompType(compMls,subjectMid,newType);
+  updateCompTier(compMls,subjectMid,newKey);
 }
-async function updateCompType(compMls,subjectMid,newType){
-  const{error}=await sb.from('properties').update({comp_type:newType,updated_at:new Date().toISOString()}).eq('mls',compMls);
+async function updateCompTier(compMls,subjectMid,newKey){
+  // newKey is one of: 1, 2, 3, 4, 5, 6, 'dotty'
+  // Compute the 4 columns to write per BS locked decisions:
+  //   - condition_tier (1-6)
+  //   - is_dotty (true only for 'dotty')
+  //   - condition_overridden = true (this is a manual override)
+  //   - comp_type (backward-compat α mapping per migration 025 + AX Phase 2.4)
+  const isDotty=newKey==='dotty';
+  const tier=isDotty?6:Number(newKey);
+  let compType;
+  if(isDotty)compType='dotty';
+  else if(tier===6)compType='flips';
+  else if(tier===5||tier===4)compType='halfflips';
+  else compType='general';  // tiers 1-3
+  const payload={
+    condition_tier:tier,
+    is_dotty:isDotty,
+    condition_overridden:true,
+    comp_type:compType,
+    updated_at:new Date().toISOString(),
+  };
+  const{error}=await sb.from('properties').update(payload).eq('mls',compMls);
   if(error){console.error('retag comp failed',error);alert('Retag failed: '+error.message);return;}
   // Update in-memory cache for the active subject + re-render the panel
-  // so the row's class + badge color reflect the new comp_type.
+  // so the row's chip + color reflect the new tier.
   const subjectMls=Object.keys(compCache).find(k=>k.replace(/[^a-zA-Z0-9]/g,'')===subjectMid);
   if(subjectMls&&compCache[subjectMls]){
     const comp=compCache[subjectMls].comps.find(c=>c.mls===compMls);
-    if(comp)comp.type=newType==='general'?'sold':newType;
+    if(comp){
+      comp.conditionTier=tier;
+      comp.isDotty=isDotty;
+      comp.type=compType==='general'?'sold':compType;  // keep legacy `type` in sync for any code still reading it
+    }
     const l=listings.find(x=>x.mls===subjectMls);
     if(l){const el=document.getElementById('comp-col');if(el)el.innerHTML=compsPanel(l);}
   }
 }
 function compH(c,idx,mls){
-  const lbl=c.type==='dotty'?'DOTTY':c.type==='flip'||c.type==='flips'?'FLIP':c.type==='halfflips'?'HALF':'SOLD';
-  const col=c.type==='dotty'?'var(--purple)':c.type==='flip'||c.type==='flips'?'var(--green)':c.type==='halfflips'?'var(--amber)':'var(--text-4)';
-  const cls=c.type==='dotty'?'cd':c.type==='flip'||c.type==='flips'?'cf':c.type==='halfflips'?'ch':'';
+  // Brief BS — chip + row classification now tier-based instead of legacy
+  // comp_type. isDotty is purple regardless of tier; otherwise gradient
+  // red→green by tier 1-6. Falls back to legacy c.type rendering for
+  // comps that don't yet have a condition_tier set.
+  const isDotty=c.isDotty===true;
+  const tier=c.conditionTier;
+  const hasTier=isDotty||(tier&&tier>=1&&tier<=6);
+  const lbl=hasTier?(isDotty?'DOTTY':'T'+tier):(c.type==='dotty'?'DOTTY':c.type==='flip'||c.type==='flips'?'FLIP':c.type==='halfflips'?'HALF':'SOLD');
+  const col=hasTier?_tierColors(tier,isDotty).col:(c.type==='dotty'?'var(--purple)':c.type==='flip'||c.type==='flips'?'var(--green)':c.type==='halfflips'?'var(--amber)':'var(--text-4)');
+  // Row class drives subtle row-bg tinting (cd/cf/ch existing CSS rules).
+  // Map tier-based to the closest legacy class for visual continuity:
+  // dotty→cd, tier 6→cf, tier 4-5→ch, tier 1-3→none.
+  const cls=isDotty?'cd':(tier===6?'cf':(tier===5||tier===4)?'ch':hasTier?'':(c.type==='dotty'?'cd':c.type==='flip'||c.type==='flips'?'cf':c.type==='halfflips'?'ch':''));
   const mid=mls.replace(/[^a-zA-Z0-9]/g,'');
   return`<div class="cr ${cls}" style="flex-wrap:wrap;padding:4px 6px">
     <div style="display:flex;align-items:center;gap:4px;flex:1;min-width:180px">
