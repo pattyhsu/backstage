@@ -156,10 +156,10 @@ window.sb=sb;
 // ========== PHASE CONFIG ==========
 // Brief BK: 5 phases on the move dropdown. 'sold' is auto-only (daily_pipeline
 // sets it when it detects the relist closed) so the UI never offers it.
-const PHASES=['pursuing','in_escrow','under_construction','listed','archived'];
+const PHASES=['pursuing','in_escrow','under_construction','listed','archived','lost'];
 function phaseLabel(s){
   if(s==null)return 'Unknown';
-  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed',sold:'Sold',archived:'Archived'})[s]||s;
+  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed',sold:'Sold',archived:'Archived',lost:'Lost'})[s]||s;
 }
 
 // Construction scope-tier label (read-only; editor inputs ship in BN).

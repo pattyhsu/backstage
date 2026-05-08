@@ -120,7 +120,7 @@ window.sb=sb;
 const PHASES=['pursuing','in_escrow','under_construction','listed'];
 function phaseLabel(s){
   if(s==null)return '—';
-  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed'})[s]||s;
+  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed',lost:'Lost'})[s]||s;
 }
 
 // ========== HELPERS ==========
@@ -142,7 +142,7 @@ async function loadPipeline(){
   // Fetch all in-flight deals (exclude sold + archived).
   const {data:deals, error:dErr}=await sb.from('deals')
     .select('id, phase, buy_side_mls, relist_mls, list_price, escrow_start_date, target_close_date, created_at')
-    .not('phase','in','(sold,archived)')
+    .not('phase','in','(sold,archived,lost)')
     .order('created_at');
   if(dErr){console.error('[pipeline] deals load failed',dErr);renderError(dErr.message);return;}
 

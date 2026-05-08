@@ -291,7 +291,7 @@ window.sb=sb;  // expose for auth.js
 // Brief BK: deals model uses pursuing/in_escrow/under_construction/listed/sold/archived.
 function dealPhaseLabel(s){
   if(s==null)return '—';
-  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed',sold:'Sold',archived:'Archived'})[s]||s;
+  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed',sold:'Sold',archived:'Archived',lost:'Lost'})[s]||s;
 }
 
 // ========== PHOTO SUPPORT ==========
@@ -1899,7 +1899,7 @@ function mapRowToListing(r){
 }
 
 async function loadListings(status){
-  let query=sb.from('properties').select('*').not('mls','is',null).neq('change_type','sold').order('imported_at',{ascending:false}).limit(2000);
+  let query=sb.from('properties').select('*').not('mls','is',null).not('mls','like','OFFMKT-%').neq('change_type','sold').order('imported_at',{ascending:false}).limit(2000);
   if(status==='unread')query=query.eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
   else if(status==='archived')query=query.or(`stage.eq.archived,list_price.gt.${MAX_LIST_PRICE}`);
   else if(status==='off_market_lead')query=query.eq('stage','off_market_lead');
