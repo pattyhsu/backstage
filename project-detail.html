@@ -765,7 +765,7 @@ function renderPage(arvRow,gradeRow,deCount){
 // On every keystroke, profit recomputes live using the in-progress
 // input value combined with the other stats' last-saved values.
 
-function _kFromDollars(v){return v==null?'':String(Math.round(v/1000));}
+function _dollarsForInput(v){return v==null?'':String(Math.round(v));}
 function _currentStatValue(stat){
   const d=currentDeal;
   const p=primaryProperty();
@@ -805,7 +805,7 @@ function _beginEdit(el){
   input.type='number';
   input.min='0';
   input.step='1';
-  input.value=_kFromDollars(cur);
+  input.value=_dollarsForInput(cur);
   el.innerHTML='';
   el.appendChild(input);
   input.focus();
@@ -836,12 +836,11 @@ async function _commitEdit(el, stat, raw){
   const trimmed=(raw==null?'':String(raw).trim());
   // Empty → silent revert per brief.
   if(trimmed===''){ _cancelEdit(el); return; }
-  const k=Number(trimmed);
-  if(!isFinite(k)){ _showInlineError(el, 'invalid number'); setTimeout(()=>_cancelEdit(el), 100); return; }
-  if(k<0){ _showInlineError(el, 'must be ≥ 0'); setTimeout(()=>_cancelEdit(el), 100); return; }
-  if(k>50000){ _showInlineError(el, 'value out of range'); setTimeout(()=>_cancelEdit(el), 100); return; }
+  const dollars=Number(trimmed);
+  if(!isFinite(dollars)){ _showInlineError(el, 'invalid number'); setTimeout(()=>_cancelEdit(el), 100); return; }
+  if(dollars<0){ _showInlineError(el, 'must be ≥ 0'); setTimeout(()=>_cancelEdit(el), 100); return; }
+  if(dollars>50000000){ _showInlineError(el, 'value out of range (>$50M)'); setTimeout(()=>_cancelEdit(el), 100); return; }
 
-  const dollars=k*1000;
   const ok=await saveUwValue(stat, dollars, el);
   if(!ok)return; // saveUwValue handles its own error display + leaves input open
   // Success — re-render the bar with fresh state.
@@ -901,10 +900,10 @@ function rerenderUwBar(){
 // Live profit preview. Reads the in-progress input value for `editingStat`,
 // pulls the other stats from currentDeal/primaryProperty(), recomputes,
 // and writes into #uwProfit.
-function _liveProfitPreview(editingStat, rawK){
-  const trimmed=(rawK==null?'':String(rawK).trim());
-  const kNum=trimmed===''?null:Number(trimmed);
-  const inProgressDollars=(kNum!=null && isFinite(kNum) && kNum>=0)?kNum*1000:null;
+function _liveProfitPreview(editingStat, rawDollars){
+  const trimmed=(rawDollars==null?'':String(rawDollars).trim());
+  const dNum=trimmed===''?null:Number(trimmed);
+  const inProgressDollars=(dNum!=null && isFinite(dNum) && dNum>=0)?dNum:null;
 
   const d=currentDeal;
   const p=primaryProperty();
