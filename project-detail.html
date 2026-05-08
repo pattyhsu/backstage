@@ -58,19 +58,60 @@ body { overflow:hidden; height:100vh; }
 .back-btn { background:none; border:1px solid var(--border); border-radius:5px; padding:4px 10px; cursor:pointer; font-size:12px; font-family:inherit; color:var(--text-3); text-decoration:none; }
 .back-btn:hover { color:var(--text); border-color:var(--border-hover); text-decoration:none; }
 
-/* Header block */
-.header-block { padding:6px 0 16px; border-bottom:1px solid var(--border); }
-.header-block h1 { font-size:22px; font-weight:700; letter-spacing:-.4px; margin:0 0 4px; color:var(--text); }
-.header-block .sub { font-size:12px; color:var(--text-3); margin:0 0 8px; font-family:var(--mono); }
-.header-block .stage-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:12px; }
-.stage-pill { display:inline-block; font-size:11px; font-weight:700; padding:3px 10px; border-radius:10px; background:var(--accent-dim); color:var(--accent); letter-spacing:.3px; }
-.stage-pill.empty { background:var(--bg-alt); color:var(--text-4); }
-.header-block .age { color:var(--text-3); }
-.acq-link { font-size:11px; color:var(--text-3); text-decoration:none; }
-.acq-link:hover { color:var(--accent); text-decoration:underline; }
+/* === BP — INLINE ACQUISITION DATA SECTION ===
+   Replaces the old .header-block (h1 + sub + financials). Compact 13-14px
+   density modeled on mls-deals.html's detail pane. The old header-block
+   styles below are kept dormant (no longer referenced by renderPage) so
+   that legacy `<h1>` references in any other code path don't crash. */
 
-.financials { font-size:12px; color:var(--text-3); padding:6px 0 0; font-family:var(--mono); }
-.financials b { color:var(--text); font-weight:600; }
+/* Acq card — outer flex row (photo + body stack). */
+.acq-card { display:flex; gap:14px; align-items:flex-start; padding:6px 0 16px; border-bottom:1px solid var(--border); }
+.acq-body { flex:1; min-width:0; }
+
+/* Photo thumb 96x72. */
+.acq-thumb { width:96px; height:72px; flex-shrink:0; border-radius:6px; object-fit:cover; cursor:pointer; background:var(--bg-alt); display:block; }
+.acq-thumb-empty { background:linear-gradient(135deg,#e2e1dd 0%,#b0afa8 100%); display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--text-4); text-align:center; line-height:1.2; cursor:default; }
+
+/* Address line — 14px bold, phase pill pushed right. */
+.acq-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.acq-addr { font-size:14px; font-weight:700; color:var(--text); }
+.stage-pill { display:inline-block; font-size:11px; font-weight:700; padding:3px 10px; border-radius:10px; background:var(--accent-dim); color:var(--accent); letter-spacing:.3px; flex-shrink:0; }
+.stage-pill.empty { background:var(--bg-alt); color:var(--text-4); }
+
+/* Sub-line — 13px dot-separated facts. */
+.acq-sub { font-size:13px; color:var(--text-3); margin:4px 0 0; }
+
+/* Schools row — 12px chip + name pairs. */
+.acq-schools { margin-top:6px; font-size:12px; color:var(--text-2); display:flex; gap:16px; flex-wrap:wrap; }
+.acq-schools .school-chip { padding:2px 6px; border-radius:3px; font-family:var(--mono); font-size:11px; font-weight:600; margin-right:4px; }
+
+/* Agent line — 13px single line + DE pill + view link. */
+.acq-agent { margin-top:6px; font-size:13px; color:var(--text-2); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.acq-agent .lbl { color:var(--text-4); margin-right:4px; font-size:12px; }
+.de-pill { background:var(--purple-bg); color:var(--purple); padding:2px 7px; border-radius:4px; font-size:11px; font-weight:600; }
+.acq-link { color:var(--accent); font-size:12px; text-decoration:none; }
+.acq-link:hover { text-decoration:underline; }
+
+/* Underwriting bar — focal point. Accent-tinted card. */
+.uw-bar { margin-top:12px; padding:12px 16px; background:var(--accent-dim); border:1px solid var(--accent-dim2); border-radius:6px; display:flex; align-items:center; gap:22px; flex-wrap:wrap; }
+.uw-stat { display:flex; flex-direction:column; }
+.uw-label { font-size:10px; color:var(--text-4); font-weight:600; letter-spacing:.06em; text-transform:uppercase; margin-bottom:2px; }
+.uw-value { font-size:15px; font-weight:700; color:var(--text); }
+.uw-value-large { font-size:17px; }
+.uw-lock { font-size:10px; color:var(--text-4); margin-left:4px; }
+.uw-sep { color:var(--border-strong); font-size:14px; }
+.uw-edit { margin-left:auto; color:var(--accent); font-size:11px; align-self:center; text-decoration:none; }
+.uw-edit:hover { text-decoration:underline; }
+.profit-pos { color:var(--green); }
+.profit-neg { color:var(--red); }
+
+/* Slim lightbox — single photo, click outside or ESC to close. */
+.acq-lb-overlay { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.92); align-items:center; justify-content:center; padding:32px; }
+.acq-lb-overlay.open { display:flex; }
+.acq-lb-close { position:fixed; top:16px; right:20px; background:rgba(0,0,0,.5); border:none; color:#fff; font-size:24px; cursor:pointer; z-index:10001; padding:4px 12px; line-height:1; border-radius:6px; backdrop-filter:blur(4px); }
+.acq-lb-close:hover { background:rgba(255,255,255,.2); }
+.acq-lb-addr { position:fixed; top:18px; left:50%; transform:translateX(-50%); color:#fff; font-size:14px; font-weight:600; padding:0 60px; max-width:80%; text-align:center; }
+.acq-lb-img { max-width:95vw; max-height:88vh; object-fit:contain; border-radius:6px; cursor:pointer; }
 
 /* Section blocks */
 .section { margin-top:22px; padding-top:14px; border-top:1px solid var(--border); }
@@ -145,6 +186,13 @@ body { overflow:hidden; height:100vh; }
 
 </div><!-- /main-content -->
 </div><!-- /app-shell -->
+
+<!-- BP slim lightbox (single photo). Click backdrop or press ESC to close. -->
+<div class="acq-lb-overlay" id="acqLightbox" onclick="if(event.target===this)closeAcqLightbox()">
+  <button class="acq-lb-close" onclick="closeAcqLightbox()" aria-label="Close lightbox">✕</button>
+  <div class="acq-lb-addr" id="acqLightboxAddr"></div>
+  <img class="acq-lb-img" id="acqLightboxImg" alt="" onclick="closeAcqLightbox()">
+</div>
 
 <script>
 // ========== SUPABASE CLIENT ==========
@@ -283,12 +331,15 @@ async function loadProject(){
     topBarMls.textContent=labels.join(' · ');
   }
 
-  // 2. Load the linked properties rows (may be one or two).
+  // 2. Load the linked properties rows (may be one or two). Pull every field
+  // BP's inline acquisition-data section needs (schools + ratings, agent +
+  // broker, double_ended, photo_count, lot_size, pool, change_type) plus the
+  // existing fields used by the read-only Construction / Listing sections.
   const mlsList=[dealRow.buy_side_mls, dealRow.relist_mls].filter(Boolean);
   propertiesByMls={};
   if(mlsList.length){
     const {data:props, error:pErr}=await sb.from('properties')
-      .select('id, mls, address, city, zip, beds, baths, sqft, year_built, list_price, sale_price, sold_date, locked_arv, locked_construction')
+      .select('id, mls, address, city, zip, beds, baths, sqft, lot_size, pool, year_built, list_price, sale_price, sold_date, locked_arv, locked_construction, elementary_school, middle_school, high_school, elementary_rating, middle_rating, high_rating, agent_name, agent_email, agent_broker, double_ended, photo_count, change_type')
       .in('mls', mlsList);
     if(pErr){
       console.warn('[project-detail] properties load failed (non-fatal)', pErr);
@@ -299,18 +350,26 @@ async function loadProject(){
     }
   }
 
-  // 3. ARV + grade lookups (best-effort; prefer primary mls).
+  // 3. ARV + deal-score lookups (best-effort; prefer primary mls).
+  // arv_estimates carries `headline_arv` + `confidence` (the v7 estimator's
+  // unified output column; the older `arv` / `confidence_label` columns the
+  // pre-BP renderPage tried to read don't exist on the table).
+  // deal_scores carries `rehab_estimate`, `financing_estimate`, `closing_estimate`
+  // as top-level columns (also mirrored in breakdown_json for the v1 detail panel).
   const primary=primaryProperty();
-  let arvRow=null, gradeRow=null;
+  let arvRow=null, gradeRow=null, deCount=0;
   if(primary){
     try {
-      const {data:arvData}=await sb.from('arv_estimates').select('arv,confidence_label').eq('mls',primary.mls).order('computed_at',{ascending:false}).limit(1);
+      const {data:arvData}=await sb.from('arv_estimates').select('headline_arv,confidence,confidence_score').eq('mls',primary.mls).order('computed_at',{ascending:false}).limit(1);
       arvRow=(arvData&&arvData[0])||null;
     } catch(e){ /* ignore */ }
     try {
-      const {data:gData}=await sb.from('deal_scores').select('grade,spread_pct,status').eq('mls',primary.mls).order('computed_at',{ascending:false}).limit(1);
+      const {data:gData}=await sb.from('deal_scores').select('grade,spread,spread_pct,rehab_estimate,financing_estimate,closing_estimate,arv_used,target_buy,status').eq('mls',primary.mls).order('computed_at',{ascending:false}).limit(1);
       gradeRow=(gData&&gData[0])||null;
     } catch(e){ /* ignore */ }
+    // DE count for the agent on the active mls. Mirrors mls-deals.html's
+    // fetchAgentDeCounts() but for a single agent. Email-primary, name-fallback.
+    deCount=await fetchAgentDeCount(primary.agent_email, primary.agent_name);
   }
 
   // 4. Phase history.
@@ -337,53 +396,256 @@ async function loadProject(){
     dealMilestones=ms||[];
   }
 
-  renderPage(arvRow, gradeRow);
+  renderPage(arvRow, gradeRow, deCount);
 }
 
+// ========== AGENT DE COUNT ==========
+// Mirrors mls-deals.html's fetchAgentDeCounts() but scoped to a single agent.
+// Email-primary, name-fallback. Counts past `properties` rows where this
+// agent was the listing agent on a double_ended sale since 2023-01-01.
+async function fetchAgentDeCount(email, name){
+  const em=(email||'').trim().toLowerCase();
+  const nm=(name||'').trim().toLowerCase();
+  if(!em && !nm)return 0;
+  try{
+    if(em){
+      const {data,error}=await sb.from('properties').select('mls',{count:'exact',head:false}).eq('double_ended',true).gte('sold_date','2023-01-01').eq('agent_email',em);
+      if(error)return 0;
+      return (data||[]).length;
+    }
+    const {data,error}=await sb.from('properties').select('mls',{count:'exact',head:false}).eq('double_ended',true).gte('sold_date','2023-01-01').eq('agent_name',name);
+    if(error)return 0;
+    return (data||[]).length;
+  }catch(e){return 0;}
+}
+
+// ========== ACQ CARD HELPERS ==========
+const PHOTO_BASE='https://photos.dottyhomes.com';
+function getThumbUrl(mls){return `${PHOTO_BASE}/${mls}/${mls}_01.jpg`;}
+
+// Phase pill color tier (background-bg + text-fg pair). Mirrors the conventions
+// used elsewhere in Backstage (in mls-deals' detail badges, listings tags).
+function stagePillStyle(phase){
+  if(phase==='in_escrow')      return 'background:var(--amber-bg);color:var(--amber)';
+  if(phase==='under_construction')return 'background:var(--blue-bg);color:var(--blue)';
+  if(phase==='listed')          return 'background:var(--green-bg);color:var(--green)';
+  if(phase==='sold')            return 'background:var(--bg-alt);color:var(--text-3)';
+  if(phase==='archived'||phase==='lost')return 'background:var(--bg-alt);color:var(--text-4)';
+  // pursuing + fallback → gold accent (matches mockup default)
+  return 'background:var(--accent-dim);color:var(--accent)';
+}
+
+// School chip color tier (mls-deals' .sh / .sm / .sl pattern, ported as inline
+// styles to keep the project-detail stylesheet self-contained).
+function schoolChipStyle(rating){
+  const r=Number(rating||0);
+  if(r>=7)return 'background:var(--green-bg);color:var(--green)';
+  if(r>=5)return 'background:var(--amber-bg);color:var(--amber)';
+  return 'background:var(--red-bg);color:var(--red)';
+}
+
+// Slim, single-photo lightbox (R2 photo at index 01). v1 doesn't need the
+// multi-photo gallery from mls-deals — that lightbox is tangled with the
+// listings/compCache lookup, and porting it would require importing more
+// state than this page should carry.
+function openAcqLightbox(mls,addr){
+  const overlay=document.getElementById('acqLightbox');
+  if(!overlay)return;
+  const imgEl=document.getElementById('acqLightboxImg');
+  const addrEl=document.getElementById('acqLightboxAddr');
+  if(addrEl)addrEl.textContent=addr||'';
+  if(imgEl){imgEl.src=getThumbUrl(mls);}
+  overlay.classList.add('open');
+  document.addEventListener('keydown',acqLbKey);
+}
+function closeAcqLightbox(){
+  const overlay=document.getElementById('acqLightbox');
+  if(overlay)overlay.classList.remove('open');
+  document.removeEventListener('keydown',acqLbKey);
+}
+function acqLbKey(e){if(e.key==='Escape')closeAcqLightbox();}
+
 // ========== RENDER ==========
-function renderPage(arvRow,gradeRow){
+function renderPage(arvRow,gradeRow,deCount){
   const d=currentDeal;
   const role=window.CURRENT_USER_ROLE;
   const phase=d.phase;
   const phaseLbl=phaseLabel(phase);
   const p=primaryProperty();
+  const isOffMkt=p && typeof p.mls==='string' && p.mls.startsWith('OFFMKT-');
 
-  // Days in current phase = age of latest history row matching to_phase.
-  let daysInPhaseStr='';
-  const lastEnter=phaseHistory.find(h=>h.to_phase===phase);
-  if(lastEnter)daysInPhaseStr=' · '+relTime(lastEnter.transitioned_at)+' in phase';
+  // === ACQ CARD INPUTS ===
 
-  // Build header sub-line from the primary property (may be partly NULL for OFFMKT-).
-  const subParts=[];
-  if(p){
-    if(p.beds!=null && p.beds!==0)subParts.push(p.beds+'bd');
-    if(p.baths!=null && p.baths!==0)subParts.push(p.baths+'ba');
-    if(p.sqft)subParts.push(p.sqft.toLocaleString()+' sf');
-    if(p.year_built)subParts.push('Built '+p.year_built);
-  }
-  const subLine=subParts.join(' · ');
+  // Active MLS for the deep-link target (the resolved primary). The header
+  // sub-line still lists BOTH MLS#s for audit-trail visibility.
+  const activeMls=p?p.mls:(d.relist_mls||d.buy_side_mls);
 
-  // Address / city for header.
-  const addrText=p?(p.address||'(no address)'):'(no linked properties row)';
-  const cityZipText=p?((p.city||'')+(p.zip?', CA '+p.zip:'')):'';
+  // Address / city / zip composed for the bold address line.
+  const addrLine=p
+    ?`${p.address||'(no address)'}, ${(p.city||'').toUpperCase()}${p.zip?' '+p.zip:''}`
+    :'(no linked properties row)';
 
-  // MLS label line for header (both sides if both exist).
+  // MLS label line. When both exist: "Buy MLS# X · Relist MLS# Y".
+  // Otherwise just one MLS#.
   const mlsLabels=[];
-  if(d.buy_side_mls)mlsLabels.push('Buy MLS# '+d.buy_side_mls);
-  if(d.relist_mls)mlsLabels.push('Relist MLS# '+d.relist_mls);
+  if(d.buy_side_mls && d.relist_mls){
+    mlsLabels.push('Buy MLS# '+d.buy_side_mls);
+    mlsLabels.push('Relist MLS# '+d.relist_mls);
+  } else if(d.buy_side_mls){
+    mlsLabels.push('MLS# '+d.buy_side_mls);
+  } else if(d.relist_mls){
+    mlsLabels.push('MLS# '+d.relist_mls);
+  }
 
-  // Financials line.
-  const finBits=[];
-  // Prefer the deal-level numbers (canonical for the deal) over the
-  // properties-row list_price (which only reflects the latest MLS snapshot).
-  if(d.list_price)finBits.push(`<b>List:</b> ${FK(d.list_price)}`);
-  else if(p && p.list_price)finBits.push(`<b>List:</b> ${FK(p.list_price)}`);
-  if(d.sale_price)finBits.push(`<b>Sale:</b> ${FK(d.sale_price)}`);
-  else if(p && p.sale_price)finBits.push(`<b>Sale:</b> ${FK(p.sale_price)}`);
-  if(p && p.locked_arv)finBits.push(`<b>ARV (locked):</b> ${FK(p.locked_arv)}`);
-  else if(arvRow && arvRow.arv)finBits.push(`<b>ARV:</b> ${FK(arvRow.arv)}${arvRow.confidence_label?' ('+arvRow.confidence_label+')':''}`);
-  if(gradeRow && gradeRow.grade)finBits.push(`<b>Grade:</b> ${escapeHtml(gradeRow.grade)}${gradeRow.spread_pct!=null?' · '+(gradeRow.spread_pct).toFixed(1)+'% spread':''}`);
-  if(p && p.locked_construction)finBits.push(`<b>Construction (locked):</b> ${FK(p.locked_construction)}`);
+  // Sub-line: bd/ba · sqft · Lot N sf · Pool Yes/No · MLS#(s).
+  // For OFFMKT- rows: "<mls> · beds/baths/sqft TBD <em>(off-market — fill via off-market.html when BM ships)</em>"
+  let subHtml='';
+  if(isOffMkt){
+    subHtml=`${escapeHtml(p.mls)} · beds/baths/sqft TBD <span style="color:var(--text-4); font-style:italic">(off-market — fill via off-market.html when BM ships)</span>`;
+  } else {
+    const subParts=[];
+    if(p){
+      if(p.beds!=null && p.beds!==0)subParts.push(p.beds+'bd/'+(p.baths||0)+'ba');
+      if(p.sqft)subParts.push(p.sqft.toLocaleString()+' sf');
+      if(p.lot_size)subParts.push('Lot '+Number(p.lot_size).toLocaleString()+' sf');
+      if(p.pool)subParts.push('Pool '+p.pool);
+    }
+    if(mlsLabels.length)subParts.push(mlsLabels.join(' · '));
+    subHtml=subParts.map(escapeHtml).join(' · ');
+  }
+
+  // Schools row (skipped for OFFMKT-).
+  let schoolsHtml='';
+  if(p && !isOffMkt){
+    const chips=[];
+    if(p.elementary_school || p.elementary_rating!=null){
+      chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.elementary_rating)}">E ${p.elementary_rating!=null?p.elementary_rating:'—'}</span>${escapeHtml(p.elementary_school||'')}</span>`);
+    }
+    if((p.middle_school||p.middle_rating!=null) && p.middle_school!==p.elementary_school){
+      chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.middle_rating)}">M ${p.middle_rating!=null?p.middle_rating:'—'}</span>${escapeHtml(p.middle_school||'')}</span>`);
+    }
+    if(p.high_school || p.high_rating!=null){
+      chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.high_rating)}">H ${p.high_rating!=null?p.high_rating:'—'}</span>${escapeHtml(p.high_school||'')}</span>`);
+    }
+    if(chips.length)schoolsHtml=`<div class="acq-schools">${chips.join('')}</div>`;
+  }
+
+  // Agent row (skipped for OFFMKT-).
+  let agentHtml='';
+  if(p && !isOffMkt){
+    const agentBits=[];
+    if(p.agent_name){
+      const brokerSuffix=p.agent_broker?` (${escapeHtml(p.agent_broker)})`:'';
+      agentBits.push(`<span><span class="lbl">Agent</span>${escapeHtml(p.agent_name)}${brokerSuffix}</span>`);
+    } else {
+      agentBits.push(`<span style="color:var(--text-4);font-style:italic">No agent on file</span>`);
+    }
+    if(deCount && deCount>0){
+      agentBits.push(`<span class="de-pill" title="Listing agent has ${deCount} double-end deal${deCount===1?'':'s'} since 2023">🔁 DE×${deCount}</span>`);
+    }
+    // "View full listing →" deep-link uses the active mls.
+    const linkMls=activeMls||'';
+    agentBits.push(`<a href="mls-deals.html?mls=${encodeURIComponent(linkMls)}" class="acq-link" style="margin-left:auto">View full listing →</a>`);
+    agentHtml=`<div class="acq-agent">${agentBits.join('')}</div>`;
+  }
+
+  // === UNDERWRITING BAR ===
+
+  // Phase-aware buy-price label + value.
+  const buyIsOffer=(phase==='pursuing'||phase==='lost');
+  const buyLabel=buyIsOffer?'Offer at':'Bought at';
+  const buyVal=buyIsOffer?d.offer_price:d.purchase_price;
+
+  // ARV: locked > arv_estimates.headline_arv.
+  const arvLocked=p && p.locked_arv!=null;
+  const arvVal=arvLocked?p.locked_arv:(arvRow && arvRow.headline_arv!=null?arvRow.headline_arv:null);
+
+  // Construction: locked > deal_scores.rehab_estimate.
+  const constrLocked=p && p.locked_construction!=null;
+  const constrVal=constrLocked?p.locked_construction:(gradeRow && gradeRow.rehab_estimate!=null?gradeRow.rehab_estimate:null);
+
+  // Profit: ARV - (buy + construction + financing + closing).
+  // Use deal_scores' financing_estimate + closing_estimate when present;
+  // otherwise approximate financing+closing as 3% of the buy price (matches
+  // the rehab-estimator's combined-cost convention in the v1 detail panel
+  // on mls-deals — see breakdown_json keys financing / purchase_close /
+  // sale_close which sum to roughly 3% of list).
+  let financingClosing=null;
+  if(gradeRow){
+    const fin=gradeRow.financing_estimate;
+    const cls=gradeRow.closing_estimate;
+    if(fin!=null && cls!=null)financingClosing=fin+cls;
+  }
+  if(financingClosing==null && buyVal!=null)financingClosing=buyVal*0.03;
+  const haveAll=(arvVal!=null && constrVal!=null && buyVal!=null && financingClosing!=null);
+  const profit=haveAll?(arvVal - buyVal - constrVal - financingClosing):null;
+  const profitPct=(haveAll && arvVal>0)?(profit/arvVal*100):null;
+
+  function fmtUw(v,locked){
+    if(v==null)return `<div class="uw-value" style="color:var(--text-4)">— not set</div>`;
+    return `<div class="uw-value">${FK(v)}${locked?'<span class="uw-lock">🔒</span>':''}</div>`;
+  }
+  function profitHtml(){
+    if(profit==null)return `<div class="uw-value" style="color:var(--text-4)">— pending</div>`;
+    const cls=profit>=0?'profit-pos':'profit-neg';
+    const sign=profit>=0?'+':'-';
+    const dollars=FK(Math.abs(profit));
+    const pct=profitPct!=null?` <span style="font-size:13px;font-weight:600">(${(profitPct>=0?'+':'')}${profitPct.toFixed(1)}%)</span>`:'';
+    return `<div class="uw-value uw-value-large ${cls}">${sign}${dollars}${pct}</div>`;
+  }
+
+  // Edit/Set-locks deep-link target.
+  const editLabel=(arvLocked||constrLocked)?'Edit →':'Set locks →';
+  const editHref=`mls-deals.html?mls=${encodeURIComponent(activeMls||'')}`;
+
+  // === PHOTO THUMB ===
+  let thumbHtml;
+  if(isOffMkt){
+    thumbHtml=`<div class="acq-thumb acq-thumb-empty">no<br>photos</div>`;
+  } else if(p && p.photo_count>0){
+    const safeAddr=(addrLine||'').replace(/"/g,'&quot;');
+    thumbHtml=`<img class="acq-thumb" src="${getThumbUrl(activeMls||p.mls)}" alt="" onerror="this.outerHTML='&lt;div class=&quot;acq-thumb acq-thumb-empty&quot;&gt;no&lt;br&gt;photos&lt;/div&gt;'" onclick="openAcqLightbox('${escapeHtml(activeMls||p.mls)}','${safeAddr}')" title="Click to expand">`;
+  } else {
+    thumbHtml=`<div class="acq-thumb acq-thumb-empty">no<br>photos</div>`;
+  }
+
+  // === COMPOSE ACQ CARD ===
+  const acqCardHtml=`
+    <div class="acq-card">
+      ${thumbHtml}
+      <div class="acq-body">
+        <div class="acq-head">
+          <div class="acq-addr">${escapeHtml(addrLine)}</div>
+          <span class="stage-pill" style="${stagePillStyle(phase)}">${escapeHtml(phaseLbl)}</span>
+        </div>
+        <p class="acq-sub">${subHtml}</p>
+        ${schoolsHtml}
+        ${agentHtml}
+        <div class="uw-bar">
+          <div class="uw-stat">
+            <div class="uw-label">${buyLabel}</div>
+            ${fmtUw(buyVal,false)}
+          </div>
+          <div class="uw-sep">·</div>
+          <div class="uw-stat">
+            <div class="uw-label">ARV</div>
+            ${fmtUw(arvVal,arvLocked)}
+          </div>
+          <div class="uw-sep">·</div>
+          <div class="uw-stat">
+            <div class="uw-label">Construction</div>
+            ${fmtUw(constrVal,constrLocked)}
+          </div>
+          <div class="uw-sep">·</div>
+          <div class="uw-stat">
+            <div class="uw-label">Profit</div>
+            ${profitHtml()}
+          </div>
+          <a href="${editHref}" class="uw-edit">${editLabel}</a>
+        </div>
+      </div>
+    </div>
+  `;
 
   // Phase transition options (5 phases; current one disabled).
   const phaseOptions=PHASES.map(s=>{
@@ -392,16 +654,7 @@ function renderPage(arvRow,gradeRow){
   }).join('');
 
   let html=`
-    <div class="header-block">
-      <h1>${escapeHtml(addrText)}</h1>
-      <p class="sub">${escapeHtml(cityZipText)}${cityZipText && mlsLabels.length?' · ':''}${escapeHtml(mlsLabels.join(' · '))}${subLine?' · '+escapeHtml(subLine):''}</p>
-      <div class="stage-row">
-        <span class="${'stage-pill'+(phase?'':' empty')}">${escapeHtml(phaseLbl)}</span>
-        <span class="age">${escapeHtml(daysInPhaseStr)}</span>
-        <a class="acq-link" href="mls-deals.html" title="No ?mls= deep-link yet — find this listing manually in MLS Deals.">View acquisition data →</a>
-      </div>
-      ${finBits.length?`<div class="financials">${finBits.join(' · ')}</div>`:''}
-    </div>
+    ${acqCardHtml}
 
     <div class="section">
       <h2>Phase Transition</h2>

@@ -2060,6 +2060,31 @@ async function batchFetchComps(){
 }
 
 // ========== INIT ==========
+// Brief BP: ?mls=<X> deep-link support. After loadListings() resolves the
+// unread pool, if the URL carries ?mls=<X> we open that listing's detail
+// pane — even if BO's deal-phase filter has hidden it from the visible
+// list (in which case we fetch the row separately and add it to `listings`,
+// mirroring the slow path in onAddrSearchPick).
+async function handleDeepLink(){
+  const params=new URLSearchParams(window.location.search);
+  const targetMls=params.get('mls');
+  if(!targetMls)return;
+  let target=listings.find(l=>l.mls===targetMls);
+  if(!target){
+    // BO filter hid it (e.g. listing tied to in_escrow / under_construction
+    // / listed deal, or off-market OFFMKT-... row). Fetch and hydrate so
+    // opn() has the full listing shape to render against.
+    const{data,error}=await sb.from('properties').select('*').eq('mls',targetMls).single();
+    if(error||!data){
+      console.warn('[deep-link] could not load listing',targetMls,error);
+      return;
+    }
+    target=mapRowToListing(data);
+    listings.push(target);
+  }
+  if(target)opn(targetMls,target);
+}
+
 (async()=>{
   await window.authGate();
   if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
@@ -2067,8 +2092,10 @@ async function batchFetchComps(){
   try{const{error}=await sb.from('properties').select('id').limit(1);document.getElementById('db-status').innerHTML=error?'<span style="color:var(--red)">●</span>':'<span style="color:var(--green)">●</span>';}
   catch(e){document.getElementById('db-status').innerHTML='<span style="color:var(--red)">●</span>';}
   await loadRehabConfig();
-  loadListings('unread');
+  await loadListings('unread');
   render();
+  // Deep-link runs once, after the initial listings + render are in place.
+  handleDeepLink();
 })();
 </script>
 </div><!-- /main-content -->
