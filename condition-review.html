@@ -184,7 +184,7 @@
       <button onclick="setTierFilter('3')">Modern (owner)</button>
       <button onclick="setTierFilter('4')">Lived-in flip-quality</button>
       <button onclick="setTierFilter('5')">Cosmetic refresh (orig kitchen)</button>
-      <button onclick="setTierFilter('6')">Nice flip</button>
+      <button onclick="setTierFilter('6')">Full flip</button>
     </div>
   </div>
   <div class="chip-wrap" id="fConfidence-wrap">
@@ -223,7 +223,7 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;  // expose for auth.js
 
-const TIER_LABELS={1:'Distressed',2:'Dated (livable)',3:'Modern (owner)',4:'Lived-in flip-quality',5:'Cosmetic refresh (orig kitchen)',6:'Nice flip'};
+const TIER_LABELS={1:'Distressed',2:'Dated (livable)',3:'Modern (owner)',4:'Lived-in flip-quality',5:'Cosmetic refresh (orig kitchen)',6:'Full flip'};
 const PHOTO_BASE='https://photos.dottyhomes.com';
 // Synthesize R2 URLs from MLS + photo_count. Photo files in R2 are named
 // ${mls}_NN.jpg with 2-digit zero-padded NN starting at 01 (per Brief AM).
@@ -291,7 +291,7 @@ function setCityFilter(value){
 
 function setTierFilter(value){
   filters.tier=value;
-  const labels={'':'All Conditions','1':'Distressed','2':'Dated (livable)','3':'Modern (owner)','4':'Lived-in flip-quality','5':'Cosmetic refresh (orig kitchen)','6':'Nice flip'};
+  const labels={'':'All Conditions','1':'Distressed','2':'Dated (livable)','3':'Modern (owner)','4':'Lived-in flip-quality','5':'Cosmetic refresh (orig kitchen)','6':'Full flip'};
   document.getElementById('fTier-label').textContent=labels[value]||'All Conditions';
   const drop=document.getElementById('fTier-drop');
   drop.querySelectorAll('button').forEach(b=>b.classList.remove('selected'));
