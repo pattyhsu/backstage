@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Money — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js"></script>
+<style>
+/* === MONEY — page-local layout (ports MC mockup style block) ===
+   Shared shell + sidebar tokens come from backstage.css. */
+
+body { overflow:hidden; height:100vh; }
+
+/* Standard Backstage shell (mirrors calendar.html / chat.html). */
+.app-shell { display:flex; height:100vh; }
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+.bs-sidebar.collapsed { width:56px; }
+.bs-sidebar.collapsed .side-brand span, .bs-sidebar.collapsed .side-section-label, .bs-sidebar.collapsed .side-label, .bs-sidebar.collapsed .side-user-name, .bs-sidebar.collapsed .lock-btn { display:none; }
+.bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+.bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+.bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+.bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+.bs-sidebar.collapsed .side-user { justify-content:center; }
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.lock-btn:hover { color:var(--text); }
+.collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
+.collapse-btn:hover { color:var(--text); }
+
+.main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow-y:auto; background:var(--bg-page); }
+
+/* === PAGE HEADER (matches MC mockup) === */
+.page-head { padding:18px 28px 14px; border-bottom:1px solid var(--border); background:var(--bg); display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.page-head-l { flex:1; min-width:300px; }
+.page-title { font-size:20px; font-weight:700; color:var(--text); }
+.page-sub { font-size:12px; color:var(--text-4); margin-top:3px; }
+.page-head-r { display:flex; align-items:center; gap:8px; }
+.refresh-btn { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:6px 12px; font-size:11px; font-weight:600; color:var(--text-3); cursor:pointer; font-family:var(--sans); }
+.refresh-btn:hover { color:var(--text); border-color:var(--border-hover); }
+.refresh-btn:disabled { opacity:.5; cursor:not-allowed; }
+
+/* === TAB NAV === */
+.mc-tabs { display:flex; gap:4px; padding:0 28px; background:var(--bg); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:5; }
+.mc-tab { padding:12px 16px; font-size:13px; font-weight:600; color:var(--text-3); cursor:pointer; border-bottom:2px solid transparent; user-select:none; }
+.mc-tab:hover { color:var(--text); }
+.mc-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+.tab-body { padding:22px 28px 60px; max-width:1380px; }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+.loading-block { padding:40px 0; text-align:center; color:var(--text-4); font-size:13px; }
+.error-block { padding:18px 22px; background:var(--red-bg); border:1px solid var(--red); border-radius:6px; color:var(--red); font-size:13px; margin-bottom:18px; }
+
+/* === SECTION HEADING === */
+.section-h { font-size:11px; font-weight:600; color:var(--text-4); text-transform:uppercase; letter-spacing:.6px; margin:26px 0 10px; }
+.section-h:first-child { margin-top:0; }
+
+/* === STAT CARDS (4-up strip) === */
+.stats-strip { display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; margin-bottom:14px; }
+.stat-card { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:14px 16px; }
+.stat-card .lbl { font-size:10px; color:var(--text-4); font-weight:600; letter-spacing:.06em; text-transform:uppercase; margin-bottom:4px; }
+.stat-card .val { font-family:var(--mono); font-size:19px; font-weight:700; color:var(--text); }
+.stat-card .sub { font-size:11px; color:var(--text-3); margin-top:4px; font-family:var(--mono); }
+.stat-card.accent { background:var(--accent-dim); border-color:var(--accent-dim2); }
+.profit-pos { color:var(--green); }
+.profit-neg { color:var(--red); }
+.text-faint { color:var(--text-4); }
+
+/* === DAYS-OF-INVENTORY PHASE STRIP (Tab 1) === */
+.phase-strip { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px 16px; margin-bottom:20px; display:flex; align-items:center; gap:24px; flex-wrap:wrap; }
+.ps-lbl { font-size:10px; color:var(--text-4); font-weight:600; letter-spacing:.06em; text-transform:uppercase; flex-shrink:0; max-width:120px; line-height:1.3; }
+.ps-cells { display:flex; gap:22px; flex:1; flex-wrap:wrap; }
+.ps-cell { display:flex; flex-direction:column; gap:3px; align-items:flex-start; }
+.ps-phase { font-family:var(--sans); font-size:10px; font-weight:700; padding:2px 7px; border-radius:7px; letter-spacing:.3px; }
+.ps-num { font-family:var(--mono); font-size:16px; font-weight:700; color:var(--text); }
+.ps-n { font-size:10px; color:var(--text-4); font-family:var(--mono); }
+
+/* === P&L TABLE (Tab 1) === */
+.pnl-tbl { width:100%; border-collapse:collapse; background:var(--bg); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.pnl-tbl thead th { background:var(--bg-page); font-size:10px; font-weight:600; color:var(--text-4); text-transform:uppercase; letter-spacing:.04em; padding:9px 10px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; cursor:pointer; user-select:none; }
+.pnl-tbl thead th.lh { text-align:left; }
+.pnl-tbl thead th:hover { color:var(--text-3); }
+.pnl-tbl thead th.sorted { color:var(--accent); }
+.pnl-tbl thead th .arr { font-size:8px; margin-left:3px; opacity:.4; }
+.pnl-tbl thead th.sorted .arr { opacity:1; }
+.pnl-tbl tbody td { font-family:var(--mono); font-size:12px; padding:10px 10px; border-bottom:1px solid var(--border); text-align:right; vertical-align:middle; color:var(--text-2); }
+.pnl-tbl tbody td.left { text-align:left; }
+.pnl-tbl tbody tr:hover { background:var(--bg-page); }
+.pnl-tbl tbody tr:last-child td { border-bottom:none; }
+.pnl-tbl .addr-cell { font-family:var(--sans); font-weight:600; color:var(--text); font-size:13px; }
+.pnl-tbl .addr-cell a { color:var(--text); }
+.pnl-tbl .addr-cell a:hover { color:var(--accent); }
+.pnl-tbl .addr-sub { font-family:var(--sans); font-size:11px; color:var(--text-4); font-weight:400; margin-top:1px; }
+.pnl-tbl .total { font-weight:700; color:var(--text); }
+.pnl-tbl .profit-pos { color:var(--green); font-weight:700; }
+.pnl-tbl .profit-neg { color:var(--red); font-weight:700; }
+.pnl-tbl .projected { color:var(--text-4); font-style:italic; }
+.pnl-tbl .carry-hot { color:var(--red); font-weight:700; }
+.pnl-tbl .carry-ok  { color:var(--text-2); }
+.pnl-tbl .group-row td { background:var(--bg-inset); font-family:var(--sans); font-size:10px; font-weight:700; color:var(--text-3); text-transform:uppercase; letter-spacing:.08em; padding:5px 10px; text-align:left; }
+
+/* Phase pill (table + days-strip) */
+.phase-pill { display:inline-block; font-family:var(--sans); font-size:10px; font-weight:700; padding:2px 8px; border-radius:8px; letter-spacing:.3px; }
+.phase-pursuing       { background:var(--accent-dim); color:var(--accent); }
+.phase-in_escrow      { background:var(--amber-bg); color:var(--amber); }
+.phase-under_construction { background:var(--blue-bg); color:var(--blue); }
+.phase-listed         { background:var(--green-bg); color:var(--green); }
+.phase-sold           { background:var(--bg-inset); color:var(--text-3); }
+
+/* === NET LIQUIDATION PANEL (Tab 2 hero) === */
+.lp-panel { background:linear-gradient(135deg, rgba(156,124,60,.05) 0%, rgba(156,124,60,.10) 100%); border:1px solid var(--accent-dim2); border-left:4px solid var(--accent); border-radius:8px; padding:18px 22px 16px; margin-bottom:20px; }
+.lp-head { display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:12px; }
+.lp-label { font-size:11px; color:var(--text-3); font-weight:600; letter-spacing:.08em; text-transform:uppercase; }
+.lp-label-sub { font-size:11px; color:var(--text-4); font-weight:500; }
+.lp-headline { font-family:var(--mono); font-size:36px; font-weight:700; color:var(--accent); line-height:1.1; margin-bottom:14px; }
+.lp-breakdown { display:grid; grid-template-columns:30px 110px 1fr; gap:4px 14px; font-size:12px; padding:10px 0 0; border-top:1px solid var(--accent-dim2); }
+.lp-sign { font-family:var(--mono); font-size:12px; font-weight:700; text-align:center; }
+.lp-sign.plus  { color:var(--green); }
+.lp-sign.minus { color:var(--red); }
+.lp-amt { font-family:var(--mono); font-weight:600; color:var(--text); text-align:right; }
+.lp-desc { color:var(--text-3); }
+.lp-desc-sub { color:var(--text-4); font-size:11px; }
+.lp-total-row { border-top:1.5px solid var(--border-strong); padding-top:8px; margin-top:4px; }
+.lp-total-row .lp-amt, .lp-total-row .lp-desc { color:var(--text); font-weight:700; }
+.lp-foot { font-size:11px; color:var(--text-4); font-style:italic; margin-top:12px; line-height:1.55; }
+
+/* === CAPITAL TABLE (Tab 2 sources/equity-locked/loans) === */
+.cap-tbl { width:100%; border-collapse:collapse; background:var(--bg); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.cap-tbl thead th { background:var(--bg-page); font-size:10px; font-weight:600; color:var(--text-4); text-transform:uppercase; letter-spacing:.04em; padding:9px 10px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; }
+.cap-tbl thead th.lh { text-align:left; }
+.cap-tbl tbody td { font-family:var(--mono); font-size:12px; padding:11px 10px; border-bottom:1px solid var(--border); text-align:right; color:var(--text-2); }
+.cap-tbl tbody td.left { text-align:left; }
+.cap-tbl tbody tr:hover { background:var(--bg-page); }
+.cap-tbl tbody tr:last-child td { border-bottom:none; }
+.cap-tbl .lender-cell { font-family:var(--sans); font-weight:600; color:var(--text); font-size:13px; }
+.cap-tbl .lender-cell a { color:var(--text); }
+.cap-tbl .lender-cell a:hover { color:var(--accent); }
+.cap-tbl .lender-sub { font-family:var(--sans); font-size:11px; color:var(--text-4); font-weight:400; margin-top:1px; }
+.cap-tbl .total { font-weight:700; color:var(--text); }
+.cap-tbl .deployed-bar { display:inline-block; vertical-align:middle; width:80px; height:6px; background:var(--bg-inset); border-radius:3px; margin-right:8px; position:relative; overflow:hidden; }
+.cap-tbl .deployed-bar > span { position:absolute; left:0; top:0; bottom:0; background:var(--accent); border-radius:3px; }
+.cap-tbl .col-ref { font-style:italic; color:var(--text-4); font-weight:400; border-left:1px dashed var(--border); }
+.cap-tbl thead th.col-ref { font-style:italic; font-weight:500; color:var(--text-4); border-left:1px dashed var(--border); }
+.cap-tbl .projected { color:var(--text-4); font-style:italic; }
+
+.lender-type-pill { display:inline-block; font-family:var(--sans); font-size:10px; font-weight:600; padding:1px 7px; border-radius:6px; letter-spacing:.2px; }
+.lt-hml      { background:var(--blue-bg); color:var(--blue); }
+.lt-heloc    { background:var(--purple-bg); color:var(--purple); }
+.lt-shareholder { background:var(--accent-dim2); color:var(--accent); }
+.lt-loan     { background:var(--bg-inset); color:var(--text-3); }
+.lt-cash     { background:var(--green-bg); color:var(--green); }
+
+.mat-ok   { color:var(--text-4); font-size:11px; }
+.mat-warn { color:var(--amber);  font-size:11px; font-weight:700; }
+.mat-crit { color:var(--red);    font-size:11px; font-weight:700; }
+
+.totals-row td { background:var(--bg-page) !important; border-top:2px solid var(--border-strong); font-weight:700 !important; color:var(--text) !important; }
+
+.tab-foot { font-size:11px; color:var(--text-4); margin-top:10px; font-style:italic; line-height:1.6; }
+
+/* === CASH RUNWAY (Tab 3) === */
+.runway-controls { display:flex; align-items:center; gap:14px; margin-bottom:16px; flex-wrap:wrap; }
+.seg { display:inline-flex; background:var(--bg); border:1px solid var(--border); border-radius:7px; overflow:hidden; }
+.seg-btn { padding:6px 12px; font-size:12px; font-weight:500; color:var(--text-3); cursor:pointer; border-right:1px solid var(--border); user-select:none; }
+.seg-btn:last-child { border-right:none; }
+.seg-btn.on { background:var(--accent); color:white; font-weight:600; }
+
+.chip { display:inline-flex; align-items:center; gap:4px; padding:5px 10px; font-size:11px; font-weight:500; background:var(--bg); border:1px solid var(--border); border-radius:14px; cursor:pointer; color:var(--text-3); user-select:none; }
+.chip.on { background:var(--accent-dim); color:var(--accent); border-color:var(--accent-dim2); }
+
+.runway-tbl { width:100%; border-collapse:collapse; background:var(--bg); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.runway-tbl thead th { background:var(--bg-page); font-size:10px; font-weight:600; color:var(--text-4); text-transform:uppercase; letter-spacing:.04em; padding:9px 10px; text-align:left; border-bottom:1px solid var(--border); }
+.runway-tbl thead th.rh { text-align:right; }
+.runway-tbl tbody td { font-size:12px; padding:9px 10px; border-bottom:1px solid var(--border); }
+.runway-tbl tbody td.amt { font-family:var(--mono); font-weight:600; text-align:right; white-space:nowrap; }
+.runway-tbl tbody td.date-cell { font-family:var(--mono); color:var(--text-3); white-space:nowrap; width:95px; }
+.runway-tbl tbody tr:last-child td { border-bottom:none; }
+.runway-tbl tbody tr:hover { background:var(--bg-page); }
+.runway-tbl .week-row td { background:var(--bg-inset); font-size:10px; font-weight:700; color:var(--text-3); text-transform:uppercase; letter-spacing:.08em; padding:5px 10px; }
+.runway-tbl .week-row .amt { color:var(--text); font-family:var(--mono); }
+.runway-tbl .today-divider td { background:var(--amber-bg); color:var(--amber); font-weight:700; padding:7px 10px; }
+
+.ev-pill { display:inline-block; font-size:10px; font-weight:700; padding:2px 7px; border-radius:8px; letter-spacing:.2px; }
+.ev-actual    { background:var(--green-bg); color:var(--green); }
+.ev-projected { background:var(--amber-bg); color:var(--amber); }
+.ev-overhead  { background:var(--bg-inset); color:var(--text-3); }
+
+.legend { display:inline-flex; gap:16px; font-size:11px; color:var(--text-3); margin-left:auto; flex-wrap:wrap; }
+.legend-swatch { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+
+/* Responsive — collapse stat strip on narrow viewports */
+@media (max-width: 900px) {
+  .stats-strip { grid-template-columns:repeat(2, 1fr); }
+  .lp-headline { font-size:28px; }
+  .tab-body { padding:14px 14px 40px; }
+}
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <div class="bs-sidebar" id="bsSidebar"></div>
+
+  <div class="main-content">
+
+    <div class="page-head">
+      <div class="page-head-l">
+        <div class="page-title">Money</div>
+        <div class="page-sub" id="pageSub">Per-deal P&amp;L, capital position, and 90-day cash runway.</div>
+      </div>
+      <div class="page-head-r">
+        <button id="refreshBtn" class="refresh-btn" title="Re-fetch all data from Supabase">Refresh</button>
+      </div>
+    </div>
+
+    <div class="mc-tabs">
+      <div class="mc-tab active" data-tab="pnl">Per-Deal P&amp;L</div>
+      <div class="mc-tab" data-tab="cap">Capital Position</div>
+      <div class="mc-tab" data-tab="run">Cash Runway</div>
+    </div>
+
+    <div class="tab-body">
+      <div id="globalError" style="display:none;"></div>
+
+      <!-- ============================================================
+           Tab 1 — Per-Deal P&L
+           ============================================================ -->
+      <div class="tab-pane active" id="pane-pnl">
+        <div id="pnl-stats"></div>
+        <div id="pnl-phase-strip"></div>
+        <div id="pnl-table"></div>
+        <div class="tab-foot">
+          All amounts in $K. <span class="projected">italic</span> = projected (uses ARV waterfall: cerritos_v4 → smart_comps → headline_arv).
+          Carry % = (financing + holding) / projected gross profit; <span style="color:var(--red); font-weight:700;">red &gt;25%</span> = working for the lender.
+        </div>
+      </div>
+
+      <!-- ============================================================
+           Tab 2 — Capital Position
+           ============================================================ -->
+      <div class="tab-pane" id="pane-cap">
+        <div id="cap-hero"></div>
+        <div id="cap-stats"></div>
+        <div class="section-h">Equity locked per active deal</div>
+        <div id="cap-equity-locked"></div>
+        <div class="section-h">Your capital sources</div>
+        <div id="cap-sources"></div>
+        <div class="section-h">Senior debt — active loans</div>
+        <div id="cap-senior-debt"></div>
+        <div class="tab-foot">
+          All amounts in $K. <strong>Capital constraint = your own equity, not HML cap.</strong> HML capacity is effectively unlimited at this scale; senior debt shown only for exposure + maturity tracking. Cost of drawn capital weighted by drawn balance × rate. Maturity countdown: <span class="mat-ok">grey ≥60d</span>, <span class="mat-warn">amber &lt;60d</span>, <span class="mat-crit">red &lt;30d</span>. Read-only in v1.
+        </div>
+      </div>
+
+      <!-- ============================================================
+           Tab 3 — Cash Runway
+           ============================================================ -->
+      <div class="tab-pane" id="pane-run">
+        <div id="run-stats"></div>
+        <div class="runway-controls">
+          <div class="seg" id="run-seg">
+            <div class="seg-btn on" data-window="30">±30d</div>
+            <div class="seg-btn" data-window="60">±60d</div>
+            <div class="seg-btn" data-window="90">±90d</div>
+          </div>
+          <span class="legend">
+            <span><span class="legend-swatch" style="background:var(--green)"></span>Actual (paid)</span>
+            <span><span class="legend-swatch" style="background:var(--amber)"></span>HML interest (auto)</span>
+            <span><span class="legend-swatch" style="background:var(--text-4); opacity:.65"></span>Overhead recurring</span>
+          </span>
+        </div>
+        <div id="run-table"></div>
+        <div class="tab-foot">
+          <strong>Forward projections show only auto-recurring items:</strong> HML monthly interest derived from
+          <code style="background:var(--bg-inset); padding:1px 5px; border-radius:3px; font-family:var(--mono); font-size:10px;">deal_loans.principal × rate / 12</code>
+          scheduled on the loan's monthly anniversary; portfolio overhead from TTM monthly average per recurring vendor.
+          Per-deal one-off projections (contractor draws, permit fees, materials) require entering them as <strong>Bills in QBO</strong>
+          with a future <code style="background:var(--bg-inset); padding:1px 5px; border-radius:3px; font-family:var(--mono); font-size:10px;">due_date</code>
+          — currently 0 open Bills (Patty's workflow is Expense + JE, not Bill + BillPayment). Bills workflow is not recommended given Patty's actual operations (own crew + weekly Saturday payroll); accrual ≈ cash basis at that lag.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// SUPABASE CLIENT — same constants Backstage uses everywhere.
+// ============================================================
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+</script>
+
+<script>
+// ============================================================
+// HELPERS — shared formatting / utilities
+// ============================================================
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+
+// All money displays in thousands ($K); pass full dollars.
+function fmtK(n, opts={}) {
+  const { sign=false, dash='—', decimals=0 } = opts;
+  if (n == null || isNaN(n)) return dash;
+  const k = n / 1000;
+  const abs = Math.abs(k);
+  const formatted = abs.toLocaleString(undefined, { minimumFractionDigits:decimals, maximumFractionDigits:decimals });
+  const prefix = sign ? (k >= 0 ? '+' : '−') : (k < 0 ? '−' : '');
+  return prefix + '$' + formatted;
+}
+
+// Same but for raw dollars (no K abbreviation).
+function fmtUSD(n, opts={}) {
+  const { sign=false, dash='—' } = opts;
+  if (n == null || isNaN(n)) return dash;
+  const abs = Math.abs(n);
+  const formatted = abs.toLocaleString(undefined, { minimumFractionDigits:0, maximumFractionDigits:0 });
+  const prefix = sign ? (n >= 0 ? '+' : '−') : (n < 0 ? '−' : '');
+  return prefix + '$' + formatted;
+}
+
+function fmtPct(p, opts={}) {
+  const { decimals=1, dash='—' } = opts;
+  if (p == null || isNaN(p)) return dash;
+  return (p * 100).toFixed(decimals) + '%';
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = (typeof d === 'string') ? new Date(d) : d;
+  if (isNaN(dt.getTime())) return '';
+  const y = dt.getFullYear();
+  const mo = String(dt.getMonth()+1).padStart(2,'0');
+  const da = String(dt.getDate()).padStart(2,'0');
+  return y + '-' + mo + '-' + da;
+}
+
+function fmtMD(d) {
+  if (!d) return '';
+  const dt = (typeof d === 'string') ? new Date(d) : d;
+  if (isNaN(dt.getTime())) return '';
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return months[dt.getMonth()] + ' ' + dt.getDate();
+}
+
+function fmtMDDow(d) {
+  if (!d) return '';
+  const dt = (typeof d === 'string') ? new Date(d) : d;
+  if (isNaN(dt.getTime())) return '';
+  const dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  return fmtMD(dt) + ' ' + dows[dt.getDay()];
+}
+
+function daysBetween(a, b) {
+  const da = (typeof a === 'string') ? new Date(a) : a;
+  const db = (typeof b === 'string') ? new Date(b) : b;
+  return Math.round((db - da) / 86400000);
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function startOfWeek(d) {
+  const dt = (typeof d === 'string') ? new Date(d) : new Date(d.getTime());
+  const day = dt.getDay();  // 0 = Sun
+  dt.setHours(0,0,0,0);
+  dt.setDate(dt.getDate() - day);
+  return dt;
+}
+
+function phaseLabel(p) {
+  return ({
+    pursuing:'Pursuing',
+    in_escrow:'In Escrow',
+    under_construction:'Under Constr',
+    listed:'Listed',
+    sold:'Sold',
+    archived:'Archived',
+    lost:'Lost',
+  })[p] || p;
+}
+
+function phaseClass(p) { return 'phase-' + (p || 'sold'); }
+
+function detailHref(dealId) {
+  if (!dealId) return '#';
+  return 'project-detail.html?deal=' + encodeURIComponent(dealId);
+}
+
+function showError(msg) {
+  const el = document.getElementById('globalError');
+  el.style.display = 'block';
+  el.className = 'error-block';
+  el.textContent = msg;
+}
+function clearError() {
+  const el = document.getElementById('globalError');
+  el.style.display = 'none';
+  el.textContent = '';
+}
+</script>
+
+<script>
+// ============================================================
+// DATA FETCH — single batched fetch on load (per Brief MC §3 fetch list).
+// Caches into window.MC_DATA; Refresh button re-fetches.
+// ============================================================
+window.MC_DATA = null;
+
+async function loadData() {
+  clearError();
+  // Fetch in parallel.
+  const [
+    dealPnl,
+    deals,
+    capitalSources,
+    capitalSourceBalances,
+    dealLoans,
+    dealScores,
+    cashRunway,
+    portfolioOverhead,
+    qboSyncState,
+  ] = await Promise.all([
+    sb.from('deal_pnl_v1').select('*'),
+    sb.from('deals').select('id, phase, buy_side_mls, relist_mls, escrow_start_date, target_close_date, actual_close_date, list_date, accepted_offer_price, sale_price, purchase_price, rehab_budget'),
+    sb.from('capital_sources').select('*').eq('active', true),
+    sb.from('capital_source_balances_v1').select('*'),
+    sb.from('deal_loans').select('id, deal_id, capital_source_id, loan_purpose, status, loan_amount, rate_apr, origination_date, funded_date, term_months, maturity_date'),
+    sb.from('deal_scores').select('mls, rehab_estimate'),
+    // Cash runway: fetch wide window (90d back / 90d forward) so we can client-side filter to ±30/60/90.
+    sb.from('cash_runway_v1').select('*'),
+    // TTM overhead — last 365 days for monthly-avg projection.
+    sb.from('portfolio_overhead_v1').select('*'),
+    // Sync timestamp (one-row table per Migration 039).
+    sb.from('qbo_sync_state').select('last_sync_at').limit(1),
+  ]);
+
+  // Surface any per-query error explicitly — the MC tabs depend on
+  // every one of these (degrading gracefully would mask data gaps).
+  const errs = [
+    ['deal_pnl_v1', dealPnl.error],
+    ['deals', deals.error],
+    ['capital_sources', capitalSources.error],
+    ['capital_source_balances_v1', capitalSourceBalances.error],
+    ['deal_loans', dealLoans.error],
+    ['deal_scores', dealScores.error],
+    ['cash_runway_v1', cashRunway.error],
+    ['portfolio_overhead_v1', portfolioOverhead.error],
+    ['qbo_sync_state', qboSyncState.error],
+  ].filter(([_, e]) => e);
+  if (errs.length) {
+    const msg = 'Data fetch failed: ' + errs.map(([t, e]) => t + ' (' + e.message + ')').join('; ');
+    showError(msg);
+    console.error('[money] fetch errors:', errs);
+    throw new Error(msg);
+  }
+
+  window.MC_DATA = {
+    dealPnl: dealPnl.data || [],
+    deals: deals.data || [],
+    capitalSources: capitalSources.data || [],
+    capitalSourceBalances: capitalSourceBalances.data || [],
+    dealLoans: dealLoans.data || [],
+    dealScores: dealScores.data || [],
+    cashRunway: cashRunway.data || [],
+    portfolioOverhead: portfolioOverhead.data || [],
+    lastSyncAt: (qboSyncState.data && qboSyncState.data[0]) ? qboSyncState.data[0].last_sync_at : null,
+  };
+
+  // Build a deal-id → joined deal+pnl map for cross-tab convenience.
+  const dealById = {};
+  for (const d of window.MC_DATA.deals) dealById[d.id] = d;
+  window.MC_DATA.dealById = dealById;
+
+  // Build mls → rehab_estimate map (Tab 2's "Rehab budget" reference column).
+  const rehabBudgetByMls = {};
+  for (const r of window.MC_DATA.dealScores) {
+    if (r.mls && r.rehab_estimate != null) rehabBudgetByMls[r.mls] = r.rehab_estimate;
+  }
+  window.MC_DATA.rehabBudgetByMls = rehabBudgetByMls;
+
+  // Update sync timestamp in header.
+  if (window.MC_DATA.lastSyncAt) {
+    const d = new Date(window.MC_DATA.lastSyncAt);
+    const today = new Date();
+    const sameDay = d.toDateString() === today.toDateString();
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
+    const stamp = sameDay
+      ? 'today ' + hh + ':' + mm
+      : fmtDate(d) + ' ' + hh + ':' + mm;
+    document.getElementById('pageSub').innerHTML =
+      'Per-deal P&amp;L, capital position, and 90-day cash runway. Sourced from QBO (last sync: ' + escapeHtml(stamp) + ').';
+  }
+}
+</script>
+
+<script>
+// ============================================================
+// TAB 1 — Per-Deal P&L
+// ============================================================
+let pnlSort = { col: 'days_in_flight', dir: 'desc' };
+let pnlGroupOpen = { in_flight: true, sold: true };
+
+function renderPnL() {
+  const data = window.MC_DATA;
+  if (!data) return;
+
+  const rows = data.dealPnl.map(p => {
+    const d = data.dealById[p.deal_id] || {};
+    return {
+      ...p,
+      _phase: d.phase || p.phase,
+      _escrow_start_date: d.escrow_start_date,
+      _list_date: d.list_date,
+      _actual_close_date: d.actual_close_date,
+      _buy_side_mls: d.buy_side_mls,
+      _relist_mls: d.relist_mls,
+    };
+  });
+
+  // === Stats strip ===
+  // Profit YTD: sum projected_gross_profit for deals SOLD this calendar year
+  // (actual_close_date YTD). Match prior YTD using same window in prior year.
+  const today = new Date();
+  const yearStart = new Date(today.getFullYear(), 0, 1);
+  const priorYearStart = new Date(today.getFullYear()-1, 0, 1);
+  const priorYearSameDay = new Date(today.getFullYear()-1, today.getMonth(), today.getDate());
+  const ttmStart = new Date(today.getTime() - 365*86400000);
+
+  let profitYtd = 0, profitPriorYtd = 0, profitTtm = 0;
+  let nClosedYtd = 0;
+  let totalCostsTtm = 0, totalRevenueTtm = 0;
+  let pipelineProfit = 0;
+  for (const r of rows) {
+    const closed = r._actual_close_date ? new Date(r._actual_close_date) : null;
+    const profit = r.projected_gross_profit || 0;
+    if (closed && r._phase === 'sold') {
+      if (closed >= yearStart && closed <= today) { profitYtd += profit; nClosedYtd += 1; }
+      if (closed >= priorYearStart && closed <= priorYearSameDay) profitPriorYtd += profit;
+      if (closed >= ttmStart && closed <= today) {
+        profitTtm += profit;
+        totalCostsTtm += r.total_costs_actual || 0;
+        totalRevenueTtm += r.actual_revenue_total || r.actual_sale_price || 0;
+      }
+    }
+    if (r._phase && r._phase !== 'sold' && r._phase !== 'archived' && r._phase !== 'lost') {
+      pipelineProfit += profit;
+    }
+  }
+  const yoyPct = profitPriorYtd > 0 ? ((profitYtd - profitPriorYtd) / profitPriorYtd) : null;
+
+  // Equity deployed: sum (purchase_price - hml_principal) + rehab_actual for each in-flight deal.
+  const loansByDeal = {};
+  for (const dl of data.dealLoans) {
+    if (dl.status === 'funded' || dl.status === 'extended' || dl.status === 'pending') {
+      if (!loansByDeal[dl.deal_id]) loansByDeal[dl.deal_id] = 0;
+      loansByDeal[dl.deal_id] += dl.loan_amount || 0;
+    }
+  }
+  let equityDeployed = 0, nActive = 0;
+  for (const r of rows) {
+    if (r._phase && r._phase !== 'sold' && r._phase !== 'archived' && r._phase !== 'lost') {
+      const hml = loansByDeal[r.deal_id] || 0;
+      const down = Math.max(0, (r.purchase_price || 0) - hml);
+      equityDeployed += down + (r.rehab_actual || 0);
+      nActive += 1;
+    }
+  }
+
+  // CoC TTM = profit / avg equity deployed (snapshot of current equity).
+  const cocTtm = equityDeployed > 0 ? (profitTtm / equityDeployed) : null;
+  const turnsTtm = equityDeployed > 0 && totalCostsTtm > 0 ? (totalRevenueTtm / equityDeployed) : null;
+  const marginTtm = totalRevenueTtm > 0 ? (profitTtm / totalRevenueTtm) : null;
+
+  const yoyStr = yoyPct == null ? '' :
+    ' (' + (yoyPct >= 0 ? '+' : '') + (yoyPct * 100).toFixed(0) + '%)';
+  const profitYtdSub = 'vs ' + fmtK(profitPriorYtd) + ' YTD ' + (today.getFullYear()-1).toString().slice(2)
+    + yoyStr + ' · TTM ' + fmtK(profitTtm) + ' · ' + nClosedYtd + ' deal' + (nClosedYtd===1?'':'s') + ' closed';
+
+  let cocSub = 'TTM gross / current equity';
+  if (turnsTtm != null && marginTtm != null) {
+    cocSub += ' · ' + turnsTtm.toFixed(1) + '× turns × ~' + (marginTtm * 100).toFixed(0) + '% margin';
+  }
+
+  document.getElementById('pnl-stats').innerHTML =
+    '<div class="stats-strip">'
+    + '<div class="stat-card accent">'
+    + '  <div class="lbl">Profit YTD</div>'
+    + '  <div class="val ' + (profitYtd >= 0 ? 'profit-pos' : 'profit-neg') + '" style="color:var(--' + (profitYtd >= 0 ? 'green' : 'red') + ')">' + fmtK(profitYtd, {sign:true}) + '</div>'
+    + '  <div class="sub">' + escapeHtml(profitYtdSub) + '</div>'
+    + '</div>'
+    + '<div class="stat-card">'
+    + '  <div class="lbl">Equity deployed</div>'
+    + '  <div class="val">' + fmtK(equityDeployed) + '</div>'
+    + '  <div class="sub">across ' + nActive + ' active deal' + (nActive===1?'':'s') + ' · see Tab 2 breakdown</div>'
+    + '</div>'
+    + '<div class="stat-card">'
+    + '  <div class="lbl">Projected pipeline profit</div>'
+    + '  <div class="val ' + (pipelineProfit >= 0 ? 'profit-pos' : 'profit-neg') + '" style="color:var(--' + (pipelineProfit >= 0 ? 'green' : 'red') + ')">' + fmtK(pipelineProfit, {sign:true}) + '</div>'
+    + '  <div class="sub">if all closed at projected revenue</div>'
+    + '</div>'
+    + '<div class="stat-card">'
+    + '  <div class="lbl">Cash-on-Cash (TTM)</div>'
+    + '  <div class="val">' + (cocTtm == null ? '—' : (cocTtm * 100).toFixed(0) + '%') + '</div>'
+    + '  <div class="sub">' + escapeHtml(cocSub) + '</div>'
+    + '</div>'
+    + '</div>';
+
+  // === Days-of-inventory phase strip ===
+  const phasesToShow = ['pursuing', 'in_escrow', 'under_construction', 'listed'];
+  const phaseAgg = {};
+  for (const ph of phasesToShow) phaseAgg[ph] = { sum:0, n:0 };
+  for (const r of rows) {
+    if (phaseAgg[r._phase]) {
+      phaseAgg[r._phase].sum += r.days_in_flight || 0;
+      phaseAgg[r._phase].n   += 1;
+    }
+  }
+  const cellsHtml = phasesToShow.map(ph => {
+    const a = phaseAgg[ph];
+    const avg = a.n ? Math.round(a.sum / a.n) : null;
+    return '<div class="ps-cell">'
+      + '<div class="ps-phase ' + phaseClass(ph) + '">' + escapeHtml(phaseLabel(ph)) + '</div>'
+      + '<div class="ps-num">' + (avg == null ? '—' : avg + 'd') + '</div>'
+      + '<div class="ps-n">avg of ' + a.n + '</div>'
+      + '</div>';
+  }).join('');
+  document.getElementById('pnl-phase-strip').innerHTML =
+    '<div class="phase-strip">'
+    + '<div class="ps-lbl">Days of inventory by phase</div>'
+    + '<div class="ps-cells">' + cellsHtml + '</div>'
+    + '</div>';
+
+  // === P&L table ===
+  // Group: in-flight (not sold/archived/lost) vs sold. Sort within each by current sort col.
+  const inFlight = rows.filter(r => r._phase && r._phase !== 'sold' && r._phase !== 'archived' && r._phase !== 'lost');
+  const sold     = rows.filter(r => r._phase === 'sold').slice();
+
+  // Default sort within sold: most recent close first.
+  function sorter(col, dir) {
+    return (a, b) => {
+      let va = a[col], vb = b[col];
+      if (col === 'address') { va = a.address || ''; vb = b.address || ''; return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va); }
+      if (col === 'phase') { va = a._phase || ''; vb = b._phase || ''; return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va); }
+      if (col === 'days_in_flight') { va = a.days_in_flight || 0; vb = b.days_in_flight || 0; }
+      if (col === 'profit') { va = a.projected_gross_profit || 0; vb = b.projected_gross_profit || 0; }
+      if (col === 'revenue') { va = a.actual_revenue_total || a.actual_sale_price || a.projected_revenue || 0; vb = b.actual_revenue_total || b.actual_sale_price || b.projected_revenue || 0; }
+      if (col === 'total_cost') { va = a.total_costs_actual || 0; vb = b.total_costs_actual || 0; }
+      if (col === 'acq')   { va = a.acquisition_actual || 0; vb = b.acquisition_actual || 0; }
+      if (col === 'rehab') { va = a.rehab_actual || 0; vb = b.rehab_actual || 0; }
+      if (col === 'hold')  { va = a.holding_actual || 0; vb = b.holding_actual || 0; }
+      if (col === 'fin')   { va = a.financing_actual || 0; vb = b.financing_actual || 0; }
+      if (col === 'disp')  { va = a.disposition_actual || 0; vb = b.disposition_actual || 0; }
+      const cmp = (va > vb) - (va < vb);
+      return dir === 'asc' ? cmp : -cmp;
+    };
+  }
+
+  inFlight.sort(sorter(pnlSort.col, pnlSort.dir));
+  // For sold rows, default is profit desc unless user picked another col.
+  const soldSortCol = pnlSort.col === 'days_in_flight' ? 'profit' : pnlSort.col;
+  const soldSortDir = pnlSort.col === 'days_in_flight' ? 'desc' : pnlSort.dir;
+  sold.sort(sorter(soldSortCol, soldSortDir));
+
+  const cols = [
+    { k:'address',         lbl:'Deal', lh:true },
+    { k:'phase',           lbl:'Phase' },
+    { k:'days_in_flight',  lbl:'Days' },
+    { k:'acq',             lbl:'Acq' },
+    { k:'rehab',           lbl:'Rehab' },
+    { k:'hold',            lbl:'Hold' },
+    { k:'fin',             lbl:'Fin' },
+    { k:'disp',            lbl:'Disp' },
+    { k:'total_cost',      lbl:'Total cost' },
+    { k:'revenue',         lbl:'Revenue' },
+    { k:'profit',          lbl:'Profit' },
+    { k:'ann_roi',         lbl:'Ann ROI' },
+    { k:'carry',           lbl:'Carry %' },
+  ];
+
+  function rowHtml(r, isSold) {
+    const isProjectedRevenue = !isSold;
+    const revenueRaw = r.actual_revenue_total || r.actual_sale_price || r.projected_revenue;
+    const revenueTxt = revenueRaw != null ? (fmtK(revenueRaw) + (isProjectedRevenue ? '*' : '')) : '—';
+    const profitNum = r.projected_gross_profit;
+    const profitClass = profitNum == null ? '' : (profitNum >= 0 ? 'profit-pos' : 'profit-neg');
+    const profitTxt = profitNum != null ? fmtK(profitNum, {sign:true}) : '—';
+    // Annualized ROI: roi_pct * 365 / days_in_flight; for in-flight clamp days to ≥30
+    // so ratios on day-1 deals don't look insane (mockup notes this projects to today).
+    let annRoi = null;
+    const days = r.days_in_flight || 0;
+    if (r.projected_roi_pct != null && days > 0) {
+      const useDays = Math.max(days, 30);
+      annRoi = r.projected_roi_pct * (365 / useDays);
+    }
+    // Carry %: (financing + holding) / projected_gross_profit
+    let carry = null;
+    if (profitNum && profitNum > 0) {
+      carry = ((r.financing_actual || 0) + (r.holding_actual || 0)) / profitNum;
+    }
+    const carryClass = carry == null ? 'text-faint' : (carry > 0.25 ? 'carry-hot' : 'carry-ok');
+    const carryTxt = carry == null ? 'n/a' : (carry * 100).toFixed(1) + '%';
+    const annRoiClass = isSold ? (annRoi != null && annRoi >= 0 ? 'profit-pos' : 'profit-neg') : 'projected';
+    const annRoiTxt = annRoi != null ? (annRoi * 100).toFixed(1) + '%' + (isSold ? '' : '*') : '—';
+
+    const addrHtml = '<a href="' + escapeHtml(detailHref(r.deal_id)) + '">'
+      + escapeHtml(r.address || '(no address)') + '</a>'
+      + (r._buy_side_mls ? '<div class="addr-sub">' + escapeHtml(r._buy_side_mls) + '</div>' : '');
+
+    return '<tr>'
+      + '<td class="left addr-cell">' + addrHtml + '</td>'
+      + '<td><span class="phase-pill ' + phaseClass(r._phase) + '">' + escapeHtml(phaseLabel(r._phase)) + '</span></td>'
+      + '<td>' + (days || '—') + '</td>'
+      + '<td>' + (r.acquisition_actual ? fmtK(r.acquisition_actual) : '—') + '</td>'
+      + '<td>' + (r.rehab_actual ? fmtK(r.rehab_actual) : '—') + '</td>'
+      + '<td>' + (r.holding_actual ? fmtK(r.holding_actual, {decimals:1}) : '—') + '</td>'
+      + '<td>' + (r.financing_actual ? fmtK(r.financing_actual, {decimals:1}) : '—') + '</td>'
+      + '<td>' + (r.disposition_actual ? fmtK(r.disposition_actual, {decimals:1}) : '—') + '</td>'
+      + '<td class="total">' + (r.total_costs_actual ? fmtK(r.total_costs_actual) : '—') + '</td>'
+      + '<td class="' + (isProjectedRevenue ? 'projected' : '') + '">' + escapeHtml(revenueTxt) + '</td>'
+      + '<td class="' + profitClass + '">' + escapeHtml(profitTxt) + '</td>'
+      + '<td class="' + annRoiClass + '">' + escapeHtml(annRoiTxt) + '</td>'
+      + '<td class="' + carryClass + '">' + escapeHtml(carryTxt) + '</td>'
+      + '</tr>';
+  }
+
+  let html = '<table class="pnl-tbl">';
+  html += '<thead><tr>';
+  for (const c of cols) {
+    const isSorted = c.k === pnlSort.col;
+    const arr = isSorted ? (pnlSort.dir === 'asc' ? '▲' : '▼') : '';
+    html += '<th class="' + (c.lh ? 'lh ' : '') + (isSorted ? 'sorted' : '') + '" data-col="' + c.k + '">'
+      + escapeHtml(c.lbl) + '<span class="arr">' + arr + '</span></th>';
+  }
+  html += '</tr></thead><tbody>';
+
+  html += '<tr class="group-row"><td colspan="13">In flight (' + inFlight.length + ') — Ann ROI &amp; Carry % projected against assumed close</td></tr>';
+  if (inFlight.length === 0) {
+    html += '<tr><td colspan="13" style="text-align:center; padding:24px; color:var(--text-4);">No in-flight deals.</td></tr>';
+  } else {
+    for (const r of inFlight) html += rowHtml(r, false);
+  }
+
+  html += '<tr class="group-row"><td colspan="13">Sold (' + sold.length + ')</td></tr>';
+  if (sold.length === 0) {
+    html += '<tr><td colspan="13" style="text-align:center; padding:24px; color:var(--text-4);">No sold deals.</td></tr>';
+  } else {
+    for (const r of sold) html += rowHtml(r, true);
+  }
+
+  html += '</tbody></table>';
+  document.getElementById('pnl-table').innerHTML = html;
+
+  // Wire sort.
+  document.querySelectorAll('.pnl-tbl thead th').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      if (!col) return;
+      if (pnlSort.col === col) pnlSort.dir = (pnlSort.dir === 'asc' ? 'desc' : 'asc');
+      else { pnlSort.col = col; pnlSort.dir = 'desc'; }
+      renderPnL();
+    });
+  });
+}
+</script>
+
+<script>
+// ============================================================
+// TAB 2 — Capital Position
+// ============================================================
+function renderCapital() {
+  const data = window.MC_DATA;
+  if (!data) return;
+
+  // === Build per-active-deal "equity locked" rows ===
+  const loansByDeal = {};
+  for (const dl of data.dealLoans) {
+    if (dl.status === 'funded' || dl.status === 'extended' || dl.status === 'pending') {
+      if (!loansByDeal[dl.deal_id]) loansByDeal[dl.deal_id] = 0;
+      loansByDeal[dl.deal_id] += dl.loan_amount || 0;
+    }
+  }
+
+  const activeDeals = data.dealPnl
+    .map(p => ({ ...p, _deal: data.dealById[p.deal_id] || {} }))
+    .filter(p => p._deal.phase && p._deal.phase !== 'sold' && p._deal.phase !== 'archived' && p._deal.phase !== 'lost');
+
+  // Sort active deals: pursuing/in_escrow first, then under_construction, then listed.
+  const phaseOrder = { pursuing: 0, in_escrow: 1, under_construction: 2, listed: 3 };
+  activeDeals.sort((a, b) => (phaseOrder[a._deal.phase] || 99) - (phaseOrder[b._deal.phase] || 99));
+
+  let totalPurchase = 0, totalHml = 0, totalDown = 0, totalRehabSpent = 0, totalEquity = 0, totalRehabBudget = 0;
+  let totalActiveExits = 0;
+
+  const equityRowsHtml = activeDeals.map(p => {
+    const d = p._deal;
+    const purchase = p.purchase_price || d.purchase_price || 0;
+    const hml = loansByDeal[p.deal_id] || 0;
+    const down = Math.max(0, purchase - hml);
+    const rehabActual = p.rehab_actual || 0;
+    const rehabBudget = data.rehabBudgetByMls[d.buy_side_mls] || data.rehabBudgetByMls[d.relist_mls] || null;
+    const equityLocked = down + rehabActual;
+    const projRev = p.projected_revenue || 0;
+    const exitNet = (projRev * 0.96) - hml;
+
+    totalPurchase += purchase;
+    totalHml += hml;
+    totalDown += down;
+    totalRehabSpent += rehabActual;
+    totalEquity += equityLocked;
+    if (rehabBudget) totalRehabBudget += rehabBudget;
+    if (projRev > 0) totalActiveExits += exitNet;
+
+    const phaseTxt = phaseLabel(d.phase) + ' · ' + (p.days_in_flight || 0) + 'd';
+    const isPursuing = d.phase === 'pursuing' || d.phase === 'in_escrow';
+    // For pursuing/in_escrow with no recorded purchase, mark as projected.
+    const purchaseClass = (purchase && hml) ? '' : 'projected';
+
+    let rehabBudgetCell = '—';
+    if (rehabBudget) {
+      const pctSpent = rehabBudget > 0 ? (rehabActual / rehabBudget) : null;
+      const pctClass = (pctSpent != null && pctSpent > 1) ? 'style="color:var(--red); font-weight:700;"' : 'style="color:var(--text-4);"';
+      const pctTxt = pctSpent != null ? ' <span ' + pctClass + '>(' + Math.round(pctSpent * 100) + '%)</span>' : '';
+      rehabBudgetCell = fmtK(rehabBudget) + pctTxt;
+    } else if (isPursuing) {
+      rehabBudgetCell = '—*';
+    }
+
+    return '<tr>'
+      + '<td class="left lender-cell"><a href="' + escapeHtml(detailHref(p.deal_id)) + '">' + escapeHtml(p.address || '(no address)') + '</a><div class="lender-sub">' + escapeHtml(phaseTxt) + '</div></td>'
+      + '<td class="' + purchaseClass + '">' + (purchase ? fmtK(purchase) + (isPursuing && !hml ? '*' : '') : '—') + '</td>'
+      + '<td>' + (hml ? fmtK(hml) : '—') + '</td>'
+      + '<td>' + (down ? fmtK(down) : '—') + '</td>'
+      + '<td>' + (rehabActual ? fmtK(rehabActual) : '—') + '</td>'
+      + '<td class="total">' + fmtK(equityLocked) + '</td>'
+      + '<td class="col-ref">' + rehabBudgetCell + '</td>'
+      + '</tr>';
+  }).join('');
+
+  const totalRehabPct = totalRehabBudget > 0 ? Math.round((totalRehabSpent / totalRehabBudget) * 100) : null;
+
+  document.getElementById('cap-equity-locked').innerHTML =
+    '<table class="cap-tbl">'
+    + '<thead><tr>'
+    + '<th class="lh">Deal</th>'
+    + '<th>Purchase</th>'
+    + '<th>HML covers</th>'
+    + '<th>Your down</th>'
+    + '<th>Rehab spent</th>'
+    + '<th>Equity locked</th>'
+    + '<th class="col-ref">Rehab budget</th>'
+    + '</tr></thead><tbody>'
+    + (activeDeals.length === 0
+        ? '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-4);">No active deals.</td></tr>'
+        : equityRowsHtml)
+    + '<tr class="totals-row">'
+    + '  <td class="left">' + activeDeals.length + ' active</td>'
+    + '  <td>' + fmtK(totalPurchase) + '</td>'
+    + '  <td>' + fmtK(totalHml) + '</td>'
+    + '  <td>' + fmtK(totalDown) + '</td>'
+    + '  <td>' + fmtK(totalRehabSpent) + '</td>'
+    + '  <td>' + fmtK(totalEquity) + '</td>'
+    + '  <td class="col-ref">' + (totalRehabBudget ? fmtK(totalRehabBudget) + (totalRehabPct != null ? ' (' + totalRehabPct + '%)' : '') : '—') + '</td>'
+    + '</tr>'
+    + '</tbody></table>';
+
+  // === Capital sources table ===
+  // Sort: Cash first, then by source_type (shareholder before third-party), then by name.
+  const csSorted = data.capitalSourceBalances
+    .filter(s => s.active !== false && !s.is_external_senior_debt)
+    .slice()
+    .sort((a, b) => {
+      if (a.source_type === 'cash' && b.source_type !== 'cash') return -1;
+      if (b.source_type === 'cash' && a.source_type !== 'cash') return 1;
+      if (a.is_shareholder_loan && !b.is_shareholder_loan) return -1;
+      if (b.is_shareholder_loan && !a.is_shareholder_loan) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+  let totalCap = 0, totalDrawn = 0, totalAvailable = 0, cashAvailable = 0;
+  let weightedRateNum = 0, weightedRateDen = 0;
+
+  const sourceRowsHtml = csSorted.map(s => {
+    const isCash = s.source_type === 'cash';
+    const cap = s.max_exposure_dollars;
+    const drawn = s.drawn_balance;
+    const avail = s.available;
+    const rate = s.default_rate_apr;
+
+    if (!isCash && cap != null) totalCap += cap;
+    if (!isCash && drawn != null) {
+      totalDrawn += drawn;
+      if (rate != null) {
+        weightedRateNum += drawn * rate;
+        weightedRateDen += drawn;
+      }
+    }
+    if (avail != null) {
+      totalAvailable += avail;
+      if (isCash) cashAvailable = avail;
+    }
+
+    let typePill = '';
+    if (isCash) typePill = '<span class="lender-type-pill lt-cash">Cash</span>';
+    else if (s.source_type === 'line_of_credit') {
+      const isHeloc = (s.name || '').toLowerCase().includes('heloc');
+      typePill = isHeloc
+        ? '<span class="lender-type-pill lt-heloc">HELOC</span>'
+        : '<span class="lender-type-pill lt-shareholder">Margin</span>';
+    } else if (s.source_type === 'private') {
+      typePill = '<span class="lender-type-pill lt-loan">Loan Payable</span>';
+    } else {
+      typePill = '<span class="lender-type-pill lt-loan">' + escapeHtml(s.source_type || '') + '</span>';
+    }
+
+    const subText = isCash
+      ? (s.qbo_account_name ? escapeHtml(s.qbo_account_name) + ' · live balance' : 'live balance')
+      : (s.is_shareholder_loan ? 'Shareholder' : 'Third-party') + (rate != null ? ' · @ ' + (rate * 100).toFixed(rate >= 0.1 ? 0 : 1) + '%' : '');
+
+    let drawnCell = '—';
+    if (!isCash && cap != null && drawn != null) {
+      const pctDrawn = cap > 0 ? Math.min(1, drawn / cap) : 0;
+      drawnCell = '<span class="deployed-bar"><span style="width:' + Math.round(pctDrawn * 100) + '%"></span></span>' + fmtK(drawn);
+    } else if (!isCash && drawn != null) {
+      drawnCell = fmtK(drawn);
+    }
+
+    const availCell = avail != null ? fmtK(avail) : '—';
+    const rateCell = rate != null ? (rate * 100).toFixed(rate >= 0.1 ? 1 : 1) + '%' : '—';
+    const rateDisplay = (drawn && drawn > 0 && rate != null) ? rateCell : (rate != null ? rateCell : '—');
+
+    return '<tr>'
+      + '<td class="left lender-cell">' + escapeHtml(s.name || '') + '<div class="lender-sub">' + subText + '</div></td>'
+      + '<td class="left">' + typePill + '</td>'
+      + '<td>' + (cap != null ? fmtK(cap) : '—') + '</td>'
+      + '<td>' + drawnCell + '</td>'
+      + '<td>' + availCell + '</td>'
+      + '<td>' + rateDisplay + '</td>'
+      + '</tr>';
+  }).join('');
+
+  const blendedRate = weightedRateDen > 0 ? (weightedRateNum / weightedRateDen) : null;
+
+  document.getElementById('cap-sources').innerHTML =
+    '<table class="cap-tbl">'
+    + '<thead><tr>'
+    + '<th class="lh">Source</th>'
+    + '<th class="lh">Type</th>'
+    + '<th>Cap</th>'
+    + '<th>Drawn</th>'
+    + '<th>Available</th>'
+    + '<th>Cost when drawn</th>'
+    + '</tr></thead><tbody>'
+    + sourceRowsHtml
+    + '<tr class="totals-row">'
+    + '  <td class="left">Total own capital</td>'
+    + '  <td class="left"></td>'
+    + '  <td>' + fmtK(totalCap) + ' <span style="font-weight:400; color:var(--text-4); font-size:11px">(debt only)</span></td>'
+    + '  <td>' + fmtK(totalDrawn) + ' <span style="font-weight:400; color:var(--text-4); font-size:11px">(debt only)</span></td>'
+    + '  <td>' + fmtK(totalAvailable) + ' <span style="font-weight:400; color:var(--text-4); font-size:11px">(incl. cash)</span></td>'
+    + '  <td>' + (blendedRate != null ? (blendedRate * 100).toFixed(1) + '%' : '—') + '</td>'
+    + '</tr>'
+    + '</tbody></table>';
+
+  // === Senior debt — active loans table ===
+  const today = new Date(); today.setHours(0,0,0,0);
+  const csById = {};
+  for (const c of data.capitalSources) csById[c.id] = c;
+  const activeLoans = data.dealLoans
+    .filter(l => l.status === 'funded' || l.status === 'extended')
+    .map(l => {
+      const cs = csById[l.capital_source_id] || {};
+      const d = data.dealById[l.deal_id] || {};
+      const pnl = data.dealPnl.find(p => p.deal_id === l.deal_id) || {};
+      return { ...l, _cs: cs, _deal: d, _pnl: pnl };
+    })
+    .sort((a, b) => {
+      const ad = a.maturity_date ? new Date(a.maturity_date) : new Date('2099-12-31');
+      const bd = b.maturity_date ? new Date(b.maturity_date) : new Date('2099-12-31');
+      return ad - bd;
+    });
+
+  let totalPrincipal = 0, weightedRateLoanNum = 0, weightedRateLoanDen = 0;
+
+  const seniorRowsHtml = activeLoans.map(l => {
+    const principal = l.loan_amount || 0;
+    const rate = l.rate_apr;
+    totalPrincipal += principal;
+    if (rate != null) {
+      weightedRateLoanNum += principal * rate;
+      weightedRateLoanDen += principal;
+    }
+    const matDate = l.maturity_date ? new Date(l.maturity_date) : null;
+    const daysToMat = matDate ? daysBetween(today, matDate) : null;
+    let matCls = 'mat-ok';
+    if (daysToMat != null) {
+      if (daysToMat < 30) matCls = 'mat-crit';
+      else if (daysToMat < 60) matCls = 'mat-warn';
+    }
+    const matCountdown = daysToMat != null ? '(' + (daysToMat < 0 ? Math.abs(daysToMat) + 'd ago' : daysToMat + 'd') + ')' : '';
+    const phaseTxt = phaseLabel(l._deal.phase || '');
+    return '<tr>'
+      + '<td class="left lender-cell"><a href="' + escapeHtml(detailHref(l.deal_id)) + '">' + escapeHtml(l._pnl.address || '(no address)') + '</a><div class="lender-sub">' + escapeHtml(phaseTxt) + '</div></td>'
+      + '<td class="left">' + escapeHtml(l._cs.name || '') + '</td>'
+      + '<td>' + fmtK(principal) + '</td>'
+      + '<td>' + (rate != null ? (rate * 100).toFixed(2) + '%' : '—') + '</td>'
+      + '<td class="left">' + (l.funded_date || l.origination_date || '—') + '</td>'
+      + '<td class="left">' + (l.maturity_date || '—') + ' <span class="' + matCls + '">' + escapeHtml(matCountdown) + '</span></td>'
+      + '<td class="left"><span class="phase-pill ' + phaseClass(l._deal.phase) + '">Open</span></td>'
+      + '</tr>';
+  }).join('');
+
+  const blendedRateLoan = weightedRateLoanDen > 0 ? (weightedRateLoanNum / weightedRateLoanDen) : null;
+
+  document.getElementById('cap-senior-debt').innerHTML =
+    '<table class="cap-tbl">'
+    + '<thead><tr>'
+    + '<th class="lh">Deal</th>'
+    + '<th class="lh">Lender</th>'
+    + '<th>Principal</th>'
+    + '<th>Rate</th>'
+    + '<th class="lh">Funded</th>'
+    + '<th class="lh">Maturity</th>'
+    + '<th class="lh">Status</th>'
+    + '</tr></thead><tbody>'
+    + (activeLoans.length === 0
+        ? '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-4);">No active senior debt.</td></tr>'
+        : seniorRowsHtml)
+    + '<tr class="totals-row">'
+    + '  <td class="left">' + activeLoans.length + ' active</td>'
+    + '  <td class="left"></td>'
+    + '  <td>' + fmtK(totalPrincipal) + '</td>'
+    + '  <td>' + (blendedRateLoan != null ? (blendedRateLoan * 100).toFixed(2) + '%' : '—') + '</td>'
+    + '  <td class="left"></td>'
+    + '  <td class="left"></td>'
+    + '  <td class="left"></td>'
+    + '</tr>'
+    + '</tbody></table>';
+
+  // === Net Liquidation Value hero panel ===
+  // cash + active_deal_exits − drawn_debt = net_to_owner.
+  // active_deal_exits = sum of (projected_revenue * 0.96 - HML_principal) for active deals.
+  // drawn_debt = totalDrawn (computed above; non-HML, non-cash drawn).
+  const netToOwner = cashAvailable + totalActiveExits - totalDrawn;
+  const lifetimeProfit = data.dealPnl
+    .filter(p => {
+      const d = data.dealById[p.deal_id] || {};
+      return d.phase === 'sold';
+    })
+    .reduce((s, p) => s + (p.projected_gross_profit || 0), 0);
+  const distributedOrAbsorbed = lifetimeProfit - netToOwner;
+  const todayStrFmt = fmtDate(new Date());
+
+  // Build per-deal exit summary string.
+  const exitSummary = activeDeals
+    .filter(p => p.projected_revenue && p.projected_revenue > 0)
+    .map(p => {
+      const hml = loansByDeal[p.deal_id] || 0;
+      const exit = (p.projected_revenue * 0.96) - hml;
+      const shortAddr = (p.address || '').split(',')[0].split(' ').slice(0, 3).join(' ');
+      return shortAddr + ' ' + fmtK(exit);
+    })
+    .join(' + ');
+  const drawnSummary = csSorted
+    .filter(s => s.drawn_balance != null && s.drawn_balance > 0)
+    .map(s => s.name + ' ' + fmtK(s.drawn_balance))
+    .join(' + ');
+
+  document.getElementById('cap-hero').innerHTML =
+    '<div class="lp-panel">'
+    + '<div class="lp-head">'
+    + '  <div><div class="lp-label">Net liquidation value — what\'s yours after every payoff</div></div>'
+    + '  <div class="lp-label-sub">as of ' + escapeHtml(todayStrFmt) + ' · pre-tax · projected exits</div>'
+    + '</div>'
+    + '<div class="lp-headline">' + fmtK(netToOwner) + '</div>'
+    + '<div class="lp-breakdown">'
+    + '  <div class="lp-sign plus">+</div>'
+    + '  <div class="lp-amt">' + fmtK(cashAvailable) + '</div>'
+    + '  <div class="lp-desc">Cash on hand <span class="lp-desc-sub">— DOTTY CHK 5715 (live balance)</span></div>'
+    + '  <div class="lp-sign plus">+</div>'
+    + '  <div class="lp-amt">' + fmtK(totalActiveExits) + '</div>'
+    + '  <div class="lp-desc">Active deal exits <span class="lp-desc-sub">— ' + activeDeals.length + ' deals at projected sale' + (exitSummary ? ' (' + escapeHtml(exitSummary) + ')' : '') + '; HML payoff + 4% selling costs already netted</span></div>'
+    + '  <div class="lp-sign minus">−</div>'
+    + '  <div class="lp-amt">' + fmtK(totalDrawn) + '</div>'
+    + '  <div class="lp-desc">Drawn debt' + (drawnSummary ? ' <span class="lp-desc-sub">— ' + escapeHtml(drawnSummary) + '</span>' : '') + '</div>'
+    + '  <div class="lp-sign plus lp-total-row" style="color:var(--text)">=</div>'
+    + '  <div class="lp-amt lp-total-row">' + fmtK(netToOwner) + '</div>'
+    + '  <div class="lp-desc lp-total-row">Net to owner <span class="lp-desc-sub">— what walks out the door if you wound everything down today</span></div>'
+    + '</div>'
+    + '<div class="lp-foot">'
+    + '  Computed at projected ARV with 4% selling costs (commission + transfer tax + escrow + concessions). Actual exits will vary by ±5–10% based on market + sale execution. Pre-tax — federal/state/SE tax provisions not modeled here.'
+    + (lifetimeProfit > 0
+        ? ' Lifetime gross profit (' + fmtK(lifetimeProfit) + ') less this snapshot (' + fmtK(netToOwner) + ') ≈ <strong>' + fmtK(distributedOrAbsorbed) + ' distributed to owner or absorbed into portfolio overhead</strong> over the life of the business.'
+        : '')
+    + '</div>'
+    + '</div>';
+
+  // === Top stats strip ===
+  // Equity available = totalAvailable from sources table.
+  // Headroom = totalAvailable / avg equity per deal (use $160K mockup default if no data).
+  const avgEquity = activeDeals.length > 0 ? totalEquity / activeDeals.length : 160000;
+  const headroomDeals = avgEquity > 0 ? Math.round(totalAvailable / avgEquity) : null;
+
+  document.getElementById('cap-stats').innerHTML =
+    '<div class="stats-strip">'
+    + '<div class="stat-card accent"><div class="lbl">Equity deployed</div><div class="val">' + fmtK(totalEquity) + '</div><div class="sub">across ' + activeDeals.length + ' active deal' + (activeDeals.length===1?'':'s') + '</div></div>'
+    + '<div class="stat-card"><div class="lbl">Equity available</div><div class="val">' + fmtK(totalAvailable) + '</div><div class="sub">undrawn HELOC + margin + cash</div></div>'
+    + '<div class="stat-card"><div class="lbl">Headroom</div><div class="val">~' + (headroomDeals != null ? headroomDeals : '—') + '<span style="font-size:13px; color:var(--text-3); font-weight:500"> deals</span></div><div class="sub">@ ' + fmtK(avgEquity) + ' avg equity each</div></div>'
+    + '<div class="stat-card"><div class="lbl">Cost of drawn debt</div><div class="val">' + (blendedRate != null ? (blendedRate * 100).toFixed(1) + '%' : '—') + '</div><div class="sub">debt-weighted; HML clears at ' + (blendedRateLoan != null ? (blendedRateLoan * 100).toFixed(2) + '%' : '~9%') + ' (your money cheaper)</div></div>'
+    + '</div>';
+}
+</script>
+
+<script>
+// ============================================================
+// TAB 3 — Cash Runway (Path C: actuals trailing + auto-projected recurring forward)
+// ============================================================
+let runWindow = 30;  // ±days
+
+function renderRunway() {
+  const data = window.MC_DATA;
+  if (!data) return;
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const windowStart = new Date(today.getTime() - runWindow * 86400000);
+  const windowEnd   = new Date(today.getTime() + runWindow * 86400000);
+
+  // === Trailing actuals from cash_runway_v1 (event_type = actual_outflow + actual_overhead_outflow) ===
+  // The view returns events in our window; we filter again client-side for the chosen window.
+  const actuals = data.cashRunway
+    .filter(e => {
+      if (!e.event_date) return false;
+      const ed = new Date(e.event_date);
+      if (ed < windowStart || ed > today) return false;
+      return e.event_type === 'actual_outflow' || e.event_type === 'actual_overhead_outflow';
+    })
+    .map(e => ({
+      date: e.event_date,
+      type: e.event_type === 'actual_overhead_outflow' ? 'overhead' : 'actual',
+      deal_id: e.deal_id,
+      bucket: e.bucket,
+      qbo_account_name: e.qbo_account_name,
+      vendor: e.vendor,
+      amount: Math.max(0, e.amount || 0),  // negate-able sign rare in this window — clamp to 0 to avoid negative outflows confusing the runway
+      raw_amount: e.amount,
+    }))
+    .filter(e => e.raw_amount > 0);  // drop net-negative entries from a refund landing in the window
+
+  // === Forward HML interest projections ===
+  // For each active deal_loans row: monthly outflow = principal * rate / 12 on the
+  // loan's origination_date day-of-month. Schedule events from today through windowEnd.
+  const csById = {};
+  for (const c of data.capitalSources) csById[c.id] = c;
+  const dealById = data.dealById;
+  const activeLoans = data.dealLoans.filter(l => l.status === 'funded' || l.status === 'extended');
+
+  const projHmlInterest = [];
+  for (const l of activeLoans) {
+    if (!l.loan_amount || !l.rate_apr) continue;
+    const monthlyAmount = l.loan_amount * l.rate_apr / 12;
+    const anchor = l.origination_date || l.funded_date;
+    if (!anchor) continue;
+    const anchorD = new Date(anchor);
+    const dayOfMonth = anchorD.getDate();
+
+    // Walk months from current month onward; compute the next event day-of-month
+    // until we cross windowEnd.
+    let cursor = new Date(today.getFullYear(), today.getMonth(), dayOfMonth);
+    if (cursor < today) cursor = new Date(today.getFullYear(), today.getMonth() + 1, dayOfMonth);
+    while (cursor <= windowEnd) {
+      // Skip past maturity_date (no more interest after payoff).
+      if (l.maturity_date && cursor > new Date(l.maturity_date)) break;
+      const cs = csById[l.capital_source_id] || {};
+      const d = dealById[l.deal_id] || {};
+      const p = data.dealPnl.find(p => p.deal_id === l.deal_id) || {};
+      projHmlInterest.push({
+        date: fmtDate(cursor),
+        type: 'projected',
+        deal_id: l.deal_id,
+        deal_address: p.address || '(no address)',
+        bucket: 'financing',
+        qbo_account_name: '5511 Hard Money Interest',
+        vendor: cs.name || 'Hard Money',
+        amount: monthlyAmount,
+      });
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, dayOfMonth);
+    }
+  }
+
+  // === Forward recurring overhead projections ===
+  // Per Brief MC §4: pull TTM monthly avg per recurring vendor from
+  // portfolio_overhead_v1 (group by qbo_account_name + vendor), project on
+  // the same day-of-month as the most recent occurrence.
+  const ttmStart = new Date(today.getTime() - 365 * 86400000);
+  const overheadByVendor = {};
+  for (const e of data.portfolioOverhead) {
+    if (!e.txn_date) continue;
+    const ed = new Date(e.txn_date);
+    if (ed < ttmStart) continue;
+    const key = (e.qbo_account_name || '') + '||' + (e.vendor || '');
+    if (!overheadByVendor[key]) overheadByVendor[key] = { qbo_account_name: e.qbo_account_name, vendor: e.vendor, events: [] };
+    if (e.amount > 0) overheadByVendor[key].events.push({ date: ed, amount: e.amount });
+  }
+
+  // For projection, only include vendors that occurred ≥ 3 times in TTM
+  // (a heuristic for "recurring" — one-offs don't get auto-projected).
+  const projOverhead = [];
+  for (const key of Object.keys(overheadByVendor)) {
+    const v = overheadByVendor[key];
+    if (v.events.length < 3) continue;
+    // Sort by date asc.
+    v.events.sort((a, b) => a.date - b.date);
+    const last = v.events[v.events.length - 1];
+    const monthlyAvg = v.events.reduce((s, e) => s + e.amount, 0) / v.events.length;
+    const dayOfMonth = last.date.getDate();
+    let cursor = new Date(today.getFullYear(), today.getMonth(), dayOfMonth);
+    if (cursor < today) cursor = new Date(today.getFullYear(), today.getMonth() + 1, dayOfMonth);
+    while (cursor <= windowEnd) {
+      projOverhead.push({
+        date: fmtDate(cursor),
+        type: 'overhead',
+        deal_id: null,
+        bucket: 'overhead',
+        qbo_account_name: v.qbo_account_name + ' (recurring)',
+        vendor: v.vendor + ' (recurring)',
+        amount: monthlyAvg,
+      });
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, dayOfMonth);
+    }
+  }
+
+  // === Combine + sort ===
+  const allEvents = [...actuals, ...projHmlInterest, ...projOverhead];
+  allEvents.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  // === Stats strip ===
+  // Trailing 30d net cash: sum of trailing actuals (negative — all outflows here).
+  // Recurring projection (next 30d): sum of forward HML + overhead in the next 30d.
+  const next30End = new Date(today.getTime() + 30 * 86400000);
+  const back30Start = new Date(today.getTime() - 30 * 86400000);
+  const trailing30 = actuals.filter(e => new Date(e.date) >= back30Start && new Date(e.date) <= today)
+    .reduce((s, e) => s + (e.amount || 0), 0);
+  const projNext30 = [...projHmlInterest, ...projOverhead]
+    .filter(e => new Date(e.date) >= today && new Date(e.date) <= next30End)
+    .reduce((s, e) => s + (e.amount || 0), 0);
+  // Portfolio overhead burn: TTM monthly avg = TTM total / 12.
+  const ttmOverheadTotal = data.portfolioOverhead
+    .filter(e => e.txn_date && new Date(e.txn_date) >= ttmStart && e.amount > 0)
+    .reduce((s, e) => s + (e.amount || 0), 0);
+  const monthlyOverheadAvg = ttmOverheadTotal / 12;
+
+  // Next big single event: largest forward event within 60d.
+  const next60End = new Date(today.getTime() + 60 * 86400000);
+  const forwardSorted = [...projHmlInterest, ...projOverhead]
+    .filter(e => new Date(e.date) >= today && new Date(e.date) <= next60End)
+    .sort((a, b) => b.amount - a.amount);
+  const nextBig = forwardSorted[0] || null;
+
+  document.getElementById('run-stats').innerHTML =
+    '<div class="stats-strip">'
+    + '<div class="stat-card accent"><div class="lbl">Trailing 30d net cash</div><div class="val profit-neg" style="color:var(--red)">−' + fmtUSD(trailing30) + '</div><div class="sub">all outflows; no inflows yet modeled</div></div>'
+    + '<div class="stat-card"><div class="lbl">Recurring projection (next 30d)</div><div class="val">−' + fmtUSD(projNext30) + '</div><div class="sub">' + activeLoans.length + ' HML int + monthly overhead</div></div>'
+    + '<div class="stat-card"><div class="lbl">Portfolio overhead burn</div><div class="val">' + fmtUSD(monthlyOverheadAvg) + '/mo</div><div class="sub">TTM avg — bank fees, tax, SaaS, vehicle</div></div>'
+    + '<div class="stat-card"><div class="lbl">Next big single event</div>'
+    + (nextBig
+        ? '<div class="val">' + fmtUSD(nextBig.amount) + '</div><div class="sub">' + escapeHtml(fmtMD(nextBig.date) + ' — ' + (nextBig.deal_address || nextBig.vendor || '')) + '</div>'
+        : '<div class="val">—</div><div class="sub">no forward events</div>')
+    + '</div>'
+    + '</div>';
+
+  // === Event table grouped by week, with today divider ===
+  // Walk through events and emit week headers when the week changes.
+  let html = '<table class="runway-tbl">';
+  html += '<thead><tr><th>Date</th><th>Type</th><th>Deal / portfolio</th><th>Vendor / lender</th><th>Account</th><th class="rh">Amount</th></tr></thead><tbody>';
+
+  let lastWeekKey = null;
+  let weekTotal = 0;
+  let weekRows = '';
+  let didTodayDivider = false;
+
+  function flushWeek(weekStart, isForward) {
+    if (lastWeekKey == null) return;
+    const label = 'Week of ' + fmtMD(weekStart) + (isForward ? ' — auto-projected' : ' — trailing actuals');
+    html += '<tr class="week-row"><td colspan="5">' + escapeHtml(label) + '</td><td class="amt">' + fmtUSD(weekTotal) + '</td></tr>';
+    html += weekRows;
+    weekRows = '';
+    weekTotal = 0;
+  }
+
+  for (const e of allEvents) {
+    const ed = new Date(e.date);
+    const wk = startOfWeek(ed);
+    const wkKey = fmtDate(wk);
+
+    // Today divider — emit once at the boundary between past and forward.
+    if (!didTodayDivider && ed >= today) {
+      // Flush trailing-actual week if open.
+      if (lastWeekKey != null) {
+        flushWeek(new Date(lastWeekKey), false);
+        lastWeekKey = null;
+      }
+      const todayLabel = '─── today (' + fmtMD(today) + ') ─── ↑ trailing actuals · ↓ auto-projected forward ───';
+      html += '<tr class="today-divider"><td colspan="6">' + escapeHtml(todayLabel) + '</td></tr>';
+      didTodayDivider = true;
+    }
+
+    if (wkKey !== lastWeekKey) {
+      // Flush previous week.
+      if (lastWeekKey != null) {
+        flushWeek(new Date(lastWeekKey), didTodayDivider);
+      }
+      lastWeekKey = wkKey;
+    }
+
+    // Build the row.
+    let pillCls = 'ev-actual', pillTxt = 'Actual';
+    if (e.type === 'projected') { pillCls = 'ev-projected'; pillTxt = 'HML interest'; }
+    else if (e.type === 'overhead') { pillCls = 'ev-overhead'; pillTxt = 'Overhead'; }
+
+    const dealLabel = e.deal_id
+      ? (e.deal_address || (data.dealPnl.find(p => p.deal_id === e.deal_id) || {}).address || 'Deal')
+      : '—';
+
+    weekRows += '<tr>'
+      + '<td class="date-cell">' + escapeHtml(fmtMDDow(ed)) + '</td>'
+      + '<td><span class="ev-pill ' + pillCls + '">' + escapeHtml(pillTxt) + '</span></td>'
+      + '<td>' + escapeHtml(dealLabel) + '</td>'
+      + '<td>' + escapeHtml(e.vendor || '—') + '</td>'
+      + '<td>' + escapeHtml(e.qbo_account_name || '—') + '</td>'
+      + '<td class="amt">' + fmtUSD(e.amount) + '</td>'
+      + '</tr>';
+    weekTotal += e.amount;
+  }
+  if (lastWeekKey != null) flushWeek(new Date(lastWeekKey), didTodayDivider);
+
+  // Today divider may not have emitted if no forward events.
+  if (!didTodayDivider) {
+    const todayLabel = '─── today (' + fmtMD(today) + ') — no forward auto-recurring events in window ───';
+    html += '<tr class="today-divider"><td colspan="6">' + escapeHtml(todayLabel) + '</td></tr>';
+  }
+
+  html += '</tbody></table>';
+
+  if (allEvents.length === 0) {
+    html = '<div class="loading-block">No cash events in the ±' + runWindow + 'd window.</div>';
+  }
+
+  document.getElementById('run-table').innerHTML = html;
+}
+</script>
+
+<script>
+// ============================================================
+// TAB SWITCHER + URL HASH HANDLING + INIT
+// ============================================================
+function switchTab(key) {
+  document.querySelectorAll('.mc-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === key));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + key));
+  if (location.hash !== '#' + key) {
+    history.replaceState(null, '', '#' + key);
+  }
+}
+
+function bindTabSwitcher() {
+  document.querySelectorAll('.mc-tab').forEach(t => {
+    t.addEventListener('click', () => switchTab(t.dataset.tab));
+  });
+  window.addEventListener('hashchange', () => {
+    const k = (location.hash || '').replace('#', '');
+    if (k === 'pnl' || k === 'cap' || k === 'run') switchTab(k);
+  });
+}
+
+function bindRunwayControls() {
+  document.querySelectorAll('#run-seg .seg-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#run-seg .seg-btn').forEach(x => x.classList.remove('on'));
+      b.classList.add('on');
+      runWindow = parseInt(b.dataset.window, 10);
+      renderRunway();
+    });
+  });
+}
+
+async function refresh() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.textContent = 'Refreshing…';
+  try {
+    await loadData();
+    renderPnL();
+    renderCapital();
+    renderRunway();
+  } catch (e) {
+    console.error('[money] refresh failed', e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Refresh';
+  }
+}
+
+(async () => {
+  await window.authGate();
+  if (!window.CURRENT_USER_ROLE) return;
+  // Defense in depth — page is owner-only. Underlying view RLS is also
+  // owner-only so worker would see empty tables anyway, but we redirect
+  // out of the page entirely for clarity.
+  if (window.CURRENT_USER_ROLE !== 'owner') {
+    location.replace('pipeline.html');
+    return;
+  }
+  window.renderSidebar('money');
+  bindTabSwitcher();
+
+  // Honor URL hash on first load.
+  const initialHash = (location.hash || '').replace('#', '');
+  if (initialHash === 'pnl' || initialHash === 'cap' || initialHash === 'run') {
+    switchTab(initialHash);
+  }
+
+  // Initial loading state.
+  document.getElementById('pnl-table').innerHTML = '<div class="loading-block">Loading per-deal P&amp;L…</div>';
+  document.getElementById('cap-equity-locked').innerHTML = '<div class="loading-block">Loading capital position…</div>';
+  document.getElementById('run-table').innerHTML = '<div class="loading-block">Loading cash runway…</div>';
+
+  document.getElementById('refreshBtn').addEventListener('click', refresh);
+
+  try {
+    await loadData();
+    renderPnL();
+    renderCapital();
+    renderRunway();
+    bindRunwayControls();
+  } catch (e) {
+    console.error('[money] initial load failed', e);
+  }
+})();
+</script>
+
+</body>
+</html>
