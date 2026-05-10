@@ -119,6 +119,7 @@ body { overflow:hidden; height:100vh; }
 .pnl-tbl .projected { color:var(--text-4); font-style:italic; }
 .pnl-tbl .carry-hot { color:var(--red); font-weight:700; }
 .pnl-tbl .carry-ok  { color:var(--text-2); }
+.pnl-tbl td.c-days  { font-family:var(--sans); font-size:11px; color:var(--text-4); font-weight:500; text-align:center; }
 .pnl-tbl .group-row td { background:var(--bg-inset); font-family:var(--sans); font-size:10px; font-weight:700; color:var(--text-3); text-transform:uppercase; letter-spacing:.08em; padding:5px 10px; text-align:left; }
 
 /* Phase pill (table + days-strip) */
@@ -249,7 +250,6 @@ body { overflow:hidden; height:100vh; }
            ============================================================ -->
       <div class="tab-pane active" id="pane-pnl">
         <div id="pnl-stats"></div>
-        <div id="pnl-phase-strip"></div>
         <div id="pnl-table"></div>
         <div class="tab-foot">
           All amounts in $K. <span class="projected">italic</span> = projected (uses ARV waterfall: cerritos_v4 → smart_comps → headline_arv).
@@ -448,7 +448,7 @@ async function loadData() {
     qboSyncState,
   ] = await Promise.all([
     sb.from('deal_pnl_v1').select('*'),
-    sb.from('deals').select('id, phase, buy_side_mls, relist_mls, escrow_start_date, target_close_date, actual_close_date, list_date, accepted_offer_price, sale_price, purchase_price, rehab_budget'),
+    sb.from('deals').select('id, phase, buy_side_mls, relist_mls, escrow_start_date, target_close_date, actual_close_date, sale_close_date, list_date, accepted_offer_price, sale_price, purchase_price, rehab_budget'),
     sb.from('capital_sources').select('*').eq('active', true),
     sb.from('capital_source_balances_v1').select('*'),
     sb.from('deal_loans').select('id, deal_id, capital_source_id, loan_purpose, status, loan_amount, rate_apr, origination_date, funded_date, term_months, maturity_date'),
@@ -534,12 +534,27 @@ function renderPnL() {
 
   const rows = data.dealPnl.map(p => {
     const d = data.dealById[p.deal_id] || {};
+    const phase = d.phase || p.phase;
+
+    // For SOLD deals, days = hold period (sale - acquisition), not the view's
+    // days_in_flight which is (now - acquisition) and grows forever after sale.
+    // Falls back to view value if either date is missing on a sold deal.
+    let daysFixed = p.days_in_flight;
+    if (phase === 'sold' && d.sale_close_date && d.actual_close_date) {
+      const sale = new Date(d.sale_close_date);
+      const acq  = new Date(d.actual_close_date);
+      const ms = sale.getTime() - acq.getTime();
+      if (ms >= 0) daysFixed = Math.round(ms / 86400000);
+    }
+
     return {
       ...p,
-      _phase: d.phase || p.phase,
+      days_in_flight: daysFixed,
+      _phase: phase,
       _escrow_start_date: d.escrow_start_date,
       _list_date: d.list_date,
       _actual_close_date: d.actual_close_date,
+      _sale_close_date: d.sale_close_date,
       _buy_side_mls: d.buy_side_mls,
       _relist_mls: d.relist_mls,
     };
@@ -559,7 +574,12 @@ function renderPnL() {
   let totalCostsTtm = 0, totalRevenueTtm = 0;
   let pipelineProfit = 0;
   for (const r of rows) {
-    const closed = r._actual_close_date ? new Date(r._actual_close_date) : null;
+    // For sold deals, "closed" = sale_close_date (when SHE sold), not
+    // actual_close_date (when SHE bought). Acquisition date is irrelevant
+    // for YTD profit. Falls back to actual_close_date if sale_close_date
+    // is null on a sold deal (data hygiene gap; flag if seen).
+    const closeStr = r._sale_close_date || r._actual_close_date;
+    const closed = closeStr ? new Date(closeStr) : null;
     const profit = r.projected_gross_profit || 0;
     if (closed && r._phase === 'sold') {
       if (closed >= yearStart && closed <= today) { profitYtd += profit; nClosedYtd += 1; }
@@ -577,6 +597,7 @@ function renderPnL() {
   const yoyPct = profitPriorYtd > 0 ? ((profitYtd - profitPriorYtd) / profitPriorYtd) : null;
 
   // Equity deployed: sum (purchase_price - hml_principal) + rehab_actual for each in-flight deal.
+  // Excludes 'pursuing' — pre-escrow with no committed equity (no down, no rehab spent).
   const loansByDeal = {};
   for (const dl of data.dealLoans) {
     if (dl.status === 'funded' || dl.status === 'extended' || dl.status === 'pending') {
@@ -586,7 +607,7 @@ function renderPnL() {
   }
   let equityDeployed = 0, nActive = 0;
   for (const r of rows) {
-    if (r._phase && r._phase !== 'sold' && r._phase !== 'archived' && r._phase !== 'lost') {
+    if (r._phase === 'in_escrow' || r._phase === 'under_construction' || r._phase === 'listed') {
       const hml = loansByDeal[r.deal_id] || 0;
       const down = Math.max(0, (r.purchase_price || 0) - hml);
       equityDeployed += down + (r.rehab_actual || 0);
@@ -633,34 +654,16 @@ function renderPnL() {
     + '</div>'
     + '</div>';
 
-  // === Days-of-inventory phase strip ===
-  const phasesToShow = ['pursuing', 'in_escrow', 'under_construction', 'listed'];
-  const phaseAgg = {};
-  for (const ph of phasesToShow) phaseAgg[ph] = { sum:0, n:0 };
-  for (const r of rows) {
-    if (phaseAgg[r._phase]) {
-      phaseAgg[r._phase].sum += r.days_in_flight || 0;
-      phaseAgg[r._phase].n   += 1;
-    }
-  }
-  const cellsHtml = phasesToShow.map(ph => {
-    const a = phaseAgg[ph];
-    const avg = a.n ? Math.round(a.sum / a.n) : null;
-    return '<div class="ps-cell">'
-      + '<div class="ps-phase ' + phaseClass(ph) + '">' + escapeHtml(phaseLabel(ph)) + '</div>'
-      + '<div class="ps-num">' + (avg == null ? '—' : avg + 'd') + '</div>'
-      + '<div class="ps-n">avg of ' + a.n + '</div>'
-      + '</div>';
-  }).join('');
-  document.getElementById('pnl-phase-strip').innerHTML =
-    '<div class="phase-strip">'
-    + '<div class="ps-lbl">Days of inventory by phase</div>'
-    + '<div class="ps-cells">' + cellsHtml + '</div>'
-    + '</div>';
-
   // === P&L table ===
-  // Group: in-flight (not sold/archived/lost) vs sold. Sort within each by current sort col.
-  const inFlight = rows.filter(r => r._phase && r._phase !== 'sold' && r._phase !== 'archived' && r._phase !== 'lost');
+  // Group: in-flight (in_escrow / under_construction / listed) vs sold. 'pursuing'
+  // is pre-escrow with no committed P&L data — excluded from this table; tracked
+  // via mls-deals.html / project-detail.html instead. Sort within each group by
+  // current sort col.
+  const inFlight = rows.filter(r =>
+    r._phase === 'in_escrow' ||
+    r._phase === 'under_construction' ||
+    r._phase === 'listed'
+  );
   const sold     = rows.filter(r => r._phase === 'sold').slice();
 
   // Default sort within sold: most recent close first.
@@ -691,8 +694,8 @@ function renderPnL() {
 
   const cols = [
     { k:'address',         lbl:'Deal', lh:true },
-    { k:'phase',           lbl:'Phase' },
     { k:'days_in_flight',  lbl:'Days' },
+    { k:'phase',           lbl:'Phase' },
     { k:'acq',             lbl:'Acq' },
     { k:'rehab',           lbl:'Rehab' },
     { k:'hold',            lbl:'Hold' },
@@ -736,8 +739,8 @@ function renderPnL() {
 
     return '<tr>'
       + '<td class="left addr-cell">' + addrHtml + '</td>'
+      + '<td class="c-days">' + (days ? days + 'd' : '—') + '</td>'
       + '<td><span class="phase-pill ' + phaseClass(r._phase) + '">' + escapeHtml(phaseLabel(r._phase)) + '</span></td>'
-      + '<td>' + (days || '—') + '</td>'
       + '<td>' + (r.acquisition_actual ? fmtK(r.acquisition_actual) : '—') + '</td>'
       + '<td>' + (r.rehab_actual ? fmtK(r.rehab_actual) : '—') + '</td>'
       + '<td>' + (r.holding_actual ? fmtK(r.holding_actual, {decimals:1}) : '—') + '</td>'
@@ -808,12 +811,18 @@ function renderCapital() {
     }
   }
 
+  // 'pursuing' excluded — those have $0 down + $0 rehab = empty rows; not yet
+  // equity-locked. Tracked via mls-deals.html / project-detail.html instead.
   const activeDeals = data.dealPnl
     .map(p => ({ ...p, _deal: data.dealById[p.deal_id] || {} }))
-    .filter(p => p._deal.phase && p._deal.phase !== 'sold' && p._deal.phase !== 'archived' && p._deal.phase !== 'lost');
+    .filter(p =>
+      p._deal.phase === 'in_escrow' ||
+      p._deal.phase === 'under_construction' ||
+      p._deal.phase === 'listed'
+    );
 
-  // Sort active deals: pursuing/in_escrow first, then under_construction, then listed.
-  const phaseOrder = { pursuing: 0, in_escrow: 1, under_construction: 2, listed: 3 };
+  // Sort active deals: in_escrow first, then under_construction, then listed.
+  const phaseOrder = { in_escrow: 0, under_construction: 1, listed: 2 };
   activeDeals.sort((a, b) => (phaseOrder[a._deal.phase] || 99) - (phaseOrder[b._deal.phase] || 99));
 
   let totalPurchase = 0, totalHml = 0, totalDown = 0, totalRehabSpent = 0, totalEquity = 0, totalRehabBudget = 0;
