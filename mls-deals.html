@@ -719,13 +719,14 @@ async function ensureArvEstimate(mls,mid){
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 // ========== V4 ARV BLOCK (per-city Cerritos regression) ===============
-// Reads `arv_estimates.cerritos_v4_arv` + `cerritos_v4_confidence` +
-// `cerritos_v4_data` (jsonb), populated by `python -m
+// Reads `arv_estimates.per_city_arv` + `per_city_confidence` +
+// `per_city_data` (jsonb), populated by `python -m
 // arv_estimator.per_city.cerritos_smart_comps --predict-active` (which
 // internally calls cerritos_v4.predict()). Cerritos-only via the
 // `l.city==='CERRITOS'` filter in compsPanel(). v4 is a per-city
 // hierarchical regression — no comp table to expand. Just the number,
 // confidence pill, and a tiny note pointing at the model file.
+// Migration 059 collapsed cerritos_v4_* into shared per_city_*.
 function renderV4ArvBlock(l,mid){
   const c=arvEstimateCache[l.mls];
   if(!c||c.state==='pending'||c.state==='missing'){
@@ -733,25 +734,26 @@ function renderV4ArvBlock(l,mid){
   }
   if(c.state==='error')return '';
   const r=c.row;
-  if(r.cerritos_v4_arv==null){
+  if(r.per_city_arv==null){
     return `<div class="ab" id="v4-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v4 Cerritos): pending — runs nightly</div>`;
   }
-  const conf=(r.cerritos_v4_confidence||'').toLowerCase();
+  const conf=(r.per_city_confidence||'').toLowerCase();
   const confStyle=conf==='high'?'background:var(--green-bg);color:var(--green)':conf==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
   const confPill=`<span style="${confStyle};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:8px">${(conf||'?').toUpperCase()}</span>`;
   return `<div class="ab" id="v4-arv-${mid}" style="display:block">
-    <div>ARV estimate (v4 Cerritos): ${F(r.cerritos_v4_arv)}${confPill}</div>
+    <div>ARV estimate (v4 Cerritos): ${F(r.per_city_arv)}${confPill}</div>
     <div style="font-size:10px;color:var(--text-4);margin-top:4px">Per-city hierarchical regression — see arv_estimator/models/cerritos_v4.pkl</div>
   </div>`;
 }
 
 // ========== LA PALMA V1 ARV BLOCK (per-city La Palma regression) =====
-// Reads `arv_estimates.la_palma_v1_arv` + `la_palma_v1_confidence` +
-// `la_palma_v1_data` (jsonb), populated by `python -m
+// Reads `arv_estimates.per_city_arv` + `per_city_confidence` +
+// `per_city_data` (jsonb), populated by `python -m
 // arv_estimator.per_city.la_palma --predict-active`. La Palma-only via
 // the `l.city==='LA PALMA'` filter in compsPanel(). v1 is a per-city
 // OLS regression on JFK / Buena Park HS fixed effect — no comp table to
 // expand. Just the number, confidence pill, and a tiny note.
+// Migration 059 collapsed la_palma_v1_* into shared per_city_*.
 function renderLaPalmaArvBlock(l,mid){
   const c=arvEstimateCache[l.mls];
   if(!c||c.state==='pending'||c.state==='missing'){
@@ -759,28 +761,28 @@ function renderLaPalmaArvBlock(l,mid){
   }
   if(c.state==='error')return '';
   const r=c.row;
-  if(r.la_palma_v1_arv==null){
+  if(r.per_city_arv==null){
     return `<div class="ab" id="la-palma-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v1 La Palma): pending — runs nightly</div>`;
   }
-  const conf=(r.la_palma_v1_confidence||'').toLowerCase();
+  const conf=(r.per_city_confidence||'').toLowerCase();
   const confStyle=conf==='high'?'background:var(--green-bg);color:var(--green)':conf==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
   const confPill=`<span style="${confStyle};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:8px">${(conf||'?').toUpperCase()}</span>`;
   return `<div class="ab" id="la-palma-arv-${mid}" style="display:block">
-    <div>ARV estimate (v1 La Palma): ${F(r.la_palma_v1_arv)}${confPill}</div>
+    <div>ARV estimate (v1 La Palma): ${F(r.per_city_arv)}${confPill}</div>
     <div style="font-size:10px;color:var(--text-4);margin-top:4px">Per-city OLS regression — see arv_estimator/models/la_palma_v1.pkl</div>
   </div>`;
 }
 
 // ========== LA PALMA SMART COMP PANEL (DB — La Palma only) ==========
-// Reads `arv_estimates.la_palma_smart_comps_arv` +
-// `la_palma_smart_comps_confidence` + `la_palma_smart_comps_data` (jsonb),
-// populated by `python -m
+// Reads `arv_estimates.smart_comps_arv` + `smart_comps_confidence` +
+// `smart_comps_data` (jsonb), populated by `python -m
 // arv_estimator.per_city.la_palma_smart_comps --predict-active`. Pairs
 // with v1.1 La Palma — disagreement |Δ| green ≤3% / amber 3-7% / red >7%.
 // La Palma-only via the `l.city==='LA PALMA'` filter in compsPanel().
 // Mirrors renderSmartCompsPanel (Cerritos DA) with one extra per-comp
 // column: HS adjustment % (JFK/BP boundary normalization, Brief DB
-// Locked Decision #5).
+// Locked Decision #5). Migration 059 collapsed la_palma_smart_comps_*
+// into shared smart_comps_* — same columns DA Cerritos already uses.
 function renderLaPalmaSmartCompsPanel(l,mid){
   const c=arvEstimateCache[l.mls];
   if(!c||c.state==='pending'||c.state==='missing'){
@@ -788,21 +790,21 @@ function renderLaPalmaSmartCompsPanel(l,mid){
   }
   if(c.state==='error')return '';
   const r=c.row;
-  const confLc=(r.la_palma_smart_comps_confidence||'').toLowerCase();
+  const confLc=(r.smart_comps_confidence||'').toLowerCase();
   // v2: confidence='none' means DB DECLINED (no good local comps);
   // arv is intentionally NULL. Render a graceful "declined" strip
   // instead of pretending it's unscored. v1.1 covers the listing.
-  if(confLc==='none'&&r.la_palma_smart_comps_data){
-    const data2=r.la_palma_smart_comps_data;
+  if(confLc==='none'&&r.smart_comps_data){
+    const data2=r.smart_comps_data;
     const flags2=Array.isArray(data2.flags)?data2.flags:[];
     const flagsHtml2=flags2.length?` <span style="color:var(--text-4)">(${flags2.map(f=>escapeHtml(String(f))).join(', ')})</span>`:'';
     return `<div class="ab" id="la-palma-smart-comps-${mid}" style="opacity:0.85;background:var(--bg);color:var(--text-3);font-weight:500">Smart comps (DB La Palma): declined — no good local comps${flagsHtml2}<div style="font-size:10px;color:var(--text-4);margin-top:2px">v1.1 covers this listing.</div></div>`;
   }
-  if(r.la_palma_smart_comps_arv==null||!r.la_palma_smart_comps_data){
+  if(r.smart_comps_arv==null||!r.smart_comps_data){
     return `<div class="ab" id="la-palma-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (DB La Palma): not yet scored</div>`;
   }
-  const data=r.la_palma_smart_comps_data,conf=confLc;
-  const v1=r.la_palma_v1_arv,smart=r.la_palma_smart_comps_arv;
+  const data=r.smart_comps_data,conf=confLc;
+  const v1=r.per_city_arv,smart=r.smart_comps_arv;
   let dis=null,disColor='var(--text-4)',disBg='var(--bg)';
   if(v1&&smart){
     dis=(smart-v1)/v1*100;
