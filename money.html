@@ -166,6 +166,33 @@ body { overflow:hidden; height:100vh; }
 .cap-tbl thead th.col-ref { font-style:italic; font-weight:500; color:var(--text-4); border-left:1px dashed var(--border); }
 .cap-tbl .projected { color:var(--text-4); font-style:italic; }
 
+/* Cash aggregate row (Total Cash) + expandable per-account / per-class detail */
+.cap-tbl tr.cash-aggregate { cursor:pointer; }
+.cap-tbl tr.cash-aggregate td { font-weight:600; color:var(--text); background:var(--bg-page); }
+.cap-tbl tr.cash-aggregate:hover td { background:var(--bg-alt); }
+.cap-tbl tr.cash-aggregate .cash-toggle { display:inline-block; width:14px; color:var(--text-4); font-size:10px; margin-right:4px; transition:transform .15s; }
+.cap-tbl tr.cash-aggregate.expanded .cash-toggle { transform:rotate(90deg); }
+.cap-tbl tr.cash-detail { display:none; }
+.cap-tbl tr.cash-detail.shown { display:table-row; }
+.cap-tbl tr.cash-detail td { background:var(--bg); color:var(--text-3); font-size:11px; padding:7px 10px 7px 26px; }
+.cap-tbl tr.cash-detail.review td { color:var(--amber); }
+.cap-tbl tr.cash-detail.class-row td { background:var(--accent-dim); color:var(--text-3); font-style:italic; padding-left:42px; }
+.cap-tbl tr.cash-detail.class-row td.left { font-weight:600; }
+.cap-tbl tr.cash-class-section td {
+  background:var(--bg-inset); color:var(--text-4); font-size:10px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.06em; padding:5px 10px 5px 26px;
+}
+
+/* Side-by-side cash columns: Bank / Posted / For Review gap / Available.
+   Used in the Cash aggregate row and per-account detail rows. */
+.cap-tbl td.cash-bank   { font-weight:700; color:var(--text); }
+.cap-tbl td.cash-posted { color:var(--text-3); }
+.cap-tbl td.cash-gap    { font-weight:600; }
+.cap-tbl td.cash-gap.gap-pos { color:var(--amber); }     /* uncategorized backlog */
+.cap-tbl td.cash-gap.gap-neg { color:var(--blue); }       /* posted exceeds bank — future-dated etc. */
+.cap-tbl td.cash-gap.gap-zero { color:var(--text-4); }
+.cap-tbl td.bank-stale { color:var(--text-4); font-style:italic; font-size:11px; }
+
 .lender-type-pill { display:inline-block; font-family:var(--sans); font-size:10px; font-weight:600; padding:1px 7px; border-radius:6px; letter-spacing:.2px; }
 .lt-hml      { background:var(--blue-bg); color:var(--blue); }
 .lt-heloc    { background:var(--purple-bg); color:var(--purple); }
@@ -270,7 +297,12 @@ body { overflow:hidden; height:100vh; }
         <div class="section-h">Senior debt — active loans</div>
         <div id="cap-senior-debt"></div>
         <div class="tab-foot">
-          All amounts in $K. <strong>Capital constraint = your own equity, not HML cap.</strong> HML capacity is effectively unlimited at this scale; senior debt shown only for exposure + maturity tracking. Cost of drawn capital weighted by drawn balance × rate. Maturity countdown: <span class="mat-ok">grey ≥60d</span>, <span class="mat-warn">amber &lt;60d</span>, <span class="mat-crit">red &lt;30d</span>. Read-only in v1.
+          All amounts in $K. <strong>Capital constraint = your own equity, not HML cap.</strong> HML capacity is effectively unlimited at this scale; senior debt shown only for exposure + maturity tracking.<br>
+          <strong>Capital sources columns are dual-purpose:</strong> for cash rows the columns mean
+          <em>Bank</em> (live bank-feed balance, manually entered from QBO Banking) /
+          <em>Posted</em> (GL balance from qbo_transactions mirror) /
+          <em>For Review</em> (Bank − Posted, the QBO categorization backlog) /
+          <em>Available</em> (Bank when set else Posted). For debt rows they retain Cap / Drawn / Available / Cost-when-drawn semantics. <strong>Bank-feed balance is not exposed via the QBO Accounting API</strong> — only GL CurrentBalance is — so the Bank column is populated by manual update of <code style="background:var(--bg-inset); padding:1px 5px; border-radius:3px; font-family:var(--mono); font-size:10px">capital_sources.bank_balance_manual</code>. Cost of drawn capital weighted by drawn balance × rate. Maturity countdown: <span class="mat-ok">grey ≥60d</span>, <span class="mat-warn">amber &lt;60d</span>, <span class="mat-crit">red &lt;30d</span>. Read-only in v1.
         </div>
       </div>
 
@@ -446,6 +478,7 @@ async function loadData() {
     cashRunway,
     portfolioOverhead,
     qboSyncState,
+    cashByClass,
   ] = await Promise.all([
     sb.from('deal_pnl_v1').select('*'),
     sb.from('deals').select('id, phase, buy_side_mls, relist_mls, escrow_start_date, target_close_date, actual_close_date, sale_close_date, list_date, accepted_offer_price, sale_price, purchase_price, rehab_budget'),
@@ -459,6 +492,9 @@ async function loadData() {
     sb.from('portfolio_overhead_v1').select('*'),
     // Sync timestamp (one-row table per Migration 039).
     sb.from('qbo_sync_state').select('last_sync_at').limit(1),
+    // Per-QBO-class cash breakdown (Migration 059) — powers the Tab 2
+    // expandable per-class row beneath Total Cash.
+    sb.from('cash_by_class_v1').select('*'),
   ]);
 
   // Surface any per-query error explicitly — the MC tabs depend on
@@ -473,7 +509,12 @@ async function loadData() {
     ['cash_runway_v1', cashRunway.error],
     ['portfolio_overhead_v1', portfolioOverhead.error],
     ['qbo_sync_state', qboSyncState.error],
+    // cash_by_class_v1 is a soft dep (Migration 059) — degrade gracefully
+    // if not yet applied. Logged as a console warning only.
   ].filter(([_, e]) => e);
+  if (cashByClass.error) {
+    console.warn('[money] cash_by_class_v1 not available (apply Migration 059); per-class breakdown will be hidden:', cashByClass.error.message);
+  }
   if (errs.length) {
     const msg = 'Data fetch failed: ' + errs.map(([t, e]) => t + ' (' + e.message + ')').join('; ');
     showError(msg);
@@ -491,6 +532,7 @@ async function loadData() {
     cashRunway: cashRunway.data || [],
     portfolioOverhead: portfolioOverhead.data || [],
     lastSyncAt: (qboSyncState.data && qboSyncState.data[0]) ? qboSyncState.data[0].last_sync_at : null,
+    cashByClass: cashByClass.data || [],
   };
 
   // Build a deal-id → joined deal+pnl map for cross-tab convenience.
@@ -901,44 +943,194 @@ function renderCapital() {
     + '</tbody></table>';
 
   // === Capital sources table ===
-  // Sort: Cash first, then by source_type (shareholder before third-party), then by name.
-  const csSorted = data.capitalSourceBalances
-    .filter(s => s.active !== false && !s.is_external_senior_debt)
+  // Scope C (2026-05-10): Cash on Money page = sum of ALL Patty's bank
+  // accounts in QBO (post-Migration 054). Aggregate "Total Cash" row at
+  // top + expandable per-account + per-class detail; debt rows below.
+  //
+  // Column repurposing for cash rows (Migration 059):
+  //   Cap col      → Bank        (manual bank-feed balance from QBO Banking)
+  //   Drawn col    → Posted      (GL balance, from view live_balance)
+  //   Available col → For Review (Bank − Posted, the categorization backlog)
+  //   Cost col     → Available   (Bank when set, else Posted)
+  // Cash aggregate row has dual sub-header in row content explaining the mapping.
+  // Debt rows continue to use original semantics (Cap / Drawn / Available / Cost).
+  const csActive = data.capitalSourceBalances
+    .filter(s => s.active !== false && !s.is_external_senior_debt);
+
+  const cashRows = csActive
+    .filter(s => s.source_type === 'cash')
     .slice()
     .sort((a, b) => {
-      if (a.source_type === 'cash' && b.source_type !== 'cash') return -1;
-      if (b.source_type === 'cash' && a.source_type !== 'cash') return 1;
+      // Sort cash rows by live_balance descending (biggest cash sources first).
+      const av = a.live_balance == null ? -Infinity : a.live_balance;
+      const bv = b.live_balance == null ? -Infinity : b.live_balance;
+      if (av !== bv) return bv - av;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+  const debtRows = csActive
+    .filter(s => s.source_type !== 'cash')
+    .slice()
+    .sort((a, b) => {
       if (a.is_shareholder_loan && !b.is_shareholder_loan) return -1;
       if (b.is_shareholder_loan && !a.is_shareholder_loan) return 1;
       return (a.name || '').localeCompare(b.name || '');
     });
 
-  let totalCap = 0, totalDrawn = 0, totalAvailable = 0, cashAvailable = 0;
+  let totalCap = 0, totalDrawn = 0, totalAvailable = 0;
+  let totalCash = 0;            // aggregate Posted (live_balance) across ALL bank accounts
+  let totalCashBank = 0;        // aggregate Bank (bank_balance_manual) across accts where set
+  let nCashWithBank = 0;        // count of cash accts with bank_balance_manual set
+  let totalCashGap = 0;         // aggregate For Review gap (Bank − Posted) across accts where set
   let weightedRateNum = 0, weightedRateDen = 0;
 
-  const sourceRowsHtml = csSorted.map(s => {
-    const isCash = s.source_type === 'cash';
+  // === Cash aggregate row + per-account detail rows ===
+  for (const s of cashRows) {
+    if (s.live_balance != null) totalCash += s.live_balance;
+    if (s.bank_balance_manual != null) {
+      totalCashBank += s.bank_balance_manual;
+      nCashWithBank += 1;
+      if (s.for_review_gap != null) totalCashGap += s.for_review_gap;
+    }
+  }
+  // cashAvailable: headline number for Net Liquidation Value hero.
+  // Use Bank when set on at least one account; else fall back to Posted total.
+  // The mixed case (some accts with Bank, others without) is rare in practice
+  // and surfaced via UI footnote — we use Bank-where-set + Posted-elsewhere as
+  // a pragmatic compromise.
+  let cashAvailable;
+  if (nCashWithBank === cashRows.length && cashRows.length > 0) {
+    cashAvailable = totalCashBank;  // all accounts have Bank entered
+  } else if (nCashWithBank > 0) {
+    // Mixed: Bank for accounts that have it, Posted for those that don't.
+    cashAvailable = 0;
+    for (const s of cashRows) {
+      cashAvailable += (s.bank_balance_manual != null ? s.bank_balance_manual : (s.live_balance || 0));
+    }
+  } else {
+    cashAvailable = totalCash;  // no Bank entered anywhere — Posted only
+  }
+  totalAvailable += cashAvailable;
+
+  // Format helpers for the cash row
+  function fmtBankCell(s) {
+    if (s.bank_balance_manual == null) return '<span class="bank-stale">—</span>';
+    return fmtK(s.bank_balance_manual);
+  }
+  function fmtGapCell(gap) {
+    if (gap == null) return '<span class="bank-stale">—</span>';
+    const cls = gap > 100 ? 'gap-pos' : (gap < -100 ? 'gap-neg' : 'gap-zero');
+    return '<td class="cash-gap ' + cls + '">' + fmtK(gap, {sign:true}) + '</td>';
+  }
+  function ageDays(ts) {
+    if (!ts) return null;
+    const dt = new Date(ts);
+    if (isNaN(dt.getTime())) return null;
+    return Math.floor((Date.now() - dt.getTime()) / 86400000);
+  }
+  function freshnessLabel(ts) {
+    const d = ageDays(ts);
+    if (d == null) return '';
+    if (d === 0) return 'today';
+    if (d === 1) return 'yesterday';
+    if (d < 7) return d + 'd ago';
+    if (d < 30) return Math.floor(d/7) + 'w ago';
+    return Math.floor(d/30) + 'mo ago';
+  }
+
+  // Aggregate row headline value: prefer Bank when at least one account has
+  // it, else show Posted (with no Bank shown).
+  const aggBankCell = nCashWithBank > 0 ? fmtK(totalCashBank) : '<span class="bank-stale">—</span>';
+  const aggPostedCell = fmtK(totalCash);
+  let aggGapCellInner;
+  if (nCashWithBank > 0) {
+    const gapCls = totalCashGap > 100 ? 'gap-pos' : (totalCashGap < -100 ? 'gap-neg' : 'gap-zero');
+    aggGapCellInner = '<td class="cash-gap ' + gapCls + '">' + fmtK(totalCashGap, {sign:true}) + '</td>';
+  } else {
+    aggGapCellInner = '<td class="cash-gap"><span class="bank-stale">—</span></td>';
+  }
+  const aggAvailCell = fmtK(cashAvailable);
+  const subText = cashRows.length + ' bank account' + (cashRows.length === 1 ? '' : 's')
+    + (nCashWithBank > 0
+        ? ' · ' + nCashWithBank + ' with Bank entered'
+        : ' · Bank not yet entered (using Posted GL)')
+    + ' · click to expand';
+
+  const cashAggregateRowHtml =
+    '<tr class="cash-aggregate" id="cap-cash-aggregate" onclick="toggleCashDetail()">'
+    + '<td class="left lender-cell"><span class="cash-toggle">▶</span>Total Cash<div class="lender-sub">' + escapeHtml(subText) + '</div></td>'
+    + '<td class="left"><span class="lender-type-pill lt-cash">Cash</span></td>'
+    + '<td class="cash-bank">' + aggBankCell + '</td>'
+    + '<td class="cash-posted">' + aggPostedCell + '</td>'
+    + aggGapCellInner
+    + '<td>' + aggAvailCell + '</td>'
+    + '</tr>';
+
+  const cashDetailRowsHtml = cashRows.map(s => {
+    const live = s.live_balance;
+    const bank = s.bank_balance_manual;
+    const gap = s.for_review_gap;
+    const isReview = /NEEDS REVIEW/i.test(s.notes || '') || s.name === 'Delete';
+    const freshness = bank != null ? freshnessLabel(s.bank_balance_updated_at) : '';
+    const nameCell = escapeHtml(s.name || '')
+      + (isReview ? ' <span style="font-size:10px; font-weight:600; color:var(--amber)">⚠ NEEDS REVIEW</span>' : '')
+      + (freshness ? ' <span class="bank-stale">· bank updated ' + escapeHtml(freshness) + '</span>' : '');
+    const availPerAcct = (bank != null) ? bank : (live != null ? live : null);
+    let gapCellInner;
+    if (gap == null) gapCellInner = '<td class="cash-gap"><span class="bank-stale">—</span></td>';
+    else {
+      const cls = gap > 100 ? 'gap-pos' : (gap < -100 ? 'gap-neg' : 'gap-zero');
+      gapCellInner = '<td class="cash-gap ' + cls + '">' + fmtK(gap, {sign:true}) + '</td>';
+    }
+    return '<tr class="cash-detail' + (isReview ? ' review' : '') + '">'
+      + '<td class="left">' + nameCell + '</td>'
+      + '<td class="left">' + (s.qbo_account_name ? escapeHtml(s.qbo_account_name) : '—') + '</td>'
+      + '<td class="cash-bank">' + fmtBankCell(s) + '</td>'
+      + '<td class="cash-posted">' + (live != null ? fmtK(live) : '—') + '</td>'
+      + gapCellInner
+      + '<td>' + (availPerAcct != null ? fmtK(availPerAcct) : '—') + '</td>'
+      + '</tr>';
+  }).join('');
+
+  // === Per-class breakdown rows (cash_by_class_v1) — also under cash-detail ===
+  const classRows = (data.cashByClass || [])
+    .slice()
+    .sort((a, b) => Math.abs(b.net_cash || 0) - Math.abs(a.net_cash || 0));
+  const cashClassSectionHtml = classRows.length > 0
+    ? '<tr class="cash-detail cash-class-section"><td colspan="6">Per-class cash net activity (lifetime, sign-aware sum across all bank accounts)</td></tr>'
+      + classRows.map(c => {
+          const amt = c.net_cash || 0;
+          const cls = amt >= 0 ? 'profit-pos' : 'profit-neg';
+          return '<tr class="cash-detail class-row">'
+            + '<td class="left">' + escapeHtml(c.class_name || '(unclassified)') + '</td>'
+            + '<td class="left">—</td>'
+            + '<td>—</td>'
+            + '<td class="' + cls + '">' + fmtK(amt, {sign:true}) + '</td>'
+            + '<td>—</td>'
+            + '<td>—</td>'
+            + '</tr>';
+        }).join('')
+    : '';
+
+  // === Debt rows (HELOC, margin, private loans) ===
+  const debtRowsHtml = debtRows.map(s => {
     const cap = s.max_exposure_dollars;
     const drawn = s.drawn_balance;
     const avail = s.available;
     const rate = s.default_rate_apr;
 
-    if (!isCash && cap != null) totalCap += cap;
-    if (!isCash && drawn != null) {
+    if (cap != null) totalCap += cap;
+    if (drawn != null) {
       totalDrawn += drawn;
       if (rate != null) {
         weightedRateNum += drawn * rate;
         weightedRateDen += drawn;
       }
     }
-    if (avail != null) {
-      totalAvailable += avail;
-      if (isCash) cashAvailable = avail;
-    }
+    if (avail != null) totalAvailable += avail;
 
     let typePill = '';
-    if (isCash) typePill = '<span class="lender-type-pill lt-cash">Cash</span>';
-    else if (s.source_type === 'line_of_credit') {
+    if (s.source_type === 'line_of_credit') {
       const isHeloc = (s.name || '').toLowerCase().includes('heloc');
       typePill = isHeloc
         ? '<span class="lender-type-pill lt-heloc">HELOC</span>'
@@ -949,21 +1141,19 @@ function renderCapital() {
       typePill = '<span class="lender-type-pill lt-loan">' + escapeHtml(s.source_type || '') + '</span>';
     }
 
-    const subText = isCash
-      ? (s.qbo_account_name ? escapeHtml(s.qbo_account_name) + ' · live balance' : 'live balance')
-      : (s.is_shareholder_loan ? 'Shareholder' : 'Third-party') + (rate != null ? ' · @ ' + (rate * 100).toFixed(rate >= 0.1 ? 0 : 1) + '%' : '');
+    const subText = (s.is_shareholder_loan ? 'Shareholder' : 'Third-party')
+      + (rate != null ? ' · @ ' + (rate * 100).toFixed(rate >= 0.1 ? 0 : 1) + '%' : '');
 
     let drawnCell = '—';
-    if (!isCash && cap != null && drawn != null) {
+    if (cap != null && drawn != null) {
       const pctDrawn = cap > 0 ? Math.min(1, drawn / cap) : 0;
       drawnCell = '<span class="deployed-bar"><span style="width:' + Math.round(pctDrawn * 100) + '%"></span></span>' + fmtK(drawn);
-    } else if (!isCash && drawn != null) {
+    } else if (drawn != null) {
       drawnCell = fmtK(drawn);
     }
 
     const availCell = avail != null ? fmtK(avail) : '—';
-    const rateCell = rate != null ? (rate * 100).toFixed(rate >= 0.1 ? 1 : 1) + '%' : '—';
-    const rateDisplay = (drawn && drawn > 0 && rate != null) ? rateCell : (rate != null ? rateCell : '—');
+    const rateCell = rate != null ? (rate * 100).toFixed(1) + '%' : '—';
 
     return '<tr>'
       + '<td class="left lender-cell">' + escapeHtml(s.name || '') + '<div class="lender-sub">' + subText + '</div></td>'
@@ -971,30 +1161,37 @@ function renderCapital() {
       + '<td>' + (cap != null ? fmtK(cap) : '—') + '</td>'
       + '<td>' + drawnCell + '</td>'
       + '<td>' + availCell + '</td>'
-      + '<td>' + rateDisplay + '</td>'
+      + '<td>' + rateCell + '</td>'
       + '</tr>';
   }).join('');
 
   const blendedRate = weightedRateDen > 0 ? (weightedRateNum / weightedRateDen) : null;
 
+  // Column headers serve dual semantics:
+  //   For Cash rows: Bank | Posted | For Review | Available
+  //   For Debt rows: Cap  | Drawn  | Available  | Cost when drawn
+  // The row-level CSS classes + content reflect which mode each row uses.
   document.getElementById('cap-sources').innerHTML =
     '<table class="cap-tbl">'
     + '<thead><tr>'
     + '<th class="lh">Source</th>'
     + '<th class="lh">Type</th>'
-    + '<th>Cap</th>'
-    + '<th>Drawn</th>'
-    + '<th>Available</th>'
-    + '<th>Cost when drawn</th>'
+    + '<th>Bank <span style="font-weight:400; color:var(--text-4)">/ Cap</span></th>'
+    + '<th>Posted <span style="font-weight:400; color:var(--text-4)">/ Drawn</span></th>'
+    + '<th>For Review <span style="font-weight:400; color:var(--text-4)">/ Available</span></th>'
+    + '<th>Available <span style="font-weight:400; color:var(--text-4)">/ Cost</span></th>'
     + '</tr></thead><tbody>'
-    + sourceRowsHtml
+    + cashAggregateRowHtml
+    + cashDetailRowsHtml
+    + cashClassSectionHtml
+    + debtRowsHtml
     + '<tr class="totals-row">'
     + '  <td class="left">Total own capital</td>'
     + '  <td class="left"></td>'
-    + '  <td>' + fmtK(totalCap) + ' <span style="font-weight:400; color:var(--text-4); font-size:11px">(debt only)</span></td>'
-    + '  <td>' + fmtK(totalDrawn) + ' <span style="font-weight:400; color:var(--text-4); font-size:11px">(debt only)</span></td>'
-    + '  <td>' + fmtK(totalAvailable) + ' <span style="font-weight:400; color:var(--text-4); font-size:11px">(incl. cash)</span></td>'
-    + '  <td>' + (blendedRate != null ? (blendedRate * 100).toFixed(1) + '%' : '—') + '</td>'
+    + '  <td>' + fmtK(nCashWithBank > 0 ? totalCashBank : 0) + ' <span style="font-weight:400; color:var(--text-4); font-size:11px">(cash Bank) · ' + fmtK(totalCap) + ' (debt cap)</span></td>'
+    + '  <td>' + fmtK(totalCash) + ' <span style="font-weight:400; color:var(--text-4); font-size:11px">(cash Posted) · ' + fmtK(totalDrawn) + ' (debt drawn)</span></td>'
+    + '  <td>' + (nCashWithBank > 0 ? fmtK(totalCashGap, {sign:true}) + ' <span style="font-weight:400; color:var(--text-4); font-size:11px">(For Review gap)</span>' : '<span class="bank-stale">—</span>') + '</td>'
+    + '  <td>' + fmtK(totalAvailable) + ' <span style="font-weight:400; color:var(--text-4); font-size:11px">(incl. cash · debt cost ' + (blendedRate != null ? (blendedRate * 100).toFixed(1) + '%' : '—') + ')</span></td>'
     + '</tr>'
     + '</tbody></table>';
 
@@ -1077,6 +1274,10 @@ function renderCapital() {
   // cash + active_deal_exits − drawn_debt = net_to_owner.
   // active_deal_exits = sum of (projected_revenue * 0.96 - HML_principal) for active deals.
   // drawn_debt = totalDrawn (computed above; non-HML, non-cash drawn).
+  //
+  // Cash component prefers Bank (real bank-feed balance) over Posted (GL).
+  // cashAvailable above already encodes Bank-where-set + Posted-elsewhere.
+  // The hero footnote calls out which one is being used so Patty knows.
   const netToOwner = cashAvailable + totalActiveExits - totalDrawn;
   const lifetimeProfit = data.dealPnl
     .filter(p => {
@@ -1097,10 +1298,28 @@ function renderCapital() {
       return shortAddr + ' ' + fmtK(exit);
     })
     .join(' + ');
-  const drawnSummary = csSorted
+  // Drawn summary: enumerate non-cash debt sources with drawn > 0.
+  // (Was formerly broken — referenced an undefined `csSorted` symbol.)
+  const drawnSummary = debtRows
     .filter(s => s.drawn_balance != null && s.drawn_balance > 0)
     .map(s => s.name + ' ' + fmtK(s.drawn_balance))
     .join(' + ');
+
+  // Cash component label: indicate whether using Bank or Posted (or mix).
+  let cashLabel;
+  if (nCashWithBank === cashRows.length && cashRows.length > 0) {
+    cashLabel = 'Cash on hand (Bank) <span class="lp-desc-sub">— sum across all '
+      + cashRows.length + ' bank accounts (live bank-feed balance, manually entered)</span>';
+  } else if (nCashWithBank > 0) {
+    cashLabel = 'Cash on hand (mixed) <span class="lp-desc-sub">— '
+      + nCashWithBank + ' of ' + cashRows.length + ' bank accounts have Bank entered; '
+      + 'others fall back to Posted GL. Update bank_balance_manual on remaining accounts to converge.</span>';
+  } else {
+    cashLabel = 'Cash on hand (Posted GL) <span class="lp-desc-sub">— '
+      + 'sum across ' + cashRows.length + ' bank accounts using GL Posted balance. '
+      + 'Real cash differs by your QBO For Review backlog. To see real cash on this hero, populate '
+      + 'bank_balance_manual from QBO Banking dashboard for at least the largest accounts.</span>';
+  }
 
   document.getElementById('cap-hero').innerHTML =
     '<div class="lp-panel">'
@@ -1112,7 +1331,7 @@ function renderCapital() {
     + '<div class="lp-breakdown">'
     + '  <div class="lp-sign plus">+</div>'
     + '  <div class="lp-amt">' + fmtK(cashAvailable) + '</div>'
-    + '  <div class="lp-desc">Cash on hand <span class="lp-desc-sub">— DOTTY CHK 5715 (live balance)</span></div>'
+    + '  <div class="lp-desc">' + cashLabel + '</div>'
     + '  <div class="lp-sign plus">+</div>'
     + '  <div class="lp-amt">' + fmtK(totalActiveExits) + '</div>'
     + '  <div class="lp-desc">Active deal exits <span class="lp-desc-sub">— ' + activeDeals.length + ' deals at projected sale' + (exitSummary ? ' (' + escapeHtml(exitSummary) + ')' : '') + '; HML payoff + 4% selling costs already netted</span></div>'
@@ -1124,7 +1343,8 @@ function renderCapital() {
     + '  <div class="lp-desc lp-total-row">Net to owner <span class="lp-desc-sub">— what walks out the door if you wound everything down today</span></div>'
     + '</div>'
     + '<div class="lp-foot">'
-    + '  Computed at projected ARV with 4% selling costs (commission + transfer tax + escrow + concessions). Actual exits will vary by ±5–10% based on market + sale execution. Pre-tax — federal/state/SE tax provisions not modeled here.'
+    + '  Cash reflects bank-feed Bank balance when entered (read from QBO Banking dashboard), else Posted GL balance from the qbo_transactions mirror. The For Review gap shown in the cash row is your QBO categorization backlog — process via QBO Banking → For Review tab to converge Posted toward Bank. '
+    + 'Active exits computed at projected ARV with 4% selling costs (commission + transfer tax + escrow + concessions); actual will vary ±5–10%. Pre-tax — federal/state/SE tax provisions not modeled here.'
     + (lifetimeProfit > 0
         ? ' Lifetime gross profit (' + fmtK(lifetimeProfit) + ') less this snapshot (' + fmtK(netToOwner) + ') ≈ <strong>' + fmtK(distributedOrAbsorbed) + ' distributed to owner or absorbed into portfolio overhead</strong> over the life of the business.'
         : '')
@@ -1145,6 +1365,26 @@ function renderCapital() {
     + '<div class="stat-card"><div class="lbl">Cost of drawn debt</div><div class="val">' + (blendedRate != null ? (blendedRate * 100).toFixed(1) + '%' : '—') + '</div><div class="sub">debt-weighted; HML clears at ' + (blendedRateLoan != null ? (blendedRateLoan * 100).toFixed(2) + '%' : '~9%') + ' (your money cheaper)</div></div>'
     + '</div>';
 }
+
+// Tab 2 — toggle expand/collapse for "Total Cash" aggregate row.
+// Shows/hides per-account detail rows AND per-class breakdown rows beneath
+// the aggregate summary. Both kinds of rows share the .cash-detail class so
+// a single toggle reveals everything at once.
+function toggleCashDetail() {
+  const agg = document.getElementById('cap-cash-aggregate');
+  if (!agg) return;
+  const expanded = agg.classList.toggle('expanded');
+  // Update the toggle indicator (▶ → ▼ via CSS rotate; this also lets a
+  // text-only fallback work if the rotate transform is somehow disabled).
+  const tgl = agg.querySelector('.cash-toggle');
+  if (tgl) tgl.textContent = expanded ? '▼' : '▶';
+  const detailRows = document.querySelectorAll('#cap-sources tr.cash-detail');
+  for (const r of detailRows) {
+    if (expanded) r.classList.add('shown');
+    else r.classList.remove('shown');
+  }
+}
+window.toggleCashDetail = toggleCashDetail;
 </script>
 
 <script>
