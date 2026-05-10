@@ -168,6 +168,61 @@ body { overflow:hidden; height:100vh; }
 .ms-mini .ms-status.open { background:var(--bg-alt); color:var(--text-3); }
 .ms-mini .ms-status.overdue { background:var(--red-bg); color:var(--red); }
 
+/* === MG — Loan section (project-detail.html) ===
+   Inline-edit table mirroring BQ underwriting bar pattern: click cell → input
+   swap → save-on-blur / Enter → re-render. Compact 13px rows. */
+.loan-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+.loan-tbl thead th { text-align:left; font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:var(--text-4); padding:6px 10px; border-bottom:1px solid var(--border); }
+.loan-tbl tbody td { padding:8px 10px; border-bottom:1px solid var(--border); color:var(--text); vertical-align:middle; }
+.loan-tbl tbody tr:last-child td { border-bottom:none; }
+.loan-tbl .loan-cell { cursor:text; padding:2px 4px; border-radius:3px; transition:background 0.1s; display:inline-block; min-width:30px; }
+.loan-tbl .loan-cell:hover { background:rgba(156,124,60,0.10); }
+.loan-tbl .loan-cell.editing { background:var(--bg); padding:0; }
+.loan-tbl .loan-cell input,
+.loan-tbl .loan-cell select { font:inherit; border:1px solid var(--accent); border-radius:3px; padding:2px 6px; outline:none; background:var(--bg); color:var(--text); width:100px; }
+.loan-tbl .loan-cell select { width:auto; min-width:120px; }
+.loan-tbl .loan-status-pending { color:var(--amber); font-weight:600; }
+.loan-tbl .loan-status-funded { color:var(--green); font-weight:600; }
+.loan-tbl .loan-status-extended { color:var(--blue); font-weight:600; }
+.loan-tbl .loan-status-paid_off { color:var(--text-3); font-weight:600; }
+.loan-tbl .loan-status-cancelled { color:var(--text-4); font-weight:500; text-decoration:line-through; }
+.loan-tbl .loan-del { background:none; border:1px solid var(--border); color:var(--text-4); font-size:11px; padding:3px 8px; border-radius:4px; cursor:pointer; font-family:inherit; }
+.loan-tbl .loan-del:hover { color:var(--red); border-color:var(--red); }
+.loan-tbl .loan-error { color:var(--red); font-size:11px; margin-left:6px; }
+.loan-empty { font-size:13px; color:var(--text-4); font-style:italic; padding:10px 0; }
+.loan-add-btn { background:none; border:1px dashed var(--border); color:var(--text-3); font-size:12px; font-weight:600; padding:6px 14px; border-radius:5px; cursor:pointer; font-family:inherit; margin-top:8px; }
+.loan-add-btn:hover { color:var(--accent); border-color:var(--accent); }
+.loan-add-form { margin-top:10px; padding:12px; background:var(--bg-alt); border:1px solid var(--border); border-radius:6px; display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+.loan-add-form .laf-field { display:flex; flex-direction:column; gap:3px; }
+.loan-add-form .laf-field label { font-size:10px; color:var(--text-4); text-transform:uppercase; font-weight:700; letter-spacing:.4px; }
+.loan-add-form .laf-field input,
+.loan-add-form .laf-field select { font-family:inherit; font-size:13px; padding:5px 8px; border:1px solid var(--border); border-radius:4px; background:var(--bg); color:var(--text); outline:none; }
+.loan-add-form .laf-actions { display:flex; gap:6px; }
+.loan-add-form .laf-msg { font-size:11px; color:var(--red); flex-basis:100%; }
+
+/* === MG — Loan modal (fires after in_escrow transition with no loan) === */
+.loan-modal-overlay { display:none; position:fixed; inset:0; z-index:9998; background:rgba(0,0,0,.4); align-items:center; justify-content:center; padding:24px; }
+.loan-modal-overlay.open { display:flex; }
+.loan-modal { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:20px 22px; max-width:420px; width:100%; box-shadow:0 8px 32px rgba(0,0,0,.18); }
+.loan-modal h3 { font-size:13px; font-weight:700; margin:0 0 4px; color:var(--accent); letter-spacing:-.2px; }
+.loan-modal .lm-sub { font-size:11px; color:var(--text-4); margin:0 0 14px; }
+.loan-modal .lm-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.loan-modal .lm-row label { font-size:11px; color:var(--text-3); width:62px; flex-shrink:0; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
+.loan-modal .lm-row input,
+.loan-modal .lm-row select { flex:1; font-family:inherit; font-size:13px; padding:6px 10px; border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text); outline:none; }
+.loan-modal .lm-row input:focus,
+.loan-modal .lm-row select:focus { border-color:var(--accent); }
+.loan-modal .lm-loan-preview { font-size:12px; color:var(--text-3); padding:6px 0 4px; font-family:var(--mono); }
+.loan-modal .lm-loan-preview strong { color:var(--text); font-weight:700; }
+.loan-modal .lm-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
+.loan-modal .lm-btn { padding:6px 16px; border-radius:5px; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; }
+.loan-modal .lm-btn-primary { background:var(--accent); color:#fff; border:1px solid var(--accent); }
+.loan-modal .lm-btn-primary:hover { filter:brightness(1.05); }
+.loan-modal .lm-btn-primary:disabled { opacity:.55; cursor:not-allowed; }
+.loan-modal .lm-btn-secondary { background:var(--bg); color:var(--text-3); border:1px solid var(--border); }
+.loan-modal .lm-btn-secondary:hover { color:var(--text); border-color:var(--border-hover); }
+.loan-modal .lm-msg { font-size:11px; min-height:14px; color:var(--red); margin-top:6px; }
+
 </style>
 </head>
 <body>
@@ -197,6 +252,36 @@ body { overflow:hidden; height:100vh; }
   <button class="acq-lb-close" onclick="closeAcqLightbox()" aria-label="Close lightbox">✕</button>
   <div class="acq-lb-addr" id="acqLightboxAddr"></div>
   <img class="acq-lb-img" id="acqLightboxImg" alt="" onclick="closeAcqLightbox()">
+</div>
+
+<!-- MG — Loan modal (fires after in_escrow transition with no existing loan). -->
+<div class="loan-modal-overlay" id="loanModal" onclick="if(event.target===this)closeLoanModal()">
+  <div class="loan-modal">
+    <h3>Add acquisition loan</h3>
+    <p class="lm-sub">Deal moved to In Escrow — attach the lender + LTC so capital position reflects realistic equity. Skip if not yet locked.</p>
+    <div class="lm-row">
+      <label for="lmLender">Lender</label>
+      <select id="lmLender" onchange="onLmLenderChange()"></select>
+    </div>
+    <div class="lm-row">
+      <label for="lmLtc">LTC %</label>
+      <input type="number" id="lmLtc" min="0" max="100" step="0.1" value="90" oninput="onLmLtcChange()" />
+    </div>
+    <div class="lm-loan-preview" id="lmLoanPreview">Loan: <strong>—</strong></div>
+    <div class="lm-row">
+      <label for="lmRate">Rate %</label>
+      <input type="number" id="lmRate" min="0" max="100" step="0.01" />
+    </div>
+    <div class="lm-row">
+      <label for="lmTerm">Term (mo)</label>
+      <input type="number" id="lmTerm" min="1" step="1" value="12" />
+    </div>
+    <div class="lm-msg" id="lmMsg"></div>
+    <div class="lm-actions">
+      <button class="lm-btn lm-btn-secondary" onclick="closeLoanModal()">Defer</button>
+      <button class="lm-btn lm-btn-primary" id="lmSaveBtn" onclick="saveLoanFromModal()">Save loan</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -270,6 +355,12 @@ let propertiesByMls={};      // mls -> properties row (for header rendering)
 let phaseHistory=[];         // rows from deals_phase_history
 let dealMilestones=[];       // rows from deal_milestones
 let saving=false;
+
+// MG — loan state. Loaded in loadProject(); refreshed by loadDealLoans()
+// after any modal/inline-edit save so the Loan section + modal trigger
+// guard stay in sync without a full loadProject() round-trip.
+let dealLoans=[];            // rows from deal_loans (this deal only)
+let capitalSources=[];       // active rows from capital_sources (for dropdowns)
 
 // BQ inline-edit state — last-rendered underwriting bar context. Stashed
 // here so the inline-edit handlers can recompute profit + re-render the
@@ -418,7 +509,46 @@ async function loadProject(){
     dealMilestones=ms||[];
   }
 
+  // 6. MG — deal_loans (this deal) + capital_sources (active HML/private).
+  // Owner-only RLS on deal_loans means non-owners get zero rows + no error.
+  // Loan section gracefully shows empty state in that case.
+  await loadDealLoans();
+  await loadCapitalSources();
+
   renderPage(arvRow, gradeRow, deCount);
+}
+
+// MG — fetch this deal's loans only (called by loadProject + after every
+// modal/inline-edit save). Cheap query; isolated from the full loadProject
+// round-trip so re-renders feel snappy.
+async function loadDealLoans(){
+  if(!currentDeal){dealLoans=[];return;}
+  const {data, error}=await sb.from('deal_loans')
+    .select('id, deal_id, capital_source_id, loan_purpose, status, loan_amount, rate_apr, term_months, origination_date, funded_date, maturity_date, payoff_date, payoff_amount, notes, created_at')
+    .eq('deal_id', currentDeal.id)
+    .order('created_at', {ascending:true});
+  if(error){
+    console.warn('[project-detail] deal_loans load failed (non-fatal):', error.message);
+    dealLoans=[];
+    return;
+  }
+  dealLoans=data||[];
+}
+
+// MG — fetch HML + private capital sources for the dropdown. Excludes
+// HELOCs / shareholder cash (those use Money's Path X/Y in a future brief).
+async function loadCapitalSources(){
+  const {data, error}=await sb.from('capital_sources')
+    .select('id, name, source_type, default_rate_apr, active')
+    .in('source_type', ['hard_money','private'])
+    .eq('active', true)
+    .order('name');
+  if(error){
+    console.warn('[project-detail] capital_sources load failed (non-fatal):', error.message);
+    capitalSources=[];
+    return;
+  }
+  capitalSources=data||[];
 }
 
 // ========== AGENT DE COUNT ==========
@@ -726,14 +856,12 @@ function renderPage(arvRow,gradeRow,deCount){
     ${renderMilestonesSection()}
   `;
 
-  // FINANCING — owner only.
+  // MG — Loan section replaces the prior "Financing — coming soon" stub.
+  // Owner-only (matches deal_loans RLS — non-owners would see empty rows
+  // anyway). Renders for any phase; "+ Add loan" works on pursuing deals
+  // too. Phase-transition modal is the primary entry point on in_escrow.
   if(role==='owner'){
-    html+=`
-      <div class="section stub">
-        <h2>Financing <span style="color:var(--text-4);font-weight:400;letter-spacing:0;text-transform:none">(owner only)</span></h2>
-        <div class="stub-msg">Coming soon — Sprint 4 Money agent will populate capital sources, draws, payoff schedule, and net cash position here.</div>
-      </div>
-    `;
+    html+=renderLoanSection();
   }
 
   html+=`
@@ -752,6 +880,9 @@ function renderPage(arvRow,gradeRow,deCount){
 
   // BQ — wire inline-edit handlers for the 4 underwriting stats.
   wireUwEdits();
+  // MG — wire inline-edit handlers for the Loan section (skip if not
+  // owner / section not rendered).
+  wireLoanEdits();
 }
 
 // ========== BQ INLINE-EDIT (underwriting bar) ==========
@@ -1123,6 +1254,13 @@ async function moveStage(){
   msgEl.className='move-msg ok';
   msgEl.textContent='Moved to '+phaseLabel(toPhase)+'.';
   await loadProject();
+
+  // MG — after a successful transition into in_escrow, fire the loan
+  // modal IFF zero deal_loans rows exist (D5 — idempotent on re-entry).
+  // loadProject() above already refreshed dealLoans for the trigger guard.
+  if(toPhase==='in_escrow' && dealLoans.length===0){
+    openLoanModal();
+  }
 }
 window.moveStage=moveStage;
 
@@ -1302,6 +1440,471 @@ async function saveEscrowDates(){
 window.openEscrowDatesEdit=openEscrowDatesEdit;
 window.cancelEscrowDatesEdit=cancelEscrowDatesEdit;
 window.saveEscrowDates=saveEscrowDates;
+
+// ============================================================
+// MG — LOAN SECTION + MODAL (project-detail.html)
+// ============================================================
+//
+// Renders one row per deal_loans row + a "+ Add loan" button. Inline-edit
+// per BQ pattern (click cell → input swap → save-on-blur / Enter).
+// Phase-transition modal fires from moveStage() when a deal lands in
+// in_escrow with zero deal_loans rows (D5 — idempotent on bounce).
+
+const LOAN_STATUSES=['pending','funded','extended','paid_off','cancelled'];
+function loanStatusLabel(s){
+  return ({pending:'pending',funded:'funded',extended:'extended',paid_off:'paid off',cancelled:'cancelled'})[s]||s;
+}
+
+// Round to nearest $1K — matches the brief's modal preview formula
+// (loan_amount = round(purchase × ltc/100, -3)).
+function _roundK(n){return Math.round(n/1000)*1000;}
+
+// Reverse-derive LTC% for display from loan_amount + the deal's purchase
+// price (or offer price as fallback for pursuing deals). Returns null if
+// no usable purchase basis.
+function _displayLtcPct(loanAmount){
+  if(!currentDeal)return null;
+  const basis=currentDeal.purchase_price||currentDeal.offer_price;
+  if(!basis||basis<=0||loanAmount==null)return null;
+  return (loanAmount/basis)*100;
+}
+
+function _capitalSourceName(id){
+  const cs=capitalSources.find(c=>c.id===id);
+  return cs?cs.name:'(unknown)';
+}
+
+function renderLoanSection(){
+  const purchase=currentDeal?(currentDeal.purchase_price||currentDeal.offer_price||0):0;
+  let body='';
+  if(!dealLoans.length){
+    body=`<div class="loan-empty">No loans recorded${purchase?` — purchase basis $${(_roundK(purchase)/1000).toLocaleString()}K available for LTC math.`:''}</div>`;
+  } else {
+    let rows='';
+    for(const dl of dealLoans){
+      const ltcPct=_displayLtcPct(dl.loan_amount);
+      const ltcStr=ltcPct!=null?ltcPct.toFixed(0)+'%':'—';
+      const ratePct=dl.rate_apr!=null?(dl.rate_apr*100).toFixed(2)+'%':'—';
+      const termStr=dl.term_months!=null?dl.term_months+'mo':'—';
+      const loanStr=dl.loan_amount!=null?FK(dl.loan_amount):'—';
+      const statusCls='loan-status-'+(dl.status||'pending');
+      rows+=`<tr data-loan-id="${escapeHtml(dl.id)}">
+        <td><span class="loan-cell" data-loan-field="capital_source_id" data-loan-id="${escapeHtml(dl.id)}">${escapeHtml(_capitalSourceName(dl.capital_source_id))}</span></td>
+        <td><span class="loan-cell" data-loan-field="ltc_pct" data-loan-id="${escapeHtml(dl.id)}">${escapeHtml(ltcStr)}</span></td>
+        <td><span class="loan-cell" data-loan-field="loan_amount" data-loan-id="${escapeHtml(dl.id)}">${escapeHtml(loanStr)}</span></td>
+        <td><span class="loan-cell" data-loan-field="rate_apr" data-loan-id="${escapeHtml(dl.id)}">${escapeHtml(ratePct)}</span></td>
+        <td><span class="loan-cell" data-loan-field="term_months" data-loan-id="${escapeHtml(dl.id)}">${escapeHtml(termStr)}</span></td>
+        <td><span class="loan-cell ${statusCls}" data-loan-field="status" data-loan-id="${escapeHtml(dl.id)}">${escapeHtml(loanStatusLabel(dl.status))}</span></td>
+        <td><button class="loan-del" onclick="deleteLoan('${escapeHtml(dl.id)}')">Delete</button></td>
+      </tr>`;
+    }
+    body=`<table class="loan-tbl">
+      <thead><tr>
+        <th>Lender</th><th>LTC%</th><th>Loan</th><th>Rate</th><th>Term</th><th>Status</th><th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  // "+ Add loan" toggles a small inline form (lender + LTC% + rate + term).
+  // Form is hidden by default; opens via showLoanAddForm().
+  const addFormHtml=`
+    <button class="loan-add-btn" id="loanAddBtn" onclick="showLoanAddForm()">+ Add loan</button>
+    <div class="loan-add-form" id="loanAddForm" style="display:none">
+      <div class="laf-field">
+        <label>Lender</label>
+        <select id="lafLender" onchange="onLafLenderChange()">
+          ${capitalSources.map(c=>`<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="laf-field">
+        <label>LTC %</label>
+        <input type="number" id="lafLtc" min="0" max="100" step="0.1" value="90" />
+      </div>
+      <div class="laf-field">
+        <label>Rate %</label>
+        <input type="number" id="lafRate" min="0" max="100" step="0.01" />
+      </div>
+      <div class="laf-field">
+        <label>Term (mo)</label>
+        <input type="number" id="lafTerm" min="1" step="1" value="12" />
+      </div>
+      <div class="laf-actions">
+        <button class="lm-btn lm-btn-primary" onclick="saveLoanFromAddForm()">Save</button>
+        <button class="lm-btn lm-btn-secondary" onclick="hideLoanAddForm()">Cancel</button>
+      </div>
+      <div class="laf-msg" id="lafMsg"></div>
+    </div>
+  `;
+
+  return `
+    <div class="section">
+      <h2>Loan <span style="color:var(--text-4);font-weight:400;letter-spacing:0;text-transform:none">(owner only)</span></h2>
+      ${body}
+      ${addFormHtml}
+    </div>
+  `;
+}
+
+// Re-render only the Loan section in place. Avoids a full renderPage()
+// round-trip when a single field is edited.
+function rerenderLoanSection(){
+  if(!currentDeal)return;
+  const role=window.CURRENT_USER_ROLE;
+  if(role!=='owner')return;
+  // Find the existing Loan section by its h2 text and replace its parent
+  // .section node. Cheap because there's only one match per page.
+  const sections=document.querySelectorAll('.section');
+  for(const sec of sections){
+    const h2=sec.querySelector('h2');
+    if(h2 && h2.textContent.trim().toLowerCase().startsWith('loan')){
+      const tmp=document.createElement('div');
+      tmp.innerHTML=renderLoanSection();
+      sec.replaceWith(tmp.firstElementChild);
+      wireLoanEdits();
+      return;
+    }
+  }
+}
+
+// ---------- Inline edit ----------
+function wireLoanEdits(){
+  document.querySelectorAll('.loan-cell[data-loan-field]').forEach(el=>{
+    el.addEventListener('click', ()=>_beginLoanEdit(el));
+  });
+}
+
+function _beginLoanEdit(el){
+  if(el.classList.contains('editing'))return;
+  const loanId=el.dataset.loanId;
+  const field=el.dataset.loanField;
+  const dl=dealLoans.find(x=>x.id===loanId);
+  if(!dl)return;
+  el.classList.add('editing');
+
+  let inputEl;
+  if(field==='capital_source_id'){
+    inputEl=document.createElement('select');
+    for(const c of capitalSources){
+      const opt=document.createElement('option');
+      opt.value=c.id;
+      opt.textContent=c.name;
+      if(c.id===dl.capital_source_id)opt.selected=true;
+      inputEl.appendChild(opt);
+    }
+  } else if(field==='status'){
+    inputEl=document.createElement('select');
+    for(const s of LOAN_STATUSES){
+      const opt=document.createElement('option');
+      opt.value=s;
+      opt.textContent=loanStatusLabel(s);
+      if(s===dl.status)opt.selected=true;
+      inputEl.appendChild(opt);
+    }
+  } else {
+    inputEl=document.createElement('input');
+    inputEl.type='number';
+    inputEl.step='0.01';
+    inputEl.min='0';
+    if(field==='ltc_pct'){
+      const cur=_displayLtcPct(dl.loan_amount);
+      inputEl.value=cur!=null?cur.toFixed(0):'';
+      inputEl.max='100';
+    } else if(field==='loan_amount'){
+      inputEl.value=dl.loan_amount!=null?String(Math.round(dl.loan_amount)):'';
+      inputEl.step='1';
+    } else if(field==='rate_apr'){
+      inputEl.value=dl.rate_apr!=null?(dl.rate_apr*100).toFixed(2):'';
+      inputEl.max='100';
+    } else if(field==='term_months'){
+      inputEl.value=dl.term_months!=null?String(dl.term_months):'';
+      inputEl.step='1';
+    }
+  }
+  el.innerHTML='';
+  el.appendChild(inputEl);
+  inputEl.focus();
+  if(inputEl.select)inputEl.select();
+
+  let committed=false, cancelled=false;
+  const commit=async ()=>{
+    if(committed||cancelled)return;
+    committed=true;
+    await _commitLoanEdit(loanId, field, inputEl.value);
+  };
+  inputEl.addEventListener('keydown', async (e)=>{
+    if(e.key==='Enter'){e.preventDefault();await commit();}
+    else if(e.key==='Escape'){e.preventDefault();cancelled=true;rerenderLoanSection();}
+  });
+  inputEl.addEventListener('blur', commit);
+  // Selects fire 'change' before 'blur' — let blur handle the commit so
+  // the value is captured atomically. (Selects also commit on click-pick
+  // because the click pulls focus away → blur fires.)
+}
+
+async function _commitLoanEdit(loanId, field, raw){
+  const dl=dealLoans.find(x=>x.id===loanId);
+  if(!dl){rerenderLoanSection();return;}
+  const trimmed=(raw==null?'':String(raw).trim());
+
+  // Empty → silent revert (no NULL writes).
+  if(trimmed===''){rerenderLoanSection();return;}
+
+  const updates={updated_at: new Date().toISOString()};
+  let needsRecomputeLtcDisplay=false;
+
+  if(field==='capital_source_id'){
+    if(trimmed===dl.capital_source_id){rerenderLoanSection();return;}
+    updates.capital_source_id=trimmed;
+  } else if(field==='ltc_pct'){
+    const ltc=Number(trimmed);
+    if(!isFinite(ltc)||ltc<0||ltc>200){rerenderLoanSection();return;}
+    const basis=currentDeal.purchase_price||currentDeal.offer_price;
+    if(!basis||basis<=0){
+      alert('Cannot compute loan amount — set Bought at / Offer at first.');
+      rerenderLoanSection();
+      return;
+    }
+    updates.loan_amount=_roundK(basis*ltc/100);
+    needsRecomputeLtcDisplay=true;
+  } else if(field==='loan_amount'){
+    const amt=Number(trimmed);
+    if(!isFinite(amt)||amt<0||amt>50000000){rerenderLoanSection();return;}
+    updates.loan_amount=Math.round(amt);
+    needsRecomputeLtcDisplay=true;
+  } else if(field==='rate_apr'){
+    const ratePct=Number(trimmed);
+    if(!isFinite(ratePct)||ratePct<0||ratePct>100){rerenderLoanSection();return;}
+    updates.rate_apr=ratePct/100;
+  } else if(field==='term_months'){
+    const t=Number(trimmed);
+    if(!isFinite(t)||t<1||t>240){rerenderLoanSection();return;}
+    updates.term_months=Math.round(t);
+  } else if(field==='status'){
+    if(!LOAN_STATUSES.includes(trimmed)){rerenderLoanSection();return;}
+    updates.status=trimmed;
+    // Auto-fill date columns on the canonical status flips.
+    if(trimmed==='funded' && !dl.funded_date){
+      updates.funded_date=todayStr();
+    } else if(trimmed==='paid_off' && !dl.payoff_date){
+      updates.payoff_date=todayStr();
+    }
+  } else {
+    rerenderLoanSection();
+    return;
+  }
+
+  const {error}=await sb.from('deal_loans').update(updates).eq('id', loanId);
+  if(error){
+    console.error('[MG _commitLoanEdit] failed', field, error);
+    alert('Save failed: '+error.message);
+    rerenderLoanSection();
+    return;
+  }
+  await loadDealLoans();
+  rerenderLoanSection();
+}
+
+// ---------- + Add loan inline form ----------
+function showLoanAddForm(){
+  const f=document.getElementById('loanAddForm');
+  const b=document.getElementById('loanAddBtn');
+  if(!f||!b)return;
+  // Pre-fill rate from selected lender's default.
+  onLafLenderChange();
+  f.style.display='flex';
+  b.style.display='none';
+}
+window.showLoanAddForm=showLoanAddForm;
+
+function hideLoanAddForm(){
+  const f=document.getElementById('loanAddForm');
+  const b=document.getElementById('loanAddBtn');
+  if(f)f.style.display='none';
+  if(b)b.style.display='inline-block';
+}
+window.hideLoanAddForm=hideLoanAddForm;
+
+function onLafLenderChange(){
+  const sel=document.getElementById('lafLender');
+  const rateEl=document.getElementById('lafRate');
+  if(!sel||!rateEl)return;
+  const cs=capitalSources.find(c=>c.id===sel.value);
+  if(cs && cs.default_rate_apr!=null && !rateEl.value){
+    rateEl.value=(cs.default_rate_apr*100).toFixed(2);
+  } else if(cs && cs.default_rate_apr!=null){
+    // Always refresh on lender change so the visible rate matches the
+    // newly-picked lender.
+    rateEl.value=(cs.default_rate_apr*100).toFixed(2);
+  }
+}
+window.onLafLenderChange=onLafLenderChange;
+
+async function saveLoanFromAddForm(){
+  const sel=document.getElementById('lafLender');
+  const ltcEl=document.getElementById('lafLtc');
+  const rateEl=document.getElementById('lafRate');
+  const termEl=document.getElementById('lafTerm');
+  const msg=document.getElementById('lafMsg');
+  msg.textContent='';
+  if(!sel||!sel.value){msg.textContent='Pick a lender.';return;}
+  const ltc=Number(ltcEl.value);
+  if(!isFinite(ltc)||ltc<=0||ltc>200){msg.textContent='LTC must be 0–200.';return;}
+  const ratePct=Number(rateEl.value);
+  if(!isFinite(ratePct)||ratePct<0||ratePct>100){msg.textContent='Rate must be 0–100.';return;}
+  const term=Number(termEl.value);
+  if(!isFinite(term)||term<1||term>240){msg.textContent='Term must be 1–240 months.';return;}
+  const basis=currentDeal.purchase_price||currentDeal.offer_price;
+  if(!basis||basis<=0){msg.textContent='Set Bought at / Offer at first.';return;}
+
+  const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
+  const insertRow={
+    deal_id: currentDeal.id,
+    capital_source_id: sel.value,
+    loan_purpose: 'acquisition',
+    status: 'pending',
+    loan_amount: _roundK(basis*ltc/100),
+    rate_apr: ratePct/100,
+    term_months: Math.round(term),
+    created_by: userId,
+  };
+  const {error}=await sb.from('deal_loans').insert(insertRow);
+  if(error){msg.textContent='Save failed: '+error.message;return;}
+  hideLoanAddForm();
+  await loadDealLoans();
+  rerenderLoanSection();
+}
+window.saveLoanFromAddForm=saveLoanFromAddForm;
+
+// ---------- Delete ----------
+async function deleteLoan(loanId){
+  if(!confirm('Delete this loan?'))return;
+  const {error}=await sb.from('deal_loans').delete().eq('id', loanId);
+  if(error){alert('Delete failed: '+error.message);return;}
+  await loadDealLoans();
+  rerenderLoanSection();
+}
+window.deleteLoan=deleteLoan;
+
+// ---------- Phase-transition modal ----------
+function openLoanModal(){
+  const overlay=document.getElementById('loanModal');
+  const sel=document.getElementById('lmLender');
+  const ltcEl=document.getElementById('lmLtc');
+  const rateEl=document.getElementById('lmRate');
+  const termEl=document.getElementById('lmTerm');
+  const msg=document.getElementById('lmMsg');
+  if(!overlay||!sel)return;
+  // Reset.
+  msg.textContent='';
+  ltcEl.value='90';
+  termEl.value='12';
+
+  // Populate lender dropdown.
+  sel.innerHTML='';
+  if(!capitalSources.length){
+    msg.textContent='No active hard-money / private capital sources found.';
+  }
+  // Default selection: most-recently-used lender across all deals.
+  // Cheap supplementary fetch — keeps the picker context-aware.
+  let defaultId=null;
+  (async()=>{
+    try{
+      const {data}=await sb.from('deal_loans').select('capital_source_id, created_at').order('created_at',{ascending:false}).limit(1);
+      if(data && data[0])defaultId=data[0].capital_source_id;
+    }catch(e){/*ignore*/}
+    for(const c of capitalSources){
+      const opt=document.createElement('option');
+      opt.value=c.id;
+      opt.textContent=c.name;
+      sel.appendChild(opt);
+    }
+    if(defaultId && capitalSources.some(c=>c.id===defaultId)){
+      sel.value=defaultId;
+    }
+    onLmLenderChange();
+    onLmLtcChange();
+  })();
+
+  overlay.classList.add('open');
+  document.addEventListener('keydown', _lmKey);
+}
+window.openLoanModal=openLoanModal;
+
+function closeLoanModal(){
+  const overlay=document.getElementById('loanModal');
+  if(overlay)overlay.classList.remove('open');
+  document.removeEventListener('keydown', _lmKey);
+}
+window.closeLoanModal=closeLoanModal;
+
+function _lmKey(e){if(e.key==='Escape')closeLoanModal();}
+
+function onLmLenderChange(){
+  const sel=document.getElementById('lmLender');
+  const rateEl=document.getElementById('lmRate');
+  if(!sel||!rateEl)return;
+  const cs=capitalSources.find(c=>c.id===sel.value);
+  if(cs && cs.default_rate_apr!=null){
+    rateEl.value=(cs.default_rate_apr*100).toFixed(2);
+  }
+  onLmLtcChange();
+}
+window.onLmLenderChange=onLmLenderChange;
+
+function onLmLtcChange(){
+  const ltcEl=document.getElementById('lmLtc');
+  const preview=document.getElementById('lmLoanPreview');
+  if(!ltcEl||!preview||!currentDeal)return;
+  const basis=currentDeal.purchase_price||currentDeal.offer_price||0;
+  const ltc=Number(ltcEl.value);
+  if(!basis||!isFinite(ltc)){
+    preview.innerHTML='Loan: <strong>—</strong>';
+    return;
+  }
+  const loan=_roundK(basis*ltc/100);
+  preview.innerHTML='Loan: <strong>'+FK(loan)+'</strong> ('+ltc+'% of '+FK(basis)+')';
+}
+window.onLmLtcChange=onLmLtcChange;
+
+async function saveLoanFromModal(){
+  const sel=document.getElementById('lmLender');
+  const ltcEl=document.getElementById('lmLtc');
+  const rateEl=document.getElementById('lmRate');
+  const termEl=document.getElementById('lmTerm');
+  const msg=document.getElementById('lmMsg');
+  const btn=document.getElementById('lmSaveBtn');
+  msg.textContent='';
+  if(!sel.value){msg.textContent='Pick a lender.';return;}
+  const ltc=Number(ltcEl.value);
+  if(!isFinite(ltc)||ltc<=0||ltc>200){msg.textContent='LTC must be 0–200.';return;}
+  const ratePct=Number(rateEl.value);
+  if(!isFinite(ratePct)||ratePct<0||ratePct>100){msg.textContent='Rate must be 0–100.';return;}
+  const term=Number(termEl.value);
+  if(!isFinite(term)||term<1||term>240){msg.textContent='Term must be 1–240 months.';return;}
+  const basis=currentDeal.purchase_price||currentDeal.offer_price;
+  if(!basis||basis<=0){msg.textContent='Set Bought at / Offer at first to compute loan amount.';return;}
+
+  btn.disabled=true;
+  const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
+  const insertRow={
+    deal_id: currentDeal.id,
+    capital_source_id: sel.value,
+    loan_purpose: 'acquisition',
+    status: 'pending',
+    loan_amount: _roundK(basis*ltc/100),
+    rate_apr: ratePct/100,
+    term_months: Math.round(term),
+    created_by: userId,
+  };
+  const {error}=await sb.from('deal_loans').insert(insertRow);
+  btn.disabled=false;
+  if(error){msg.textContent='Save failed: '+error.message;return;}
+  closeLoanModal();
+  await loadDealLoans();
+  rerenderLoanSection();
+}
+window.saveLoanFromModal=saveLoanFromModal;
 
 // ========== INIT ==========
 (async()=>{
