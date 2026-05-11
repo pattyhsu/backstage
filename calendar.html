@@ -51,10 +51,12 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .page { max-width:1200px; margin:0 auto; padding:22px 28px 60px; }
 
 /* Sticky header */
-.head { background:#fff; border:1px solid var(--border); border-radius:8px; padding:14px 18px; margin-bottom:18px; position:sticky; top:0; z-index:50; box-shadow:0 4px 12px rgba(0,0,0,0.04); }
-.head-row { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
-.head-title { font-size:18px; font-weight:700; color:var(--text); }
-.head-sub { font-size:12px; color:var(--text-4); margin-left:6px; }
+/* Match pipeline.html .pipe-hdr — flat sticky header, no card chrome.
+   Page-bg + blur so content scrolling underneath doesn't bleed through. */
+.head { background:rgba(250,250,247,.92); backdrop-filter:blur(20px); padding:14px 0 10px; margin:0 0 14px; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:50; }
+.head-row { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+.head-title { font-size:14px; font-weight:700; letter-spacing:-.3px; color:var(--accent); }
+.head-sub { font-size:11px; color:var(--text-3); font-family:var(--mono); margin-left:6px; font-weight:400; }
 
 .quick-add { display:flex; align-items:center; gap:8px; margin-left:auto; }
 .quick-add input[type=text] { flex:1; min-width:240px; padding:6px 10px; border:1px solid var(--border); border-radius:4px; font:13px var(--sans); color:var(--text-2); }
@@ -62,7 +64,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .quick-add select { padding:6px 8px; border:1px solid var(--border); border-radius:4px; font:13px var(--sans); color:var(--text-2); background:#fff; }
 .quick-add button { padding:6px 12px; background:var(--accent); border:1px solid var(--accent); color:#fff; font:13px var(--sans); font-weight:600; border-radius:4px; cursor:pointer; }
 
-.chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); }
+.chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
 .chip { padding:4px 11px; background:#fff; border:1px solid var(--border); color:var(--text-3); font-size:12px; font-weight:600; border-radius:12px; cursor:pointer; user-select:none; }
 .chip:hover { border-color:var(--border-hover); color:var(--text-2); }
 .chip.on { background:var(--accent); border-color:var(--accent); color:#fff; }
@@ -166,7 +168,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .split { display:grid; grid-template-columns:260px 1fr; gap:18px; align-items:start; }
 /* Left column (mini-cal + by-deal sidebar) sticks below the page header
    so it stays visible while the timeline column scrolls. */
-.split > .left-col { position:sticky; top:135px; align-self:start; max-height:calc(100vh - 150px); overflow-y:auto; }
+.split > .left-col { position:sticky; top:110px; align-self:start; max-height:calc(100vh - 130px); overflow-y:auto; }
 </style>
 </head>
 <body>
