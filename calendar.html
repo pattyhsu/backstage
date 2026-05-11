@@ -164,6 +164,9 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .mini-cal-day.active .dots .dot { background:#fff !important; }
 
 .split { display:grid; grid-template-columns:260px 1fr; gap:18px; align-items:start; }
+/* Left column (mini-cal + by-deal sidebar) sticks below the page header
+   so it stays visible while the timeline column scrolls. */
+.split > .left-col { position:sticky; top:135px; align-self:start; max-height:calc(100vh - 150px); overflow-y:auto; }
 </style>
 </head>
 <body>
@@ -401,7 +404,7 @@ function renderPage(){
   const html=`
     ${headHtml}
     <div class="split">
-      <div>${miniCalHtml}${perDealHtml}</div>
+      <div class="left-col">${miniCalHtml}${perDealHtml}</div>
       <div>${overdueHtml}${todayHtml}${weekHtml}${laterHtml}</div>
     </div>
   `;
