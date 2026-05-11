@@ -11,9 +11,9 @@
 <script src="auth.js"></script>
 <script src="sidebar.js"></script>
 <style>
-/* === PROJECT DETAIL — local layout only === */
+/* === PROJECT DETAIL v2 — Brief BV phase-aware redesign === */
 
-body { overflow:hidden; height:100vh; }
+body { overflow:hidden; height:100vh; background:#FAFAF7; }
 
 /* Backstage shell */
 .app-shell { display:flex; height:100vh; }
@@ -25,187 +25,262 @@ body { overflow:hidden; height:100vh; }
 .bs-sidebar.collapsed .side-section { padding:12px 0 0; }
 .bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
 .bs-sidebar.collapsed .side-user { justify-content:center; }
-.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
-.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
-.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
-.side-section { padding:6px 10px 0; }
-.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
-.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
-.side-item:hover { background:var(--bg-page); text-decoration:none; }
-.side-item.active { background:var(--bg-alt); }
-.side-item.active .side-icon svg { stroke:var(--text); }
-.side-item.active .side-label { color:var(--text); font-weight:600; }
-.side-icon { width:18px; height:18px; display:grid; place-items:center; }
-.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
-.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
-.side-item.disabled { opacity:.35; pointer-events:none; }
-.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
-.side-user { display:flex; align-items:center; gap:9px; }
-.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
-.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
-.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
-.lock-btn:hover { color:var(--text); }
-.collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
-.collapse-btn:hover { color:var(--text); }
 .main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
 
 /* Layout */
 .scroll-wrap { flex:1; overflow-y:auto; }
-.container { max-width:880px; margin:0 auto; padding:18px 24px 80px; }
+.page { max-width:1200px; margin:0 auto; padding:22px 28px 60px; }
+.crumb { display:flex; align-items:center; gap:12px; font-size:13px; color:var(--text-3); margin-bottom:16px; }
+.crumb a { color:var(--accent); }
+.crumb .sep { color:var(--text-4); }
 
 /* Top bar (back button) */
 .topbar { display:flex; align-items:center; gap:10px; padding:14px 24px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.92); backdrop-filter:blur(20px); position:sticky; top:0; z-index:10; }
 .back-btn { background:none; border:1px solid var(--border); border-radius:5px; padding:4px 10px; cursor:pointer; font-size:12px; font-family:inherit; color:var(--text-3); text-decoration:none; }
 .back-btn:hover { color:var(--text); border-color:var(--border-hover); text-decoration:none; }
 
-/* === BP — INLINE ACQUISITION DATA SECTION ===
-   Replaces the old .header-block (h1 + sub + financials). Compact 13-14px
-   density modeled on mls-deals.html's detail pane. The old header-block
-   styles below are kept dormant (no longer referenced by renderPage) so
-   that legacy `<h1>` references in any other code path don't crash. */
-
-/* Acq card — outer flex row (photo + body stack). */
-.acq-card { display:flex; gap:14px; align-items:flex-start; padding:6px 0 16px; border-bottom:1px solid var(--border); }
-.acq-body { flex:1; min-width:0; }
-
-/* Photo thumb 96x72. */
-.acq-thumb { width:96px; height:72px; flex-shrink:0; border-radius:6px; object-fit:cover; cursor:pointer; background:var(--bg-alt); display:block; }
-.acq-thumb-empty { background:linear-gradient(135deg,#e2e1dd 0%,#b0afa8 100%); display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--text-4); text-align:center; line-height:1.2; cursor:default; }
-
-/* Address line — 14px bold, phase pill pushed right. */
-.acq-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.acq-addr { font-size:14px; font-weight:700; color:var(--text); }
-.stage-pill { display:inline-block; font-size:11px; font-weight:700; padding:3px 10px; border-radius:10px; background:var(--accent-dim); color:var(--accent); letter-spacing:.3px; flex-shrink:0; }
-.stage-pill.empty { background:var(--bg-alt); color:var(--text-4); }
-
-/* Sub-line — 13px dot-separated facts. */
-.acq-sub { font-size:13px; color:var(--text-3); margin:4px 0 0; }
-
-/* Schools row — 12px chip + name pairs. */
-.acq-schools { margin-top:6px; font-size:12px; color:var(--text-2); display:flex; gap:16px; flex-wrap:wrap; }
-.acq-schools .school-chip { padding:2px 6px; border-radius:3px; font-family:var(--mono); font-size:11px; font-weight:600; margin-right:4px; }
-
-/* Agent line — 13px single line + DE pill + view link. */
-.acq-agent { margin-top:6px; font-size:13px; color:var(--text-2); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.acq-agent .lbl { color:var(--text-4); margin-right:4px; font-size:12px; }
+/* === ACQUISITION CARD === */
+.acq { display:grid; grid-template-columns:132px 1fr; gap:18px; padding-bottom:18px; border-bottom:1px solid var(--border); margin-bottom:18px; position:relative; }
+.acq-photo { width:132px; height:96px; border-radius:6px; overflow:hidden; background:linear-gradient(135deg,#cdc8be,#a8a297); cursor:pointer; }
+.acq-photo img { width:100%; height:100%; object-fit:cover; display:block; }
+.acq-photo.empty { display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--text-4); cursor:default; text-align:center; line-height:1.2; }
+.acq-body { display:flex; flex-direction:column; gap:6px; }
+.acq-title-row { display:flex; align-items:flex-start; gap:12px; }
+.acq-title { font-size:22px; font-weight:700; color:var(--text); line-height:1.2; flex:1; }
+.acq-sub { font-size:13px; color:var(--text-3); }
+.acq-schools { display:flex; gap:14px; flex-wrap:wrap; align-items:center; font-size:12px; color:var(--text-2); }
+.acq-schools .school-chip { display:inline-flex; align-items:center; gap:3px; font-family:var(--mono); font-size:11px; font-weight:700; padding:1px 6px; border-radius:4px; margin-right:5px; }
+.acq-agent { display:flex; align-items:baseline; gap:12px; font-size:12px; color:var(--text-2); margin-top:2px; flex-wrap:wrap; }
+.acq-agent .lbl { color:var(--text-4); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; margin-right:4px; }
+.acq-link { font-size:12px; color:var(--accent); margin-left:auto; }
 .de-pill { background:var(--purple-bg); color:var(--purple); padding:2px 7px; border-radius:4px; font-size:11px; font-weight:600; }
-.acq-link { color:var(--accent); font-size:12px; text-decoration:none; }
-.acq-link:hover { text-decoration:underline; }
 
-/* Underwriting bar — focal point. Accent-tinted card. */
-.uw-bar { margin-top:12px; padding:12px 16px; background:var(--accent-dim); border:1px solid var(--accent-dim2); border-radius:6px; display:flex; align-items:center; gap:22px; flex-wrap:wrap; }
+/* Phase pill + popover combo (top-right of acq card) */
+.phase-stack { display:flex; flex-direction:column; align-items:flex-end; gap:4px; position:absolute; top:0; right:0; z-index:15; }
+.phase-pill-big { display:inline-block; font-size:12px; font-weight:700; padding:4px 12px; border-radius:10px; letter-spacing:.3px; cursor:pointer; user-select:none; }
+.phase-pill-big::after { content:'▾'; font-size:9px; margin-left:6px; opacity:.7; }
+.phase-pill-big:hover { filter:brightness(0.96); }
+.phase-pill-pursuing       { background:var(--accent-dim); color:var(--accent); }
+.phase-pill-in_escrow      { background:var(--amber-bg); color:var(--amber); }
+.phase-pill-under_construction { background:#E5F2FA; color:#2873A8; }
+.phase-pill-selling        { background:var(--green-bg); color:var(--green); }
+.phase-pill-sold           { background:#ECECEA; color:var(--text-3); }
+.phase-pill-lost           { background:var(--red-bg); color:var(--red); }
+.phase-pill-archived       { background:var(--bg-alt); color:var(--text-4); }
+.phase-aux { font-size:11px; color:var(--text-4); }
+.phase-popover { position:absolute; top:100%; right:0; margin-top:6px; background:#fff; border:1px solid var(--border-strong); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.08); padding:14px; min-width:300px; z-index:20; display:none; }
+.phase-stack.open .phase-popover { display:block; }
+.phase-popover .pp-lbl { font-size:10px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+.phase-popover select, .phase-popover textarea, .phase-popover input { width:100%; padding:6px 8px; font:inherit; border:1px solid var(--border); border-radius:4px; margin-bottom:10px; font-size:12px; box-sizing:border-box; }
+.phase-popover textarea { resize:vertical; min-height:50px; }
+.phase-popover .pp-dates { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:6px; }
+.phase-popover .pp-dates label { font-size:9px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.phase-popover .pp-dates input { margin-bottom:0; padding:4px 6px; }
+.phase-popover .pp-actions { display:flex; gap:8px; justify-content:flex-end; }
+.phase-popover button { padding:5px 12px; font-size:12px; font-weight:600; border-radius:4px; cursor:pointer; border:1px solid var(--border); background:#fff; color:var(--text-2); font-family:inherit; }
+.phase-popover button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.phase-popover button:disabled { opacity:.55; cursor:not-allowed; }
+.phase-popover .pp-msg { font-size:11px; min-height:14px; margin-top:4px; }
+.phase-popover .pp-msg.err { color:var(--red); }
+.phase-popover .pp-msg.ok  { color:var(--green); }
+
+/* === Underwriting bar === */
+.uw-bar { margin-top:16px; padding:14px 18px; background:var(--accent-dim); border:1px solid var(--accent-dim2); border-radius:8px; display:flex; align-items:center; gap:28px; flex-wrap:wrap; }
 .uw-stat { display:flex; flex-direction:column; }
-.uw-label { font-size:10px; color:var(--text-4); font-weight:600; letter-spacing:.06em; text-transform:uppercase; margin-bottom:2px; }
-.uw-value { font-size:15px; font-weight:700; color:var(--text); padding:1px 3px; border-radius:3px; transition:background 0.1s; position:relative; }
-.uw-value[data-stat] { cursor:text; }
-.uw-value[data-stat]:hover { background:rgba(156,124,60,0.12); }
-.uw-value[data-stat]:focus { outline:none; background:rgba(156,124,60,0.18); }
-.uw-value.editing { background:var(--bg); padding:0; }
-.uw-value input { width:80px; font:inherit; border:1px solid var(--accent); border-radius:3px; padding:1px 4px; outline:none; background:var(--bg); color:var(--text); }
-.uw-value-large { font-size:17px; }
-.uw-lock { font-size:10px; color:var(--text-4); margin-left:4px; }
+.uw-label { font-size:10px; color:var(--text-4); font-weight:600; letter-spacing:.06em; text-transform:uppercase; margin-bottom:3px; }
+.uw-val { font-size:16px; font-weight:700; color:var(--text); font-family:var(--mono); padding:1px 3px; border-radius:3px; position:relative; }
+.uw-val[data-stat] { cursor:text; }
+.uw-val[data-stat]:hover { background:rgba(156,124,60,0.12); }
+.uw-val[data-stat]:focus { outline:none; background:rgba(156,124,60,0.18); }
+.uw-val.editing { background:var(--bg); padding:0; }
+.uw-val input { width:90px; font:inherit; border:1px solid var(--accent); border-radius:3px; padding:1px 4px; outline:none; background:var(--bg); color:var(--text); }
+.uw-val .lock { font-size:10px; color:var(--text-4); margin-left:4px; }
+.uw-val.dim { color:var(--text-4); font-style:italic; font-weight:400; }
+.uw-val.large { font-size:18px; }
+.uw-val.profit-pos { color:var(--green); }
+.uw-val.profit-neg { color:var(--red); }
+.uw-val .pct { font-size:13px; font-weight:600; margin-left:6px; }
 .uw-sep { color:var(--border-strong); font-size:14px; }
-.uw-error { display:inline-block; margin-left:6px; font-size:11px; color:var(--red); animation:fadeOut 3s forwards; }
-/* × clear button — hover-revealed, top-right of populated value cells. */
 .uw-clear { position:absolute; top:-6px; right:-8px; font-size:11px; line-height:1; color:var(--text-4); cursor:pointer; opacity:0; transition:opacity 0.1s, color 0.1s; padding:2px 3px; user-select:none; }
-.uw-value:hover .uw-clear { opacity:1; }
+.uw-val:hover .uw-clear { opacity:1; }
 .uw-clear:hover { color:var(--red); }
-.uw-value.editing .uw-clear { display:none; }
+.uw-val.editing .uw-clear { display:none; }
+.uw-error { display:inline-block; margin-left:6px; font-size:11px; color:var(--red); animation:fadeOut 3s forwards; }
 @keyframes fadeOut { 0%, 70% { opacity:1; } 100% { opacity:0; } }
-.profit-pos { color:var(--green); }
-.profit-neg { color:var(--red); }
 
-/* Slim lightbox — single photo, click outside or ESC to close. */
+/* === Section blocks === */
+.sect { background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px 20px; margin-bottom:14px; }
+.sect-h { display:flex; align-items:baseline; gap:12px; margin-bottom:12px; }
+.sect-h h2 { font-size:13px; font-weight:700; color:var(--text); margin:0; letter-spacing:.02em; text-transform:uppercase; }
+.sect-h .sub { font-size:11px; color:var(--text-4); font-weight:500; }
+.sect-h .right { margin-left:auto; }
+.sect-h .right a { font-size:12px; color:var(--accent); }
+.phase-hide { display:none !important; }
+
+/* Escrow timeline */
+.et-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:16px; }
+.et-cell { display:flex; flex-direction:column; gap:3px; }
+.et-lbl { font-size:10px; color:var(--text-4); font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
+.et-val { font-family:var(--mono); font-size:14px; font-weight:700; color:var(--text); cursor:text; padding:1px 3px; border-radius:3px; }
+.et-val:hover { background:var(--accent-dim); }
+.et-val.editing { background:var(--bg); padding:0; }
+.et-val input { font:inherit; border:1px solid var(--accent); border-radius:3px; padding:1px 4px; outline:none; background:var(--bg); width:130px; }
+.et-aux { font-size:11px; color:var(--text-4); font-family:var(--mono); }
+.et-deadline { color:var(--amber); font-weight:700; }
+
+/* Cash position panel */
+.cash-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:12px; }
+.cash-cell { background:#FBFAF6; border:1px solid var(--border); border-radius:6px; padding:10px 12px; }
+.cash-cell .lbl { font-size:10px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+.cash-cell .val { font-family:var(--mono); font-size:16px; font-weight:700; color:var(--text); }
+.cash-cell .val.dim { color:var(--text-4); font-style:italic; font-weight:400; }
+.cash-cell .sub { font-size:11px; color:var(--text-4); margin-top:3px; font-family:var(--mono); }
+.cash-cell.accent { background:var(--accent-dim); border-color:var(--accent-dim2); }
+.cash-cell.accent .val { color:var(--accent); }
+
+/* Calculators (offer / list price) */
+.lp-calc { margin-top:16px; padding-top:14px; border-top:1px dashed var(--border); }
+.lp-calc-head { font-size:10px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px; }
+.lp-inputs { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px; align-items:flex-end; }
+.lp-input-group { display:flex; flex-direction:column; gap:3px; }
+.lp-input-group label { font-size:10px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.lp-input-group input, .lp-input-group select { width:130px; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font:14px var(--mono); font-weight:700; color:var(--text); background:#fff; }
+.lp-input-group input:focus, .lp-input-group select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim); }
+.lp-input-group .static { font-family:var(--mono); font-size:14px; font-weight:700; color:var(--text-3); padding:6px 0; }
+.lp-output { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; padding:10px 14px; background:var(--accent-dim); border:1px solid var(--accent-dim2); border-radius:6px; }
+.lp-output.six { grid-template-columns:repeat(6, 1fr); }
+.lp-out-cell { display:flex; flex-direction:column; gap:2px; }
+.lp-out-cell .lbl { font-size:10px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.lp-out-cell .val { font-family:var(--mono); font-size:17px; font-weight:700; color:var(--text); }
+.lp-out-cell.accent .val { color:var(--accent); }
+.lp-out-cell .sub { font-size:11px; color:var(--text-4); font-family:var(--mono); }
+.lp-out-cell.profit .val { color:var(--green); }
+.lp-out-cell.profit.neg .val { color:var(--red); }
+
+/* Financing row */
+.fin-row { display:flex; align-items:center; gap:14px; padding-top:14px; margin-top:4px; border-top:1px dashed var(--border); flex-wrap:wrap; }
+.fin-lbl { font-size:10px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.fin-loan { display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:13px; color:var(--text-2); background:#FBFAF6; border:1px solid var(--border); padding:5px 10px; border-radius:6px; }
+.fin-loan:hover { border-color:var(--border-hover); background:#fff; }
+.fin-lender { font-family:var(--sans); font-weight:700; color:var(--text); }
+.fin-sep { color:var(--text-4); }
+.fin-status { font-weight:700; }
+.fin-status.st-pending  { color:var(--amber); }
+.fin-status.st-funded   { color:var(--green); }
+.fin-status.st-extended { color:var(--blue); }
+.fin-action { font-family:var(--sans); font-size:11px; color:var(--accent); margin-left:4px; cursor:pointer; }
+.fin-add { font-size:12px; color:var(--accent); margin-left:auto; cursor:pointer; }
+
+/* What's next list */
+.wn-list { list-style:none; margin:0; padding:0; }
+.wn-row { display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px dashed var(--border); font-size:13px; }
+.wn-row:last-child { border-bottom:none; }
+.wn-date { font-family:var(--mono); font-size:12px; color:var(--text-4); width:50px; flex-shrink:0; }
+.wn-icon { font-size:14px; width:18px; text-align:center; }
+.wn-cb { cursor:pointer; margin:0 4px 0 0; }
+.wn-text { color:var(--text-2); flex:1; }
+.wn-aux { font-family:var(--mono); font-size:11px; color:var(--text-4); white-space:nowrap; }
+.wn-row.overdue .wn-icon { color:var(--red); }
+.wn-row.overdue .wn-aux  { color:var(--red); font-weight:700; }
+.wn-row.upcoming .wn-icon { color:var(--text-4); }
+.wn-row.done .wn-text, .wn-row.done .wn-aux { text-decoration:line-through; color:var(--text-4); }
+.wn-empty { font-size:12px; color:var(--text-4); font-style:italic; padding:8px 0; }
+.wn-add { display:flex; gap:8px; align-items:center; margin-top:10px; padding-top:8px; border-top:1px dashed var(--border); }
+.wn-add input[type=text] { flex:1; padding:6px 10px; border:1px solid var(--border); border-radius:4px; font:13px var(--sans); color:var(--text-2); }
+.wn-add input[type=date] { padding:6px 8px; border:1px solid var(--border); border-radius:4px; font:13px var(--sans); color:var(--text-2); }
+.wn-add button { padding:6px 14px; background:var(--accent); border:1px solid var(--accent); color:#fff; font:13px var(--sans); font-weight:600; border-radius:4px; cursor:pointer; }
+
+/* Checklist (non-dated) */
+.ck-list { list-style:none; padding:0; margin:0; display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; }
+.ck-list li { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-2); }
+.ck-list input[type=checkbox] { cursor:pointer; margin:0; }
+.ck-list li.done .ck-name { text-decoration:line-through; color:var(--text-4); }
+.ck-add { margin-top:8px; font-size:11px; color:var(--accent); cursor:pointer; }
+.ck-block-h { font-size:11px; font-weight:600; color:var(--text-4); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px; }
+.ck-block { margin-top:16px; padding-top:14px; border-top:1px dashed var(--border); }
+
+/* Pre-construction prep textarea */
+.prep-area { width:100%; min-height:120px; padding:10px 12px; font:13px/1.5 var(--mono); border:1px solid var(--border); border-radius:6px; resize:vertical; color:var(--text-2); box-sizing:border-box; }
+.prep-aux { margin-top:6px; font-size:11px; color:var(--text-4); font-style:italic; }
+
+/* Construction hero / bars */
+.cn-hero { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin-bottom:16px; }
+.cn-hero-cell { background:linear-gradient(135deg,#E5F2FA, #F3F8FC); border:1px solid #C9DDEC; border-radius:8px; padding:12px 16px; }
+.cn-hero-cell .lbl { font-size:10px; color:#4A6F8F; font-weight:600; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
+.cn-hero-cell .val { font-family:var(--mono); font-size:24px; font-weight:700; color:#2873A8; line-height:1.1; }
+.cn-hero-cell .sub { font-size:11px; color:#4A6F8F; margin-top:4px; font-family:var(--mono); }
+.cn-bars { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
+.cn-bar { display:flex; align-items:center; gap:12px; }
+.cn-bar .lbl { width:110px; font-size:11px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; flex-shrink:0; }
+.cn-bar .track { flex:1; height:10px; background:var(--accent-dim); border-radius:5px; overflow:hidden; position:relative; }
+.cn-bar .fill { height:100%; background:linear-gradient(90deg, #2873A8, #4A99CC); border-radius:5px; transition:width .3s; }
+.cn-bar .fill.over { background:linear-gradient(90deg, var(--red), #D85543); }
+.cn-bar .pct { width:140px; font-family:var(--mono); font-size:12px; color:var(--text-2); font-weight:600; text-align:right; flex-shrink:0; }
+
+/* Spending tree */
+.cn-expenses { margin-top:16px; border-top:1px solid var(--border); padding-top:12px; }
+.cn-expenses .ttl { font-size:11px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+.sp-tree { width:100%; border-collapse:collapse; }
+.sp-tree tr { border-bottom:1px solid var(--border); }
+.sp-tree tr:last-child { border-bottom:none; }
+.sp-tree td { padding:8px 0; font-size:13px; vertical-align:middle; }
+.sp-tree td:last-child { font-family:var(--mono); font-weight:600; color:var(--text); text-align:right; white-space:nowrap; }
+.sp-tree .caret { display:inline-block; width:14px; color:var(--text-4); font-size:10px; cursor:pointer; user-select:none; transition:transform .15s; }
+.sp-tree .caret.collapsed { transform:rotate(-90deg); }
+.sp-tree .lvl-0 { font-weight:700; color:var(--text); }
+.sp-tree .lvl-1 { font-weight:600; color:var(--text-2); padding-left:18px; }
+.sp-tree .lvl-2 { color:var(--text-3); padding-left:36px; font-size:12px; }
+.sp-tree .lvl-2 td:last-child { font-weight:500; }
+.sp-tree .hidden { display:none; }
+.sp-empty { font-size:12px; color:var(--text-4); font-style:italic; padding:10px 0; }
+
+/* Listing kv-grid */
+.kv-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px 22px; }
+.kv { display:flex; flex-direction:column; gap:2px; }
+.kv label { font-size:10px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.kv .val { font-family:var(--mono); font-size:13px; color:var(--text); }
+.kv .val.dim { color:var(--text-4); font-style:italic; }
+
+/* Docs */
+.docs-tbl { width:100%; border-collapse:collapse; }
+.docs-tbl td { padding:8px 10px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:middle; }
+.docs-tbl td:last-child { text-align:right; color:var(--text-4); font-family:var(--mono); font-size:11px; }
+.docs-tbl .name { color:var(--text); }
+.docs-tbl .name .ext { font-family:var(--mono); font-size:10px; color:var(--text-4); margin-left:6px; padding:1px 5px; border:1px solid var(--border); border-radius:3px; vertical-align:middle; }
+.docs-tbl .add-row td { color:var(--accent); font-size:12px; font-style:italic; cursor:pointer; }
+.docs-empty { font-size:12px; color:var(--text-4); font-style:italic; padding:10px 0; }
+
+/* History (collapsible) */
+.hist { list-style:none; padding:0; margin:0; }
+.hist li { padding:5px 0; border-bottom:1px solid var(--border); display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; font-size:12px; }
+.hist li:last-child { border-bottom:none; }
+.hist .when { color:var(--text-4); font-family:var(--mono); white-space:nowrap; }
+.hist .who  { color:var(--text-3); white-space:nowrap; }
+.hist .arrow .from { color:var(--text-3); }
+.hist .arrow .sep  { color:var(--text-4); margin:0 4px; }
+.hist .arrow .to   { color:var(--accent); font-weight:600; }
+.hist .note { color:var(--text-3); font-style:italic; flex-basis:100%; }
+
+.sect.collapsible .sect-h { cursor:pointer; user-select:none; margin-bottom:0; }
+.sect.collapsible .sect-h:hover h2 { color:var(--accent); }
+.sect.collapsible .sect-h::after { content:'▸'; font-size:11px; color:var(--text-4); margin-left:6px; transition:transform .15s; }
+.sect.collapsible.open .sect-h::after { transform:rotate(90deg); }
+.sect.collapsible .sect-body { display:none; padding-top:14px; }
+.sect.collapsible.open .sect-body { display:block; }
+.sect.collapsible .sect-summary { font-size:12px; color:var(--text-4); font-style:italic; margin-left:8px; }
+
+/* Sold-phase banner */
+.sold-banner { background:#ECECEA; border:1px solid var(--border); border-radius:8px; padding:10px 16px; font-size:13px; color:var(--text-2); margin-bottom:14px; }
+.sold-banner a { color:var(--accent); }
+
+/* Lightbox */
 .acq-lb-overlay { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.92); align-items:center; justify-content:center; padding:32px; }
 .acq-lb-overlay.open { display:flex; }
 .acq-lb-close { position:fixed; top:16px; right:20px; background:rgba(0,0,0,.5); border:none; color:#fff; font-size:24px; cursor:pointer; z-index:10001; padding:4px 12px; line-height:1; border-radius:6px; backdrop-filter:blur(4px); }
-.acq-lb-close:hover { background:rgba(255,255,255,.2); }
 .acq-lb-addr { position:fixed; top:18px; left:50%; transform:translateX(-50%); color:#fff; font-size:14px; font-weight:600; padding:0 60px; max-width:80%; text-align:center; }
 .acq-lb-img { max-width:95vw; max-height:88vh; object-fit:contain; border-radius:6px; cursor:pointer; }
 
-/* Section blocks */
-.section { margin-top:22px; padding-top:14px; border-top:1px solid var(--border); }
-.section h2 { font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); margin:0 0 10px; }
-.section.stub .stub-msg { font-size:12px; color:var(--text-4); font-style:italic; padding:8px 0; }
-
-/* Stage transition form */
-.move-form { display:flex; flex-direction:column; gap:8px; max-width:480px; }
-.move-row { display:flex; align-items:center; gap:8px; }
-.move-row label { font-size:11px; color:var(--text-3); width:74px; flex-shrink:0; font-weight:600; }
-.move-form select, .move-form textarea { font-family:inherit; font-size:13px; padding:6px 10px; border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text); outline:none; }
-.move-form select { flex:1; }
-.move-form textarea { width:100%; min-height:54px; resize:vertical; }
-.move-btn { align-self:flex-start; padding:6px 18px; border-radius:5px; border:1px solid var(--accent); background:var(--accent); color:#fff; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; }
-.move-btn:hover { filter:brightness(1.05); }
-.move-btn:disabled { opacity:.55; cursor:not-allowed; }
-.move-msg { font-size:11px; min-height:14px; }
-.move-msg.ok { color:var(--green); }
-.move-msg.err { color:var(--red); }
-
-/* History list */
-.history { list-style:none; padding:0; margin:0; }
-.history li { padding:5px 0; border-bottom:1px solid var(--border); display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; font-size:12px; }
-.history li:last-child { border-bottom:none; }
-.history .when { color:var(--text-4); font-family:var(--mono); white-space:nowrap; }
-.history .who { color:var(--text-3); white-space:nowrap; }
-.history .arrow .from { color:var(--text-3); }
-.history .arrow .sep { color:var(--text-4); margin:0 4px; }
-.history .arrow .to { color:var(--accent); font-weight:600; }
-.history .note { color:var(--text-3); font-style:italic; flex-basis:100%; padding-left:0; border-left:none; margin-top:0; }
-.empty-history { font-size:12px; color:var(--text-4); font-style:italic; }
-
-/* Read-only section grids (Construction / Listing) */
-.kv-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px 24px; padding:6px 0 4px; }
-.kv-grid .kv label { display:block; font-size:10px; font-weight:700; color:var(--text-4); text-transform:uppercase; letter-spacing:.4px; margin-bottom:3px; }
-.kv-grid .kv .val { font-size:13px; font-weight:600; color:var(--text); }
-.kv-grid .kv .val.dim { color:var(--text-3); font-weight:500; }
-
-/* Milestones mini-list */
-.ms-mini { list-style:none; padding:0; margin:0; }
-.ms-mini li { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--border); font-size:13px; }
-.ms-mini li:last-child { border-bottom:none; }
-.ms-mini .ms-due { font-family:var(--mono); font-size:11px; color:var(--text-3); width:64px; flex-shrink:0; }
-.ms-mini .ms-name { flex:1; }
-.ms-mini li.done { opacity:.55; }
-.ms-mini li.done .ms-name { text-decoration:line-through; color:var(--text-3); }
-.ms-mini .ms-status { font-size:10px; font-weight:700; padding:1px 7px; border-radius:8px; letter-spacing:.4px; text-transform:uppercase; }
-.ms-mini .ms-status.done { background:var(--green-bg); color:var(--green); }
-.ms-mini .ms-status.open { background:var(--bg-alt); color:var(--text-3); }
-.ms-mini .ms-status.overdue { background:var(--red-bg); color:var(--red); }
-
-/* === MG — Loan section (project-detail.html) ===
-   Inline-edit table mirroring BQ underwriting bar pattern: click cell → input
-   swap → save-on-blur / Enter → re-render. Compact 13px rows. */
-.loan-tbl { width:100%; border-collapse:collapse; font-size:13px; }
-.loan-tbl thead th { text-align:left; font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:var(--text-4); padding:6px 10px; border-bottom:1px solid var(--border); }
-.loan-tbl tbody td { padding:8px 10px; border-bottom:1px solid var(--border); color:var(--text); vertical-align:middle; }
-.loan-tbl tbody tr:last-child td { border-bottom:none; }
-.loan-tbl .loan-cell { cursor:text; padding:2px 4px; border-radius:3px; transition:background 0.1s; display:inline-block; min-width:30px; }
-.loan-tbl .loan-cell:hover { background:rgba(156,124,60,0.10); }
-.loan-tbl .loan-cell.editing { background:var(--bg); padding:0; }
-.loan-tbl .loan-cell input,
-.loan-tbl .loan-cell select { font:inherit; border:1px solid var(--accent); border-radius:3px; padding:2px 6px; outline:none; background:var(--bg); color:var(--text); width:100px; }
-.loan-tbl .loan-cell select { width:auto; min-width:120px; }
-.loan-tbl .loan-status-pending { color:var(--amber); font-weight:600; }
-.loan-tbl .loan-status-funded { color:var(--green); font-weight:600; }
-.loan-tbl .loan-status-extended { color:var(--blue); font-weight:600; }
-.loan-tbl .loan-status-paid_off { color:var(--text-3); font-weight:600; }
-.loan-tbl .loan-status-cancelled { color:var(--text-4); font-weight:500; text-decoration:line-through; }
-.loan-tbl .loan-del { background:none; border:1px solid var(--border); color:var(--text-4); font-size:11px; padding:3px 8px; border-radius:4px; cursor:pointer; font-family:inherit; }
-.loan-tbl .loan-del:hover { color:var(--red); border-color:var(--red); }
-.loan-tbl .loan-error { color:var(--red); font-size:11px; margin-left:6px; }
-.loan-empty { font-size:13px; color:var(--text-4); font-style:italic; padding:10px 0; }
-.loan-add-btn { background:none; border:1px dashed var(--border); color:var(--text-3); font-size:12px; font-weight:600; padding:6px 14px; border-radius:5px; cursor:pointer; font-family:inherit; margin-top:8px; }
-.loan-add-btn:hover { color:var(--accent); border-color:var(--accent); }
-.loan-add-form { margin-top:10px; padding:12px; background:var(--bg-alt); border:1px solid var(--border); border-radius:6px; display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
-.loan-add-form .laf-field { display:flex; flex-direction:column; gap:3px; }
-.loan-add-form .laf-field label { font-size:10px; color:var(--text-4); text-transform:uppercase; font-weight:700; letter-spacing:.4px; }
-.loan-add-form .laf-field input,
-.loan-add-form .laf-field select { font-family:inherit; font-size:13px; padding:5px 8px; border:1px solid var(--border); border-radius:4px; background:var(--bg); color:var(--text); outline:none; }
-.loan-add-form .laf-actions { display:flex; gap:6px; }
-.loan-add-form .laf-msg { font-size:11px; color:var(--red); flex-basis:100%; }
-
-/* === MG — Loan modal (fires after in_escrow transition with no loan) === */
+/* MG — Loan modal (preserved verbatim from prior version) */
 .loan-modal-overlay { display:none; position:fixed; inset:0; z-index:9998; background:rgba(0,0,0,.4); align-items:center; justify-content:center; padding:24px; }
 .loan-modal-overlay.open { display:flex; }
 .loan-modal { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:20px 22px; max-width:420px; width:100%; box-shadow:0 8px 32px rgba(0,0,0,.18); }
@@ -213,10 +288,7 @@ body { overflow:hidden; height:100vh; }
 .loan-modal .lm-sub { font-size:11px; color:var(--text-4); margin:0 0 14px; }
 .loan-modal .lm-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
 .loan-modal .lm-row label { font-size:11px; color:var(--text-3); width:62px; flex-shrink:0; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
-.loan-modal .lm-row input,
-.loan-modal .lm-row select { flex:1; font-family:inherit; font-size:13px; padding:6px 10px; border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text); outline:none; }
-.loan-modal .lm-row input:focus,
-.loan-modal .lm-row select:focus { border-color:var(--accent); }
+.loan-modal .lm-row input, .loan-modal .lm-row select { flex:1; font-family:inherit; font-size:13px; padding:6px 10px; border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text); outline:none; }
 .loan-modal .lm-loan-preview { font-size:12px; color:var(--text-3); padding:6px 0 4px; font-family:var(--mono); }
 .loan-modal .lm-loan-preview strong { color:var(--text); font-weight:700; }
 .loan-modal .lm-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
@@ -225,9 +297,18 @@ body { overflow:hidden; height:100vh; }
 .loan-modal .lm-btn-primary:hover { filter:brightness(1.05); }
 .loan-modal .lm-btn-primary:disabled { opacity:.55; cursor:not-allowed; }
 .loan-modal .lm-btn-secondary { background:var(--bg); color:var(--text-3); border:1px solid var(--border); }
-.loan-modal .lm-btn-secondary:hover { color:var(--text); border-color:var(--border-hover); }
 .loan-modal .lm-msg { font-size:11px; min-height:14px; color:var(--red); margin-top:6px; }
 
+/* Loan edit popover (inline-edit per-loan from financing row) */
+.loan-edit-pop { position:absolute; background:#fff; border:1px solid var(--border-strong); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.08); padding:12px; z-index:30; min-width:340px; }
+.loan-edit-pop .grid { display:grid; grid-template-columns:auto 1fr; gap:6px 10px; align-items:center; }
+.loan-edit-pop label { font-size:10px; color:var(--text-4); text-transform:uppercase; font-weight:600; letter-spacing:.04em; }
+.loan-edit-pop input, .loan-edit-pop select { padding:5px 8px; border:1px solid var(--border); border-radius:4px; font:13px var(--mono); }
+.loan-edit-pop .actions { display:flex; gap:8px; justify-content:space-between; margin-top:10px; }
+.loan-edit-pop .actions .right { display:flex; gap:6px; }
+.loan-edit-pop button { padding:5px 12px; font-size:12px; font-weight:600; border-radius:4px; cursor:pointer; border:1px solid var(--border); background:#fff; color:var(--text-2); font-family:inherit; }
+.loan-edit-pop button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.loan-edit-pop button.danger { color:var(--red); border-color:var(--red); }
 </style>
 </head>
 <body>
@@ -244,7 +325,7 @@ body { overflow:hidden; height:100vh; }
 </div>
 
 <div class="scroll-wrap">
-<div class="container" id="container">
+<div class="page" id="page">
   <div style="padding:60px 0;text-align:center;color:var(--text-4)">Loading...</div>
 </div>
 </div>
@@ -252,7 +333,7 @@ body { overflow:hidden; height:100vh; }
 </div><!-- /main-content -->
 </div><!-- /app-shell -->
 
-<!-- BP slim lightbox (single photo). Click backdrop or press ESC to close. -->
+<!-- Lightbox -->
 <div class="acq-lb-overlay" id="acqLightbox" onclick="if(event.target===this)closeAcqLightbox()">
   <button class="acq-lb-close" onclick="closeAcqLightbox()" aria-label="Close lightbox">✕</button>
   <div class="acq-lb-addr" id="acqLightboxAddr"></div>
@@ -290,29 +371,89 @@ body { overflow:hidden; height:100vh; }
 </div>
 
 <script>
-// ========== SUPABASE CLIENT ==========
+// ============================================================
+// SUPABASE CLIENT
+// ============================================================
 const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;
 
-// ========== PHASE CONFIG ==========
-// Brief BK: 5 phases on the move dropdown. 'sold' is auto-only (daily_pipeline
-// sets it when it detects the relist closed) so the UI never offers it.
-const PHASES=['pursuing','in_escrow','under_construction','listed','archived','lost'];
+// ============================================================
+// PHASE CONFIG — Brief BV / D2: 'selling' replaces 'listed'.
+// Move-to dropdown shows 5 user-selectable phases.
+// 'sold' + 'archived' are system-only.
+// ============================================================
+const MOVE_TO_PHASES=['pursuing','in_escrow','under_construction','selling','lost'];
 function phaseLabel(s){
   if(s==null)return 'Unknown';
-  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed',sold:'Sold',archived:'Archived',lost:'Lost'})[s]||s;
+  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',selling:'Selling',listed:'Selling',sold:'Sold',archived:'Archived',lost:'Lost'})[s]||s;
 }
-
-// Construction scope-tier label (read-only; editor inputs ship in BN).
 function scopeTierLabel(t){
   if(t==null)return '—';
   return ({1:'1 Cosmetic',2:'2 Medium',3:'3 Heavy'})[t]||String(t);
 }
 
-// ========== HELPERS ==========
-function FK(n){if(n==null||!isFinite(n))return '—';if(n>=1e6)return '$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';if(n>=1e3)return '$'+Math.round(n/1e3)+'K';return '$'+n;}
+// ============================================================
+// PHASE_CONFIG — drives applyPhase(). Mirrors mockup PHASE_CONFIG.
+// ============================================================
+const PHASE_CONFIG = {
+  pursuing: {
+    show: ['cashSect','offerCalc','whatsNextSect','historySect'],
+    hide: ['uwBar','escrowSect','prepSect','constructionSect','listingSect','handoffSect','lpCalc','cashGrid','finRow','docsSect'],
+    cashTitle: 'Offer math',
+    cashSub: 'model headline offer + reduction strategy',
+    loanStatus: 'none',
+  },
+  in_escrow: {
+    show: ['uwBar','escrowSect','prepSect','cashSect','cashGrid','finRow','whatsNextSect','docsSect','historySect'],
+    hide: ['offerCalc','lpCalc','constructionSect','listingSect','handoffSect'],
+    cashTitle: 'Cash position',
+    cashSub: 'owner only · live from money.html data',
+    loanStatus: 'pending',
+  },
+  under_construction: {
+    show: ['uwBar','cashSect','cashGrid','finRow','constructionSect','whatsNextSect','docsSect','historySect'],
+    hide: ['offerCalc','lpCalc','escrowSect','prepSect','listingSect','handoffSect'],
+    cashTitle: 'Cash position',
+    cashSub: 'owner only · live from money.html data',
+    loanStatus: 'funded',
+  },
+  selling: {
+    show: ['uwBar','cashSect','cashGrid','finRow','lpCalc','listingSect','handoffSect','whatsNextSect','docsSect','historySect'],
+    hide: ['offerCalc','escrowSect','prepSect','constructionSect'],
+    cashTitle: 'Cash position',
+    cashSub: 'offer-decision oriented · cost of waiting + breakeven',
+    loanStatus: 'funded',
+  },
+  sold: {
+    show: ['uwBar','cashSect','cashGrid','listingSect','historySect','docsSect'],
+    hide: ['offerCalc','lpCalc','escrowSect','prepSect','constructionSect','handoffSect','whatsNextSect','finRow'],
+    cashTitle: 'Final P&L',
+    cashSub: 'closed deal — read only',
+    loanStatus: 'paid_off',
+    readOnly: true,
+  },
+  lost: {
+    show: ['cashSect','offerCalc','historySect'],
+    hide: ['uwBar','escrowSect','prepSect','constructionSect','listingSect','handoffSect','lpCalc','cashGrid','finRow','whatsNextSect','docsSect'],
+    cashTitle: 'Offer math (lost)',
+    cashSub: 'deal lost — read only · kept for reference',
+    loanStatus: 'none',
+    readOnly: true,
+  },
+  archived: {
+    show: ['historySect'],
+    hide: ['uwBar','escrowSect','prepSect','constructionSect','listingSect','handoffSect','offerCalc','lpCalc','cashGrid','finRow','whatsNextSect','docsSect','cashSect'],
+    readOnly: true,
+  },
+};
+
+// ============================================================
+// HELPERS
+// ============================================================
+function FK(n){if(n==null||!isFinite(n))return '—';if(Math.abs(n)>=1e6)return '$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';if(Math.abs(n)>=1e3)return '$'+Math.round(n/1e3)+'K';return '$'+Math.round(n);}
+function FKsigned(n){if(n==null||!isFinite(n))return '—';return (n>=0?'+':'-')+FK(Math.abs(n));}
 function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
 function relTime(iso){
   if(!iso)return '';
@@ -326,50 +467,64 @@ function relTime(iso){
 }
 function fmtDate(iso){
   if(!iso)return '';
-  const d=new Date(iso);
+  const d=new Date(iso+(typeof iso==='string'&&iso.length===10?'T00:00:00':''));
   if(!isFinite(d.getTime()))return '';
   return d.toISOString().slice(0,10);
 }
 function fmtMD(iso){
   if(!iso)return '—';
-  const d=new Date(iso+(iso.length===10?'T00:00:00':''));
+  const d=new Date(iso+(typeof iso==='string'&&iso.length===10?'T00:00:00':''));
   if(!isFinite(d.getTime()))return '—';
   return (d.getMonth()+1)+'/'+d.getDate();
+}
+function daysBetween(a,b){
+  if(!a||!b)return null;
+  const da=new Date(typeof a==='string'?a+'T00:00:00':a);
+  const db=new Date(typeof b==='string'?b+'T00:00:00':b);
+  if(!isFinite(da)||!isFinite(db))return null;
+  return Math.round((db-da)/86400000);
+}
+function todayStr(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 function userShort(uuid){
   if(!uuid)return 'unknown';
   return uuid.slice(0,8);
 }
-// Resolves transitioned_by UUIDs → display names via the get_user_display_names
-// RPC (Migration 062). Populates userNameMap as a side-effect; renderHistoryList
-// reads from it. RPC failures are non-fatal — UUID-prefix fallback kicks in.
 async function loadUserNames(uuids){
   const unique=[...new Set((uuids||[]).filter(Boolean))];
   const missing=unique.filter(u=>!userNameMap.has(u));
   if(!missing.length)return;
   try {
     const {data, error}=await sb.rpc('get_user_display_names', {user_ids: missing});
-    if(error){
-      console.warn('[project-detail] get_user_display_names failed (non-fatal):', error.message);
-      return;
-    }
+    if(error){console.warn('[project-detail] get_user_display_names failed:', error.message);return;}
     for(const row of (data||[])){
       if(row && row.user_id)userNameMap.set(row.user_id, row.display_name||userShort(row.user_id));
     }
-  } catch(e){
-    console.warn('[project-detail] get_user_display_names threw (non-fatal):', e);
-  }
+  } catch(e){console.warn('[project-detail] get_user_display_names threw:', e);}
 }
 function resolvedUserName(uuid){
   if(!uuid)return 'unknown';
   return userNameMap.get(uuid) || userShort(uuid);
 }
-function todayStr(){
-  const d=new Date();
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+function shortenSchool(name){
+  if(!name)return '';
+  return String(name)
+    .replace(/\s+Elementary\s+School\s*$/i, ' ES')
+    .replace(/\s+Middle\s+School\s*$/i, ' MS')
+    .replace(/\s+High\s+School\s*$/i, ' HS');
+}
+function schoolChipStyle(rating){
+  const r=Number(rating||0);
+  if(r>=7)return 'background:var(--green-bg);color:var(--green)';
+  if(r>=5)return 'background:var(--amber-bg);color:var(--amber)';
+  return 'background:var(--red-bg);color:var(--red)';
 }
 
-// ========== PARSE QUERY PARAMS ==========
+// ============================================================
+// QUERY PARAMS
+// ============================================================
 function getQueryParams(){
   const params=new URLSearchParams(location.search);
   return {
@@ -378,61 +533,33 @@ function getQueryParams(){
   };
 }
 
-// ========== STATE ==========
-let currentDeal=null;        // row from `deals`
-let propertiesByMls={};      // mls -> properties row (for header rendering)
-let phaseHistory=[];         // rows from deals_phase_history
-let dealMilestones=[];       // rows from deal_milestones
-let userNameMap=new Map();   // auth.users.id -> display name (Migration 062)
+// ============================================================
+// STATE
+// ============================================================
+let currentDeal=null;
+let propertiesByMls={};
+let phaseHistory=[];
+let dealMilestones=[];
+let phaseChecklistItems=[];
+let userNameMap=new Map();
+let dealLoans=[];
+let capitalSources=[];
+let dealExpenses=[];
 let saving=false;
+let uwCtx=null;
+let lastArvRow=null;
+let lastGradeRow=null;
+let lastDeCount=0;
 
-// MG — loan state. Loaded in loadProject(); refreshed by loadDealLoans()
-// after any modal/inline-edit save so the Loan section + modal trigger
-// guard stay in sync without a full loadProject() round-trip.
-let dealLoans=[];            // rows from deal_loans (this deal only)
-let capitalSources=[];       // active rows from capital_sources (for dropdowns)
-
-// BQ inline-edit state — last-rendered underwriting bar context. Stashed
-// here so the inline-edit handlers can recompute profit + re-render the
-// bar without a full loadProject().
-let uwCtx=null;              // {arvRow, gradeRow, deCount, activeMls, financingClosing}
-
-// BQ — pure profit calc. Same constants as the BP renderPage block
-// (financing+closing falls back to 3% of the buy price when the
-// deal_scores estimates are missing).
-function recomputeProfit({offer, arv, construction, financingClosing}){
-  if(offer==null || arv==null || construction==null)return {dollar:null, pct:null, fc:null};
-  let fc=financingClosing;
-  if(fc==null)fc=offer*0.03;
-  const dollar=arv - offer - construction - fc;
-  const pct=arv>0?(dollar/arv*100):null;
-  return {dollar, pct, fc};
-}
-
-// Pick the "primary" properties row to render in the header. For listed
-// deals, prefer the relist_mls (the new MLS# carrying the listing photos
-// + price). Otherwise fall back to buy_side_mls.
-function primaryProperty(){
-  if(!currentDeal)return null;
-  if(currentDeal.phase==='listed' && currentDeal.relist_mls && propertiesByMls[currentDeal.relist_mls]){
-    return propertiesByMls[currentDeal.relist_mls];
-  }
-  if(currentDeal.buy_side_mls && propertiesByMls[currentDeal.buy_side_mls]){
-    return propertiesByMls[currentDeal.buy_side_mls];
-  }
-  if(currentDeal.relist_mls && propertiesByMls[currentDeal.relist_mls]){
-    return propertiesByMls[currentDeal.relist_mls];
-  }
-  return null;
-}
-
-// ========== LOAD ==========
+// ============================================================
+// DATA LOAD
+// ============================================================
 async function loadProject(){
   const {dealId, mls}=getQueryParams();
   const topBarMls=document.getElementById('topbar-mls');
 
   if(!dealId && !mls){
-    document.getElementById('container').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--text-4)">No <code>?deal=&lt;uuid&gt;</code> or <code>?mls=&lt;mls&gt;</code> query param. Open this page from the Pipeline kanban or an MLS Deals listing.</div>`;
+    document.getElementById('page').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--text-4)">No <code>?deal=&lt;uuid&gt;</code> or <code>?mls=&lt;mls&gt;</code> query param. Open this page from the Pipeline kanban or an MLS Deals listing.</div>`;
     return;
   }
 
@@ -442,8 +569,7 @@ async function loadProject(){
     const {data, error}=await sb.from('deals').select('*').eq('id', dealId).maybeSingle();
     dealRow=data; dealErr=error;
   } else {
-    // Backward-compat fallback: ?mls=<mls>. Match buy_side_mls OR relist_mls.
-    const escMls=mls.replace(/'/g,"''"); // PostgREST or-string is comma-delimited; commas/parens in mls are unlikely but escape single-quotes for safety.
+    const escMls=mls.replace(/'/g,"''");
     const {data, error}=await sb.from('deals')
       .select('*')
       .or(`buy_side_mls.eq.${escMls},relist_mls.eq.${escMls}`)
@@ -451,18 +577,17 @@ async function loadProject(){
     if(error){dealErr=error;}
     else if(data && data.length){dealRow=data[0];}
     else {
-      // No matching deal — bounce back to mls-deals.html.
-      document.getElementById('container').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--text-4)">No deal found for MLS# ${escapeHtml(mls)}. <a href="mls-deals.html" style="color:var(--accent)">Back to MLS Deals →</a></div>`;
+      document.getElementById('page').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--text-4)">No deal found for MLS# ${escapeHtml(mls)}. <a href="mls-deals.html" style="color:var(--accent)">Back to MLS Deals →</a></div>`;
       return;
     }
   }
   if(dealErr){
     console.error('[project-detail] deal load failed', dealErr);
-    document.getElementById('container').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--red)">Failed to load deal: ${escapeHtml(dealErr.message)}</div>`;
+    document.getElementById('page').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--red)">Failed to load deal: ${escapeHtml(dealErr.message)}</div>`;
     return;
   }
   if(!dealRow){
-    document.getElementById('container').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--text-4)">No deal found for the supplied id/mls.</div>`;
+    document.getElementById('page').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--text-4)">No deal found.</div>`;
     return;
   }
   currentDeal=dealRow;
@@ -474,246 +599,196 @@ async function loadProject(){
     topBarMls.textContent=labels.join(' · ');
   }
 
-  // 2. Load the linked properties rows (may be one or two). Pull every field
-  // BP's inline acquisition-data section needs (schools + ratings, agent +
-  // broker, double_ended, photo_count, lot_size, pool, change_type) plus the
-  // existing fields used by the read-only Construction / Listing sections.
+  // 2. Properties.
   const mlsList=[dealRow.buy_side_mls, dealRow.relist_mls].filter(Boolean);
   propertiesByMls={};
   if(mlsList.length){
     const {data:props, error:pErr}=await sb.from('properties')
       .select('id, mls, address, city, zip, beds, baths, sqft, lot_size, pool, year_built, list_price, sale_price, sold_date, locked_arv, locked_construction, elementary_school, middle_school, high_school, elementary_rating, middle_rating, high_rating, agent_name, agent_email, agent_broker, double_ended, photo_count, change_type')
       .in('mls', mlsList);
-    if(pErr){
-      console.warn('[project-detail] properties load failed (non-fatal)', pErr);
-    } else {
-      for(const r of (props||[])){
-        propertiesByMls[r.mls]=r;
-      }
-    }
+    if(pErr){console.warn('[project-detail] properties load failed:', pErr);}
+    else { for(const r of (props||[])){propertiesByMls[r.mls]=r;} }
   }
 
-  // 3. ARV + deal-score lookups (best-effort; prefer primary mls).
-  // arv_estimates carries `headline_arv` + `confidence` (the v7 estimator's
-  // unified output column; the older `arv` / `confidence_label` columns the
-  // pre-BP renderPage tried to read don't exist on the table).
-  // deal_scores carries `rehab_estimate`, `financing_estimate`, `closing_estimate`
-  // as top-level columns (also mirrored in breakdown_json for the v1 detail panel).
+  // 3. ARV + deal-score.
   const primary=primaryProperty();
   let arvRow=null, gradeRow=null, deCount=0;
   if(primary){
     try {
       const {data:arvData}=await sb.from('arv_estimates').select('headline_arv,confidence,confidence_score').eq('mls',primary.mls).order('computed_at',{ascending:false}).limit(1);
       arvRow=(arvData&&arvData[0])||null;
-    } catch(e){ /* ignore */ }
+    } catch(e){}
     try {
       const {data:gData}=await sb.from('deal_scores').select('grade,spread,spread_pct,rehab_estimate,financing_estimate,closing_estimate,arv_used,target_buy,status').eq('mls',primary.mls).order('computed_at',{ascending:false}).limit(1);
       gradeRow=(gData&&gData[0])||null;
-    } catch(e){ /* ignore */ }
-    // DE count for the agent on the active mls. Mirrors mls-deals.html's
-    // fetchAgentDeCounts() but for a single agent. Email-primary, name-fallback.
+    } catch(e){}
     deCount=await fetchAgentDeCount(primary.agent_email, primary.agent_name);
   }
+  lastArvRow=arvRow; lastGradeRow=gradeRow; lastDeCount=deCount;
 
   // 4. Phase history.
-  const {data:hist, error:hErr}=await sb.from('deals_phase_history')
+  const {data:hist}=await sb.from('deals_phase_history')
     .select('id, deal_id, from_phase, to_phase, transitioned_at, transitioned_by, note')
     .eq('deal_id', dealRow.id)
     .order('transitioned_at', {ascending:false});
-  if(hErr){
-    console.error('[project-detail] history load failed', hErr);
-    phaseHistory=[];
-  } else {
-    phaseHistory=hist||[];
-  }
-
-  // 4b. Resolve transitioned_by UUIDs → display names via Migration 062 RPC.
-  // Graceful degradation: if RPC fails (not yet applied, or RLS issue),
-  // userNameMap stays empty and userShort() falls back to the UUID prefix.
+  phaseHistory=hist||[];
   await loadUserNames(phaseHistory.map(h=>h.transitioned_by));
 
-  // 5. Deal milestones (read-only mini-list).
-  const {data:ms, error:msErr}=await sb.from('deal_milestones')
-    .select('id, deal_id, milestone_key, display_name, due_date, completed, completed_at, notes')
+  // 5. Deal milestones.
+  const {data:ms}=await sb.from('deal_milestones')
+    .select('id, deal_id, template_id, milestone_key, display_name, due_date, completed, completed_at, notes')
     .eq('deal_id', dealRow.id)
     .order('due_date', {ascending:true});
-  if(msErr){
-    console.warn('[project-detail] milestones load failed (non-fatal)', msErr);
-    dealMilestones=[];
-  } else {
-    dealMilestones=ms||[];
+  dealMilestones=ms||[];
+
+  // 6. Phase checklist items (BV new). Graceful fallback if table doesn't
+  // exist yet (Migration 065 not applied).
+  try {
+    const {data:ck, error:ckErr}=await sb.from('deal_phase_checklist_items')
+      .select('id, deal_id, template_id, display_name, phase, completed, completed_at, display_order')
+      .eq('deal_id', dealRow.id)
+      .order('display_order',{ascending:true});
+    if(ckErr){
+      console.warn('[project-detail] deal_phase_checklist_items not available (BV migration 065 not applied?):', ckErr.message);
+      phaseChecklistItems=[];
+    } else {
+      phaseChecklistItems=ck||[];
+    }
+  } catch(e){
+    phaseChecklistItems=[];
   }
 
-  // 6. MG — deal_loans (this deal) + capital_sources (active HML/private).
-  // Owner-only RLS on deal_loans means non-owners get zero rows + no error.
-  // Loan section gracefully shows empty state in that case.
+  // 7. Deal loans + capital sources.
   await loadDealLoans();
   await loadCapitalSources();
 
-  renderPage(arvRow, gradeRow, deCount);
+  // 8. Deal expenses (spending tree — under_construction phase). Graceful fallback.
+  try {
+    const {data:exps}=await sb.from('deal_expenses')
+      .select('id, deal_id, qbo_account_name, qbo_account_id, bucket, amount, txn_date')
+      .eq('deal_id', dealRow.id);
+    dealExpenses=exps||[];
+  } catch(e){
+    dealExpenses=[];
+  }
+
+  renderPage();
 }
 
-// MG — fetch this deal's loans only (called by loadProject + after every
-// modal/inline-edit save). Cheap query; isolated from the full loadProject
-// round-trip so re-renders feel snappy.
 async function loadDealLoans(){
   if(!currentDeal){dealLoans=[];return;}
   const {data, error}=await sb.from('deal_loans')
     .select('id, deal_id, capital_source_id, loan_purpose, status, loan_amount, rate_apr, term_months, origination_date, funded_date, maturity_date, payoff_date, payoff_amount, notes, created_at')
     .eq('deal_id', currentDeal.id)
     .order('created_at', {ascending:true});
-  if(error){
-    console.warn('[project-detail] deal_loans load failed (non-fatal):', error.message);
-    dealLoans=[];
-    return;
-  }
+  if(error){console.warn('[project-detail] deal_loans load failed:', error.message);dealLoans=[];return;}
   dealLoans=data||[];
 }
 
-// MG — fetch HML + private capital sources for the dropdown. Excludes
-// HELOCs / shareholder cash (those use Money's Path X/Y in a future brief).
 async function loadCapitalSources(){
   const {data, error}=await sb.from('capital_sources')
     .select('id, name, source_type, default_rate_apr, active')
     .in('source_type', ['hard_money','private'])
     .eq('active', true)
     .order('name');
-  if(error){
-    console.warn('[project-detail] capital_sources load failed (non-fatal):', error.message);
-    capitalSources=[];
-    return;
-  }
+  if(error){capitalSources=[];return;}
   capitalSources=data||[];
 }
 
-// ========== AGENT DE COUNT ==========
-// Mirrors mls-deals.html's fetchAgentDeCounts() but scoped to a single agent.
-// Email-primary, name-fallback. Counts past `properties` rows where this
-// agent was the listing agent on a double_ended sale since 2023-01-01.
 async function fetchAgentDeCount(email, name){
   const em=(email||'').trim().toLowerCase();
   const nm=(name||'').trim().toLowerCase();
   if(!em && !nm)return 0;
   try{
     if(em){
-      const {data,error}=await sb.from('properties').select('mls',{count:'exact',head:false}).eq('double_ended',true).gte('sold_date','2023-01-01').eq('agent_email',em);
-      if(error)return 0;
+      const {data}=await sb.from('properties').select('mls',{count:'exact',head:false}).eq('double_ended',true).gte('sold_date','2023-01-01').eq('agent_email',em);
       return (data||[]).length;
     }
-    const {data,error}=await sb.from('properties').select('mls',{count:'exact',head:false}).eq('double_ended',true).gte('sold_date','2023-01-01').eq('agent_name',name);
-    if(error)return 0;
+    const {data}=await sb.from('properties').select('mls',{count:'exact',head:false}).eq('double_ended',true).gte('sold_date','2023-01-01').eq('agent_name',name);
     return (data||[]).length;
   }catch(e){return 0;}
 }
 
-// ========== ACQ CARD HELPERS ==========
+function primaryProperty(){
+  if(!currentDeal)return null;
+  if((currentDeal.phase==='selling'||currentDeal.phase==='sold') && currentDeal.relist_mls && propertiesByMls[currentDeal.relist_mls]){
+    return propertiesByMls[currentDeal.relist_mls];
+  }
+  if(currentDeal.buy_side_mls && propertiesByMls[currentDeal.buy_side_mls]){
+    return propertiesByMls[currentDeal.buy_side_mls];
+  }
+  if(currentDeal.relist_mls && propertiesByMls[currentDeal.relist_mls]){
+    return propertiesByMls[currentDeal.relist_mls];
+  }
+  return null;
+}
+
+function recomputeProfit({offer, arv, construction, financingClosing}){
+  if(offer==null || arv==null || construction==null)return {dollar:null, pct:null, fc:null};
+  let fc=financingClosing;
+  if(fc==null)fc=offer*0.03;
+  const dollar=arv - offer - construction - fc;
+  const pct=arv>0?(dollar/arv*100):null;
+  return {dollar, pct, fc};
+}
+
+// Photos / lightbox
 const PHOTO_BASE='https://photos.dottyhomes.com';
 function getThumbUrl(mls){return `${PHOTO_BASE}/${mls}/${mls}_01.jpg`;}
-
-// Phase pill color tier (background-bg + text-fg pair). Mirrors the conventions
-// used elsewhere in Backstage (in mls-deals' detail badges, listings tags).
-function stagePillStyle(phase){
-  if(phase==='in_escrow')      return 'background:var(--amber-bg);color:var(--amber)';
-  if(phase==='under_construction')return 'background:var(--blue-bg);color:var(--blue)';
-  if(phase==='listed')          return 'background:var(--green-bg);color:var(--green)';
-  if(phase==='sold')            return 'background:var(--bg-alt);color:var(--text-3)';
-  if(phase==='archived'||phase==='lost')return 'background:var(--bg-alt);color:var(--text-4)';
-  // pursuing + fallback → gold accent (matches mockup default)
-  return 'background:var(--accent-dim);color:var(--accent)';
-}
-
-// School chip color tier (mls-deals' .sh / .sm / .sl pattern, ported as inline
-// styles to keep the project-detail stylesheet self-contained).
-function schoolChipStyle(rating){
-  const r=Number(rating||0);
-  if(r>=7)return 'background:var(--green-bg);color:var(--green)';
-  if(r>=5)return 'background:var(--amber-bg);color:var(--amber)';
-  return 'background:var(--red-bg);color:var(--red)';
-}
-
-// Shorten "<X> Elementary School" → "<X> ES" (and MS / HS for middle / high).
-// Saves horizontal space in the schools row while keeping the proper noun.
-function shortenSchool(name){
-  if(!name)return '';
-  return String(name)
-    .replace(/\s+Elementary\s+School\s*$/i, ' ES')
-    .replace(/\s+Middle\s+School\s*$/i, ' MS')
-    .replace(/\s+High\s+School\s*$/i, ' HS');
-}
-
-// Slim, single-photo lightbox (R2 photo at index 01). v1 doesn't need the
-// multi-photo gallery from mls-deals — that lightbox is tangled with the
-// listings/compCache lookup, and porting it would require importing more
-// state than this page should carry.
 function openAcqLightbox(mls,addr){
   const overlay=document.getElementById('acqLightbox');
   if(!overlay)return;
-  const imgEl=document.getElementById('acqLightboxImg');
-  const addrEl=document.getElementById('acqLightboxAddr');
-  if(addrEl)addrEl.textContent=addr||'';
-  if(imgEl){imgEl.src=getThumbUrl(mls);}
+  document.getElementById('acqLightboxImg').src=getThumbUrl(mls);
+  document.getElementById('acqLightboxAddr').textContent=addr||'';
   overlay.classList.add('open');
   document.addEventListener('keydown',acqLbKey);
 }
 function closeAcqLightbox(){
-  const overlay=document.getElementById('acqLightbox');
-  if(overlay)overlay.classList.remove('open');
+  document.getElementById('acqLightbox').classList.remove('open');
   document.removeEventListener('keydown',acqLbKey);
 }
 function acqLbKey(e){if(e.key==='Escape')closeAcqLightbox();}
+window.closeAcqLightbox=closeAcqLightbox;
 
-// ========== RENDER ==========
-function renderPage(arvRow,gradeRow,deCount){
+// ============================================================
+// RENDER
+// ============================================================
+function renderPage(){
   const d=currentDeal;
   const role=window.CURRENT_USER_ROLE;
-  const phase=d.phase;
-  const phaseLbl=phaseLabel(phase);
+  const phase=d.phase || 'pursuing';
+  const cfg=PHASE_CONFIG[phase] || PHASE_CONFIG.pursuing;
   const p=primaryProperty();
   const isOffMkt=p && typeof p.mls==='string' && p.mls.startsWith('OFFMKT-');
 
-  // === ACQ CARD INPUTS ===
-
-  // Active MLS for the deep-link target (the resolved primary). The header
-  // sub-line still lists BOTH MLS#s for audit-trail visibility.
-  const activeMls=p?p.mls:(d.relist_mls||d.buy_side_mls);
-
-  // Address / city / zip composed for the bold address line.
+  // Address line
   const addrLine=p
     ?`${p.address||'(no address)'}, ${(p.city||'').toUpperCase()}${p.zip?' '+p.zip:''}`
     :'(no linked properties row)';
 
-  // MLS label line. When both exist: "Buy MLS# X · Relist MLS# Y".
-  // Otherwise just one MLS#.
-  const mlsLabels=[];
-  if(d.buy_side_mls && d.relist_mls){
-    mlsLabels.push('Buy MLS# '+d.buy_side_mls);
-    mlsLabels.push('Relist MLS# '+d.relist_mls);
-  } else if(d.buy_side_mls){
-    mlsLabels.push('MLS# '+d.buy_side_mls);
-  } else if(d.relist_mls){
-    mlsLabels.push('MLS# '+d.relist_mls);
-  }
-
-  // Sub-line: bd/ba · sqft · Lot N sf · Pool Yes/No · MLS#(s).
-  // For OFFMKT- rows: "<mls> · beds/baths/sqft TBD <em>(off-market — fill via off-market.html when BM ships)</em>"
-  let subHtml='';
-  if(isOffMkt){
-    subHtml=`${escapeHtml(p.mls)} · beds/baths/sqft TBD <span style="color:var(--text-4); font-style:italic">(off-market — fill via off-market.html when BM ships)</span>`;
-  } else {
-    const subParts=[];
-    if(p){
-      if(p.beds!=null && p.beds!==0)subParts.push(p.beds+'bd/'+(p.baths||0)+'ba');
-      if(p.sqft)subParts.push(p.sqft.toLocaleString()+' sf');
-      if(p.lot_size)subParts.push('Lot '+Number(p.lot_size).toLocaleString()+' sf');
-      if(p.pool)subParts.push('Pool '+p.pool);
-    }
-    if(mlsLabels.length)subParts.push(mlsLabels.join(' · '));
-    subHtml=subParts.map(escapeHtml).join(' · ');
-  }
-
-  // Schools row (skipped for OFFMKT-).
-  let schoolsHtml='';
+  // Sticky sub-line: morphs per phase per Brief BV D5
+  const subParts=[];
   if(p && !isOffMkt){
+    if(p.beds!=null && p.beds!==0)subParts.push(p.beds+'bd/'+(p.baths||0)+'ba');
+    if(p.sqft)subParts.push(p.sqft.toLocaleString()+' sf');
+    if(p.lot_size)subParts.push('Lot '+Number(p.lot_size).toLocaleString()+' sf');
+    if(p.pool)subParts.push('Pool '+p.pool);
+  }
+  if(phase==='under_construction'){
+    if(d.purchase_price)subParts.push('Bought '+FK(d.purchase_price));
+    if(d.actual_close_date)subParts.push(fmtMD(d.actual_close_date)+' COE');
+  } else if(phase==='selling' || phase==='sold'){
+    if(d.relist_mls)subParts.push('Relist MLS# '+d.relist_mls);
+  } else {
+    if(d.buy_side_mls)subParts.push('MLS# '+d.buy_side_mls);
+  }
+  const subHtml=isOffMkt
+    ? `${escapeHtml(p.mls)} · beds/baths/sqft TBD <span style="color:var(--text-4); font-style:italic">(off-market — fill via off-market.html when BM ships)</span>`
+    : subParts.map(escapeHtml).join(' · ');
+
+  // Schools
+  let schoolsHtml='';
+  if(p && !isOffMkt && phase!=='under_construction'){
     const chips=[];
     if(p.elementary_school || p.elementary_rating!=null){
       chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.elementary_rating)}">E ${p.elementary_rating!=null?p.elementary_rating:'—'}</span>${escapeHtml(shortenSchool(p.elementary_school)||'')}</span>`);
@@ -722,1220 +797,1313 @@ function renderPage(arvRow,gradeRow,deCount){
       chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.middle_rating)}">M ${p.middle_rating!=null?p.middle_rating:'—'}</span>${escapeHtml(shortenSchool(p.middle_school)||'')}</span>`);
     }
     if(p.high_school || p.high_rating!=null){
-      chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.high_rating)}">H ${p.high_rating!=null?p.high_rating:'—'}</span>${escapeHtml(shortenSchool(p.high_school)||'')}</span>`);
+      chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.high_rating)}">H ${p.high_rating!=null?p.high_rating:'—'}</span>${escapeHtml(shortenSchool(p.high_rating)||p.high_school||'')}</span>`);
     }
     if(chips.length)schoolsHtml=`<div class="acq-schools">${chips.join('')}</div>`;
   }
 
-  // Agent row (skipped for OFFMKT-).
-  let agentHtml='';
-  if(p && !isOffMkt){
+  // Agent / Crew / Listing line per phase
+  let agentLineHtml='';
+  if(phase==='under_construction'){
+    const crewBits=[];
+    if(d.gc_crew)crewBits.push(`<span><span class="lbl">Crew</span>${escapeHtml(d.gc_crew)}</span>`);
+    else crewBits.push(`<span><span class="lbl">Crew</span>In-house</span>`);
+    if(d.construction_start_date){
+      const days=daysBetween(d.construction_start_date, todayStr());
+      if(days!=null)crewBits.push('Day '+days+(d.construction_complete_date?' of '+daysBetween(d.construction_start_date,d.construction_complete_date):''));
+    }
+    if(d.rehab_actual!=null && d.rehab_budget){
+      crewBits.push(Math.round(d.rehab_actual/d.rehab_budget*100)+'% done');
+    }
+    agentLineHtml=`<div class="acq-agent">${crewBits.join(' · ')}</div>`;
+  } else if(phase==='selling' || phase==='sold'){
+    const bits=[];
+    if(d.list_price)bits.push(`<span><span class="lbl">Listing</span>${FK(d.list_price)}</span>`);
+    if(d.list_date){
+      const dom=daysBetween(d.list_date, todayStr());
+      if(dom!=null && dom>=0)bits.push(dom+' DOM');
+    }
+    if(d.sale_price && phase==='sold')bits.push('Sold '+FK(d.sale_price));
+    agentLineHtml=`<div class="acq-agent">${bits.join(' · ')}</div>`;
+  } else if(p && !isOffMkt){
     const agentBits=[];
     if(p.agent_name){
       const brokerSuffix=p.agent_broker?` (${escapeHtml(p.agent_broker)})`:'';
       agentBits.push(`<span><span class="lbl">Agent</span>${escapeHtml(p.agent_name)}${brokerSuffix}</span>`);
-    } else {
-      agentBits.push(`<span style="color:var(--text-4);font-style:italic">No agent on file</span>`);
     }
-    if(deCount && deCount>0){
-      agentBits.push(`<span class="de-pill" title="Listing agent has ${deCount} double-end deal${deCount===1?'':'s'} since 2023">🔁 DE×${deCount}</span>`);
+    if(lastDeCount && lastDeCount>0){
+      agentBits.push(`<span class="de-pill" title="Listing agent has ${lastDeCount} double-end deal${lastDeCount===1?'':'s'} since 2023">🔁 DE×${lastDeCount}</span>`);
     }
-    // "View full listing →" deep-link uses the active mls.
-    const linkMls=activeMls||'';
-    agentBits.push(`<a href="mls-deals.html?mls=${encodeURIComponent(linkMls)}" class="acq-link" style="margin-left:auto">View full listing →</a>`);
-    agentHtml=`<div class="acq-agent">${agentBits.join('')}</div>`;
+    const linkMls=p.mls;
+    agentBits.push(`<a href="mls-deals.html?mls=${encodeURIComponent(linkMls)}" class="acq-link">View full listing →</a>`);
+    agentLineHtml=`<div class="acq-agent">${agentBits.join('')}</div>`;
+  }
+
+  // Phase pill / popover
+  const phasePillCls='phase-pill-'+phase;
+  const phaseAux=computePhaseAux(d, phase);
+  const movePhaseOptions=MOVE_TO_PHASES.map(s=>{
+    const sel=(s===phase)?' selected disabled':'';
+    return `<option value="${s}"${sel}>${escapeHtml(phaseLabel(s))}${s===phase?' (current)':''}</option>`;
+  }).join('');
+
+  // Photo thumb
+  let thumbHtml;
+  if(isOffMkt){
+    thumbHtml=`<div class="acq-photo empty">no<br>photos</div>`;
+  } else if(p && p.photo_count>0){
+    const safeAddr=(addrLine||'').replace(/"/g,'&quot;');
+    thumbHtml=`<div class="acq-photo" onclick="openAcqLightbox('${escapeHtml(p.mls)}','${safeAddr}')"><img src="${getThumbUrl(p.mls)}" alt="" onerror="this.parentElement.classList.add('empty');this.outerHTML='no<br>photos'"></div>`;
+  } else {
+    thumbHtml=`<div class="acq-photo empty">no<br>photos</div>`;
   }
 
   // === UNDERWRITING BAR ===
-
-  // Phase-aware buy-price label + value.
   const buyIsOffer=(phase==='pursuing'||phase==='lost');
   const buyLabel=buyIsOffer?'Offer at':'Bought at';
   const buyVal=buyIsOffer?d.offer_price:d.purchase_price;
-
-  // ARV: locked > arv_estimates.headline_arv.
   const arvLocked=p && p.locked_arv!=null;
-  const arvVal=arvLocked?p.locked_arv:(arvRow && arvRow.headline_arv!=null?arvRow.headline_arv:null);
-
-  // Construction: locked > deal_scores.rehab_estimate.
+  const arvVal=arvLocked?p.locked_arv:(lastArvRow && lastArvRow.headline_arv!=null?lastArvRow.headline_arv:null);
   const constrLocked=p && p.locked_construction!=null;
-  const constrVal=constrLocked?p.locked_construction:(gradeRow && gradeRow.rehab_estimate!=null?gradeRow.rehab_estimate:null);
-
-  // Profit: ARV - (buy + construction + financing + closing).
-  // Use deal_scores' financing_estimate + closing_estimate when present;
-  // otherwise approximate financing+closing as 3% of the buy price (matches
-  // the rehab-estimator's combined-cost convention in the v1 detail panel
-  // on mls-deals — see breakdown_json keys financing / purchase_close /
-  // sale_close which sum to roughly 3% of list). Calc lives in
-  // recomputeProfit() so BQ inline-edit can call it on every keystroke.
+  const constrVal=constrLocked?p.locked_construction:(lastGradeRow && lastGradeRow.rehab_estimate!=null?lastGradeRow.rehab_estimate:null);
   let dealScoresFC=null;
-  if(gradeRow){
-    const fin=gradeRow.financing_estimate;
-    const cls=gradeRow.closing_estimate;
+  if(lastGradeRow){
+    const fin=lastGradeRow.financing_estimate;
+    const cls=lastGradeRow.closing_estimate;
     if(fin!=null && cls!=null)dealScoresFC=fin+cls;
   }
   const _pp=recomputeProfit({offer:buyVal, arv:arvVal, construction:constrVal, financingClosing:dealScoresFC});
   const profit=_pp.dollar;
   const profitPct=_pp.pct;
-
-  // BQ — stash context so inline-edit handlers can re-render the bar.
-  // buyStat: 'offer' or 'bought' depending on phase.
-  const buyStat=buyIsOffer?'offer':'bought';
-  uwCtx={arvRow, gradeRow, deCount, activeMls, dealScoresFC, buyStat};
+  const activeMls=p?p.mls:(d.relist_mls||d.buy_side_mls);
+  uwCtx={activeMls, dealScoresFC, buyStat:buyIsOffer?'offer':'bought'};
 
   function fmtUw(v,locked,statKey){
     const attrs=statKey?` tabindex="0" data-stat="${statKey}"`:'';
-    if(v==null)return `<div class="uw-value" style="color:var(--text-4)"${attrs}>— not set</div>`;
+    if(v==null)return `<div class="uw-val" style="color:var(--text-4)"${attrs}>— not set</div>`;
     const clearBtn=statKey?`<span class="uw-clear" data-clear-stat="${statKey}" title="Clear value">×</span>`:'';
-    return `<div class="uw-value"${attrs}>${FK(v)}${locked?'<span class="uw-lock">🔒</span>':''}${clearBtn}</div>`;
+    return `<div class="uw-val"${attrs}>${FK(v)}${locked?'<span class="lock">🔒</span>':''}${clearBtn}</div>`;
   }
-  function profitHtml(){
-    if(profit==null)return `<div class="uw-value" id="uwProfit" style="color:var(--text-4)">— pending</div>`;
+  let profitHtml=`<div class="uw-val dim" id="uwProfit">— pending</div>`;
+  if(profit!=null){
     const cls=profit>=0?'profit-pos':'profit-neg';
     const sign=profit>=0?'+':'-';
-    const dollars=FK(Math.abs(profit));
-    const pct=profitPct!=null?` <span style="font-size:13px;font-weight:600">(${(profitPct>=0?'+':'')}${profitPct.toFixed(1)}%)</span>`:'';
-    return `<div class="uw-value uw-value-large ${cls}" id="uwProfit">${sign}${dollars}${pct}</div>`;
+    const pct=profitPct!=null?` <span class="pct">(${(profitPct>=0?'+':'')}${profitPct.toFixed(1)}%)</span>`:'';
+    profitHtml=`<div class="uw-val large ${cls}" id="uwProfit">${sign}${FK(Math.abs(profit))}${pct}</div>`;
   }
 
-  // === PHOTO THUMB ===
-  let thumbHtml;
-  if(isOffMkt){
-    thumbHtml=`<div class="acq-thumb acq-thumb-empty">no<br>photos</div>`;
-  } else if(p && p.photo_count>0){
-    const safeAddr=(addrLine||'').replace(/"/g,'&quot;');
-    thumbHtml=`<img class="acq-thumb" src="${getThumbUrl(activeMls||p.mls)}" alt="" onerror="this.outerHTML='&lt;div class=&quot;acq-thumb acq-thumb-empty&quot;&gt;no&lt;br&gt;photos&lt;/div&gt;'" onclick="openAcqLightbox('${escapeHtml(activeMls||p.mls)}','${safeAddr}')" title="Click to expand">`;
-  } else {
-    thumbHtml=`<div class="acq-thumb acq-thumb-empty">no<br>photos</div>`;
-  }
+  // === Sold banner ===
+  const soldBannerHtml=(phase==='sold')
+    ? `<div class="sold-banner">This deal closed${d.sale_close_date?' on '+fmtDate(d.sale_close_date):''} · final P&L on <a href="money.html">Money page →</a></div>`
+    : '';
 
-  // === COMPOSE ACQ CARD ===
-  const acqCardHtml=`
-    <div class="acq-card">
+  // === Render full page ===
+  const pageHtml=`
+    ${soldBannerHtml}
+    <div class="crumb">
+      <a href="pipeline.html">← Pipeline</a>
+      <span class="sep">·</span>
+      <span>${d.buy_side_mls?'Buy: ':'Relist: '}<span style="font-family:var(--mono);color:var(--text-2)">${escapeHtml(d.buy_side_mls||d.relist_mls||'')}</span></span>
+    </div>
+
+    <!-- ACQUISITION CARD -->
+    <div class="acq">
       ${thumbHtml}
       <div class="acq-body">
-        <div class="acq-head">
-          <div class="acq-addr">${escapeHtml(addrLine)}</div>
-          <span class="stage-pill" style="${stagePillStyle(phase)}">${escapeHtml(phaseLbl)}</span>
+        <div class="acq-title-row">
+          <div style="flex:1">
+            <div class="acq-title">${escapeHtml(addrLine)}</div>
+            <div class="acq-sub" id="acqSub">${subHtml}</div>
+          </div>
         </div>
-        <p class="acq-sub">${subHtml}</p>
         ${schoolsHtml}
-        ${agentHtml}
-        <div class="uw-bar">
-          <div class="uw-stat">
-            <div class="uw-label">${buyLabel}</div>
-            ${fmtUw(buyVal,false,buyStat)}
-          </div>
-          <div class="uw-sep">·</div>
-          <div class="uw-stat">
-            <div class="uw-label">ARV</div>
-            ${fmtUw(arvVal,arvLocked,'arv')}
-          </div>
-          <div class="uw-sep">·</div>
-          <div class="uw-stat">
-            <div class="uw-label">Construction</div>
-            ${fmtUw(constrVal,constrLocked,'construction')}
-          </div>
-          <div class="uw-sep">·</div>
-          <div class="uw-stat">
-            <div class="uw-label">Profit</div>
-            ${profitHtml()}
-          </div>
-        </div>
+        ${agentLineHtml}
       </div>
-    </div>
-  `;
-
-  // Phase transition options (5 phases; current one disabled).
-  const phaseOptions=PHASES.map(s=>{
-    const sel=(s===phase)?' selected disabled':'';
-    return `<option value="${s}"${sel}>${escapeHtml(phaseLabel(s))}${s===phase?' (current)':''}</option>`;
-  }).join('');
-
-  let html=`
-    ${acqCardHtml}
-
-    <div class="section">
-      <h2>Phase Transition</h2>
-      <div class="move-form">
-        <div class="move-row">
-          <label for="newStageSelect">Move to:</label>
-          <select id="newStageSelect">
+      <div class="phase-stack" id="phaseStack">
+        <div class="phase-pill-big ${phasePillCls}" id="phasePill" title="Click to change phase">${escapeHtml(phaseLabel(phase))}</div>
+        <div class="phase-aux">${escapeHtml(phaseAux)}</div>
+        <div class="phase-popover" id="phasePopover">
+          <div class="pp-lbl">Move to</div>
+          <select id="ppNewPhase" onchange="onPhaseSelChange()">
             <option value="" disabled selected>Choose phase...</option>
-            ${phaseOptions}
+            ${movePhaseOptions}
           </select>
-        </div>
-        <div class="move-row" id="escrowDatesRow" style="display:none">
-          <label>Escrow dates:</label>
-          <div style="display:flex; gap:10px; flex-wrap:wrap; flex:1">
-            <div style="display:flex; flex-direction:column">
-              <label for="escrowStartInput" style="font-size:11px; color:var(--text-3); margin-bottom:2px">Escrow start</label>
-              <input type="date" id="escrowStartInput" oninput="onEscrowStartChange()" style="padding:5px 8px; border:1px solid var(--border); border-radius:4px; font-family:inherit" />
-            </div>
-            <div style="display:flex; flex-direction:column">
-              <label for="contingencyRemovalInput" style="font-size:11px; color:var(--text-3); margin-bottom:2px">Physical contingency removal</label>
-              <input type="date" id="contingencyRemovalInput" oninput="onContingencyRemovalChange()" style="padding:5px 8px; border:1px solid var(--border); border-radius:4px; font-family:inherit" />
-            </div>
-            <div style="display:flex; flex-direction:column">
-              <label for="targetCloseInput" style="font-size:11px; color:var(--text-3); margin-bottom:2px">Target close</label>
-              <input type="date" id="targetCloseInput" oninput="onTargetCloseChange()" style="padding:5px 8px; border:1px solid var(--border); border-radius:4px; font-family:inherit" />
+          <div id="ppDatesRow" style="display:none">
+            <div class="pp-lbl">Escrow dates</div>
+            <div class="pp-dates">
+              <div><label>Start</label><input type="date" id="ppEscrowStart" oninput="onPpStartChange()"></div>
+              <div><label>Cont. removal</label><input type="date" id="ppContingency" oninput="onPpContChange()"></div>
+              <div><label>Target close</label><input type="date" id="ppTargetClose"></div>
             </div>
           </div>
+          <div class="pp-lbl">Note (optional)</div>
+          <textarea id="ppNote" placeholder="e.g. 'Offer accepted at $1.05M'"></textarea>
+          <div class="pp-actions">
+            <button onclick="document.getElementById('phaseStack').classList.remove('open')">Cancel</button>
+            <button class="primary" id="ppMoveBtn" onclick="movePhase()">Move</button>
+          </div>
+          <div class="pp-msg" id="ppMsg"></div>
         </div>
-        <div class="move-row" style="align-items:flex-start">
-          <label for="moveNote" style="margin-top:6px">Note:</label>
-          <textarea id="moveNote" placeholder="Optional context (e.g. 'Offer accepted at $1.05M', 'Fell out of escrow — buyer financing')"></textarea>
-        </div>
-        <button class="move-btn" id="moveBtn" onclick="moveStage()">Move</button>
-        <div class="move-msg" id="moveMsg"></div>
       </div>
     </div>
 
-    <div class="section">
-      <h2>Phase History</h2>
-      ${renderHistoryList()}
+    <!-- UNDERWRITING BAR -->
+    <div class="uw-bar" id="uwBar">
+      <div class="uw-stat"><div class="uw-label">${buyLabel}</div>${fmtUw(buyVal,false,buyIsOffer?'offer':'bought')}</div>
+      <div class="uw-sep">·</div>
+      <div class="uw-stat"><div class="uw-label">ARV</div>${fmtUw(arvVal,arvLocked,'arv')}</div>
+      <div class="uw-sep">·</div>
+      <div class="uw-stat"><div class="uw-label">Construction</div>${fmtUw(constrVal,constrLocked,'construction')}</div>
+      <div class="uw-sep">·</div>
+      <div class="uw-stat"><div class="uw-label">${buyIsOffer?'Projected profit':'Projected profit'}</div>${profitHtml}</div>
     </div>
 
-    ${renderEscrowDatesSection()}
+    <!-- CONSTRUCTION SECTION -->
     ${renderConstructionSection()}
+
+    <!-- ESCROW TIMELINE -->
+    ${renderEscrowSection()}
+
+    <!-- PRE-CONSTRUCTION PREP -->
+    ${renderPrepSection()}
+
+    <!-- CASH POSITION / OFFER MATH / LIST PRICE -->
+    ${renderCashSection(role, cfg)}
+
+    <!-- WHAT'S NEXT -->
+    ${renderWhatsNextSection()}
+
+    <!-- LISTING -->
     ${renderListingSection()}
-    ${renderMilestonesSection()}
+
+    <!-- PRE-HANDOFF CHECKLIST (selling) -->
+    ${renderHandoffSection()}
+
+    <!-- DOCS -->
+    ${renderDocsSection()}
+
+    <!-- HISTORY -->
+    ${renderHistorySection()}
   `;
 
-  // MG — Loan section replaces the prior "Financing — coming soon" stub.
-  // Owner-only (matches deal_loans RLS — non-owners would see empty rows
-  // anyway). Renders for any phase; "+ Add loan" works on pursuing deals
-  // too. Phase-transition modal is the primary entry point on in_escrow.
-  if(role==='owner'){
-    html+=renderLoanSection();
-  }
+  document.getElementById('page').innerHTML=pageHtml;
 
-  html+=`
-    <div class="section stub">
-      <h2>Sale</h2>
-      <div class="stub-msg">Coming soon — Sprint 5 Sales agent will populate offers, accepted price, escrow timeline, and closing docs.</div>
-    </div>
-
-    <div class="section stub">
-      <h2>Docs</h2>
-      <div class="stub-msg">Coming soon — uploaded PDFs (purchase contract, disclosures, permits, inspections) keyed off this deal.</div>
-    </div>
-  `;
-
-  document.getElementById('container').innerHTML=html;
-
-  // BQ — wire inline-edit handlers for the 4 underwriting stats.
+  applyPhase(phase);
+  wirePhasePill();
   wireUwEdits();
-  // MG — wire inline-edit handlers for the Loan section (skip if not
-  // owner / section not rendered).
-  wireLoanEdits();
+  wireOfferCalc();
+  wireListPriceCalc();
+  wireWhatsNext();
+  wireChecklists();
+  wirePrepNotes();
+  wireEscrowEdits();
+  wireFinancing();
+  wireSpendingTree();
+  wireHistoryToggle();
 }
 
-// ========== BQ INLINE-EDIT (underwriting bar) ==========
-//
-// Each .uw-value[data-stat] is click/keyboard-activatable. Click swaps
-// the rendered text with a number input pre-filled in K-units. Enter or
-// blur → save (stat-routed update to deals.offer_price /
-// deals.purchase_price / properties.locked_arv /
-// properties.locked_construction). Escape → cancel. Empty save → silent
-// revert (no NULL writes; explicit clear UI is out of scope per brief).
-// On every keystroke, profit recomputes live using the in-progress
-// input value combined with the other stats' last-saved values.
+function computePhaseAux(d, phase){
+  if(phase==='pursuing' || phase==='lost'){
+    const since=d.created_at?daysBetween(d.created_at, todayStr()):null;
+    if(since!=null)return 'offer sent '+since+'d ago';
+    return '';
+  }
+  if(phase==='in_escrow'){
+    if(d.escrow_start_date){
+      const days=daysBetween(d.escrow_start_date, todayStr());
+      if(days!=null)return days+' days in escrow';
+    }
+    return '';
+  }
+  if(phase==='under_construction'){
+    if(d.construction_start_date && d.construction_complete_date){
+      const day=daysBetween(d.construction_start_date, todayStr());
+      const total=daysBetween(d.construction_start_date, d.construction_complete_date);
+      if(day!=null && total!=null)return 'day '+day+' of '+total;
+    }
+    return '';
+  }
+  if(phase==='selling'){
+    if(d.list_date){
+      const dom=daysBetween(d.list_date, todayStr());
+      if(dom!=null && dom>=0)return dom+' DOM';
+    }
+    return '';
+  }
+  return '';
+}
 
-function _dollarsForInput(v){return v==null?'':String(Math.round(v));}
-function _currentStatValue(stat){
+function applyPhase(phase){
+  const cfg=PHASE_CONFIG[phase] || PHASE_CONFIG.pursuing;
+  // Show / hide.
+  Object.keys(PHASE_CONFIG).forEach(()=>{});
+  const allIds=['uwBar','escrowSect','prepSect','cashSect','offerCalc','lpCalc','cashGrid','finRow','constructionSect','listingSect','handoffSect','whatsNextSect','docsSect','historySect'];
+  for(const id of allIds){
+    const el=document.getElementById(id);
+    if(!el)continue;
+    if((cfg.show||[]).includes(id))el.classList.remove('phase-hide');
+    else if((cfg.hide||[]).includes(id))el.classList.add('phase-hide');
+  }
+  // Section title swap
+  const titleEl=document.getElementById('cashSectTitle');
+  const subEl=document.getElementById('cashSectSub');
+  if(titleEl)titleEl.textContent=cfg.cashTitle||'Cash position';
+  if(subEl)subEl.textContent=cfg.cashSub||'owner only';
+}
+
+// ============================================================
+// CONSTRUCTION SECTION
+// ============================================================
+function renderConstructionSection(){
   const d=currentDeal;
-  const p=primaryProperty();
-  if(stat==='offer')       return d.offer_price;
-  if(stat==='bought')      return d.purchase_price;
-  if(stat==='arv')         return p?p.locked_arv:null;
-  if(stat==='construction')return p?p.locked_construction:null;
-  return null;
-}
-function _showInlineError(el, msg){
-  // Strip any existing error first.
-  const prev=el.querySelector('.uw-error');
-  if(prev)prev.remove();
-  const e=document.createElement('span');
-  e.className='uw-error';
-  e.textContent=msg;
-  el.appendChild(e);
-  setTimeout(()=>{ if(e.parentNode)e.remove(); }, 3100);
+  const start=d.construction_start_date||d.actual_close_date;
+  const complete=d.construction_complete_date;
+  const totalDays=(start && complete)?daysBetween(start, complete):36;
+  const today=todayStr();
+  const elapsed=start?daysBetween(start, today):null;
+  const remaining=(complete && elapsed!=null)?Math.max(0,totalDays-elapsed):'?';
+  const completionPct=(d.rehab_actual!=null && d.rehab_budget && d.rehab_budget>0)
+    ? Math.round((d.rehab_actual/d.rehab_budget)*100)
+    : (elapsed!=null && totalDays>0?Math.round((elapsed/totalDays)*100):0);
+  const budgetPct=(d.rehab_actual!=null && d.rehab_budget && d.rehab_budget>0)
+    ? Math.round((d.rehab_actual/d.rehab_budget)*100)
+    : 0;
+  const weeklyBurn=(elapsed && elapsed>0 && d.rehab_actual)?Math.round(d.rehab_actual/elapsed*7):null;
+
+  // Phase checklist for under_construction
+  const ckHtml=renderChecklistBlock('under_construction');
+
+  // Spending tree
+  const treeHtml=renderSpendingTree();
+
+  return `
+    <div class="sect phase-hide" id="constructionSect">
+      <div class="sect-h">
+        <h2>Construction</h2>
+        <span class="sub">scope · budget burn · crew</span>
+      </div>
+      <div class="cn-hero">
+        <div class="cn-hero-cell">
+          <div class="lbl">Completion</div>
+          <div class="val">${completionPct}%</div>
+          <div class="sub">${start?'started '+fmtMD(start):'not started'}${(elapsed!=null && totalDays)?' · day '+elapsed+' of '+totalDays:''}</div>
+        </div>
+        <div class="cn-hero-cell">
+          <div class="lbl">Days remaining</div>
+          <div class="val">~${remaining}d</div>
+          <div class="sub">${complete?'target '+fmtMD(complete):''} · ${totalDays} total days</div>
+        </div>
+        <div class="cn-hero-cell">
+          <div class="lbl">Weekly burn</div>
+          <div class="val">${weeklyBurn?'~'+FK(weeklyBurn):'—'}</div>
+          <div class="sub">trailing avg labor + materials</div>
+        </div>
+      </div>
+      <div class="cn-bars">
+        <div class="cn-bar">
+          <div class="lbl">Completion</div>
+          <div class="track"><div class="fill" style="width:${Math.min(100,completionPct)}%"></div></div>
+          <div class="pct">${completionPct}% done</div>
+        </div>
+        <div class="cn-bar">
+          <div class="lbl">Budget burn</div>
+          <div class="track"><div class="fill ${budgetPct>100?'over':''}" style="width:${Math.min(100,budgetPct)}%"></div></div>
+          <div class="pct">${d.rehab_actual!=null?FK(d.rehab_actual):'$0'} / ${d.rehab_budget!=null?FK(d.rehab_budget):'—'}</div>
+        </div>
+      </div>
+      ${ckHtml}
+      ${treeHtml}
+    </div>
+  `;
 }
 
-const STAT_LABELS={offer:'Offer at', bought:'Bought at', arv:'ARV', construction:'Construction'};
+function renderSpendingTree(){
+  const rehab=dealExpenses.filter(e=>['rehab_labor','rehab_materials','rehab_soft','rehab_other'].includes(e.bucket||''));
+  if(!rehab.length){
+    return `<div class="cn-expenses"><div class="ttl">Spending snapshot · grouped by QBO account</div><div class="sp-empty">No rehab expenses synced yet. Run QBO sync from <a href="money.html" style="color:var(--accent)">Money</a>.</div></div>`;
+  }
+  // Group by bucket → qbo_account_name
+  const byBucket={};
+  for(const e of rehab){
+    const b=e.bucket||'rehab_other';
+    if(!byBucket[b])byBucket[b]={total:0, accts:{}};
+    const amt=Number(e.amount||0);
+    byBucket[b].total+=amt;
+    const acct=e.qbo_account_name||'(unmapped)';
+    if(!byBucket[b].accts[acct])byBucket[b].accts[acct]=0;
+    byBucket[b].accts[acct]+=amt;
+  }
+  let total=0;
+  for(const b of Object.keys(byBucket))total+=byBucket[b].total;
+  const bucketLabel={rehab_labor:'Contract labor', rehab_materials:'Materials', rehab_soft:'Soft costs', rehab_other:'Other rehab'};
+  let rows=`<tr class="lvl-0"><td><span class="caret">▾</span>Construction costs</td><td>$${total.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>`;
+  for(const b of Object.keys(byBucket).sort()){
+    const grp=byBucket[b];
+    const cls='g-'+b;
+    rows+=`<tr class="lvl-1 ${cls}"><td><span class="caret collapsed">▾</span>${escapeHtml(bucketLabel[b]||b)}</td><td>$${grp.total.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>`;
+    const accts=Object.entries(grp.accts).sort((a,b)=>b[1]-a[1]);
+    for(const [acct, amt] of accts){
+      rows+=`<tr class="lvl-2 ${cls} hidden"><td>${escapeHtml(acct)}</td><td>$${amt.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>`;
+    }
+  }
+  return `
+    <div class="cn-expenses">
+      <div class="ttl">Spending snapshot · grouped by QBO account</div>
+      <table class="sp-tree" id="spTree"><tbody>${rows}</tbody></table>
+      <div style="margin-top:8px;font-size:11px;color:var(--text-4);font-style:italic">
+        Click any account row to see underlying QBO transactions (drill-down deferred to v2 — for now, jump to <a href="money.html" style="color:var(--accent)">Money page</a> for per-txn detail).
+      </div>
+    </div>
+  `;
+}
 
-function wireUwEdits(){
-  const els=document.querySelectorAll('.uw-value[data-stat]');
-  els.forEach(el=>{
-    el.addEventListener('click', (e)=>{
-      // × clear button intercepts before _beginEdit fires.
-      if(e.target && e.target.classList && e.target.classList.contains('uw-clear')){
-        e.stopPropagation();
-        const stat=e.target.dataset.clearStat;
-        _clearStat(stat, el);
-        return;
-      }
-      _beginEdit(el);
+function wireSpendingTree(){
+  document.addEventListener('click', _spTreeClick);
+}
+function _spTreeClick(e){
+  const caret=e.target.closest('.sp-tree .caret');
+  if(!caret)return;
+  const row=caret.closest('tr');
+  const tbody=row.parentElement;
+  if(!tbody)return;
+  const rows=Array.from(tbody.children);
+  const myIdx=rows.indexOf(row);
+  const isLvl0=row.classList.contains('lvl-0');
+  const isLvl1=row.classList.contains('lvl-1');
+  caret.classList.toggle('collapsed');
+  const collapsing=caret.classList.contains('collapsed');
+  if(isLvl0){
+    for(let i=myIdx+1; i<rows.length; i++){
+      if(rows[i].classList.contains('lvl-0'))break;
+      rows[i].classList.toggle('hidden', collapsing);
+    }
+  } else if(isLvl1){
+    for(let i=myIdx+1; i<rows.length; i++){
+      if(rows[i].classList.contains('lvl-0')||rows[i].classList.contains('lvl-1'))break;
+      rows[i].classList.toggle('hidden', collapsing);
+    }
+  }
+}
+
+// ============================================================
+// ESCROW SECTION
+// ============================================================
+function renderEscrowSection(){
+  const d=currentDeal;
+  const today=todayStr();
+  const startStr=d.escrow_start_date||'';
+  const crdStr=d.contingency_removal_date||'';
+  const closeStr=d.target_close_date||'';
+  const daysIn=startStr?daysBetween(startStr, today):null;
+  const total=(startStr && closeStr)?daysBetween(startStr, closeStr):null;
+  const daysToCRD=crdStr?daysBetween(today, crdStr):null;
+  return `
+    <div class="sect phase-hide" id="escrowSect">
+      <div class="sect-h">
+        <h2>Escrow Timeline</h2>
+        <span class="sub">3-anchor schedule · click any date to edit</span>
+        <span class="right"><a href="calendar.html">Calendar →</a></span>
+      </div>
+      <div class="et-grid">
+        <div class="et-cell"><div class="et-lbl">Started</div><div class="et-val" data-escrow-field="escrow_start_date">${startStr||'—'}</div><div class="et-aux">${daysIn!=null?(daysIn>=0?daysIn+' days ago':'in '+Math.abs(daysIn)+' days'):''}</div></div>
+        <div class="et-cell"><div class="et-lbl">Contingency removed</div><div class="et-val" data-escrow-field="contingency_removal_date">${crdStr||'—'}</div><div class="et-aux ${daysToCRD!=null && daysToCRD<=7 && daysToCRD>=0?'et-deadline':''}">${daysToCRD!=null?(daysToCRD>0?'in '+daysToCRD+'d':(daysToCRD===0?'today':Math.abs(daysToCRD)+'d ago')):''}</div></div>
+        <div class="et-cell"><div class="et-lbl">Target close</div><div class="et-val" data-escrow-field="target_close_date">${closeStr||'—'}</div><div class="et-aux">${closeStr?(daysBetween(today,closeStr)>=0?'in '+daysBetween(today,closeStr)+' days':Math.abs(daysBetween(today,closeStr))+'d ago'):''}</div></div>
+        <div class="et-cell"><div class="et-lbl">Days in escrow</div><div class="et-val">${daysIn!=null && total!=null?daysIn+' / '+total:'—'}</div><div class="et-aux">${daysIn!=null && total>0?Math.round(daysIn/total*100)+'% complete':''}</div></div>
+      </div>
+    </div>
+  `;
+}
+
+function wireEscrowEdits(){
+  document.querySelectorAll('.et-val[data-escrow-field]').forEach(el=>{
+    el.addEventListener('click', ()=>_beginEscrowEdit(el));
+  });
+}
+function _beginEscrowEdit(el){
+  if(el.classList.contains('editing'))return;
+  const field=el.dataset.escrowField;
+  const cur=currentDeal[field]||'';
+  el.classList.add('editing');
+  const input=document.createElement('input');
+  input.type='date';
+  input.value=cur;
+  el.innerHTML='';
+  el.appendChild(input);
+  input.focus();
+  let committed=false, cancelled=false;
+  input.addEventListener('keydown', async (e)=>{
+    if(e.key==='Enter'){e.preventDefault();committed=true;await _commitEscrowEdit(el, field, input.value);}
+    else if(e.key==='Escape'){cancelled=true;el.classList.remove('editing');renderPage();}
+  });
+  input.addEventListener('blur', async ()=>{
+    if(committed||cancelled)return;
+    committed=true;
+    await _commitEscrowEdit(el, field, input.value);
+  });
+}
+async function _commitEscrowEdit(el, field, val){
+  const newVal=(val||'').trim()||null;
+  const updates={updated_at:new Date().toISOString()};
+  updates[field]=newVal;
+  const {error}=await sb.from('deals').update(updates).eq('id', currentDeal.id);
+  if(error){alert('Save failed: '+error.message);renderPage();return;}
+  currentDeal[field]=newVal;
+  // Re-seed milestones if all 3 dates set.
+  if(currentDeal.escrow_start_date && currentDeal.target_close_date && currentDeal.contingency_removal_date){
+    try{
+      await sb.rpc('seed_deal_milestones',{
+        p_deal_id: currentDeal.id,
+        p_escrow_start_date: currentDeal.escrow_start_date,
+        p_target_close_date: currentDeal.target_close_date,
+        p_contingency_removal_date: currentDeal.contingency_removal_date,
+      });
+    }catch(e){console.warn('reseed failed (non-fatal):', e);}
+  }
+  await loadProject();
+}
+
+// ============================================================
+// PRE-CONSTRUCTION PREP SECTION
+// ============================================================
+function renderPrepSection(){
+  const d=currentDeal;
+  const notes=d.prep_notes||'';
+  const ckHtml=renderChecklistBlock('in_escrow');
+  return `
+    <div class="sect phase-hide" id="prepSect">
+      <div class="sect-h">
+        <h2>Pre-construction prep</h2>
+        <span class="sub">scratchpad — what we're planning, what permits, who's lined up</span>
+      </div>
+      <textarea class="prep-area" id="prepNotes" placeholder="e.g. Kitchen + 2 bath refresh. Filed permit 5/9. Cabinets — Home Depot Hampton Bay shaker white, 5w lead. Crew available wk of close.">${escapeHtml(notes)}</textarea>
+      <div class="prep-aux">Saves on blur · no audit trail in v1</div>
+      ${ckHtml}
+    </div>
+  `;
+}
+function wirePrepNotes(){
+  const el=document.getElementById('prepNotes');
+  if(!el)return;
+  el.addEventListener('blur', async ()=>{
+    const v=el.value||'';
+    if(v===(currentDeal.prep_notes||''))return;
+    const {error}=await sb.from('deals').update({prep_notes:v, updated_at:new Date().toISOString()}).eq('id', currentDeal.id);
+    if(error){console.warn('prep_notes save failed:', error.message);return;}
+    currentDeal.prep_notes=v;
+  });
+}
+
+// ============================================================
+// PHASE CHECKLIST BLOCK (in_escrow / under_construction / selling)
+// ============================================================
+function renderChecklistBlock(phase){
+  const items=phaseChecklistItems.filter(i=>i.phase===phase);
+  if(!items.length){
+    // If the migration hasn't run yet, render an empty placeholder so the
+    // layout doesn't blow up.
+    return `<div class="ck-block">
+      <div class="ck-block-h">Checklist · no specific date</div>
+      <div style="font-size:12px;color:var(--text-4);font-style:italic">No checklist items seeded yet — phase template applies on next phase transition (Brief BV migration 065).</div>
+    </div>`;
+  }
+  let lis='';
+  for(const it of items){
+    const checked=it.completed?'checked':'';
+    const doneCls=it.completed?' class="done"':'';
+    lis+=`<li${doneCls}>
+      <input type="checkbox" data-ck-id="${escapeHtml(it.id)}" ${checked}>
+      <span class="ck-name">${escapeHtml(it.display_name)}</span>
+    </li>`;
+  }
+  return `<div class="ck-block">
+    <div class="ck-block-h">Checklist · no specific date</div>
+    <ul class="ck-list">${lis}</ul>
+    <div class="ck-add" data-ck-phase="${escapeHtml(phase)}">+ Add checklist item</div>
+  </div>`;
+}
+function wireChecklists(){
+  document.querySelectorAll('input[type=checkbox][data-ck-id]').forEach(cb=>{
+    cb.addEventListener('change', async ()=>{
+      const id=cb.dataset.ckId;
+      const completed=cb.checked;
+      const item=phaseChecklistItems.find(x=>x.id===id);
+      if(!item)return;
+      const updates={completed, completed_at:completed?new Date().toISOString():null};
+      const {error}=await sb.from('deal_phase_checklist_items').update(updates).eq('id', id);
+      if(error){alert('Save failed: '+error.message);cb.checked=!completed;return;}
+      item.completed=completed;
+      item.completed_at=updates.completed_at;
+      cb.closest('li').classList.toggle('done', completed);
     });
-    el.addEventListener('keydown', (e)=>{
-      if(e.key==='Enter'||e.key===' '){ e.preventDefault(); _beginEdit(el); }
+  });
+  document.querySelectorAll('.ck-add[data-ck-phase]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const phase=el.dataset.ckPhase;
+      const name=prompt('Checklist item:');
+      if(!name)return;
+      const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
+      const ord=Math.max(0, ...phaseChecklistItems.filter(i=>i.phase===phase).map(i=>i.display_order||0))+10;
+      const {error}=await sb.from('deal_phase_checklist_items').insert({
+        deal_id: currentDeal.id, template_id:null, display_name:name,
+        phase, display_order:ord, created_by:userId,
+      });
+      if(error){alert('Add failed: '+error.message);return;}
+      await loadProject();
     });
   });
 }
 
-async function _clearStat(stat, el){
-  const cur=_currentStatValue(stat);
-  if(cur==null)return; // already empty — defensive
-  const label=STAT_LABELS[stat]||stat;
-  if(!confirm('Clear '+FK(cur)+' for '+label+'?'))return;
-  const ok=await saveUwValue(stat, null, el);
-  if(!ok)return;
-  await reloadDealAndProperty();
-  rerenderUwBar();
+// ============================================================
+// CASH POSITION + CALCULATORS
+// ============================================================
+function renderCashSection(role, cfg){
+  if(role!=='owner'){
+    return `<div class="sect phase-hide" id="cashSect">
+      <div class="sect-h"><h2 id="cashSectTitle">Cash position</h2><span class="sub" id="cashSectSub">owner only</span></div>
+      <div style="font-size:12px;color:var(--text-4);font-style:italic">Owner only — log in as the owner to view cash math.</div>
+    </div>`;
+  }
+  const cashCells=computeCashCells();
+  const cashGridHtml=`
+    <div class="cash-grid" id="cashGrid">
+      ${cashCells.map((c,i)=>{
+        const dimCls=c[3]?' dim':'';
+        return `<div class="cash-cell${i===0?' accent':''}">
+          <div class="lbl">${escapeHtml(c[0])}</div>
+          <div class="val${dimCls}">${escapeHtml(c[1])}</div>
+          <div class="sub">${escapeHtml(c[2])}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+  return `
+    <div class="sect" id="cashSect">
+      <div class="sect-h">
+        <h2 id="cashSectTitle">${escapeHtml(cfg.cashTitle||'Cash position')}</h2>
+        <span class="sub" id="cashSectSub">${escapeHtml(cfg.cashSub||'')}</span>
+        <span class="right"><a href="money.html">Money page →</a></span>
+      </div>
+      ${cashGridHtml}
+      ${renderOfferCalc()}
+      ${renderListPriceCalc()}
+      ${renderFinancingRow()}
+    </div>
+  `;
 }
 
-function _beginEdit(el){
+function computeCashCells(){
+  const d=currentDeal;
+  const p=primaryProperty();
+  const phase=d.phase;
+  const arv=(p && p.locked_arv!=null)?p.locked_arv:(lastArvRow?lastArvRow.headline_arv:null);
+  const construction=(p && p.locked_construction!=null)?p.locked_construction:(lastGradeRow?lastGradeRow.rehab_estimate:null);
+  const loan=dealLoans.find(l=>l.status==='funded'||l.status==='pending')||dealLoans[0];
+  const loanAmt=loan?loan.loan_amount||0:0;
+  const loanRate=loan?(loan.rate_apr||0):0;
+  const buy=d.purchase_price||d.offer_price||0;
+  const downPayment=Math.max(0, buy-loanAmt);
+  const dailyHold=loanAmt*loanRate/365;
+
+  if(phase==='in_escrow'){
+    const equity=downPayment;
+    const projectedNet=arv?Math.round(arv*0.96 - loanAmt):null;
+    const totalDays=(d.escrow_start_date && d.target_close_date)?daysBetween(d.escrow_start_date, d.target_close_date):81;
+    const cycleDays=totalDays+90; // escrow + rehab estimate
+    const profit=arv && construction?Math.round(arv - buy - construction - buy*0.03):null;
+    const annualROI=(profit && equity>0 && cycleDays>0)?Math.round(profit/equity*(365/cycleDays)*100):null;
+    return [
+      ['Equity locked', FK(equity), 'down · no rehab spent yet', false],
+      ['Daily holding cost', loan && loan.status==='funded'?FK(dailyHold)+'/d':'— pending', loan?'$'+Math.round(loanAmt/1000)+'K × '+(loanRate*100).toFixed(1)+'% / 365':'will accrue once funded', loan?(loan.status!=='funded'):true],
+      ['Projected exit (net)', projectedNet!=null?FK(projectedNet):'—', 'ARV × 0.96 − loan', false],
+      ['Annualized ROI', annualROI!=null?annualROI+'%':'—', 'profit ÷ equity, '+cycleDays+'-day cycle', false],
+    ];
+  }
+  if(phase==='under_construction'){
+    const rehab=d.rehab_actual||0;
+    const carry=loanAmt && loan && loan.funded_date ? Math.round(dailyHold * Math.max(0, daysBetween(loan.funded_date, todayStr())||0)) : 0;
+    const cashDeployed=downPayment+rehab+carry;
+    const rehabBudget=d.rehab_budget||construction||0;
+    const remainingRehab=Math.max(0, rehabBudget-rehab);
+    const carryToCloseEst=Math.round(dailyHold*90); // rough estimate
+    const projectedProfit=arv && rehabBudget?Math.round(arv*0.96 - buy - rehabBudget - carryToCloseEst - loanAmt*0): null;
+    const coc=(projectedProfit && cashDeployed>0)?Math.round(projectedProfit/cashDeployed*100):null;
+    return [
+      ['Cash deployed', FK(cashDeployed), 'down '+FK(downPayment)+' + rehab '+FK(rehab)+(carry?' + carry '+FK(carry):''), false],
+      ['Cumulative carry', FK(carry), 'paid weekly via wire', false],
+      ['Remaining commit', FK(remainingRehab+carryToCloseEst), 'rehab left '+FK(remainingRehab)+' + carry est '+FK(carryToCloseEst), false],
+      ['Cash-on-cash (proj)', coc!=null?coc+'%':'—', 'profit ÷ total cash out', false],
+    ];
+  }
+  if(phase==='selling' || phase==='sold'){
+    const listPrice=d.list_price||0;
+    const sellingPct=0.04;
+    const costBasis=buy+(d.rehab_actual||construction||0)+(loanAmt?Math.round(dailyHold*180):0);
+    const loanPayoff=loan?loanAmt:0;
+    // Best offer = max of accepted offer or list
+    const bestOffer=d.accepted_offer_price||listPrice;
+    const netAtBest=bestOffer-bestOffer*sellingPct-loanPayoff;
+    const netAtList=listPrice-listPrice*sellingPct-loanPayoff;
+    const dom=d.list_date?daysBetween(d.list_date, todayStr()):0;
+    const weeklyCarry=Math.round(dailyHold*7);
+    const cumulativeCarry=Math.round(dailyHold*(dom||0));
+    const breakEvenList=costBasis+loanPayoff;
+    return [
+      ['Net at best offer', FK(netAtBest), FK(bestOffer)+' − '+(sellingPct*100)+'% selling − loan', false],
+      ['Net at list', FK(netAtList), FK(listPrice)+' − '+(sellingPct*100)+'% − loan', false],
+      ['Cost of waiting', FK(weeklyCarry)+'/wk', 'cumulative '+FK(cumulativeCarry)+' · '+dom+' DOM', false],
+      ['Break-even list', FK(breakEvenList), 'floor before $0 profit', false],
+    ];
+  }
+  // Fallback: blank
+  return [
+    ['—','—','',true],['—','—','',true],['—','—','',true],['—','—','',true],
+  ];
+}
+
+function renderOfferCalc(){
+  const d=currentDeal;
+  const p=primaryProperty();
+  const arv=(p && p.locked_arv!=null)?p.locked_arv:(lastArvRow?lastArvRow.headline_arv:1200000);
+  const construction=(p && p.locked_construction!=null)?p.locked_construction:(lastGradeRow?lastGradeRow.rehab_estimate:132000);
+  const offer=d.offer_price||Math.round(arv*0.68);
+  return `
+    <div class="lp-calc phase-hide" id="offerCalc">
+      <div class="lp-calc-head">Offer calculator · model headline offer + reduction strategy</div>
+      <div class="lp-inputs">
+        <div class="lp-input-group"><label>Headline offer ($)</label><input type="number" id="ocOffer" value="${offer}" step="10000"></div>
+        <div class="lp-input-group"><label>Strategy</label><select id="ocStrategy"><option value="self" selected>Self-represented</option><option value="de">Double-end (DE)</option></select></div>
+        <div class="lp-input-group"><label>Reduction ($)</label><input type="number" id="ocReduction" value="25000" step="1000"></div>
+        <div class="lp-input-group"><label>Commission %</label><input type="number" id="ocCommission" value="2" step="0.25" min="0" max="5"></div>
+        <div class="lp-input-group"><label>Target spread %</label><input type="number" id="ocTargetSpread" value="10" step="1" min="0" max="50"></div>
+      </div>
+      <div class="lp-output six">
+        <div class="lp-out-cell accent"><div class="lbl">Effective purchase</div><div class="val" id="ocEffective">—</div><div class="sub" id="ocEffectiveSub">offer − reduction − comm rebate</div></div>
+        <div class="lp-out-cell"><div class="lbl">ARV 🔒</div><div class="val">${FK(arv)}</div><div class="sub">click UW bar to edit · locked</div></div>
+        <div class="lp-out-cell"><div class="lbl">Construction 🔒</div><div class="val">${FK(construction)}</div><div class="sub">click UW bar to edit · locked</div></div>
+        <div class="lp-out-cell profit"><div class="lbl">Profit</div><div class="val" id="ocProfit">—</div><div class="sub" id="ocSpreadSub">spread</div></div>
+        <div class="lp-out-cell"><div class="lbl">Cash if won</div><div class="val" id="ocCash">—</div><div class="sub" id="ocCashSub">down + rehab + carry</div></div>
+        <div class="lp-out-cell"><div class="lbl">Bid ceiling</div><div class="val" id="ocWalkAway">—</div><div class="sub" id="ocWalkAwaySub">above this, spread drops below target</div></div>
+      </div>
+    </div>
+  `;
+}
+function wireOfferCalc(){
+  const offerEl=document.getElementById('ocOffer');
+  if(!offerEl)return;
+  const p=primaryProperty();
+  const arv=(p && p.locked_arv!=null)?p.locked_arv:(lastArvRow?lastArvRow.headline_arv:1200000);
+  const construction=(p && p.locked_construction!=null)?p.locked_construction:(lastGradeRow?lastGradeRow.rehab_estimate:132000);
+  function recalc(){
+    const offer=Number(offerEl.value)||0;
+    const strategy=document.getElementById('ocStrategy').value;
+    const reduct=Number(document.getElementById('ocReduction').value)||0;
+    const commPct=Number(document.getElementById('ocCommission').value)||0;
+    const targetSp=Number(document.getElementById('ocTargetSpread').value)||0;
+    const contract=Math.max(0, offer-reduct);
+    const commRebate=(strategy==='self')?contract*commPct/100:0;
+    const effective=contract-commRebate;
+    const LTC=0.90, CARRY=0.09, HOLD=240, SELL=0.04;
+    const loan=contract*LTC;
+    const carry=loan*CARRY*(HOLD/365);
+    const sellCost=arv*SELL;
+    const totalCost=effective+construction+carry+sellCost;
+    const profit=arv-totalCost;
+    const spread=totalCost>0?(profit/totalCost)*100:0;
+    const downCash=Math.max(0, effective-loan);
+    const cashIfWon=downCash+construction+carry;
+    let walkAway=offer;
+    for(let test=offer; test<=offer*1.5; test+=1000){
+      const cT=test-reduct;
+      const eT=cT-((strategy==='self')?cT*commPct/100:0);
+      const loanT=cT*LTC;
+      const carryT=loanT*CARRY*(HOLD/365);
+      const totalT=eT+construction+carryT+sellCost;
+      const sT=totalT>0?((arv-totalT)/totalT)*100:0;
+      if(sT<targetSp){walkAway=test-1000;break;}
+      walkAway=test;
+    }
+    document.getElementById('ocEffective').textContent=FK(effective);
+    document.getElementById('ocEffectiveSub').textContent=FK(offer)+' − '+FK(reduct)+(commRebate>0?' − '+FK(commRebate)+' rebate':' (DE)');
+    document.getElementById('ocProfit').textContent=FKsigned(profit);
+    document.getElementById('ocSpreadSub').textContent='spread '+spread.toFixed(1)+'% · '+(spread>=targetSp?'meets '+targetSp+'%':'below '+targetSp+'%');
+    document.getElementById('ocCash').textContent=FK(cashIfWon);
+    document.getElementById('ocCashSub').textContent=FK(downCash)+' down + '+FK(construction)+' rehab + '+FK(carry)+' carry';
+    document.getElementById('ocWalkAway').textContent=FK(walkAway);
+    document.getElementById('ocWalkAwaySub').textContent='above this, spread drops below '+targetSp+'%';
+    const profitCell=document.querySelector('#offerCalc .lp-out-cell.profit');
+    if(profitCell)profitCell.classList.toggle('neg', spread<targetSp);
+  }
+  document.getElementById('ocOffer').addEventListener('input', recalc);
+  document.getElementById('ocStrategy').addEventListener('change', ()=>{
+    const strat=document.getElementById('ocStrategy').value;
+    document.getElementById('ocReduction').value=(strat==='self')?25000:40000;
+    document.getElementById('ocCommission').value=(strat==='self')?2:0;
+    recalc();
+  });
+  document.getElementById('ocReduction').addEventListener('input', recalc);
+  document.getElementById('ocCommission').addEventListener('input', recalc);
+  document.getElementById('ocTargetSpread').addEventListener('input', recalc);
+  recalc();
+}
+
+function renderListPriceCalc(){
+  const d=currentDeal;
+  const buy=d.purchase_price||0;
+  const rehab=d.rehab_actual||0;
+  const costBasis=buy+rehab;
+  const loan=dealLoans.find(l=>l.status==='funded'||l.status==='pending');
+  const loanPayoff=loan?loan.loan_amount||0:0;
+  const listPrice=d.list_price||Math.round((costBasis+loanPayoff)*1.2);
+  return `
+    <div class="lp-calc phase-hide" id="lpCalc">
+      <div class="lp-calc-head">List price calculator · model scenarios</div>
+      <div class="lp-inputs">
+        <div class="lp-input-group"><label>List price ($)</label><input type="number" id="lpListPrice" value="${listPrice}" step="1000"></div>
+        <div class="lp-input-group"><label>Selling cost %</label><input type="number" id="lpSellingCostPct" value="4" step="0.25" min="0" max="15"></div>
+        <div class="lp-input-group"><label>Total cost basis</label><div class="static" id="lpCostBasis">${FK(costBasis)}</div></div>
+        <div class="lp-input-group"><label>Loan payoff</label><div class="static" id="lpLoanPayoff">${FK(loanPayoff)}</div></div>
+      </div>
+      <div class="lp-output">
+        <div class="lp-out-cell accent"><div class="lbl">Net to Dotty</div><div class="val" id="lpNet">—</div><div class="sub" id="lpNetSub"></div></div>
+        <div class="lp-out-cell profit"><div class="lbl">Profit</div><div class="val" id="lpProfit">—</div><div class="sub" id="lpProfitSub"></div></div>
+        <div class="lp-out-cell"><div class="lbl">Cash-on-cash</div><div class="val" id="lpCoc">—</div><div class="sub" id="lpCocSub">profit ÷ cost basis</div></div>
+      </div>
+    </div>
+  `;
+}
+function wireListPriceCalc(){
+  const listEl=document.getElementById('lpListPrice');
+  if(!listEl)return;
+  const d=currentDeal;
+  const buy=d.purchase_price||0;
+  const rehab=d.rehab_actual||0;
+  const costBasis=buy+rehab;
+  const loan=dealLoans.find(l=>l.status==='funded'||l.status==='pending');
+  const loanPayoff=loan?loan.loan_amount||0:0;
+  function recalc(){
+    const list=Number(listEl.value)||0;
+    const sellPct=Number(document.getElementById('lpSellingCostPct').value)||0;
+    const sellCost=list*sellPct/100;
+    const net=list-sellCost-loanPayoff;
+    const profit=net-costBasis;
+    const coc=costBasis>0?(profit/costBasis)*100:0;
+    document.getElementById('lpNet').textContent=FK(net);
+    document.getElementById('lpNetSub').textContent=FK(list)+' − '+sellPct+'% − '+FK(loanPayoff)+' payoff';
+    document.getElementById('lpProfit').textContent=FKsigned(profit);
+    document.getElementById('lpProfitSub').textContent='net '+FK(net)+' − cost basis '+FK(costBasis);
+    document.getElementById('lpCoc').textContent=(coc>=0?'':'−')+Math.round(Math.abs(coc))+'%';
+    const profitCell=document.querySelector('#lpCalc .lp-out-cell.profit');
+    if(profitCell)profitCell.classList.toggle('neg', profit<0);
+  }
+  listEl.addEventListener('input', recalc);
+  document.getElementById('lpSellingCostPct').addEventListener('input', recalc);
+  recalc();
+}
+
+function renderFinancingRow(){
+  let loanHtml='';
+  if(dealLoans.length===0){
+    loanHtml=`<a class="fin-add" id="finAdd">+ Add loan</a>`;
+  } else {
+    const loan=dealLoans[0];
+    const cs=capitalSources.find(c=>c.id===loan.capital_source_id);
+    const lender=cs?cs.name:'(unknown)';
+    const amt=loan.loan_amount?FK(loan.loan_amount):'—';
+    const rate=loan.rate_apr!=null?(loan.rate_apr*100).toFixed(2)+'%':'—';
+    const term=loan.term_months?loan.term_months+'mo':'—';
+    const stCls='st-'+(loan.status||'pending');
+    loanHtml=`<span class="fin-loan">
+      <span class="fin-lender">${escapeHtml(lender)}</span>
+      <span class="fin-sep">·</span>
+      <span>${amt}</span><span class="fin-sep">·</span>
+      <span>${rate}</span><span class="fin-sep">·</span>
+      <span>${term}</span><span class="fin-sep">·</span>
+      <span class="fin-status ${stCls}">${escapeHtml(loan.status||'pending')}</span>
+      <a class="fin-action" data-loan-edit="${escapeHtml(loan.id)}">edit</a>
+    </span>
+    <a class="fin-add" id="finAdd">+ Add loan</a>`;
+  }
+  return `<div class="fin-row" id="finRow"><span class="fin-lbl">Financing</span>${loanHtml}</div>`;
+}
+function wireFinancing(){
+  const addEl=document.getElementById('finAdd');
+  if(addEl){
+    addEl.addEventListener('click', ()=>openLoanModal());
+  }
+  document.querySelectorAll('[data-loan-edit]').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const loanId=el.dataset.loanEdit;
+      openLoanEditPopover(loanId, el);
+    });
+  });
+}
+function openLoanEditPopover(loanId, anchor){
+  document.querySelectorAll('.loan-edit-pop').forEach(p=>p.remove());
+  const loan=dealLoans.find(l=>l.id===loanId);
+  if(!loan)return;
+  const pop=document.createElement('div');
+  pop.className='loan-edit-pop';
+  const lenderOptions=capitalSources.map(c=>`<option value="${escapeHtml(c.id)}" ${c.id===loan.capital_source_id?'selected':''}>${escapeHtml(c.name)}</option>`).join('');
+  const statusOptions=['pending','funded','extended','paid_off','cancelled'].map(s=>`<option value="${s}" ${s===loan.status?'selected':''}>${s}</option>`).join('');
+  pop.innerHTML=`
+    <div class="grid">
+      <label>Lender</label><select id="lepLender">${lenderOptions}</select>
+      <label>Amount</label><input type="number" id="lepAmt" value="${loan.loan_amount||''}" step="1000">
+      <label>Rate %</label><input type="number" id="lepRate" value="${loan.rate_apr!=null?(loan.rate_apr*100).toFixed(2):''}" step="0.01">
+      <label>Term mo</label><input type="number" id="lepTerm" value="${loan.term_months||''}" step="1">
+      <label>Status</label><select id="lepStatus">${statusOptions}</select>
+    </div>
+    <div class="actions">
+      <button class="danger" id="lepDel">Delete</button>
+      <div class="right">
+        <button id="lepCancel">Cancel</button>
+        <button class="primary" id="lepSave">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(pop);
+  const rect=anchor.getBoundingClientRect();
+  pop.style.top=(window.scrollY + rect.bottom + 6)+'px';
+  pop.style.left=(window.scrollX + rect.left)+'px';
+  const close=()=>pop.remove();
+  pop.querySelector('#lepCancel').addEventListener('click', close);
+  pop.querySelector('#lepSave').addEventListener('click', async ()=>{
+    const updates={
+      capital_source_id: pop.querySelector('#lepLender').value,
+      loan_amount: Number(pop.querySelector('#lepAmt').value)||null,
+      rate_apr: Number(pop.querySelector('#lepRate').value)/100||null,
+      term_months: Number(pop.querySelector('#lepTerm').value)||null,
+      status: pop.querySelector('#lepStatus').value,
+      updated_at: new Date().toISOString(),
+    };
+    const {error}=await sb.from('deal_loans').update(updates).eq('id', loanId);
+    if(error){alert('Save failed: '+error.message);return;}
+    close();
+    await loadProject();
+  });
+  pop.querySelector('#lepDel').addEventListener('click', async ()=>{
+    if(!confirm('Delete this loan?'))return;
+    const {error}=await sb.from('deal_loans').delete().eq('id', loanId);
+    if(error){alert('Delete failed: '+error.message);return;}
+    close();
+    await loadProject();
+  });
+  setTimeout(()=>{
+    document.addEventListener('click', function _outside(e){
+      if(!pop.contains(e.target) && e.target!==anchor){close();document.removeEventListener('click', _outside);}
+    });
+  }, 0);
+}
+
+// ============================================================
+// WHAT'S NEXT SECTION
+// ============================================================
+function renderWhatsNextSection(){
+  const today=todayStr();
+  const open=dealMilestones.filter(m=>!m.completed);
+  const overdue=open.filter(m=>m.due_date && m.due_date<today).sort((a,b)=>a.due_date.localeCompare(b.due_date));
+  const upcoming=open.filter(m=>!m.due_date || m.due_date>=today).sort((a,b)=>(a.due_date||'').localeCompare(b.due_date||'')).slice(0, Math.max(0, 5-overdue.length));
+  const rows=[...overdue, ...upcoming];
+  let listHtml='';
+  if(!rows.length){
+    listHtml=`<div class="wn-empty">Nothing on deck. Add a custom task below to track.</div>`;
+  } else {
+    listHtml='<ul class="wn-list">'+rows.map(m=>{
+      const isOverdue=m.due_date && m.due_date<today;
+      const diff=m.due_date?daysBetween(today, m.due_date):null;
+      const auxText=isOverdue?Math.abs(diff)+'d overdue':(diff===0?'today':'in '+diff+'d');
+      const icon=isOverdue?'⚠':'○';
+      const cls=isOverdue?'overdue':'upcoming';
+      return `<li class="wn-row ${cls}">
+        <input type="checkbox" class="wn-cb" data-ms-id="${escapeHtml(m.id)}">
+        <div class="wn-date">${escapeHtml(fmtMD(m.due_date))}</div>
+        <div class="wn-icon">${icon}</div>
+        <div class="wn-text">${escapeHtml(m.display_name||m.milestone_key||'(no name)')}</div>
+        <div class="wn-aux">${escapeHtml(auxText)}</div>
+      </li>`;
+    }).join('')+'</ul>';
+  }
+  return `
+    <div class="sect" id="whatsNextSect">
+      <div class="sect-h">
+        <h2>What's next</h2>
+        <span class="sub">overdue + next 5 milestones · custom tasks log to calendar</span>
+        <span class="right"><a href="calendar.html">Open Calendar →</a></span>
+      </div>
+      ${listHtml}
+      <div class="wn-add">
+        <input type="text" id="wnAddText" placeholder="+ Add task (e.g. 'Cabinet install', 'Counter $1.05M')">
+        <input type="date" id="wnAddDate" value="${todayStr()}">
+        <button id="wnAddBtn">Add</button>
+      </div>
+      <div style="margin-top:4px;font-size:11px;color:var(--text-4);font-style:italic">Custom tasks insert into deal_milestones with template_id=NULL · appears in Calendar</div>
+    </div>
+  `;
+}
+function wireWhatsNext(){
+  document.querySelectorAll('.wn-cb[data-ms-id]').forEach(cb=>{
+    cb.addEventListener('change', async ()=>{
+      const id=cb.dataset.msId;
+      const completed=cb.checked;
+      const {error}=await sb.from('deal_milestones').update({
+        completed, completed_at:completed?new Date().toISOString():null,
+        updated_at:new Date().toISOString(),
+      }).eq('id', id);
+      if(error){alert('Save failed: '+error.message);cb.checked=!completed;return;}
+      await loadProject();
+    });
+  });
+  const btn=document.getElementById('wnAddBtn');
+  if(btn){
+    btn.addEventListener('click', async ()=>{
+      const text=document.getElementById('wnAddText').value.trim();
+      const date=document.getElementById('wnAddDate').value;
+      if(!text){alert('Task text required.');return;}
+      if(!date){alert('Due date required.');return;}
+      const key='custom_'+Date.now();
+      const {error}=await sb.from('deal_milestones').insert({
+        deal_id: currentDeal.id, template_id:null, milestone_key:key,
+        display_name:text, due_date:date,
+      });
+      if(error){alert('Add failed: '+error.message);return;}
+      await loadProject();
+    });
+  }
+}
+
+// ============================================================
+// LISTING SECTION (selling/sold)
+// ============================================================
+function renderListingSection(){
+  const d=currentDeal;
+  const dom=d.list_date?daysBetween(d.list_date, todayStr()):null;
+  return `
+    <div class="sect phase-hide" id="listingSect">
+      <div class="sect-h"><h2>Listing</h2><span class="sub">${d.relist_mls?'relist MLS# '+escapeHtml(d.relist_mls):''}${dom!=null?' · '+dom+' DOM':''}</span></div>
+      <div class="kv-grid">
+        <div class="kv"><label>List price</label><div class="val${d.list_price?'':' dim'}">${d.list_price?FK(d.list_price):'—'}</div></div>
+        <div class="kv"><label>List date</label><div class="val${d.list_date?'':' dim'}">${d.list_date?fmtDate(d.list_date):'—'}</div></div>
+        <div class="kv"><label>Days on market</label><div class="val${dom!=null?'':' dim'}">${dom!=null?dom+'d':'—'}</div></div>
+        <div class="kv"><label>Accepted offer</label><div class="val${d.accepted_offer_price?'':' dim'}">${d.accepted_offer_price?FK(d.accepted_offer_price):'—'}</div></div>
+        <div class="kv"><label>Accepted date</label><div class="val${d.accepted_offer_date?'':' dim'}">${d.accepted_offer_date?fmtDate(d.accepted_offer_date):'—'}</div></div>
+        <div class="kv"><label>Sale close</label><div class="val${d.sale_close_date?'':' dim'}">${d.sale_close_date?fmtDate(d.sale_close_date):'—'}</div></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderHandoffSection(){
+  // Templated from phase_checklist_templates (selling phase). Same content as the selling checklist.
+  const items=phaseChecklistItems.filter(i=>i.phase==='selling');
+  if(!items.length){
+    return `<div class="sect phase-hide" id="handoffSect">
+      <div class="sect-h"><h2>Pre-handoff checklist</h2><span class="sub">things to clean up before close-of-escrow on the sell side</span></div>
+      <div style="font-size:12px;color:var(--text-4);font-style:italic">No checklist items seeded yet — phase template applies on next phase transition (Brief BV migration 065).</div>
+    </div>`;
+  }
+  let lis='';
+  for(const it of items){
+    const checked=it.completed?'checked':'';
+    const doneCls=it.completed?' class="done"':'';
+    lis+=`<li${doneCls}><input type="checkbox" data-ck-id="${escapeHtml(it.id)}" ${checked}><span class="ck-name">${escapeHtml(it.display_name)}</span></li>`;
+  }
+  return `<div class="sect phase-hide" id="handoffSect">
+    <div class="sect-h"><h2>Pre-handoff checklist</h2><span class="sub">things to clean up before close-of-escrow on the sell side</span></div>
+    <ul class="ck-list">${lis}</ul>
+    <div class="ck-add" data-ck-phase="selling">+ Add checklist item</div>
+  </div>`;
+}
+
+// ============================================================
+// DOCS SECTION (placeholder — Brief BW will ship the real upload UI)
+// ============================================================
+function renderDocsSection(){
+  return `
+    <div class="sect" id="docsSect">
+      <div class="sect-h">
+        <h2>Docs</h2>
+        <span class="sub">contracts · design plans · permits · inspections</span>
+      </div>
+      <div class="docs-empty">No docs uploaded yet. Brief BW ships the upload mechanic.</div>
+    </div>
+  `;
+}
+
+// ============================================================
+// HISTORY SECTION (collapsible, summary line)
+// ============================================================
+function renderHistorySection(){
+  let summary='No transitions recorded yet.';
+  if(phaseHistory.length){
+    const latest=phaseHistory[0];
+    const who=resolvedUserName(latest.transitioned_by);
+    const fromLbl=latest.from_phase?phaseLabel(latest.from_phase):'(opened)';
+    const toLbl=latest.to_phase?phaseLabel(latest.to_phase):'(closed)';
+    summary=`${phaseHistory.length} event${phaseHistory.length===1?'':'s'} · last by ${who} ${relTime(latest.transitioned_at)} — ${fromLbl} → ${toLbl}`;
+  }
+  let listHtml='';
+  if(!phaseHistory.length){
+    listHtml='<div class="docs-empty">No transitions recorded yet.</div>';
+  } else {
+    listHtml='<ul class="hist">'+phaseHistory.map(h=>{
+      const fromLbl=h.from_phase?phaseLabel(h.from_phase):'(opened)';
+      const toLbl=h.to_phase?phaseLabel(h.to_phase):'(closed)';
+      const who=resolvedUserName(h.transitioned_by);
+      return `<li>
+        <span class="when">${escapeHtml(fmtDate(h.transitioned_at))} · ${escapeHtml(relTime(h.transitioned_at))}</span>
+        <span class="who" title="${escapeHtml(h.transitioned_by||'')}">by ${escapeHtml(who)}</span>
+        <span class="arrow"><span class="from">${escapeHtml(fromLbl)}</span><span class="sep">→</span><span class="to">${escapeHtml(toLbl)}</span></span>
+        ${h.note?`<span class="note">— ${escapeHtml(h.note)}</span>`:''}
+      </li>`;
+    }).join('')+'</ul>';
+  }
+  return `
+    <div class="sect collapsible" id="historySect">
+      <div class="sect-h">
+        <h2>History</h2>
+        <span class="sect-summary">${escapeHtml(summary)}</span>
+      </div>
+      <div class="sect-body">${listHtml}</div>
+    </div>
+  `;
+}
+function wireHistoryToggle(){
+  const sect=document.getElementById('historySect');
+  if(!sect)return;
+  const head=sect.querySelector('.sect-h');
+  if(head){
+    head.addEventListener('click', ()=>sect.classList.toggle('open'));
+  }
+}
+
+// ============================================================
+// PHASE PILL POPOVER + MOVE
+// ============================================================
+function wirePhasePill(){
+  const pill=document.getElementById('phasePill');
+  const stack=document.getElementById('phaseStack');
+  if(!pill||!stack)return;
+  pill.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    stack.classList.toggle('open');
+  });
+  document.addEventListener('click', (e)=>{
+    if(!stack.contains(e.target))stack.classList.remove('open');
+  });
+}
+function onPhaseSelChange(){
+  const sel=document.getElementById('ppNewPhase');
+  const row=document.getElementById('ppDatesRow');
+  if(!sel||!row)return;
+  row.style.display=(sel.value==='in_escrow')?'block':'none';
+  if(sel.value==='in_escrow'){
+    const startInput=document.getElementById('ppEscrowStart');
+    const closeInput=document.getElementById('ppTargetClose');
+    const crdInput=document.getElementById('ppContingency');
+    if(currentDeal.escrow_start_date && !startInput.value)startInput.value=currentDeal.escrow_start_date;
+    if(currentDeal.target_close_date && !closeInput.value)closeInput.value=currentDeal.target_close_date;
+    if(currentDeal.contingency_removal_date && !crdInput.value)crdInput.value=currentDeal.contingency_removal_date;
+  }
+}
+window.onPhaseSelChange=onPhaseSelChange;
+function onPpStartChange(){
+  const start=document.getElementById('ppEscrowStart').value;
+  const closeInput=document.getElementById('ppTargetClose');
+  const crdInput=document.getElementById('ppContingency');
+  if(start && !closeInput.value){
+    const d=new Date(start+'T00:00:00');d.setDate(d.getDate()+30);
+    closeInput.value=d.toISOString().slice(0,10);
+  }
+  if(start && !crdInput.value){
+    const d=new Date(start+'T00:00:00');d.setDate(d.getDate()+17);
+    crdInput.value=d.toISOString().slice(0,10);
+  }
+}
+function onPpContChange(){}
+window.onPpStartChange=onPpStartChange;
+window.onPpContChange=onPpContChange;
+
+async function movePhase(){
+  if(saving)return;
+  const sel=document.getElementById('ppNewPhase');
+  const noteEl=document.getElementById('ppNote');
+  const btn=document.getElementById('ppMoveBtn');
+  const msg=document.getElementById('ppMsg');
+  msg.className='pp-msg'; msg.textContent='';
+  const toPhase=(sel.value||'').trim();
+  if(!toPhase){msg.className='pp-msg err';msg.textContent='Pick a phase.';return;}
+  const fromPhase=currentDeal.phase;
+  if(toPhase===fromPhase){msg.className='pp-msg err';msg.textContent='Already in that phase.';return;}
+  const note=(noteEl.value||'').trim()||null;
+  const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
+  let escrowStart=null, targetClose=null, crd=null;
+  if(toPhase==='in_escrow'){
+    escrowStart=document.getElementById('ppEscrowStart').value||null;
+    targetClose=document.getElementById('ppTargetClose').value||null;
+    crd=document.getElementById('ppContingency').value||null;
+    if(!escrowStart||!targetClose||!crd){msg.className='pp-msg err';msg.textContent='All 3 escrow dates required.';return;}
+  }
+  saving=true; btn.disabled=true; msg.textContent='Saving...';
+  const updatePayload={phase: toPhase, updated_at: new Date().toISOString()};
+  if(toPhase==='in_escrow'){
+    updatePayload.escrow_start_date=escrowStart;
+    updatePayload.target_close_date=targetClose;
+    updatePayload.contingency_removal_date=crd;
+  }
+  if(toPhase==='under_construction' && !currentDeal.construction_start_date && currentDeal.actual_close_date){
+    updatePayload.construction_start_date=currentDeal.actual_close_date;
+  }
+  const {error:dErr}=await sb.from('deals').update(updatePayload).eq('id', currentDeal.id);
+  if(dErr){saving=false;btn.disabled=false;msg.className='pp-msg err';msg.textContent='Deal update failed: '+dErr.message;return;}
+  const {error:hErr}=await sb.from('deals_phase_history').insert({
+    deal_id: currentDeal.id, from_phase: fromPhase, to_phase: toPhase,
+    transitioned_by: userId, note: note,
+  });
+  if(hErr){saving=false;btn.disabled=false;msg.className='pp-msg err';msg.textContent='History insert failed: '+hErr.message;return;}
+  saving=false; btn.disabled=false;
+  msg.className='pp-msg ok'; msg.textContent='Moved.';
+  noteEl.value='';
+  document.getElementById('phaseStack').classList.remove('open');
+  await loadProject();
+  // MG — fire loan modal on in_escrow if no loan yet.
+  if(toPhase==='in_escrow' && dealLoans.length===0){
+    openLoanModal();
+  }
+}
+window.movePhase=movePhase;
+
+// ============================================================
+// UW BAR INLINE EDITS (preserved from prior + × clear)
+// ============================================================
+function _currentStatValue(stat){
+  const d=currentDeal;
+  const p=primaryProperty();
+  if(stat==='offer')return d.offer_price;
+  if(stat==='bought')return d.purchase_price;
+  if(stat==='arv')return p?p.locked_arv:null;
+  if(stat==='construction')return p?p.locked_construction:null;
+  return null;
+}
+function wireUwEdits(){
+  document.querySelectorAll('.uw-val[data-stat]').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      if(e.target.classList && e.target.classList.contains('uw-clear')){
+        e.stopPropagation();
+        const stat=e.target.dataset.clearStat;
+        _clearUwStat(stat, el);
+        return;
+      }
+      _beginUwEdit(el);
+    });
+  });
+}
+async function _clearUwStat(stat, el){
+  const cur=_currentStatValue(stat);
+  if(cur==null)return;
+  if(!confirm('Clear '+FK(cur)+'?'))return;
+  await _saveUwValue(stat, null);
+  await loadProject();
+}
+function _beginUwEdit(el){
   if(el.classList.contains('editing'))return;
   const stat=el.dataset.stat;
   const cur=_currentStatValue(stat);
   el.classList.add('editing');
   const input=document.createElement('input');
-  input.type='number';
-  input.min='0';
-  input.step='1';
-  input.value=_dollarsForInput(cur);
-  el.innerHTML='';
-  el.appendChild(input);
-  input.focus();
-  input.select();
-
+  input.type='number'; input.min='0'; input.step='1';
+  input.value=cur==null?'':String(Math.round(cur));
+  el.innerHTML=''; el.appendChild(input); input.focus(); input.select();
   let committed=false;
-  let cancelled=false;
-
-  // Live profit recompute as Patty types.
-  input.addEventListener('input', ()=>_liveProfitPreview(stat, input.value));
   input.addEventListener('keydown', async (e)=>{
-    if(e.key==='Enter'){ e.preventDefault(); committed=true; await _commitEdit(el, stat, input.value); }
-    else if(e.key==='Escape'){ e.preventDefault(); cancelled=true; _cancelEdit(el); }
+    if(e.key==='Enter'){e.preventDefault();committed=true;await _commitUwEdit(stat, input.value);}
+    else if(e.key==='Escape'){committed=true;renderPage();}
   });
   input.addEventListener('blur', async ()=>{
-    if(committed||cancelled)return;
+    if(committed)return;
     committed=true;
-    await _commitEdit(el, stat, input.value);
+    await _commitUwEdit(stat, input.value);
   });
 }
-
-function _cancelEdit(el){
-  el.classList.remove('editing');
-  rerenderUwBar();
-}
-
-async function _commitEdit(el, stat, raw){
+async function _commitUwEdit(stat, raw){
   const trimmed=(raw==null?'':String(raw).trim());
-  // Empty → silent revert per brief.
-  if(trimmed===''){ _cancelEdit(el); return; }
+  if(trimmed===''){renderPage();return;}
   const dollars=Number(trimmed);
-  if(!isFinite(dollars)){ _showInlineError(el, 'invalid number'); setTimeout(()=>_cancelEdit(el), 100); return; }
-  if(dollars<0){ _showInlineError(el, 'must be ≥ 0'); setTimeout(()=>_cancelEdit(el), 100); return; }
-  if(dollars>50000000){ _showInlineError(el, 'value out of range (>$50M)'); setTimeout(()=>_cancelEdit(el), 100); return; }
-
-  const ok=await saveUwValue(stat, dollars, el);
-  if(!ok)return; // saveUwValue handles its own error display + leaves input open
-  // Success — re-render the bar with fresh state.
-  el.classList.remove('editing');
-  await reloadDealAndProperty();
-  rerenderUwBar();
+  if(!isFinite(dollars)||dollars<0||dollars>50000000){alert('Value out of range.');renderPage();return;}
+  await _saveUwValue(stat, dollars);
+  await loadProject();
 }
-
-async function saveUwValue(stat, dollarValue, el){
-  const nowIso=new Date().toISOString();
-  const activeMls=uwCtx?uwCtx.activeMls:null;
-  let result;
+async function _saveUwValue(stat, val){
+  const now=new Date().toISOString();
   if(stat==='offer'){
-    result=await sb.from('deals').update({offer_price:dollarValue, updated_at:nowIso}).eq('id', currentDeal.id);
+    await sb.from('deals').update({offer_price:val, updated_at:now}).eq('id', currentDeal.id);
   } else if(stat==='bought'){
-    result=await sb.from('deals').update({purchase_price:dollarValue, updated_at:nowIso}).eq('id', currentDeal.id);
+    await sb.from('deals').update({purchase_price:val, updated_at:now}).eq('id', currentDeal.id);
   } else if(stat==='arv'){
-    if(!activeMls){ _showInlineError(el, 'no MLS# resolved'); return false; }
-    result=await sb.from('properties').update({locked_arv:dollarValue, updated_at:nowIso}).eq('mls', activeMls);
+    await sb.from('properties').update({locked_arv:val, updated_at:now}).eq('mls', uwCtx.activeMls);
   } else if(stat==='construction'){
-    if(!activeMls){ _showInlineError(el, 'no MLS# resolved'); return false; }
-    result=await sb.from('properties').update({locked_construction:dollarValue, updated_at:nowIso}).eq('mls', activeMls);
-  } else {
-    _showInlineError(el, 'unknown stat'); return false;
-  }
-  if(result && result.error){
-    console.error('[BQ saveUwValue] failed', stat, result.error);
-    _showInlineError(el, result.error.message||'save failed');
-    return false;
-  }
-  return true;
-}
-
-// Refetch deal + active properties row so the bar re-renders against DB.
-async function reloadDealAndProperty(){
-  if(!currentDeal)return;
-  const {data:dRow}=await sb.from('deals').select('*').eq('id', currentDeal.id).maybeSingle();
-  if(dRow)currentDeal=dRow;
-  const activeMls=uwCtx?uwCtx.activeMls:null;
-  if(activeMls){
-    const {data:pRow}=await sb.from('properties')
-      .select('id, mls, address, city, zip, beds, baths, sqft, lot_size, pool, year_built, list_price, sale_price, sold_date, locked_arv, locked_construction, elementary_school, middle_school, high_school, elementary_rating, middle_rating, high_rating, agent_name, agent_email, agent_broker, double_ended, photo_count, change_type')
-      .eq('mls', activeMls).maybeSingle();
-    if(pRow)propertiesByMls[activeMls]=pRow;
+    await sb.from('properties').update({locked_construction:val, updated_at:now}).eq('mls', uwCtx.activeMls);
   }
 }
-
-// Re-render only the underwriting bar in place. Calls renderPage() which
-// rebuilds the full container — fine here because the page state
-// (currentDeal, propertiesByMls, phaseHistory, dealMilestones, uwCtx)
-// is intact and renderPage is cheap.
-function rerenderUwBar(){
-  if(!uwCtx)return;
-  renderPage(uwCtx.arvRow, uwCtx.gradeRow, uwCtx.deCount);
-}
-
-// Live profit preview. Reads the in-progress input value for `editingStat`,
-// pulls the other stats from currentDeal/primaryProperty(), recomputes,
-// and writes into #uwProfit.
-function _liveProfitPreview(editingStat, rawDollars){
-  const trimmed=(rawDollars==null?'':String(rawDollars).trim());
-  const dNum=trimmed===''?null:Number(trimmed);
-  const inProgressDollars=(dNum!=null && isFinite(dNum) && dNum>=0)?dNum:null;
-
-  const d=currentDeal;
-  const p=primaryProperty();
-  const buyIsOffer=(d.phase==='pursuing'||d.phase==='lost');
-  let offer=buyIsOffer?d.offer_price:d.purchase_price;
-  let arv=p?p.locked_arv:null;
-  let construction=p?p.locked_construction:null;
-
-  // ARV / construction fall back to auto sources when no lock is set
-  // (matches renderPage). Only the deal_scores rehab_estimate +
-  // arv_estimates headline_arv are reasonable defaults; pull from uwCtx.
-  if(arv==null && uwCtx && uwCtx.arvRow && uwCtx.arvRow.headline_arv!=null)arv=uwCtx.arvRow.headline_arv;
-  if(construction==null && uwCtx && uwCtx.gradeRow && uwCtx.gradeRow.rehab_estimate!=null)construction=uwCtx.gradeRow.rehab_estimate;
-
-  if(editingStat==='offer'||editingStat==='bought')offer=inProgressDollars;
-  else if(editingStat==='arv')arv=inProgressDollars;
-  else if(editingStat==='construction')construction=inProgressDollars;
-
-  const fc=uwCtx?uwCtx.dealScoresFC:null;
-  const {dollar, pct}=recomputeProfit({offer, arv, construction, financingClosing:fc});
-  const target=document.getElementById('uwProfit');
-  if(!target)return;
-  if(dollar==null){
-    target.className='uw-value';
-    target.style.color='var(--text-4)';
-    target.textContent='— pending';
-    return;
-  }
-  target.style.color='';
-  target.className='uw-value uw-value-large '+(dollar>=0?'profit-pos':'profit-neg');
-  const sign=dollar>=0?'+':'-';
-  const dollars=FK(Math.abs(dollar));
-  const pctStr=pct!=null?` <span style="font-size:13px;font-weight:600">(${(pct>=0?'+':'')}${pct.toFixed(1)}%)</span>`:'';
-  target.innerHTML=`${sign}${dollars}${pctStr}`;
-}
-
-function renderHistoryList(){
-  if(!phaseHistory.length){
-    return `<div class="empty-history">No transitions recorded yet. The first move via the dropdown above will start the audit trail.</div>`;
-  }
-  let html='<ul class="history">';
-  for(const h of phaseHistory){
-    const fromLbl=h.from_phase?phaseLabel(h.from_phase):'(deal opened)';
-    const toLbl=h.to_phase?phaseLabel(h.to_phase):'(deal closed)';
-    const who=resolvedUserName(h.transitioned_by);
-    html+=`<li>
-      <span class="when">${escapeHtml(fmtDate(h.transitioned_at))} · ${escapeHtml(relTime(h.transitioned_at))}</span>
-      <span class="who" title="${escapeHtml(h.transitioned_by||'')}">by ${escapeHtml(who)}</span>
-      <span class="arrow"><span class="from">${escapeHtml(fromLbl)}</span><span class="sep">→</span><span class="to">${escapeHtml(toLbl)}</span></span>
-      ${h.note?`<span class="note">— ${escapeHtml(h.note)}</span>`:''}
-    </li>`;
-  }
-  html+='</ul>';
-  return html;
-}
-
-// ---------- Construction read-only section (BK; editor lands in BN) ----------
-function renderConstructionSection(){
-  if(!currentDeal || currentDeal.phase!=='under_construction')return '';
-  const d=currentDeal;
-  const completionPct=(d.rehab_actual!=null && d.rehab_budget && d.rehab_budget>0)
-    ? ((d.rehab_actual/d.rehab_budget)*100).toFixed(0)+'%'
-    : '—';
-  const rows=[
-    ['Scope', scopeTierLabel(d.scope_tier)],
-    ['Rehab budget', d.rehab_budget!=null?FK(d.rehab_budget):'—'],
-    ['Rehab actual', d.rehab_actual!=null?FK(d.rehab_actual):'—'],
-    ['Completion', completionPct],
-    ['GC / crew', d.gc_crew||'—'],
-    ['Construction start', d.construction_start_date?fmtDate(d.construction_start_date):'—'],
-    ['Construction complete', d.construction_complete_date?fmtDate(d.construction_complete_date):'—'],
-  ];
-  let html=`<div class="section"><h2>Construction</h2><div class="kv-grid">`;
-  for(const [lbl, val] of rows){
-    const dim=(val==='—');
-    html+=`<div class="kv"><label>${escapeHtml(lbl)}</label><div class="val${dim?' dim':''}">${escapeHtml(val)}</div></div>`;
-  }
-  html+=`</div><div class="stub-msg" style="font-size:11px;color:var(--text-4);font-style:italic;margin-top:8px">Editor inputs ship in Brief BN.</div></div>`;
-  return html;
-}
-
-// ---------- Listing read-only section ----------
-function renderListingSection(){
-  if(!currentDeal || currentDeal.phase!=='listed')return '';
-  const d=currentDeal;
-  const rows=[
-    ['List price', d.list_price!=null?FK(d.list_price):'—'],
-    ['List date', d.list_date?fmtDate(d.list_date):'—'],
-    ['Accepted offer', d.accepted_offer_price!=null?FK(d.accepted_offer_price):'—'],
-    ['Accepted offer date', d.accepted_offer_date?fmtDate(d.accepted_offer_date):'—'],
-    ['Sale close date', d.sale_close_date?fmtDate(d.sale_close_date):'—'],
-    ['Sale price', d.sale_price!=null?FK(d.sale_price):'—'],
-  ];
-  let html=`<div class="section"><h2>Listing</h2><div class="kv-grid">`;
-  for(const [lbl, val] of rows){
-    const dim=(val==='—');
-    html+=`<div class="kv"><label>${escapeHtml(lbl)}</label><div class="val${dim?' dim':''}">${escapeHtml(val)}</div></div>`;
-  }
-  html+=`</div></div>`;
-  return html;
-}
-
-// ---------- Milestones mini-list ----------
-function renderMilestonesSection(){
-  if(!dealMilestones.length)return '';
-  const today=todayStr();
-  let html=`<div class="section"><h2>Milestones</h2><ul class="ms-mini">`;
-  for(const m of dealMilestones){
-    const overdue=!m.completed && m.due_date && m.due_date < today;
-    const cls=m.completed?'done':(overdue?'overdue':'open');
-    const statusLbl=m.completed?'Done':(overdue?'Overdue':'Open');
-    html+=`<li class="${m.completed?'done':''}">
-      <span class="ms-due">${escapeHtml(fmtMD(m.due_date))}</span>
-      <span class="ms-name">${escapeHtml(m.display_name||m.milestone_key||'')}</span>
-      <span class="ms-status ${cls}">${escapeHtml(statusLbl)}</span>
-    </li>`;
-  }
-  html+=`</ul><div class="stub-msg" style="font-size:11px;color:var(--text-4);font-style:italic;margin-top:8px">Mark complete + edit due dates on <a href="calendar.html" style="color:var(--accent)">Calendar</a>.</div></div>`;
-  return html;
-}
-
-// ========== PHASE TRANSITION ==========
-async function moveStage(){
-  if(saving)return;
-  const sel=document.getElementById('newStageSelect');
-  const noteEl=document.getElementById('moveNote');
-  const btn=document.getElementById('moveBtn');
-  const msgEl=document.getElementById('moveMsg');
-  msgEl.className='move-msg';
-  msgEl.textContent='';
-
-  const raw=(sel.value||'').trim();
-  if(!raw){
-    msgEl.className='move-msg err';
-    msgEl.textContent='Pick a phase first.';
-    return;
-  }
-  const toPhase=raw;
-  const fromPhase=currentDeal.phase;
-  if(toPhase===fromPhase){
-    msgEl.className='move-msg err';
-    msgEl.textContent='Already in that phase.';
-    return;
-  }
-  const note=(noteEl.value||'').trim()||null;
-  const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
-
-  // Escrow date capture — all three required when transitioning to in_escrow.
-  let escrowStart=null, targetClose=null, contingencyRemoval=null;
-  if(toPhase==='in_escrow'){
-    const startEl=document.getElementById('escrowStartInput');
-    const closeEl=document.getElementById('targetCloseInput');
-    const crdEl=document.getElementById('contingencyRemovalInput');
-    escrowStart=(startEl&&startEl.value)||null;
-    targetClose=(closeEl&&closeEl.value)||null;
-    contingencyRemoval=(crdEl&&crdEl.value)||null;
-    if(!escrowStart||!targetClose||!contingencyRemoval){
-      msgEl.className='move-msg err';
-      msgEl.textContent='Escrow start, physical contingency removal, and target close dates are all required when moving to In Escrow.';
-      return;
-    }
-    if(contingencyRemoval<escrowStart){
-      msgEl.className='move-msg err';
-      msgEl.textContent='Physical contingency removal must be on or after escrow start.';
-      return;
-    }
-    if(targetClose<contingencyRemoval){
-      msgEl.className='move-msg err';
-      msgEl.textContent='Target close must be on or after physical contingency removal.';
-      return;
-    }
-  }
-
-  saving=true;
-  btn.disabled=true;
-  msgEl.textContent='Saving...';
-
-  // 1. Update the deal row (phase + maybe escrow dates).
-  // The Postgres trigger from migration 027 fires server-side on phase
-  // transition into in_escrow with all 3 dates set, seeding the
-  // deal_milestones rows automatically. UI does NOT call seed_deal_milestones
-  // here (moved to saveEscrowDates() for the date-edit path on already-
-  // in_escrow deals).
-  const updatePayload={phase: toPhase, updated_at: new Date().toISOString()};
-  if(toPhase==='in_escrow'){
-    updatePayload.escrow_start_date=escrowStart;
-    updatePayload.target_close_date=targetClose;
-    updatePayload.contingency_removal_date=contingencyRemoval;
-  }
-  const {error:dErr}=await sb.from('deals')
-    .update(updatePayload)
-    .eq('id', currentDeal.id);
-  if(dErr){
-    saving=false; btn.disabled=false;
-    msgEl.className='move-msg err';
-    msgEl.textContent='Deal update failed: '+dErr.message;
-    return;
-  }
-
-  // 2. Append phase-history row.
-  const {error:hErr}=await sb.from('deals_phase_history').insert({
-    deal_id: currentDeal.id,
-    from_phase: fromPhase,
-    to_phase: toPhase,
-    transitioned_by: userId,
-    note: note,
-  });
-  if(hErr){
-    saving=false; btn.disabled=false;
-    msgEl.className='move-msg err';
-    msgEl.textContent='History insert failed (phase update succeeded; reconcile later): '+hErr.message;
-    return;
-  }
-
-  saving=false;
-  btn.disabled=false;
-  noteEl.value='';
-  msgEl.className='move-msg ok';
-  msgEl.textContent='Moved to '+phaseLabel(toPhase)+'.';
-  await loadProject();
-
-  // MG — after a successful transition into in_escrow, fire the loan
-  // modal IFF zero deal_loans rows exist (D5 — idempotent on re-entry).
-  // loadProject() above already refreshed dealLoans for the trigger guard.
-  if(toPhase==='in_escrow' && dealLoans.length===0){
-    openLoanModal();
-  }
-}
-window.moveStage=moveStage;
-
-// ========== ESCROW DATES (date-only edits on already-in_escrow deals) ==========
-let _userEditedTargetClose=false;
-let _userEditedContingencyRemoval=false;
-
-function onEscrowStartChange(){
-  const start=document.getElementById('escrowStartInput').value;
-  const closeInput=document.getElementById('targetCloseInput');
-  const crdInput=document.getElementById('contingencyRemovalInput');
-  if(start&&!_userEditedTargetClose&&closeInput&&!closeInput.value){
-    const d=new Date(start+'T00:00:00');
-    d.setDate(d.getDate()+30);
-    closeInput.value=d.toISOString().slice(0,10);
-  }
-  if(start&&!_userEditedContingencyRemoval&&crdInput&&!crdInput.value){
-    const d=new Date(start+'T00:00:00');
-    d.setDate(d.getDate()+17);
-    crdInput.value=d.toISOString().slice(0,10);
-  }
-}
-function onTargetCloseChange(){_userEditedTargetClose=true;}
-function onContingencyRemovalChange(){_userEditedContingencyRemoval=true;}
-window.onEscrowStartChange=onEscrowStartChange;
-window.onTargetCloseChange=onTargetCloseChange;
-window.onContingencyRemovalChange=onContingencyRemovalChange;
-
-// Show/hide the inline escrow dates row when the phase select changes.
-document.addEventListener('change',e=>{
-  if(!e.target||e.target.id!=='newStageSelect')return;
-  const row=document.getElementById('escrowDatesRow');
-  if(!row)return;
-  if(e.target.value==='in_escrow'){
-    row.style.display='flex';
-    // Pre-fill from the deal record if user is just touching up.
-    const startInput=document.getElementById('escrowStartInput');
-    const closeInput=document.getElementById('targetCloseInput');
-    const crdInput=document.getElementById('contingencyRemovalInput');
-    if(currentDeal&&currentDeal.escrow_start_date&&!startInput.value){
-      startInput.value=currentDeal.escrow_start_date;
-    }
-    if(currentDeal&&currentDeal.target_close_date&&!closeInput.value){
-      closeInput.value=currentDeal.target_close_date;
-      _userEditedTargetClose=true;
-    }
-    if(currentDeal&&currentDeal.contingency_removal_date&&crdInput&&!crdInput.value){
-      crdInput.value=currentDeal.contingency_removal_date;
-      _userEditedContingencyRemoval=true;
-    }
-  } else {
-    row.style.display='none';
-  }
-});
-
-function renderEscrowDatesSection(){
-  if(!currentDeal||currentDeal.phase!=='in_escrow')return '';
-  const start=currentDeal.escrow_start_date;
-  const close=currentDeal.target_close_date;
-  const crd=currentDeal.contingency_removal_date;
-  const hasBoth=!!start&&!!close;
-  const hasOne=!!start||!!close;
-  const id='escrowDates';
-  return `
-    <div class="section">
-      <h2>Escrow Dates</h2>
-      <div id="${id}-display" style="display:flex; gap:24px; flex-wrap:wrap; align-items:center">
-        ${hasBoth
-          ? `<div><span style="font-size:11px; color:var(--text-4); text-transform:uppercase; letter-spacing:.5px">Escrow start</span><div style="font-weight:600">${escapeHtml(fmtDate(start))}</div></div>
-             <div><span style="font-size:11px; color:var(--text-4); text-transform:uppercase; letter-spacing:.5px">Contingency removed</span><div style="font-weight:600">${crd?escapeHtml(fmtDate(crd)):'—'}</div></div>
-             <div><span style="font-size:11px; color:var(--text-4); text-transform:uppercase; letter-spacing:.5px">Target close</span><div style="font-weight:600">${escapeHtml(fmtDate(close))}</div></div>
-             <button class="move-btn" style="background:var(--bg); color:var(--text); border:1px solid var(--border)" onclick="openEscrowDatesEdit()">Edit dates</button>`
-          : hasOne
-            ? `<div style="color:var(--amber); font-size:13px">Partial: only ${start?'start':'close'} set. <button class="move-btn" onclick="openEscrowDatesEdit()" style="margin-left:8px">Complete</button></div>`
-            : `<div style="color:var(--text-4); font-size:13px">Escrow dates not set. <button class="move-btn" onclick="openEscrowDatesEdit()" style="margin-left:8px">Set dates</button></div>`}
-      </div>
-      <div id="${id}-edit" style="display:none; margin-top:12px">
-        <div class="move-row">
-          <label>Escrow start:</label>
-          <input type="date" id="esEditStart" value="${start||''}" oninput="onEsEditStartChange()" />
-        </div>
-        <div class="move-row">
-          <label>Physical contingency removal:</label>
-          <input type="date" id="esEditCRD" value="${crd||''}" oninput="onEsEditCRDChange()" />
-        </div>
-        <div class="move-row">
-          <label>Target close:</label>
-          <input type="date" id="esEditClose" value="${close||''}" />
-        </div>
-        <button class="move-btn" onclick="saveEscrowDates()">Save</button>
-        <button class="move-btn" onclick="cancelEscrowDatesEdit()" style="margin-left:8px; background:var(--bg); color:var(--text); border:1px solid var(--border)">Cancel</button>
-        <div class="move-msg" id="esEditMsg"></div>
-      </div>
-    </div>
-  `;
-}
-
-let _userEditedEsEditCRD=false;
-function onEsEditStartChange(){
-  const start=document.getElementById('esEditStart').value;
-  const crdInput=document.getElementById('esEditCRD');
-  if(start&&crdInput&&!_userEditedEsEditCRD&&!crdInput.value){
-    const d=new Date(start+'T00:00:00');
-    d.setDate(d.getDate()+17);
-    crdInput.value=d.toISOString().slice(0,10);
-  }
-}
-function onEsEditCRDChange(){_userEditedEsEditCRD=true;}
-window.onEsEditStartChange=onEsEditStartChange;
-window.onEsEditCRDChange=onEsEditCRDChange;
-
-function openEscrowDatesEdit(){
-  document.getElementById('escrowDates-display').style.display='none';
-  document.getElementById('escrowDates-edit').style.display='block';
-}
-function cancelEscrowDatesEdit(){
-  document.getElementById('escrowDates-edit').style.display='none';
-  document.getElementById('escrowDates-display').style.display='flex';
-  document.getElementById('esEditMsg').textContent='';
-}
-
-async function saveEscrowDates(){
-  const startEl=document.getElementById('esEditStart');
-  const closeEl=document.getElementById('esEditClose');
-  const crdEl=document.getElementById('esEditCRD');
-  const msgEl=document.getElementById('esEditMsg');
-  const start=startEl.value||null;
-  const close=closeEl.value||null;
-  const crd=crdEl?(crdEl.value||null):null;
-  msgEl.className='move-msg';
-  msgEl.textContent='';
-  if(!start||!close||!crd){
-    msgEl.className='move-msg err';
-    msgEl.textContent='Escrow start, physical contingency removal, and target close are all required.';
-    return;
-  }
-  if(crd<start){
-    msgEl.className='move-msg err';
-    msgEl.textContent='Physical contingency removal must be on or after escrow start.';
-    return;
-  }
-  if(close<crd){
-    msgEl.className='move-msg err';
-    msgEl.textContent='Target close must be on or after physical contingency removal.';
-    return;
-  }
-  msgEl.textContent='Saving...';
-  const {error}=await sb.from('deals').update({
-    escrow_start_date: start,
-    target_close_date: close,
-    contingency_removal_date: crd,
-    updated_at: new Date().toISOString(),
-  }).eq('id', currentDeal.id);
-  if(error){
-    msgEl.className='move-msg err';
-    msgEl.textContent='Save failed: '+error.message;
-    return;
-  }
-
-  // Brief BK / D5 — keep the explicit RPC call here on the date-edit path.
-  // The auto-seed trigger only fires on phase transition into in_escrow,
-  // not on date-only updates of an already-in_escrow deal. Idempotent on
-  // (deal_id, milestone_key).
-  const{error:rpcErr}=await sb.rpc('seed_deal_milestones',{
-    p_deal_id: currentDeal.id,
-    p_escrow_start_date: start,
-    p_target_close_date: close,
-    p_contingency_removal_date: crd,
-  });
-  if(rpcErr)console.warn('[saveEscrowDates] seed_deal_milestones failed:',rpcErr.message);
-
-  msgEl.className='move-msg ok';
-  msgEl.textContent='Saved.';
-  await loadProject();
-}
-
-window.openEscrowDatesEdit=openEscrowDatesEdit;
-window.cancelEscrowDatesEdit=cancelEscrowDatesEdit;
-window.saveEscrowDates=saveEscrowDates;
 
 // ============================================================
-// MG — LOAN SECTION + MODAL (project-detail.html)
+// LOAN MODAL (preserved verbatim from prior version)
 // ============================================================
-//
-// Renders one row per deal_loans row + a "+ Add loan" button. Inline-edit
-// per BQ pattern (click cell → input swap → save-on-blur / Enter).
-// Phase-transition modal fires from moveStage() when a deal lands in
-// in_escrow with zero deal_loans rows (D5 — idempotent on bounce).
-
-const LOAN_STATUSES=['pending','funded','extended','paid_off','cancelled'];
-function loanStatusLabel(s){
-  return ({pending:'pending',funded:'funded',extended:'extended',paid_off:'paid off',cancelled:'cancelled'})[s]||s;
-}
-
-// Round to nearest $1K — matches the brief's modal preview formula
-// (loan_amount = round(purchase × ltc/100, -3)).
 function _roundK(n){return Math.round(n/1000)*1000;}
-
-// Reverse-derive LTC% for display from loan_amount + the deal's purchase
-// price (or offer price as fallback for pursuing deals). Returns null if
-// no usable purchase basis.
-function _displayLtcPct(loanAmount){
-  if(!currentDeal)return null;
-  const basis=currentDeal.purchase_price||currentDeal.offer_price;
-  if(!basis||basis<=0||loanAmount==null)return null;
-  return (loanAmount/basis)*100;
-}
-
-function _capitalSourceName(id){
-  const cs=capitalSources.find(c=>c.id===id);
-  return cs?cs.name:'(unknown)';
-}
-
-function renderLoanSection(){
-  const purchase=currentDeal?(currentDeal.purchase_price||currentDeal.offer_price||0):0;
-  let body='';
-  if(!dealLoans.length){
-    body=`<div class="loan-empty">No loans recorded${purchase?` — purchase basis $${(_roundK(purchase)/1000).toLocaleString()}K available for LTC math.`:''}</div>`;
-  } else {
-    let rows='';
-    for(const dl of dealLoans){
-      const ltcPct=_displayLtcPct(dl.loan_amount);
-      const ltcStr=ltcPct!=null?ltcPct.toFixed(0)+'%':'—';
-      const ratePct=dl.rate_apr!=null?(dl.rate_apr*100).toFixed(2)+'%':'—';
-      const termStr=dl.term_months!=null?dl.term_months+'mo':'—';
-      const loanStr=dl.loan_amount!=null?FK(dl.loan_amount):'—';
-      const statusCls='loan-status-'+(dl.status||'pending');
-      rows+=`<tr data-loan-id="${escapeHtml(dl.id)}">
-        <td><span class="loan-cell" data-loan-field="capital_source_id" data-loan-id="${escapeHtml(dl.id)}">${escapeHtml(_capitalSourceName(dl.capital_source_id))}</span></td>
-        <td><span class="loan-cell" data-loan-field="ltc_pct" data-loan-id="${escapeHtml(dl.id)}">${escapeHtml(ltcStr)}</span></td>
-        <td><span class="loan-cell" data-loan-field="loan_amount" data-loan-id="${escapeHtml(dl.id)}">${escapeHtml(loanStr)}</span></td>
-        <td><span class="loan-cell" data-loan-field="rate_apr" data-loan-id="${escapeHtml(dl.id)}">${escapeHtml(ratePct)}</span></td>
-        <td><span class="loan-cell" data-loan-field="term_months" data-loan-id="${escapeHtml(dl.id)}">${escapeHtml(termStr)}</span></td>
-        <td><span class="loan-cell ${statusCls}" data-loan-field="status" data-loan-id="${escapeHtml(dl.id)}">${escapeHtml(loanStatusLabel(dl.status))}</span></td>
-        <td><button class="loan-del" onclick="deleteLoan('${escapeHtml(dl.id)}')">Delete</button></td>
-      </tr>`;
-    }
-    body=`<table class="loan-tbl">
-      <thead><tr>
-        <th>Lender</th><th>LTC%</th><th>Loan</th><th>Rate</th><th>Term</th><th>Status</th><th></th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-  }
-
-  // "+ Add loan" toggles a small inline form (lender + LTC% + rate + term).
-  // Form is hidden by default; opens via showLoanAddForm().
-  const addFormHtml=`
-    <button class="loan-add-btn" id="loanAddBtn" onclick="showLoanAddForm()">+ Add loan</button>
-    <div class="loan-add-form" id="loanAddForm" style="display:none">
-      <div class="laf-field">
-        <label>Lender</label>
-        <select id="lafLender" onchange="onLafLenderChange()">
-          ${capitalSources.map(c=>`<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="laf-field">
-        <label>LTC %</label>
-        <input type="number" id="lafLtc" min="0" max="100" step="0.1" value="90" />
-      </div>
-      <div class="laf-field">
-        <label>Rate %</label>
-        <input type="number" id="lafRate" min="0" max="100" step="0.01" />
-      </div>
-      <div class="laf-field">
-        <label>Term (mo)</label>
-        <input type="number" id="lafTerm" min="1" step="1" value="12" />
-      </div>
-      <div class="laf-actions">
-        <button class="lm-btn lm-btn-primary" onclick="saveLoanFromAddForm()">Save</button>
-        <button class="lm-btn lm-btn-secondary" onclick="hideLoanAddForm()">Cancel</button>
-      </div>
-      <div class="laf-msg" id="lafMsg"></div>
-    </div>
-  `;
-
-  return `
-    <div class="section">
-      <h2>Loan <span style="color:var(--text-4);font-weight:400;letter-spacing:0;text-transform:none">(owner only)</span></h2>
-      ${body}
-      ${addFormHtml}
-    </div>
-  `;
-}
-
-// Re-render only the Loan section in place. Avoids a full renderPage()
-// round-trip when a single field is edited.
-function rerenderLoanSection(){
-  if(!currentDeal)return;
-  const role=window.CURRENT_USER_ROLE;
-  if(role!=='owner')return;
-  // Find the existing Loan section by its h2 text and replace its parent
-  // .section node. Cheap because there's only one match per page.
-  const sections=document.querySelectorAll('.section');
-  for(const sec of sections){
-    const h2=sec.querySelector('h2');
-    if(h2 && h2.textContent.trim().toLowerCase().startsWith('loan')){
-      const tmp=document.createElement('div');
-      tmp.innerHTML=renderLoanSection();
-      sec.replaceWith(tmp.firstElementChild);
-      wireLoanEdits();
-      return;
-    }
-  }
-}
-
-// ---------- Inline edit ----------
-function wireLoanEdits(){
-  document.querySelectorAll('.loan-cell[data-loan-field]').forEach(el=>{
-    el.addEventListener('click', ()=>_beginLoanEdit(el));
-  });
-}
-
-function _beginLoanEdit(el){
-  if(el.classList.contains('editing'))return;
-  const loanId=el.dataset.loanId;
-  const field=el.dataset.loanField;
-  const dl=dealLoans.find(x=>x.id===loanId);
-  if(!dl)return;
-  el.classList.add('editing');
-
-  let inputEl;
-  if(field==='capital_source_id'){
-    inputEl=document.createElement('select');
-    for(const c of capitalSources){
-      const opt=document.createElement('option');
-      opt.value=c.id;
-      opt.textContent=c.name;
-      if(c.id===dl.capital_source_id)opt.selected=true;
-      inputEl.appendChild(opt);
-    }
-  } else if(field==='status'){
-    inputEl=document.createElement('select');
-    for(const s of LOAN_STATUSES){
-      const opt=document.createElement('option');
-      opt.value=s;
-      opt.textContent=loanStatusLabel(s);
-      if(s===dl.status)opt.selected=true;
-      inputEl.appendChild(opt);
-    }
-  } else {
-    inputEl=document.createElement('input');
-    inputEl.type='number';
-    inputEl.step='0.01';
-    inputEl.min='0';
-    if(field==='ltc_pct'){
-      const cur=_displayLtcPct(dl.loan_amount);
-      inputEl.value=cur!=null?cur.toFixed(0):'';
-      inputEl.max='100';
-    } else if(field==='loan_amount'){
-      inputEl.value=dl.loan_amount!=null?String(Math.round(dl.loan_amount)):'';
-      inputEl.step='1';
-    } else if(field==='rate_apr'){
-      inputEl.value=dl.rate_apr!=null?(dl.rate_apr*100).toFixed(2):'';
-      inputEl.max='100';
-    } else if(field==='term_months'){
-      inputEl.value=dl.term_months!=null?String(dl.term_months):'';
-      inputEl.step='1';
-    }
-  }
-  el.innerHTML='';
-  el.appendChild(inputEl);
-  inputEl.focus();
-  if(inputEl.select)inputEl.select();
-
-  let committed=false, cancelled=false;
-  const commit=async ()=>{
-    if(committed||cancelled)return;
-    committed=true;
-    await _commitLoanEdit(loanId, field, inputEl.value);
-  };
-  inputEl.addEventListener('keydown', async (e)=>{
-    if(e.key==='Enter'){e.preventDefault();await commit();}
-    else if(e.key==='Escape'){e.preventDefault();cancelled=true;rerenderLoanSection();}
-  });
-  inputEl.addEventListener('blur', commit);
-  // Selects fire 'change' before 'blur' — let blur handle the commit so
-  // the value is captured atomically. (Selects also commit on click-pick
-  // because the click pulls focus away → blur fires.)
-}
-
-async function _commitLoanEdit(loanId, field, raw){
-  const dl=dealLoans.find(x=>x.id===loanId);
-  if(!dl){rerenderLoanSection();return;}
-  const trimmed=(raw==null?'':String(raw).trim());
-
-  // Empty → silent revert (no NULL writes).
-  if(trimmed===''){rerenderLoanSection();return;}
-
-  const updates={updated_at: new Date().toISOString()};
-  let needsRecomputeLtcDisplay=false;
-
-  if(field==='capital_source_id'){
-    if(trimmed===dl.capital_source_id){rerenderLoanSection();return;}
-    updates.capital_source_id=trimmed;
-  } else if(field==='ltc_pct'){
-    const ltc=Number(trimmed);
-    if(!isFinite(ltc)||ltc<0||ltc>200){rerenderLoanSection();return;}
-    const basis=currentDeal.purchase_price||currentDeal.offer_price;
-    if(!basis||basis<=0){
-      alert('Cannot compute loan amount — set Bought at / Offer at first.');
-      rerenderLoanSection();
-      return;
-    }
-    updates.loan_amount=_roundK(basis*ltc/100);
-    needsRecomputeLtcDisplay=true;
-  } else if(field==='loan_amount'){
-    const amt=Number(trimmed);
-    if(!isFinite(amt)||amt<0||amt>50000000){rerenderLoanSection();return;}
-    updates.loan_amount=Math.round(amt);
-    needsRecomputeLtcDisplay=true;
-  } else if(field==='rate_apr'){
-    const ratePct=Number(trimmed);
-    if(!isFinite(ratePct)||ratePct<0||ratePct>100){rerenderLoanSection();return;}
-    updates.rate_apr=ratePct/100;
-  } else if(field==='term_months'){
-    const t=Number(trimmed);
-    if(!isFinite(t)||t<1||t>240){rerenderLoanSection();return;}
-    updates.term_months=Math.round(t);
-  } else if(field==='status'){
-    if(!LOAN_STATUSES.includes(trimmed)){rerenderLoanSection();return;}
-    updates.status=trimmed;
-    // Auto-fill date columns on the canonical status flips.
-    if(trimmed==='funded' && !dl.funded_date){
-      updates.funded_date=todayStr();
-    } else if(trimmed==='paid_off' && !dl.payoff_date){
-      updates.payoff_date=todayStr();
-    }
-  } else {
-    rerenderLoanSection();
-    return;
-  }
-
-  const {error}=await sb.from('deal_loans').update(updates).eq('id', loanId);
-  if(error){
-    console.error('[MG _commitLoanEdit] failed', field, error);
-    alert('Save failed: '+error.message);
-    rerenderLoanSection();
-    return;
-  }
-  await loadDealLoans();
-  rerenderLoanSection();
-}
-
-// ---------- + Add loan inline form ----------
-function showLoanAddForm(){
-  const f=document.getElementById('loanAddForm');
-  const b=document.getElementById('loanAddBtn');
-  if(!f||!b)return;
-  // Pre-fill rate from selected lender's default.
-  onLafLenderChange();
-  f.style.display='flex';
-  b.style.display='none';
-}
-window.showLoanAddForm=showLoanAddForm;
-
-function hideLoanAddForm(){
-  const f=document.getElementById('loanAddForm');
-  const b=document.getElementById('loanAddBtn');
-  if(f)f.style.display='none';
-  if(b)b.style.display='inline-block';
-}
-window.hideLoanAddForm=hideLoanAddForm;
-
-function onLafLenderChange(){
-  const sel=document.getElementById('lafLender');
-  const rateEl=document.getElementById('lafRate');
-  if(!sel||!rateEl)return;
-  const cs=capitalSources.find(c=>c.id===sel.value);
-  if(cs && cs.default_rate_apr!=null && !rateEl.value){
-    rateEl.value=(cs.default_rate_apr*100).toFixed(2);
-  } else if(cs && cs.default_rate_apr!=null){
-    // Always refresh on lender change so the visible rate matches the
-    // newly-picked lender.
-    rateEl.value=(cs.default_rate_apr*100).toFixed(2);
-  }
-}
-window.onLafLenderChange=onLafLenderChange;
-
-async function saveLoanFromAddForm(){
-  const sel=document.getElementById('lafLender');
-  const ltcEl=document.getElementById('lafLtc');
-  const rateEl=document.getElementById('lafRate');
-  const termEl=document.getElementById('lafTerm');
-  const msg=document.getElementById('lafMsg');
-  msg.textContent='';
-  if(!sel||!sel.value){msg.textContent='Pick a lender.';return;}
-  const ltc=Number(ltcEl.value);
-  if(!isFinite(ltc)||ltc<=0||ltc>200){msg.textContent='LTC must be 0–200.';return;}
-  const ratePct=Number(rateEl.value);
-  if(!isFinite(ratePct)||ratePct<0||ratePct>100){msg.textContent='Rate must be 0–100.';return;}
-  const term=Number(termEl.value);
-  if(!isFinite(term)||term<1||term>240){msg.textContent='Term must be 1–240 months.';return;}
-  const basis=currentDeal.purchase_price||currentDeal.offer_price;
-  if(!basis||basis<=0){msg.textContent='Set Bought at / Offer at first.';return;}
-
-  const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
-  const insertRow={
-    deal_id: currentDeal.id,
-    capital_source_id: sel.value,
-    loan_purpose: 'acquisition',
-    status: 'pending',
-    loan_amount: _roundK(basis*ltc/100),
-    rate_apr: ratePct/100,
-    term_months: Math.round(term),
-    created_by: userId,
-  };
-  const {error}=await sb.from('deal_loans').insert(insertRow);
-  if(error){msg.textContent='Save failed: '+error.message;return;}
-  hideLoanAddForm();
-  await loadDealLoans();
-  rerenderLoanSection();
-}
-window.saveLoanFromAddForm=saveLoanFromAddForm;
-
-// ---------- Delete ----------
-async function deleteLoan(loanId){
-  if(!confirm('Delete this loan?'))return;
-  const {error}=await sb.from('deal_loans').delete().eq('id', loanId);
-  if(error){alert('Delete failed: '+error.message);return;}
-  await loadDealLoans();
-  rerenderLoanSection();
-}
-window.deleteLoan=deleteLoan;
-
-// ---------- Phase-transition modal ----------
 function openLoanModal(){
   const overlay=document.getElementById('loanModal');
   const sel=document.getElementById('lmLender');
   const ltcEl=document.getElementById('lmLtc');
-  const rateEl=document.getElementById('lmRate');
   const termEl=document.getElementById('lmTerm');
   const msg=document.getElementById('lmMsg');
   if(!overlay||!sel)return;
-  // Reset.
-  msg.textContent='';
-  ltcEl.value='90';
-  termEl.value='12';
-
-  // Populate lender dropdown.
+  msg.textContent=''; ltcEl.value='90'; termEl.value='12';
   sel.innerHTML='';
-  if(!capitalSources.length){
-    msg.textContent='No active hard-money / private capital sources found.';
-  }
-  // Default selection: most-recently-used lender across all deals.
-  // Cheap supplementary fetch — keeps the picker context-aware.
+  if(!capitalSources.length)msg.textContent='No active hard-money / private capital sources found.';
   let defaultId=null;
   (async()=>{
     try{
       const {data}=await sb.from('deal_loans').select('capital_source_id, created_at').order('created_at',{ascending:false}).limit(1);
       if(data && data[0])defaultId=data[0].capital_source_id;
-    }catch(e){/*ignore*/}
+    }catch(e){}
     for(const c of capitalSources){
       const opt=document.createElement('option');
-      opt.value=c.id;
-      opt.textContent=c.name;
+      opt.value=c.id; opt.textContent=c.name;
       sel.appendChild(opt);
     }
-    if(defaultId && capitalSources.some(c=>c.id===defaultId)){
-      sel.value=defaultId;
-    }
-    onLmLenderChange();
-    onLmLtcChange();
+    if(defaultId && capitalSources.some(c=>c.id===defaultId))sel.value=defaultId;
+    onLmLenderChange(); onLmLtcChange();
   })();
-
   overlay.classList.add('open');
   document.addEventListener('keydown', _lmKey);
 }
 window.openLoanModal=openLoanModal;
-
 function closeLoanModal(){
-  const overlay=document.getElementById('loanModal');
-  if(overlay)overlay.classList.remove('open');
+  document.getElementById('loanModal').classList.remove('open');
   document.removeEventListener('keydown', _lmKey);
 }
 window.closeLoanModal=closeLoanModal;
-
 function _lmKey(e){if(e.key==='Escape')closeLoanModal();}
-
 function onLmLenderChange(){
   const sel=document.getElementById('lmLender');
   const rateEl=document.getElementById('lmRate');
   if(!sel||!rateEl)return;
   const cs=capitalSources.find(c=>c.id===sel.value);
-  if(cs && cs.default_rate_apr!=null){
-    rateEl.value=(cs.default_rate_apr*100).toFixed(2);
-  }
+  if(cs && cs.default_rate_apr!=null)rateEl.value=(cs.default_rate_apr*100).toFixed(2);
   onLmLtcChange();
 }
 window.onLmLenderChange=onLmLenderChange;
-
 function onLmLtcChange(){
   const ltcEl=document.getElementById('lmLtc');
   const preview=document.getElementById('lmLoanPreview');
   if(!ltcEl||!preview||!currentDeal)return;
   const basis=currentDeal.purchase_price||currentDeal.offer_price||0;
   const ltc=Number(ltcEl.value);
-  if(!basis||!isFinite(ltc)){
-    preview.innerHTML='Loan: <strong>—</strong>';
-    return;
-  }
+  if(!basis||!isFinite(ltc)){preview.innerHTML='Loan: <strong>—</strong>';return;}
   const loan=_roundK(basis*ltc/100);
   preview.innerHTML='Loan: <strong>'+FK(loan)+'</strong> ('+ltc+'% of '+FK(basis)+')';
 }
 window.onLmLtcChange=onLmLtcChange;
-
 async function saveLoanFromModal(){
   const sel=document.getElementById('lmLender');
   const ltcEl=document.getElementById('lmLtc');
@@ -1953,29 +2121,26 @@ async function saveLoanFromModal(){
   if(!isFinite(term)||term<1||term>240){msg.textContent='Term must be 1–240 months.';return;}
   const basis=currentDeal.purchase_price||currentDeal.offer_price;
   if(!basis||basis<=0){msg.textContent='Set Bought at / Offer at first to compute loan amount.';return;}
-
   btn.disabled=true;
   const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
   const insertRow={
-    deal_id: currentDeal.id,
-    capital_source_id: sel.value,
-    loan_purpose: 'acquisition',
-    status: 'pending',
+    deal_id: currentDeal.id, capital_source_id: sel.value,
+    loan_purpose: 'acquisition', status: 'pending',
     loan_amount: _roundK(basis*ltc/100),
-    rate_apr: ratePct/100,
-    term_months: Math.round(term),
+    rate_apr: ratePct/100, term_months: Math.round(term),
     created_by: userId,
   };
   const {error}=await sb.from('deal_loans').insert(insertRow);
   btn.disabled=false;
   if(error){msg.textContent='Save failed: '+error.message;return;}
   closeLoanModal();
-  await loadDealLoans();
-  rerenderLoanSection();
+  await loadProject();
 }
 window.saveLoanFromModal=saveLoanFromModal;
 
-// ========== INIT ==========
+// ============================================================
+// INIT
+// ============================================================
 (async()=>{
   await window.authGate();
   if(!window.CURRENT_USER_ROLE)return;

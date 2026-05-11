@@ -117,10 +117,11 @@ window.sb=sb;
 // ========== PHASE CONFIG ==========
 // Brief BK: kanban shows 4 active phases. 'sold' + 'archived' are real
 // deal phases but excluded from the board (filtered out by the query).
-const PHASES=['pursuing','in_escrow','under_construction','listed'];
+// Brief BV / D2 renamed 'listed' → 'selling'.
+const PHASES=['pursuing','in_escrow','under_construction','selling'];
 function phaseLabel(s){
   if(s==null)return '—';
-  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed',lost:'Lost'})[s]||s;
+  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',selling:'Selling',listed:'Selling',lost:'Lost'})[s]||s;
 }
 
 // ========== HELPERS ==========
@@ -202,10 +203,10 @@ function renderBoard(deals, propsByMls, latestByDeal){
       html+=`<div class="col-empty">No deals in this phase</div>`;
     } else {
       for(const d of rows){
-        // Pick the primary properties row for header rendering. Listed
+        // Pick the primary properties row for header rendering. Selling
         // deals: prefer relist_mls (the new MLS#); else buy_side_mls.
         let primaryMls=null;
-        if(phase==='listed' && d.relist_mls && propsByMls[d.relist_mls])primaryMls=d.relist_mls;
+        if(phase==='selling' && d.relist_mls && propsByMls[d.relist_mls])primaryMls=d.relist_mls;
         else if(d.buy_side_mls && propsByMls[d.buy_side_mls])primaryMls=d.buy_side_mls;
         else if(d.relist_mls && propsByMls[d.relist_mls])primaryMls=d.relist_mls;
         const p=primaryMls?propsByMls[primaryMls]:null;

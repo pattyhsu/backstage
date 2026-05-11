@@ -431,7 +431,8 @@ function phaseLabel(p) {
     pursuing:'Pursuing',
     in_escrow:'In Escrow',
     under_construction:'Under Constr',
-    listed:'Listed',
+    selling:'Selling',
+    listed:'Selling',
     sold:'Sold',
     archived:'Archived',
     lost:'Lost',
@@ -649,7 +650,7 @@ function renderPnL() {
   }
   let equityDeployed = 0, nActive = 0;
   for (const r of rows) {
-    if (r._phase === 'in_escrow' || r._phase === 'under_construction' || r._phase === 'listed') {
+    if (r._phase === 'in_escrow' || r._phase === 'under_construction' || r._phase === 'selling') {
       const hml = loansByDeal[r.deal_id] || 0;
       const down = Math.max(0, (r.purchase_price || 0) - hml);
       equityDeployed += down + (r.rehab_actual || 0);
@@ -704,7 +705,7 @@ function renderPnL() {
   const inFlight = rows.filter(r =>
     r._phase === 'in_escrow' ||
     r._phase === 'under_construction' ||
-    r._phase === 'listed'
+    r._phase === 'selling'
   );
   const sold     = rows.filter(r => r._phase === 'sold').slice();
 
@@ -860,11 +861,11 @@ function renderCapital() {
     .filter(p =>
       p._deal.phase === 'in_escrow' ||
       p._deal.phase === 'under_construction' ||
-      p._deal.phase === 'listed'
+      p._deal.phase === 'selling'
     );
 
-  // Sort active deals: in_escrow first, then under_construction, then listed.
-  const phaseOrder = { in_escrow: 0, under_construction: 1, listed: 2 };
+  // Sort active deals: in_escrow first, then under_construction, then selling.
+  const phaseOrder = { in_escrow: 0, under_construction: 1, selling: 2 };
   activeDeals.sort((a, b) => (phaseOrder[a._deal.phase] || 99) - (phaseOrder[b._deal.phase] || 99));
 
   let totalPurchase = 0, totalHml = 0, totalDown = 0, totalRehabSpent = 0, totalEquity = 0, totalRehabBudget = 0;

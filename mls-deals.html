@@ -288,10 +288,12 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;  // expose for auth.js
 
 // ========== DEAL PHASE HELPER (mirrors pipeline.html / project-detail.html) ==========
-// Brief BK: deals model uses pursuing/in_escrow/under_construction/listed/sold/archived.
+// Brief BK: deals model uses pursuing/in_escrow/under_construction/selling/sold/archived.
+// Brief BV / D2 renamed 'listed' → 'selling'; legacy 'listed' key preserved
+// in the label map as defensive fallback.
 function dealPhaseLabel(s){
   if(s==null)return '—';
-  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',listed:'Listed',sold:'Sold',archived:'Archived',lost:'Lost'})[s]||s;
+  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',selling:'Selling',listed:'Selling',sold:'Sold',archived:'Archived',lost:'Lost'})[s]||s;
 }
 
 // ========== PHOTO SUPPORT ==========
@@ -1887,9 +1889,10 @@ function refreshRowDealPill(mls){
 
 // Brief BK / D2: address-match an MLS-listed property against the existing
 // under_construction deals to detect the relist-of-our-flip case. On a
-// single match: confirm + link (relist_mls=mls, phase='listed'). On zero
+// single match: confirm + link (relist_mls=mls, phase='selling'). On zero
 // or multiple matches: open a picker modal so the user chooses (or creates
-// an orphan listing with buy_side_mls=NULL).
+// an orphan listing with buy_side_mls=NULL). Brief BV / D2: phase value
+// renamed from 'listed' → 'selling'.
 async function markAsListing(mls){
   const l=listings.find(x=>x.mls===mls);if(!l)return;
   if(l.dealId){alert('This listing is already linked to a deal.');return;}
@@ -1946,7 +1949,7 @@ async function markAsListing(mls){
 }
 
 // Modal picker for markAsListing. Shows candidates + "Create new orphan
-// listing" option. On pick: link relist_mls + flip phase to 'listed'.
+// listing" option. On pick: link relist_mls + flip phase to 'selling'.
 function openMarkAsListingPicker(matches, mls, l){
   // Build a lightweight modal inline. Reuses the same overlay pattern as
   // openConstEditor / openArchive.
@@ -1998,8 +2001,9 @@ function openMarkAsListingPicker(matches, mls, l){
 }
 
 // Apply the mark-as-listing operation. If dealId is set: update existing
-// deal (relist_mls=mls, phase='listed'). If dealId is null: create a new
+// deal (relist_mls=mls, phase='selling'). If dealId is null: create a new
 // orphan deal with buy_side_mls=NULL, relist_mls=mls.
+// Brief BV / D2: phase value renamed from 'listed' → 'selling'.
 async function applyMarkAsListing(dealId, mls, l, fromPhase){
   const today=new Date().toISOString().slice(0,10);
   const listPrice=l.price||null;
@@ -2009,7 +2013,7 @@ async function applyMarkAsListing(dealId, mls, l, fromPhase){
       // Link existing under_construction deal as relist.
       const {error:uErr}=await sb.from('deals').update({
         relist_mls: mls,
-        phase: 'listed',
+        phase: 'selling',
         list_price: listPrice,
         list_date: today,
         updated_at: new Date().toISOString(),
@@ -2020,7 +2024,7 @@ async function applyMarkAsListing(dealId, mls, l, fromPhase){
       const {data:newDeal, error:iErr}=await sb.from('deals').insert({
         buy_side_mls: null,
         relist_mls: mls,
-        phase: 'listed',
+        phase: 'selling',
         list_price: listPrice,
         list_date: today,
       }).select('id').single();
@@ -2031,7 +2035,7 @@ async function applyMarkAsListing(dealId, mls, l, fromPhase){
     const {error:hErr}=await sb.from('deals_phase_history').insert({
       deal_id: resolvedDealId,
       from_phase: fromPhase,  // 'under_construction' for the link path; null for orphan
-      to_phase: 'listed',
+      to_phase: 'selling',
       note: dealId
         ? 'Linked relist via Mark as our listing (MLS Deals)'
         : 'Orphan listing via Mark as our listing (MLS Deals)',
@@ -2039,7 +2043,7 @@ async function applyMarkAsListing(dealId, mls, l, fromPhase){
     if(hErr)throw hErr;
     // Decorate listing in-place + re-render.
     l.dealId=resolvedDealId;
-    l.dealPhase='listed';
+    l.dealPhase='selling';
     renderDetailPage(l);
     refreshRowDealPill(mls);
   }catch(e){
