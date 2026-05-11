@@ -62,14 +62,14 @@ body { overflow:hidden; height:100vh; }
 .col-hdr { padding:10px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .col-hdr .name { font-size:11px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:var(--text-2); }
 .col-hdr .cnt { font-size:11px; font-weight:700; color:var(--text-3); font-family:var(--mono); padding:1px 7px; border-radius:9px; background:var(--bg); border:1px solid var(--border); }
-/* Phase-tinted kanban columns — left border + subtle top gradient matching the phase pill color. */
-.col.col-pursuing            { border-left:4px solid var(--accent); background:linear-gradient(180deg, rgba(156,124,60,.07) 0%, var(--bg-alt) 30%); }
+/* Phase-tinted kanban columns — soft full-height background tint matching the phase pill color. */
+.col.col-pursuing            { background:rgba(156,124,60,.07); }
 .col.col-pursuing .col-hdr .name { color:var(--accent); }
-.col.col-in_escrow           { border-left:4px solid var(--amber);  background:linear-gradient(180deg, rgba(184,101,26,.07) 0%, var(--bg-alt) 30%); }
+.col.col-in_escrow           { background:rgba(184,101,26,.07); }
 .col.col-in_escrow .col-hdr .name { color:var(--amber); }
-.col.col-under_construction  { border-left:4px solid #2873A8;       background:linear-gradient(180deg, rgba(40,115,168,.07) 0%, var(--bg-alt) 30%); }
+.col.col-under_construction  { background:rgba(40,115,168,.07); }
 .col.col-under_construction .col-hdr .name { color:#2873A8; }
-.col.col-selling             { border-left:4px solid var(--green);  background:linear-gradient(180deg, rgba(45,138,78,.07) 0%, var(--bg-alt) 30%); }
+.col.col-selling             { background:rgba(45,138,78,.07); }
 .col.col-selling .col-hdr .name { color:var(--green); }
 .col-body { flex:1; padding:8px; overflow-y:auto; min-height:0; display:flex; flex-direction:column; gap:6px; }
 .col-empty { font-size:11px; color:var(--text-4); text-align:center; padding:18px 8px; font-style:italic; }
