@@ -144,14 +144,14 @@ body { overflow:hidden; height:100vh; }
 
 /* History list */
 .history { list-style:none; padding:0; margin:0; }
-.history li { padding:10px 0; border-bottom:1px solid var(--border); }
+.history li { padding:5px 0; border-bottom:1px solid var(--border); display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; font-size:12px; }
 .history li:last-child { border-bottom:none; }
-.history .when { font-size:11px; color:var(--text-4); font-family:var(--mono); }
-.history .who { font-size:11px; color:var(--text-3); margin-left:6px; }
-.history .arrow { font-size:13px; color:var(--text); margin-top:2px; }
+.history .when { color:var(--text-4); font-family:var(--mono); white-space:nowrap; }
+.history .who { color:var(--text-3); white-space:nowrap; }
 .history .arrow .from { color:var(--text-3); }
+.history .arrow .sep { color:var(--text-4); margin:0 4px; }
 .history .arrow .to { color:var(--accent); font-weight:600; }
-.history .note { font-size:12px; color:var(--text-3); margin-top:4px; padding-left:10px; border-left:2px solid var(--border); font-style:italic; }
+.history .note { color:var(--text-3); font-style:italic; flex-basis:100%; padding-left:0; border-left:none; margin-top:0; }
 .empty-history { font-size:12px; color:var(--text-4); font-style:italic; }
 
 /* Read-only section grids (Construction / Listing) */
@@ -340,6 +340,30 @@ function userShort(uuid){
   if(!uuid)return 'unknown';
   return uuid.slice(0,8);
 }
+// Resolves transitioned_by UUIDs → display names via the get_user_display_names
+// RPC (Migration 062). Populates userNameMap as a side-effect; renderHistoryList
+// reads from it. RPC failures are non-fatal — UUID-prefix fallback kicks in.
+async function loadUserNames(uuids){
+  const unique=[...new Set((uuids||[]).filter(Boolean))];
+  const missing=unique.filter(u=>!userNameMap.has(u));
+  if(!missing.length)return;
+  try {
+    const {data, error}=await sb.rpc('get_user_display_names', {user_ids: missing});
+    if(error){
+      console.warn('[project-detail] get_user_display_names failed (non-fatal):', error.message);
+      return;
+    }
+    for(const row of (data||[])){
+      if(row && row.user_id)userNameMap.set(row.user_id, row.display_name||userShort(row.user_id));
+    }
+  } catch(e){
+    console.warn('[project-detail] get_user_display_names threw (non-fatal):', e);
+  }
+}
+function resolvedUserName(uuid){
+  if(!uuid)return 'unknown';
+  return userNameMap.get(uuid) || userShort(uuid);
+}
 function todayStr(){
   const d=new Date();
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -359,6 +383,7 @@ let currentDeal=null;        // row from `deals`
 let propertiesByMls={};      // mls -> properties row (for header rendering)
 let phaseHistory=[];         // rows from deals_phase_history
 let dealMilestones=[];       // rows from deal_milestones
+let userNameMap=new Map();   // auth.users.id -> display name (Migration 062)
 let saving=false;
 
 // MG — loan state. Loaded in loadProject(); refreshed by loadDealLoans()
@@ -501,6 +526,11 @@ async function loadProject(){
   } else {
     phaseHistory=hist||[];
   }
+
+  // 4b. Resolve transitioned_by UUIDs → display names via Migration 062 RPC.
+  // Graceful degradation: if RPC fails (not yet applied, or RLS issue),
+  // userNameMap stays empty and userShort() falls back to the UUID prefix.
+  await loadUserNames(phaseHistory.map(h=>h.transitioned_by));
 
   // 5. Deal milestones (read-only mini-list).
   const {data:ms, error:msErr}=await sb.from('deal_milestones')
@@ -1117,11 +1147,12 @@ function renderHistoryList(){
   for(const h of phaseHistory){
     const fromLbl=h.from_phase?phaseLabel(h.from_phase):'(deal opened)';
     const toLbl=h.to_phase?phaseLabel(h.to_phase):'(deal closed)';
-    const who=h.transitioned_by?userShort(h.transitioned_by):'unknown';
+    const who=resolvedUserName(h.transitioned_by);
     html+=`<li>
-      <div><span class="when">${escapeHtml(fmtDate(h.transitioned_at))} · ${escapeHtml(relTime(h.transitioned_at))}</span><span class="who" title="${escapeHtml(h.transitioned_by||'')}">by ${escapeHtml(who)}</span></div>
-      <div class="arrow"><span class="from">${escapeHtml(fromLbl)}</span> → <span class="to">${escapeHtml(toLbl)}</span></div>
-      ${h.note?`<div class="note">${escapeHtml(h.note)}</div>`:''}
+      <span class="when">${escapeHtml(fmtDate(h.transitioned_at))} · ${escapeHtml(relTime(h.transitioned_at))}</span>
+      <span class="who" title="${escapeHtml(h.transitioned_by||'')}">by ${escapeHtml(who)}</span>
+      <span class="arrow"><span class="from">${escapeHtml(fromLbl)}</span><span class="sep">→</span><span class="to">${escapeHtml(toLbl)}</span></span>
+      ${h.note?`<span class="note">— ${escapeHtml(h.note)}</span>`:''}
     </li>`;
   }
   html+='</ul>';
