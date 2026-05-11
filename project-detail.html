@@ -601,6 +601,16 @@ function schoolChipStyle(rating){
   return 'background:var(--red-bg);color:var(--red)';
 }
 
+// Shorten "<X> Elementary School" → "<X> ES" (and MS / HS for middle / high).
+// Saves horizontal space in the schools row while keeping the proper noun.
+function shortenSchool(name){
+  if(!name)return '';
+  return String(name)
+    .replace(/\s+Elementary\s+School\s*$/i, ' ES')
+    .replace(/\s+Middle\s+School\s*$/i, ' MS')
+    .replace(/\s+High\s+School\s*$/i, ' HS');
+}
+
 // Slim, single-photo lightbox (R2 photo at index 01). v1 doesn't need the
 // multi-photo gallery from mls-deals — that lightbox is tangled with the
 // listings/compCache lookup, and porting it would require importing more
@@ -676,13 +686,13 @@ function renderPage(arvRow,gradeRow,deCount){
   if(p && !isOffMkt){
     const chips=[];
     if(p.elementary_school || p.elementary_rating!=null){
-      chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.elementary_rating)}">E ${p.elementary_rating!=null?p.elementary_rating:'—'}</span>${escapeHtml(p.elementary_school||'')}</span>`);
+      chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.elementary_rating)}">E ${p.elementary_rating!=null?p.elementary_rating:'—'}</span>${escapeHtml(shortenSchool(p.elementary_school)||'')}</span>`);
     }
     if((p.middle_school||p.middle_rating!=null) && p.middle_school!==p.elementary_school){
-      chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.middle_rating)}">M ${p.middle_rating!=null?p.middle_rating:'—'}</span>${escapeHtml(p.middle_school||'')}</span>`);
+      chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.middle_rating)}">M ${p.middle_rating!=null?p.middle_rating:'—'}</span>${escapeHtml(shortenSchool(p.middle_school)||'')}</span>`);
     }
     if(p.high_school || p.high_rating!=null){
-      chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.high_rating)}">H ${p.high_rating!=null?p.high_rating:'—'}</span>${escapeHtml(p.high_school||'')}</span>`);
+      chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.high_rating)}">H ${p.high_rating!=null?p.high_rating:'—'}</span>${escapeHtml(shortenSchool(p.high_school)||'')}</span>`);
     }
     if(chips.length)schoolsHtml=`<div class="acq-schools">${chips.join('')}</div>`;
   }
@@ -750,7 +760,7 @@ function renderPage(arvRow,gradeRow,deCount){
     return `<div class="uw-value"${attrs}>${FK(v)}${locked?'<span class="uw-lock">🔒</span>':''}${clearBtn}</div>`;
   }
   function profitHtml(){
-    if(profit==null)return `<div class="uw-value uw-value-large" id="uwProfit" style="color:var(--text-4)">— pending</div>`;
+    if(profit==null)return `<div class="uw-value" id="uwProfit" style="color:var(--text-4)">— pending</div>`;
     const cls=profit>=0?'profit-pos':'profit-neg';
     const sign=profit>=0?'+':'-';
     const dollars=FK(Math.abs(profit));
@@ -1086,7 +1096,7 @@ function _liveProfitPreview(editingStat, rawDollars){
   const target=document.getElementById('uwProfit');
   if(!target)return;
   if(dollar==null){
-    target.className='uw-value uw-value-large';
+    target.className='uw-value';
     target.style.color='var(--text-4)';
     target.textContent='— pending';
     return;
