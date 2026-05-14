@@ -567,6 +567,7 @@ let userNameMap=new Map();
 let dealLoans=[];
 let capitalSources=[];
 let dealExpenses=[];
+let dealPnl=null;
 let saving=false;
 let uwCtx=null;
 let lastArvRow=null;
@@ -692,6 +693,20 @@ async function loadProject(){
     dealExpenses=exps||[];
   } catch(e){
     dealExpenses=[];
+  }
+
+  // 9. Deal P&L rollup (canonical money-layer cost basis: acquisition + rehab
+  // + financing + holding + disposition actuals). Used by the List Price
+  // Calculator on the Selling phase. Graceful fallback if view unavailable.
+  try {
+    const {data:pnlRow, error:pnlErr}=await sb.from('deal_pnl_v1')
+      .select('deal_id, acquisition_actual, rehab_actual, financing_actual, holding_actual, disposition_actual, total_costs_actual')
+      .eq('deal_id', dealRow.id)
+      .maybeSingle();
+    if(pnlErr){console.warn('[project-detail] deal_pnl_v1 load failed:', pnlErr.message);dealPnl=null;}
+    else {dealPnl=pnlRow||null;}
+  } catch(e){
+    dealPnl=null;
   }
 
   renderPage();
@@ -1568,11 +1583,24 @@ function wireOfferCalc(){
   recalc();
 }
 
+// Canonical total cost basis for the Selling-phase List Price Calculator.
+// Prefer deal_pnl_v1.total_costs_actual (acquisition + rehab + financing +
+// holding + disposition actuals — see migration 042/038). Falls back to
+// purchase_price + rehab_actual from the deals row if the view didn't load.
+// NOTE: loan principal is NOT subtracted here — it's borrowed in and paid
+// back at close (net zero on principal). Only loan *interest* is a real
+// cost, and that's already inside financing_actual.
+function listPriceCostBasis(){
+  if(dealPnl && typeof dealPnl.total_costs_actual === 'number' && dealPnl.total_costs_actual > 0){
+    return dealPnl.total_costs_actual;
+  }
+  const d=currentDeal||{};
+  return (d.purchase_price||0)+(d.rehab_actual||0);
+}
+
 function renderListPriceCalc(){
   const d=currentDeal;
-  const buy=d.purchase_price||0;
-  const rehab=d.rehab_actual||0;
-  const costBasis=buy+rehab;
+  const costBasis=listPriceCostBasis();
   const loan=dealLoans.find(l=>l.status==='funded'||l.status==='pending');
   const loanPayoff=loan?loan.loan_amount||0:0;
   const listPrice=d.list_price||Math.round((costBasis+loanPayoff)*1.2);
@@ -1596,10 +1624,7 @@ function renderListPriceCalc(){
 function wireListPriceCalc(){
   const listEl=document.getElementById('lpListPrice');
   if(!listEl)return;
-  const d=currentDeal;
-  const buy=d.purchase_price||0;
-  const rehab=d.rehab_actual||0;
-  const costBasis=buy+rehab;
+  const costBasis=listPriceCostBasis();
   const loan=dealLoans.find(l=>l.status==='funded'||l.status==='pending');
   const loanPayoff=loan?loan.loan_amount||0:0;
   function recalc(){
@@ -1607,12 +1632,20 @@ function wireListPriceCalc(){
     const sellPct=Number(document.getElementById('lpSellingCostPct').value)||0;
     const sellCost=list*sellPct/100;
     const net=list-sellCost-loanPayoff;
-    const profit=net-costBasis;
+    // Gross-profit view: net sale proceeds (list − selling costs) minus full
+    // cost basis. Loan principal is NOT subtracted — it cancels out (borrowed
+    // in, paid back at close). Subtracting loanPayoff here AND a cost basis
+    // funded by that loan would double-count the principal.
+    const profit=(list-sellCost)-costBasis;
+    // Cash-on-cash denominator: ideally equity_in = costBasis − loan_proceeds_received.
+    // We don't track loan_proceeds_received separately on deal_loans (loan_amount
+    // is the contractual principal, not the disbursed cash). Using total cost
+    // basis as the denominator is the documented simplification.
     const coc=costBasis>0?(profit/costBasis)*100:0;
     document.getElementById('lpNet').textContent=FK(net);
     document.getElementById('lpNetSub').textContent=FK(list)+' − '+sellPct+'% − '+FK(loanPayoff)+' payoff';
     document.getElementById('lpProfit').textContent=FKsigned(profit);
-    document.getElementById('lpProfitSub').textContent='net '+FK(net)+' − cost basis '+FK(costBasis);
+    document.getElementById('lpProfitSub').textContent='(list − '+sellPct+'%) '+FK(list-sellCost)+' − cost basis '+FK(costBasis);
     document.getElementById('lpCoc').textContent=(coc>=0?'':'−')+Math.round(Math.abs(coc))+'%';
     const profitCell=document.querySelector('#lpCalc .lp-out-cell.profit');
     if(profitCell)profitCell.classList.toggle('neg', profit<0);
