@@ -639,7 +639,9 @@ function renderPnL() {
   }
   const yoyPct = profitPriorYtd > 0 ? ((profitYtd - profitPriorYtd) / profitPriorYtd) : null;
 
-  // Equity deployed: sum (purchase_price - hml_principal) + rehab_actual for each in-flight deal.
+  // Equity deployed: sum (total_costs_actual - hml_principal) for each in-flight deal.
+  // Post-close uses deal_pnl_v1.total_costs_actual − hml (true all-in basis: contract + wholesaler + closing + soft + holding + rehab).
+  // Pre-close (no JE booked yet, total_costs_actual = 0) falls back to purchase_price + rehab_actual − hml.
   // Excludes 'pursuing' — pre-escrow with no committed equity (no down, no rehab spent).
   const loansByDeal = {};
   for (const dl of data.dealLoans) {
@@ -652,8 +654,10 @@ function renderPnL() {
   for (const r of rows) {
     if (r._phase === 'in_escrow' || r._phase === 'under_construction' || r._phase === 'selling') {
       const hml = loansByDeal[r.deal_id] || 0;
-      const down = Math.max(0, (r.purchase_price || 0) - hml);
-      equityDeployed += down + (r.rehab_actual || 0);
+      const totalCosts = r.total_costs_actual || 0;
+      const fallback   = Math.max(0, (r.purchase_price || 0) - hml) + (r.rehab_actual || 0);
+      const equityIn   = totalCosts > 0 ? Math.max(0, totalCosts - hml) : fallback;
+      equityDeployed  += equityIn;
       nActive += 1;
     }
   }
@@ -873,12 +877,18 @@ function renderCapital() {
 
   const equityRowsHtml = activeDeals.map(p => {
     const d = p._deal;
-    const purchase = p.purchase_price || d.purchase_price || 0;
+    const purchase = p.purchase_price || d.purchase_price || 0;  // Case B display: contract price
     const hml = loansByDeal[p.deal_id] || 0;
-    const down = Math.max(0, purchase - hml);
     const rehabActual = p.rehab_actual || 0;
     const rehabBudget = data.rehabBudgetByMls[d.buy_side_mls] || data.rehabBudgetByMls[d.relist_mls] || null;
-    const equityLocked = down + rehabActual;
+    // Equity locked = all-in basis − HML. Post-close uses total_costs_actual (true basis incl wholesaler/closing/soft/holding).
+    // Pre-close fallback (no JE booked yet) = purchase + rehab_actual.
+    const totalCosts  = p.total_costs_actual || 0;
+    const allInBasis  = totalCosts > 0 ? totalCosts : purchase + rehabActual;
+    const equityLocked = Math.max(0, allInBasis - hml);
+    // "Your down" derived so down + rehab_actual = equity_locked (rows sum visually).
+    // For closed deals this absorbs non-rehab costs (financing + holding + disposition).
+    const down = Math.max(0, equityLocked - rehabActual);
     const projRev = p.projected_revenue || 0;
     const exitNet = (projRev * 0.96) - hml;
 
