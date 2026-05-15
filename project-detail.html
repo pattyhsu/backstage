@@ -984,8 +984,8 @@ function renderPage(){
       </div>
     </div>
 
-    <!-- UNDERWRITING BAR -->
-    <div class="uw-bar" id="uwBar">
+    <!-- UNDERWRITING BAR (owner-only — dollar values: Bought At / ARV / Construction / Projected Profit) -->
+    ${role==='owner' ? `<div class="uw-bar" id="uwBar">
       <div class="uw-stat"><div class="uw-label">${buyLabel}</div>${fmtUw(buyVal,false,buyIsOffer?'offer':'bought')}</div>
       <div class="uw-sep">·</div>
       <div class="uw-stat"><div class="uw-label">ARV</div>${fmtUw(arvVal,arvLocked,'arv')}</div>
@@ -993,7 +993,7 @@ function renderPage(){
       <div class="uw-stat"><div class="uw-label">Construction</div>${fmtUw(constrVal,constrLocked,'construction')}</div>
       <div class="uw-sep">·</div>
       <div class="uw-stat"><div class="uw-label">${buyIsOffer?'Projected profit':'Projected profit'}</div>${profitHtml}</div>
-    </div>
+    </div>` : ''}
 
     <!-- CONSTRUCTION SECTION -->
     ${renderConstructionSection()}
@@ -1395,10 +1395,10 @@ function wireChecklists(){
 // ============================================================
 function renderCashSection(role, cfg){
   if(role!=='owner'){
-    return `<div class="sect phase-hide" id="cashSect">
-      <div class="sect-h"><h2 id="cashSectTitle">Cash position</h2><span class="sub" id="cashSectSub">owner only</span></div>
-      <div style="font-size:12px;color:var(--text-4);font-style:italic">Owner only — log in as the owner to view cash math.</div>
-    </div>`;
+    // Owner-only — hide entire Cash Position section (KPI cards + Offer/List Price calculators)
+    // from worker role. Render nothing so applyPhaseConfig's show/hide on cashSect/cashGrid/finRow/
+    // offerCalc/lpCalc become no-ops (getElementById returns null → skipped).
+    return '';
   }
   const cashCells=computeCashCells();
   const cashGridHtml=`
