@@ -2518,46 +2518,45 @@ async function decorateListingsWithDeals(){
   // completed milestones, zero completed checklist items, zero loans, zero
   // expenses, zero documents, AND offer_price/purchase_price/notes all NULL
   // on the deal row itself. Non-pursuing deals get l.undoable=false with
-  // no DB roundtrip.
+  // no DB roundtrip. Entire gate is fail-soft: if any query errors, all
+  // pursuing deals get undoable=false but dealId/dealPhase decoration
+  // continues — gate failure must never block the deal-pill from rendering.
   const pursuingIds=deals.filter(d=>d.phase==='pursuing').map(d=>d.id);
   const undoable=new Set();
   if(pursuingIds.length){
-    // deal_documents table ships in Migration 066 (Brief BW). Until then
-    // the query errors with 42P01 (relation does not exist) — treat as 0 rows.
-    const docsQuery=(async()=>{
-      try{
-        const{data,error}=await sb.from('deal_documents').select('deal_id').in('deal_id',pursuingIds);
-        if(error)throw error;
-        return data||[];
-      }catch(e){
-        if(e&&(e.code==='42P01'||/relation.*does not exist/i.test(e.message||'')))return [];
-        throw e;
+    try{
+      // deal_documents table ships in Migration 066 (Brief BW). Until then
+      // the query errors (PostgREST returns 404 + "JSON could not be
+      // generated", not Postgres 42P01) — swallow any error to 0 rows.
+      const docsQuery=sb.from('deal_documents').select('deal_id').in('deal_id',pursuingIds)
+        .then(r=>(r&&!r.error&&r.data)?r.data:[],()=>[]);
+      const[histRes,msRes,ckRes,lnRes,exRes,dcRes]=await Promise.all([
+        sb.from('deals_phase_history').select('deal_id').in('deal_id',pursuingIds),
+        sb.from('deal_milestones').select('deal_id').in('deal_id',pursuingIds).eq('completed',true),
+        sb.from('deal_phase_checklist_items').select('deal_id').in('deal_id',pursuingIds).eq('completed',true),
+        sb.from('deal_loans').select('deal_id').in('deal_id',pursuingIds),
+        sb.from('deal_expenses').select('deal_id').in('deal_id',pursuingIds),
+        docsQuery,
+      ]);
+      for(const r of [histRes,msRes,ckRes,lnRes,exRes]){
+        if(r&&r.error)throw r.error;
       }
-    })();
-    const[histRes,msRes,ckRes,lnRes,exRes,dcRes]=await Promise.all([
-      sb.from('deals_phase_history').select('deal_id').in('deal_id',pursuingIds),
-      sb.from('deal_milestones').select('deal_id').in('deal_id',pursuingIds).eq('completed',true),
-      sb.from('deal_phase_checklist_items').select('deal_id').in('deal_id',pursuingIds).eq('completed',true),
-      sb.from('deal_loans').select('deal_id').in('deal_id',pursuingIds),
-      sb.from('deal_expenses').select('deal_id').in('deal_id',pursuingIds),
-      docsQuery,
-    ]);
-    for(const r of [histRes,msRes,ckRes,lnRes,exRes]){
-      if(r&&r.error){console.warn('[decorateListingsWithDeals] freshness gate query failed',r.error);return;}
-    }
-    const histCount={};for(const r of (histRes.data||[]))histCount[r.deal_id]=(histCount[r.deal_id]||0)+1;
-    const blocked=new Set();
-    for(const r of (msRes.data||[]))blocked.add(r.deal_id);
-    for(const r of (ckRes.data||[]))blocked.add(r.deal_id);
-    for(const r of (lnRes.data||[]))blocked.add(r.deal_id);
-    for(const r of (exRes.data||[]))blocked.add(r.deal_id);
-    for(const r of (dcRes||[]))blocked.add(r.deal_id);
-    for(const id of pursuingIds){
-      const d=dealById[id];
-      if(blocked.has(id))continue;
-      if((histCount[id]||0)!==1)continue;
-      if(d.offer_price!=null||d.purchase_price!=null||d.notes!=null)continue;
-      undoable.add(id);
+      const histCount={};for(const r of (histRes.data||[]))histCount[r.deal_id]=(histCount[r.deal_id]||0)+1;
+      const blocked=new Set();
+      for(const r of (msRes.data||[]))blocked.add(r.deal_id);
+      for(const r of (ckRes.data||[]))blocked.add(r.deal_id);
+      for(const r of (lnRes.data||[]))blocked.add(r.deal_id);
+      for(const r of (exRes.data||[]))blocked.add(r.deal_id);
+      for(const r of (dcRes||[]))blocked.add(r.deal_id);
+      for(const id of pursuingIds){
+        const d=dealById[id];
+        if(blocked.has(id))continue;
+        if((histCount[id]||0)!==1)continue;
+        if(d.offer_price!=null||d.purchase_price!=null||d.notes!=null)continue;
+        undoable.add(id);
+      }
+    }catch(e){
+      console.warn('[decorateListingsWithDeals] freshness gate failed; all pursuing deals will be non-undoable',e);
     }
   }
 
