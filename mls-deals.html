@@ -2283,7 +2283,16 @@ async function toggleLockArv(mls,id){
   renderDetailPage(l);
   const cm=getComps(l);
   document.getElementById('comp-col').innerHTML=compsPanel(l);
-  if(cm.hp>0){setNumVal('arv-'+id,l.lockedArv||(cm.hp*l.sqft));calcDeal(id,l.price,l.sqft);}
+  // Always seed the ARV input + recompute. Pre-cards-row this gate was
+  // cm.hp>0 (no comps → no ARV → no point in calcDeal), but smart-comps
+  // / per-city can populate ARV even with zero user comps loaded.
+  if(l.lockedArv){
+    setNumVal('arv-'+id,l.lockedArv);
+  }else{
+    const pref=preferredArvFor(l,cm);
+    if(pref.arv>0)setNumVal('arv-'+id,pref.arv);
+  }
+  calcDeal(id,l.price,l.sqft);
   render();
 }
 async function toggleLockConstruction(mls,id){
