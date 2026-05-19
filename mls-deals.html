@@ -630,6 +630,8 @@ function compsPanel(l){
   if(l.city==='LA PALMA')h+=renderLaPalmaSmartCompsPanel(l,mid);
   if(l.city==='CYPRESS')h+=renderCypressArvBlock(l,mid);
   if(l.city==='CYPRESS')h+=renderCypressSmartCompsPanel(l,mid);
+  if(l.city==='DIAMOND BAR')h+=renderDiamondBarArvBlock(l,mid);
+  if(l.city==='DIAMOND BAR')h+=renderDiamondBarSmartCompsPanel(l,mid);
   h+=renderDealScoreBlock(l.mls,mid);
   setTimeout(()=>ensureArvEstimate(l.mls,mid),50);
   setTimeout(()=>ensureDealScore(l.mls,mid),50);
@@ -731,6 +733,20 @@ async function ensureArvEstimate(mls,mid){
     const listing=listings.find(x=>x.mls===mls);
     if(listing&&listing.city==='CYPRESS'){
       cySmartEl.outerHTML=renderCypressSmartCompsPanel(listing,mid);
+    }
+  }
+  const dbEl=document.getElementById('diamond-bar-arv-'+mid);
+  if(dbEl){
+    const listing=listings.find(x=>x.mls===mls);
+    if(listing&&listing.city==='DIAMOND BAR'){
+      dbEl.outerHTML=renderDiamondBarArvBlock(listing,mid);
+    }
+  }
+  const dbSmartEl=document.getElementById('diamond-bar-smart-comps-'+mid);
+  if(dbSmartEl){
+    const listing=listings.find(x=>x.mls===mls);
+    if(listing&&listing.city==='DIAMOND BAR'){
+      dbSmartEl.outerHTML=renderDiamondBarSmartCompsPanel(listing,mid);
     }
   }
 }
@@ -997,6 +1013,146 @@ function renderCypressSmartCompsPanel(l,mid){
   }
   return `<div class="ab" id="cypress-smart-comps-${mid}" style="display:block">
     <div>Smart comps (DF Cypress): ${F(smart)}${confPill}${disPill}</div>
+    <details style="margin-top:6px">
+      <summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Anchors (${n} within ${radius}mi · ${monthsBack}mo · $${ppsf}/sf median T6-eq)</summary>
+      ${flagsHtml}
+      ${compsRows}
+    </details>
+  </div>`;
+}
+
+// ========== DIAMOND BAR ARV BLOCK (Diamond Bar only) =================
+// Reads `arv_estimates.per_city_arv` + `per_city_confidence` +
+// `per_city_data` (jsonb), populated by `python -m
+// arv_estimator.per_city.diamond_bar --predict-active`. Diamond Bar-only
+// via the `l.city==='DIAMOND BAR'` filter in compsPanel().
+// model_version='diamond_bar_v1'. Migration 061 collapsed
+// diamond_bar_v1_* into shared per_city_* — same columns la_palma +
+// cerritos + cypress already use.
+function renderDiamondBarArvBlock(l,mid){
+  const c=arvEstimateCache[l.mls];
+  if(!c||c.state==='pending'||c.state==='missing'){
+    return `<div class="ab" id="diamond-bar-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v1 Diamond Bar): pending — runs nightly</div>`;
+  }
+  if(c.state==='error')return '';
+  const r=c.row;
+  if(r.per_city_arv==null){
+    return `<div class="ab" id="diamond-bar-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v1 Diamond Bar): pending — runs nightly</div>`;
+  }
+  const conf=(r.per_city_confidence||'').toLowerCase();
+  const confStyle=conf==='high'?'background:var(--green-bg);color:var(--green)':conf==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
+  const confPill=`<span style="${confStyle};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:8px">${(conf||'?').toUpperCase()}</span>`;
+  return `<div class="ab" id="diamond-bar-arv-${mid}" style="display:block">
+    <div>ARV estimate (v1 Diamond Bar): ${F(r.per_city_arv)}${confPill}</div>
+    <div style="font-size:10px;color:var(--text-4);margin-top:4px">Per-city OLS regression — see arv_estimator/models/diamond_bar_v1.pkl</div>
+  </div>`;
+}
+
+// ========== DIAMOND BAR SMART COMP PANEL (Diamond Bar only) =========
+// Reads `arv_estimates.smart_comps_arv` + `smart_comps_confidence` +
+// `smart_comps_data` (jsonb), populated by `python -m
+// arv_estimator.per_city.diamond_bar_smart_comps --predict-active`.
+// Pairs with v1 Diamond Bar — disagreement |Δ| green ≤3% / amber 3-7%
+// / red >7%. Diamond Bar-only via the `l.city==='DIAMOND BAR'` filter
+// in compsPanel(). model_version='diamond_bar_smart_comps'.
+// Mirrors renderCypressSmartCompsPanel with one extra per-comp column
+// (NEW vs cypress): HS adjustment % (Diamond Bar HS / Diamond Ranch HS
+// boundary normalization, Brief diamond_bar_smart_comps Locked
+// Decision #8 — ~±13.5% magnitude). Mirrors la_palma's HS-adj column
+// pattern, larger magnitude.
+// Brief diamond_bar_phase2_writeback Locked Decision #8 suppresses the
+// `drift_disagrees_with_v1` flag in the UI — fires globally given the
+// 3.06pp ZHVI-vs-v1 drift gap; stays in smart_comps_data.flags for
+// queryability.
+function renderDiamondBarSmartCompsPanel(l,mid){
+  const c=arvEstimateCache[l.mls];
+  if(!c||c.state==='pending'||c.state==='missing'){
+    return `<div class="ab" id="diamond-bar-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (Diamond Bar): pending — runs nightly</div>`;
+  }
+  if(c.state==='error')return '';
+  const r=c.row;
+  const confLc=(r.smart_comps_confidence||'').toLowerCase();
+  // Declined state: confidence='none' means smart-comps DECLINED (no
+  // good local comps); arv is intentionally NULL. Render the declined
+  // strip. v1 covers the listing.
+  if(confLc==='none'&&r.smart_comps_data){
+    const data2=r.smart_comps_data;
+    const flags2Raw=Array.isArray(data2.flags)?data2.flags:[];
+    const flags2=flags2Raw.filter(f=>f!=='drift_disagrees_with_v1');
+    const flagsHtml2=flags2.length?` <span style="color:var(--text-4)">(${flags2.map(f=>escapeHtml(String(f))).join(', ')})</span>`:'';
+    return `<div class="ab" id="diamond-bar-smart-comps-${mid}" style="opacity:0.85;background:var(--bg);color:var(--text-3);font-weight:500">Smart comps (Diamond Bar): declined — no good local comps${flagsHtml2}<div style="font-size:10px;color:var(--text-4);margin-top:2px">v1 covers this listing.</div></div>`;
+  }
+  if(r.smart_comps_arv==null||!r.smart_comps_data){
+    return `<div class="ab" id="diamond-bar-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (Diamond Bar): not yet scored</div>`;
+  }
+  const data=r.smart_comps_data,conf=confLc;
+  const v1=r.per_city_arv,smart=r.smart_comps_arv;
+  let dis=null,disColor='var(--text-4)',disBg='var(--bg)';
+  if(v1&&smart){
+    dis=(smart-v1)/v1*100;
+    const a=Math.abs(dis);
+    if(a<=3){disColor='var(--green)';disBg='var(--green-bg)';}
+    else if(a<=7){disColor='var(--amber)';disBg='var(--amber-bg)';}
+    else{disColor='var(--red)';disBg='var(--red-bg)';}
+  }
+  const confStyle=conf==='high'?'background:var(--green-bg);color:var(--green)':conf==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
+  const confPill=`<span style="${confStyle};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:8px">${(conf||'?').toUpperCase()}</span>`;
+  const disPill=dis!=null?`<span style="background:${disBg};color:${disColor};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:6px">Δ vs v1 ${dis>=0?'+':''}${dis.toFixed(1)}%</span>`:'';
+  const radius=data.anchor_radius_miles!=null?data.anchor_radius_miles:'?';
+  const monthsBack=data.anchor_months_back!=null?data.anchor_months_back:'?';
+  const n=data.n_anchors!=null?data.n_anchors:'?';
+  const ppsf=data.ppsf_today_t6!=null?Math.round(data.ppsf_today_t6):'—';
+  // Suppress drift_disagrees_with_v1 per Brief diamond_bar_phase2_writeback
+  // Locked Decision #8.
+  const flagsRaw=Array.isArray(data.flags)?data.flags:[];
+  const flags=flagsRaw.filter(f=>f!=='drift_disagrees_with_v1');
+  const flagsHtml=flags.length?`<div style="font-size:10px;color:var(--text-4);margin-top:2px">flags: ${flags.map(f=>escapeHtml(String(f))).join(', ')}</div>`:'';
+  let compsRows='';
+  const comps=Array.isArray(data.comps)?data.comps:[];
+  // Only show the HS adj column when at least one comp has a non-zero
+  // adjustment — mirrors la_palma's pattern. Diamond Bar's DBHS/DRHS
+  // boundary applies a ±13.5% adjustment when subject and comp HS differ.
+  const hasHsAdj=comps.some(co=>co.comp_hs_adjustment_pct!=null&&Math.abs(co.comp_hs_adjustment_pct)>0.01);
+  if(comps.length){
+    const head=`<thead><tr style="font-size:9px;font-weight:700;color:var(--text-4);text-transform:uppercase">
+      <th style="text-align:left;padding:3px 4px">Mi</th>
+      <th style="text-align:left;padding:3px 4px">Tier</th>
+      <th style="text-align:left;padding:3px 4px">Sold</th>
+      <th style="text-align:right;padding:3px 4px">Sale</th>
+      <th style="text-align:right;padding:3px 4px">$/sf</th>
+      <th style="text-align:right;padding:3px 4px">$/sf today</th>
+      <th style="text-align:right;padding:3px 4px">$/sf T6</th>
+      ${hasHsAdj?`<th style="text-align:right;padding:3px 4px">HS adj</th>`:''}
+      <th style="text-align:right;padding:3px 4px">w</th></tr></thead>`;
+    const body=comps.map(co=>{
+      const t=co.condition_tier;
+      const tierStr=t===6?'T6':t===5?'T5*':t===4?'T4*':`T${t}`;
+      const tCol=t===6?'var(--green)':t===5?'var(--amber)':'var(--text-3)';
+      const hsPct=co.comp_hs_adjustment_pct;
+      const hsStr=(hsPct==null||Math.abs(hsPct)<0.01)?'—':(hsPct>0?'+':'')+hsPct.toFixed(2)+'%';
+      const hsCol=(hsPct==null||Math.abs(hsPct)<0.01)?'var(--text-4)':(hsPct>0?'var(--green)':'var(--red)');
+      const hsCell=hasHsAdj?`<td style="padding:3px 4px;text-align:right;color:${hsCol}">${hsStr}</td>`:'';
+      return `<tr style="font-size:11px;border-top:1px solid var(--border)">
+        <td style="padding:3px 4px">${(co.distance_miles||0).toFixed(2)}</td>
+        <td style="padding:3px 4px;color:${tCol};font-weight:600">${tierStr}</td>
+        <td style="padding:3px 4px;color:var(--text-3)">${(co.sold_date||'').slice(0,7)}</td>
+        <td style="padding:3px 4px;text-align:right">${co.sale_price?'$'+Math.round(co.sale_price/1000)+'K':'—'}</td>
+        <td style="padding:3px 4px;text-align:right;color:var(--text-3)">$${Math.round(co.raw_ppsf||0)}</td>
+        <td style="padding:3px 4px;text-align:right">$${Math.round(co.ppsf_today||0)}</td>
+        <td style="padding:3px 4px;text-align:right;font-weight:600">$${Math.round(co.ppsf_t6_today||0)}</td>
+        ${hsCell}
+        <td style="padding:3px 4px;text-align:right;color:var(--text-4)">${((co.weight||0)*100).toFixed(0)}%</td></tr>`;
+    }).join('');
+    const footnote=hasHsAdj
+      ?`*T4/T5 upcast to T6-equivalent via diamond_bar_v1 coefficients · HS adj applies diamond_bar_v1 DBHS/DRHS coefficient (~±13.5%) when comp ≠ subject HS`
+      :`*T4/T5 upcast to T6-equivalent via diamond_bar_v1 coefficients`;
+    compsRows=`<table style="width:100%;border-collapse:collapse;margin-top:6px">${head}<tbody>${body}</tbody></table>
+      <div style="font-size:10px;color:var(--text-4);margin-top:4px">${footnote}</div>`;
+  }else{
+    compsRows=`<div style="padding:6px;color:var(--text-4);font-size:11px;font-style:italic">No anchor comps</div>`;
+  }
+  return `<div class="ab" id="diamond-bar-smart-comps-${mid}" style="display:block">
+    <div>Smart comps (Diamond Bar): ${F(smart)}${confPill}${disPill}</div>
     <details style="margin-top:6px">
       <summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Anchors (${n} within ${radius}mi · ${monthsBack}mo · $${ppsf}/sf median T6-eq)</summary>
       ${flagsHtml}
