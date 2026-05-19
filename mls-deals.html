@@ -658,7 +658,7 @@ function preferredArvFor(l,cm){
 }
 function arvSourceLabel(l,source,arv){
   if(l.lockedArv)return`Locked: ${F(arv)}`;
-  if(source==='smart-comps')return`Smart comps: ${F(arv)}`;
+  if(source==='smart-comps')return`Comp ARV: ${F(arv)}`;
   if(source==='per-city')return`Per-city: ${F(arv)}`;
   return`From comps: ${F(arv)}`;
 }
@@ -796,18 +796,18 @@ function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':
 function renderV4ArvBlock(l,mid){
   const c=arvEstimateCache[l.mls];
   if(!c||c.state==='pending'||c.state==='missing'){
-    return `<div class="ab" id="v4-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v4 Cerritos): pending — runs nightly</div>`;
+    return `<div class="ab" id="v4-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Baseline ARV: pending — runs nightly</div>`;
   }
   if(c.state==='error')return '';
   const r=c.row;
   if(r.per_city_arv==null){
-    return `<div class="ab" id="v4-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v4 Cerritos): pending — runs nightly</div>`;
+    return `<div class="ab" id="v4-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Baseline ARV: pending — runs nightly</div>`;
   }
   const conf=(r.per_city_confidence||'').toLowerCase();
   const confStyle=conf==='high'?'background:var(--green-bg);color:var(--green)':conf==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
   const confPill=`<span style="${confStyle};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:8px">${(conf||'?').toUpperCase()}</span>`;
   return `<div class="ab" id="v4-arv-${mid}" style="display:block">
-    <div>ARV estimate (v4 Cerritos): ${F(r.per_city_arv)}${confPill}</div>
+    <div>Baseline ARV: ${F(r.per_city_arv)}${confPill}</div>
     <div style="font-size:10px;color:var(--text-4);margin-top:4px">Per-city hierarchical regression — see arv_estimator/models/cerritos_v4.pkl</div>
   </div>`;
 }
@@ -823,18 +823,18 @@ function renderV4ArvBlock(l,mid){
 function renderLaPalmaArvBlock(l,mid){
   const c=arvEstimateCache[l.mls];
   if(!c||c.state==='pending'||c.state==='missing'){
-    return `<div class="ab" id="la-palma-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v1 La Palma): pending — runs nightly</div>`;
+    return `<div class="ab" id="la-palma-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Baseline ARV: pending — runs nightly</div>`;
   }
   if(c.state==='error')return '';
   const r=c.row;
   if(r.per_city_arv==null){
-    return `<div class="ab" id="la-palma-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v1 La Palma): pending — runs nightly</div>`;
+    return `<div class="ab" id="la-palma-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Baseline ARV: pending — runs nightly</div>`;
   }
   const conf=(r.per_city_confidence||'').toLowerCase();
   const confStyle=conf==='high'?'background:var(--green-bg);color:var(--green)':conf==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
   const confPill=`<span style="${confStyle};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:8px">${(conf||'?').toUpperCase()}</span>`;
   return `<div class="ab" id="la-palma-arv-${mid}" style="display:block">
-    <div>ARV estimate (v1 La Palma): ${F(r.per_city_arv)}${confPill}</div>
+    <div>Baseline ARV: ${F(r.per_city_arv)}${confPill}</div>
     <div style="font-size:10px;color:var(--text-4);margin-top:4px">Per-city OLS regression — see arv_estimator/models/la_palma_v1.pkl</div>
   </div>`;
 }
@@ -852,7 +852,7 @@ function renderLaPalmaArvBlock(l,mid){
 function renderLaPalmaSmartCompsPanel(l,mid){
   const c=arvEstimateCache[l.mls];
   if(!c||c.state==='pending'||c.state==='missing'){
-    return `<div class="ab" id="la-palma-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (DB La Palma): pending — runs nightly</div>`;
+    return `<div class="ab" id="la-palma-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Comp ARV: pending — runs nightly</div>`;
   }
   if(c.state==='error')return '';
   const r=c.row;
@@ -864,10 +864,10 @@ function renderLaPalmaSmartCompsPanel(l,mid){
     const data2=r.smart_comps_data;
     const flags2=Array.isArray(data2.flags)?data2.flags:[];
     const flagsHtml2=flags2.length?` <span style="color:var(--text-4)">(${flags2.map(f=>escapeHtml(String(f))).join(', ')})</span>`:'';
-    return `<div class="ab" id="la-palma-smart-comps-${mid}" style="opacity:0.85;background:var(--bg);color:var(--text-3);font-weight:500">Smart comps (DB La Palma): declined — no good local comps${flagsHtml2}<div style="font-size:10px;color:var(--text-4);margin-top:2px">v1.1 covers this listing.</div></div>`;
+    return `<div class="ab" id="la-palma-smart-comps-${mid}" style="opacity:0.85;background:var(--bg);color:var(--text-3);font-weight:500">Comp ARV: declined — no good local comps${flagsHtml2}<div style="font-size:10px;color:var(--text-4);margin-top:2px">v1.1 covers this listing.</div></div>`;
   }
   if(r.smart_comps_arv==null||!r.smart_comps_data){
-    return `<div class="ab" id="la-palma-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (DB La Palma): not yet scored</div>`;
+    return `<div class="ab" id="la-palma-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Comp ARV: not yet scored</div>`;
   }
   const data=r.smart_comps_data,conf=confLc;
   const v1=r.per_city_arv,smart=r.smart_comps_arv;
@@ -925,7 +925,7 @@ function renderLaPalmaSmartCompsPanel(l,mid){
     compsRows=`<div style="padding:6px;color:var(--text-4);font-size:11px;font-style:italic">No anchor comps</div>`;
   }
   return `<div class="ab" id="la-palma-smart-comps-${mid}" style="display:block">
-    <div>Smart comps (DB La Palma): ${F(smart)}${confPill}${disPill}</div>
+    <div>Comp ARV: ${F(smart)}${confPill}${disPill}</div>
     <details style="margin-top:6px">
       <summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Anchors (${n} within ${radius}mi · ${monthsBack}mo · $${ppsf}/sf median T6-eq)</summary>
       ${flagsHtml}
@@ -944,18 +944,18 @@ function renderLaPalmaSmartCompsPanel(l,mid){
 function renderCypressArvBlock(l,mid){
   const c=arvEstimateCache[l.mls];
   if(!c||c.state==='pending'||c.state==='missing'){
-    return `<div class="ab" id="cypress-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v1 Cypress): pending — runs nightly</div>`;
+    return `<div class="ab" id="cypress-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Baseline ARV: pending — runs nightly</div>`;
   }
   if(c.state==='error')return '';
   const r=c.row;
   if(r.per_city_arv==null){
-    return `<div class="ab" id="cypress-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v1 Cypress): pending — runs nightly</div>`;
+    return `<div class="ab" id="cypress-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Baseline ARV: pending — runs nightly</div>`;
   }
   const conf=(r.per_city_confidence||'').toLowerCase();
   const confStyle=conf==='high'?'background:var(--green-bg);color:var(--green)':conf==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
   const confPill=`<span style="${confStyle};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:8px">${(conf||'?').toUpperCase()}</span>`;
   return `<div class="ab" id="cypress-arv-${mid}" style="display:block">
-    <div>ARV estimate (v1 Cypress): ${F(r.per_city_arv)}${confPill}</div>
+    <div>Baseline ARV: ${F(r.per_city_arv)}${confPill}</div>
     <div style="font-size:10px;color:var(--text-4);margin-top:4px">Per-city OLS regression — see arv_estimator/models/cypress_v1.pkl</div>
   </div>`;
 }
@@ -974,7 +974,7 @@ function renderCypressArvBlock(l,mid){
 function renderCypressSmartCompsPanel(l,mid){
   const c=arvEstimateCache[l.mls];
   if(!c||c.state==='pending'||c.state==='missing'){
-    return `<div class="ab" id="cypress-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (DF Cypress): pending — runs nightly</div>`;
+    return `<div class="ab" id="cypress-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Comp ARV: pending — runs nightly</div>`;
   }
   if(c.state==='error')return '';
   const r=c.row;
@@ -986,10 +986,10 @@ function renderCypressSmartCompsPanel(l,mid){
     const flags2Raw=Array.isArray(data2.flags)?data2.flags:[];
     const flags2=flags2Raw.filter(f=>f!=='drift_disagrees_with_v1');
     const flagsHtml2=flags2.length?` <span style="color:var(--text-4)">(${flags2.map(f=>escapeHtml(String(f))).join(', ')})</span>`:'';
-    return `<div class="ab" id="cypress-smart-comps-${mid}" style="opacity:0.85;background:var(--bg);color:var(--text-3);font-weight:500">Smart comps (DF Cypress): declined — no good local comps${flagsHtml2}<div style="font-size:10px;color:var(--text-4);margin-top:2px">v1 covers this listing.</div></div>`;
+    return `<div class="ab" id="cypress-smart-comps-${mid}" style="opacity:0.85;background:var(--bg);color:var(--text-3);font-weight:500">Comp ARV: declined — no good local comps${flagsHtml2}<div style="font-size:10px;color:var(--text-4);margin-top:2px">v1 covers this listing.</div></div>`;
   }
   if(r.smart_comps_arv==null||!r.smart_comps_data){
-    return `<div class="ab" id="cypress-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (DF Cypress): not yet scored</div>`;
+    return `<div class="ab" id="cypress-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Comp ARV: not yet scored</div>`;
   }
   const data=r.smart_comps_data,conf=confLc;
   const v1=r.per_city_arv,smart=r.smart_comps_arv;
@@ -1044,7 +1044,7 @@ function renderCypressSmartCompsPanel(l,mid){
     compsRows=`<div style="padding:6px;color:var(--text-4);font-size:11px;font-style:italic">No anchor comps</div>`;
   }
   return `<div class="ab" id="cypress-smart-comps-${mid}" style="display:block">
-    <div>Smart comps (DF Cypress): ${F(smart)}${confPill}${disPill}</div>
+    <div>Comp ARV: ${F(smart)}${confPill}${disPill}</div>
     <details style="margin-top:6px">
       <summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Anchors (${n} within ${radius}mi · ${monthsBack}mo · $${ppsf}/sf median T6-eq)</summary>
       ${flagsHtml}
@@ -1064,18 +1064,18 @@ function renderCypressSmartCompsPanel(l,mid){
 function renderDiamondBarArvBlock(l,mid){
   const c=arvEstimateCache[l.mls];
   if(!c||c.state==='pending'||c.state==='missing'){
-    return `<div class="ab" id="diamond-bar-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v1 Diamond Bar): pending — runs nightly</div>`;
+    return `<div class="ab" id="diamond-bar-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Baseline ARV: pending — runs nightly</div>`;
   }
   if(c.state==='error')return '';
   const r=c.row;
   if(r.per_city_arv==null){
-    return `<div class="ab" id="diamond-bar-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v1 Diamond Bar): pending — runs nightly</div>`;
+    return `<div class="ab" id="diamond-bar-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Baseline ARV: pending — runs nightly</div>`;
   }
   const conf=(r.per_city_confidence||'').toLowerCase();
   const confStyle=conf==='high'?'background:var(--green-bg);color:var(--green)':conf==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
   const confPill=`<span style="${confStyle};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:8px">${(conf||'?').toUpperCase()}</span>`;
   return `<div class="ab" id="diamond-bar-arv-${mid}" style="display:block">
-    <div>ARV estimate (v1 Diamond Bar): ${F(r.per_city_arv)}${confPill}</div>
+    <div>Baseline ARV: ${F(r.per_city_arv)}${confPill}</div>
     <div style="font-size:10px;color:var(--text-4);margin-top:4px">Per-city OLS regression — see arv_estimator/models/diamond_bar_v1.pkl</div>
   </div>`;
 }
@@ -1099,7 +1099,7 @@ function renderDiamondBarArvBlock(l,mid){
 function renderDiamondBarSmartCompsPanel(l,mid){
   const c=arvEstimateCache[l.mls];
   if(!c||c.state==='pending'||c.state==='missing'){
-    return `<div class="ab" id="diamond-bar-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (Diamond Bar): pending — runs nightly</div>`;
+    return `<div class="ab" id="diamond-bar-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Comp ARV: pending — runs nightly</div>`;
   }
   if(c.state==='error')return '';
   const r=c.row;
@@ -1112,10 +1112,10 @@ function renderDiamondBarSmartCompsPanel(l,mid){
     const flags2Raw=Array.isArray(data2.flags)?data2.flags:[];
     const flags2=flags2Raw.filter(f=>f!=='drift_disagrees_with_v1');
     const flagsHtml2=flags2.length?` <span style="color:var(--text-4)">(${flags2.map(f=>escapeHtml(String(f))).join(', ')})</span>`:'';
-    return `<div class="ab" id="diamond-bar-smart-comps-${mid}" style="opacity:0.85;background:var(--bg);color:var(--text-3);font-weight:500">Smart comps (Diamond Bar): declined — no good local comps${flagsHtml2}<div style="font-size:10px;color:var(--text-4);margin-top:2px">v1 covers this listing.</div></div>`;
+    return `<div class="ab" id="diamond-bar-smart-comps-${mid}" style="opacity:0.85;background:var(--bg);color:var(--text-3);font-weight:500">Comp ARV: declined — no good local comps${flagsHtml2}<div style="font-size:10px;color:var(--text-4);margin-top:2px">v1 covers this listing.</div></div>`;
   }
   if(r.smart_comps_arv==null||!r.smart_comps_data){
-    return `<div class="ab" id="diamond-bar-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (Diamond Bar): not yet scored</div>`;
+    return `<div class="ab" id="diamond-bar-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Comp ARV: not yet scored</div>`;
   }
   const data=r.smart_comps_data,conf=confLc;
   const v1=r.per_city_arv,smart=r.smart_comps_arv;
@@ -1184,7 +1184,7 @@ function renderDiamondBarSmartCompsPanel(l,mid){
     compsRows=`<div style="padding:6px;color:var(--text-4);font-size:11px;font-style:italic">No anchor comps</div>`;
   }
   return `<div class="ab" id="diamond-bar-smart-comps-${mid}" style="display:block">
-    <div>Smart comps (Diamond Bar): ${F(smart)}${confPill}${disPill}</div>
+    <div>Comp ARV: ${F(smart)}${confPill}${disPill}</div>
     <details style="margin-top:6px">
       <summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Anchors (${n} within ${radius}mi · ${monthsBack}mo · $${ppsf}/sf median T6-eq)</summary>
       ${flagsHtml}
@@ -1206,12 +1206,12 @@ function renderSmartCompsPanel(l,mid){
   // pending strip.
   const c=arvEstimateCache[l.mls];
   if(!c||c.state==='pending'||c.state==='missing'){
-    return `<div class="ab" id="smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (DA): pending — runs nightly</div>`;
+    return `<div class="ab" id="smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Comp ARV: pending — runs nightly</div>`;
   }
   if(c.state==='error')return '';
   const r=c.row;
   if(r.smart_comps_arv==null||!r.smart_comps_data){
-    return `<div class="ab" id="smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (DA): not yet scored</div>`;
+    return `<div class="ab" id="smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Comp ARV: not yet scored</div>`;
   }
   const data=r.smart_comps_data,conf=(r.smart_comps_confidence||'').toLowerCase();
   const v4=r.headline_arv,smart=r.smart_comps_arv;
@@ -1263,7 +1263,7 @@ function renderSmartCompsPanel(l,mid){
     compsRows=`<div style="padding:6px;color:var(--text-4);font-size:11px;font-style:italic">No anchor comps</div>`;
   }
   return `<div class="ab" id="smart-comps-${mid}" style="display:block">
-    <div>Smart comps (DA): ${F(smart)}${confPill}${disPill}</div>
+    <div>Comp ARV: ${F(smart)}${confPill}${disPill}</div>
     <details style="margin-top:6px">
       <summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Anchors (${n} within ${radius}mi · $${ppsf}/sf median T6-eq)</summary>
       ${flagsHtml}
