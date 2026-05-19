@@ -201,6 +201,15 @@
       <button onclick="setConfidenceFilter('high')">High</button>
     </div>
   </div>
+  <div class="chip-wrap" id="fWindow-wrap">
+    <button class="chip-btn" id="fWindow-btn" onclick="event.stopPropagation();toggleChipDrop('fWindow-drop')"><span id="fWindow-label">All Time</span></button>
+    <div class="chip-drop" id="fWindow-drop">
+      <button onclick="setWindowFilter('')" class="selected">All Time</button>
+      <button onclick="setWindowFilter('12')">Last 12 months</button>
+      <button onclick="setWindowFilter('18')">Last 18 months</button>
+      <button onclick="setWindowFilter('24')">Last 24 months</button>
+    </div>
+  </div>
   <label class="filter-toggle">
     <input type="checkbox" id="fUnreviewed" onchange="resetAndLoad()">
     Unreviewed only
@@ -245,7 +254,7 @@ let currentPage=0;
 let totalCount=0;
 
 // Filter state (replaces native <select> .value reads — Tesla-friendly).
-let filters={city:'',tier:'',confidence:'',search:''};
+let filters={city:'',tier:'',confidence:'',search:'',window:''};
 let searchDebounce=null;
 
 // ========== INIT ==========
@@ -315,6 +324,20 @@ function setSearchFilter(value){
   searchDebounce=setTimeout(()=>{resetAndLoad();},250);
 }
 
+function setWindowFilter(value){
+  filters.window=value;
+  const labels={'':'All Time','12':'Last 12 months','18':'Last 18 months','24':'Last 24 months'};
+  document.getElementById('fWindow-label').textContent=labels[value]||'All Time';
+  const drop=document.getElementById('fWindow-drop');
+  drop.querySelectorAll('button').forEach(b=>b.classList.remove('selected'));
+  drop.querySelectorAll('button').forEach(b=>{
+    const oc=b.getAttribute('onclick')||'';
+    if(oc===`setWindowFilter('${value}')`) b.classList.add('selected');
+  });
+  drop.classList.remove('open');
+  resetAndLoad();
+}
+
 function setConfidenceFilter(value){
   filters.confidence=value;
   const labels={'':'All Confidence',low:'Low',medium:'Medium',high:'High'};
@@ -377,6 +400,15 @@ async function loadCards(){
     // treats quotes/parens as syntax, so unsanitized input would break the filter.
     const s=filters.search.replace(/[",()]/g,'');
     if(s) query=query.or(`mls.ilike.%${s}%,address.ilike.%${s}%`);
+  }
+  if(filters.window){
+    // Filter by sold_date within the window. Active rows (sold_date null)
+    // are excluded when a window is active; "All Time" leaves them in.
+    const days={'12':365,'18':548,'24':730}[filters.window];
+    if(days){
+      const cutoff=new Date(Date.now()-days*86400*1000).toISOString().slice(0,10);
+      query=query.gte('sold_date',cutoff);
+    }
   }
 
   // Pagination
