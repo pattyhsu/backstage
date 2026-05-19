@@ -1907,7 +1907,7 @@ function renderDetailPage(l){
     <div class="toggle-section" style="margin-bottom:8px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">PROPERTY & SHOWING <span>▸</span></div><div class="toggle-body"><div class="si">
       <span><b>Sale Type:</b> ${l.saleType||'—'}</span><span><b>Listed:</b> ${l.listDate||'—'}</span><span><b>Occupancy:</b> ${l.occupancy||'—'}</span><span><b>Occupant:</b> ${l.occupantType||'—'}</span><span><b>Contact:</b> ${l.contactName||'—'} ${l.contactPhone||''}</span><span><b>Lockbox:</b> ${l.lockboxType||'—'} ${l.lockboxLocation?'@ '+l.lockboxLocation:''}</span><span><b>Gate Code:</b> ${l.gateCode||'—'}</span></div></div></div>
     <div class="toggle-section" style="margin-bottom:14px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">AGENT & BROKER <span>▸</span></div><div class="toggle-body"><div class="agb">
-      <span><b>Agent:</b> ${l.agent||'—'}${renderAgentDeBadge(l)}</span><span><b>DRE#:</b> ${l.agentDre||'—'}</span><span><b>Email:</b> ${l.agentEmail||'—'}</span><span><b>Phone:</b> ${l.agentPhone||'—'}</span><span><b>Office:</b> ${l.agentOfficePhone||'—'}</span><span><b>Broker:</b> ${l.broker||'—'}</span><span><b>Broker DRE#:</b> ${l.brokerDre||'—'}</span><span><b>MLS#:</b> ${l.mls}</span>${l.dealId?`<span data-cell="deal-pill" data-mls="${l.mls}"><b>🏗 In project:</b> ${dealPhaseLabel(l.dealPhase)} <a href="project-detail.html?deal=${encodeURIComponent(l.dealId)}">→ view</a></span>`:''}</div></div></div></div>`;
+      <span><b>Agent:</b> ${l.agent||'—'}${renderAgentDeBadge(l)}</span><span><b>DRE#:</b> ${l.agentDre||'—'}</span><span><b>Email:</b> ${l.agentEmail||'—'}</span><span><b>Phone:</b> ${l.agentPhone||'—'}</span><span><b>Office:</b> ${l.agentOfficePhone||'—'}</span><span><b>Broker:</b> ${l.broker||'—'}</span><span><b>Broker DRE#:</b> ${l.brokerDre||'—'}</span><span><b>MLS#:</b> ${l.mls}</span>${l.dealId?`<span data-cell="deal-pill" data-mls="${l.mls}"><b>🏗 In project:</b> ${dealPhaseLabel(l.dealPhase)} <a href="project-detail.html?deal=${encodeURIComponent(l.dealId)}">→ view</a>${l.undoable?` <a href="#" onclick="event.stopPropagation();undoOpenOffer('${l.dealId}','${l.mls}');return false;" style="margin-left:8px;font-size:11px;color:var(--text-4);text-decoration:underline;cursor:pointer" title="Delete the pipeline tracking record (the MLS listing stays visible)">↩ undo open offer</a>`:''}</span>`:''}</div></div></div></div>`;
   document.getElementById('detPage').innerHTML=h;
   document.getElementById('comp-col').innerHTML=compsPanel(l);
   renderTagToggles(l.mls,id);
@@ -2124,6 +2124,30 @@ async function openOffer(mls){
   }
 }
 
+// Brief BX: undo an accidental Open Offer click. Only invokable when the
+// freshness gate in decorateListingsWithDeals set l.undoable=true (deal is
+// pursuing + zero downstream work). Hard-deletes the deals row; cascading
+// FKs drop deals_phase_history / deal_milestones / deal_phase_checklist_items
+// / deal_loans / deal_expenses / deal_documents. No history row written —
+// per D8 the misclick is treated as if it never happened.
+async function undoOpenOffer(dealId, mls){
+  const l=listings.find(x=>x.mls===mls);
+  if(!l||!l.dealId||!l.undoable)return;
+  if(!confirm('Undo opening the offer? This deletes the pipeline tracking record for this deal. The MLS listing stays visible. Cannot be undone.'))return;
+  try{
+    const{error}=await sb.from('deals').delete().eq('id',dealId);
+    if(error)throw error;
+    l.dealId=null;
+    l.dealPhase=null;
+    l.undoable=false;
+    renderDetailPage(l);
+    refreshRowDealPill(mls);
+  }catch(e){
+    console.warn('undoOpenOffer failed',e);
+    alert('Undo failed: '+(e&&e.message?e.message:String(e)));
+  }
+}
+
 // Brief BK: batch-fetch deal rows that reference any visible MLS# (either
 // buy_side_mls or relist_mls). Decorate each listing with l.dealId +
 // l.dealPhase so the "🏗 In project" pill renders the deal phase, and the
@@ -2142,7 +2166,7 @@ async function decorateListingsWithDeals(){
   let deals=[];
   try{
     const{data,error}=await sb.from('deals')
-      .select('id, phase, buy_side_mls, relist_mls')
+      .select('id, phase, buy_side_mls, relist_mls, offer_price, purchase_price, notes')
       .or(orExpr);
     if(error){console.warn('[decorateListingsWithDeals] failed',error);return;}
     deals=data||[];
@@ -2150,11 +2174,12 @@ async function decorateListingsWithDeals(){
     console.warn('[decorateListingsWithDeals] failed',e);
     return;
   }
-  // Build mls -> {dealId, dealPhase}. If the same MLS appears as both
-  // buy_side and relist on different deals (uncommon — typically would
+  // Build mls -> {dealId, dealPhase, undoableDealRow}. If the same MLS appears
+  // as both buy_side and relist on different deals (uncommon — typically would
   // be the SAME deal), prefer the most-active phase: prefer non-archived
   // > non-sold > anything.
   const byMls={};
+  const dealById={};
   const phaseRank=p=>{
     if(p==='archived')return 0;
     if(p==='sold')return 1;
@@ -2168,18 +2193,70 @@ async function decorateListingsWithDeals(){
     }
   };
   for(const d of deals){
+    dealById[d.id]=d;
     consider(d.buy_side_mls, d);
     consider(d.relist_mls, d);
   }
+
+  // Brief BX: freshness gate. For each pursuing deal, fetch six signals in
+  // parallel; mark l.undoable=true iff ALL hold: history rows==1, zero
+  // completed milestones, zero completed checklist items, zero loans, zero
+  // expenses, zero documents, AND offer_price/purchase_price/notes all NULL
+  // on the deal row itself. Non-pursuing deals get l.undoable=false with
+  // no DB roundtrip.
+  const pursuingIds=deals.filter(d=>d.phase==='pursuing').map(d=>d.id);
+  const undoable=new Set();
+  if(pursuingIds.length){
+    // deal_documents table ships in Migration 066 (Brief BW). Until then
+    // the query errors with 42P01 (relation does not exist) — treat as 0 rows.
+    const docsQuery=(async()=>{
+      try{
+        const{data,error}=await sb.from('deal_documents').select('deal_id').in('deal_id',pursuingIds);
+        if(error)throw error;
+        return data||[];
+      }catch(e){
+        if(e&&(e.code==='42P01'||/relation.*does not exist/i.test(e.message||'')))return [];
+        throw e;
+      }
+    })();
+    const[histRes,msRes,ckRes,lnRes,exRes,dcRes]=await Promise.all([
+      sb.from('deals_phase_history').select('deal_id').in('deal_id',pursuingIds),
+      sb.from('deal_milestones').select('deal_id').in('deal_id',pursuingIds).eq('completed',true),
+      sb.from('deal_phase_checklist_items').select('deal_id').in('deal_id',pursuingIds).eq('completed',true),
+      sb.from('deal_loans').select('deal_id').in('deal_id',pursuingIds),
+      sb.from('deal_expenses').select('deal_id').in('deal_id',pursuingIds),
+      docsQuery,
+    ]);
+    for(const r of [histRes,msRes,ckRes,lnRes,exRes]){
+      if(r&&r.error){console.warn('[decorateListingsWithDeals] freshness gate query failed',r.error);return;}
+    }
+    const histCount={};for(const r of (histRes.data||[]))histCount[r.deal_id]=(histCount[r.deal_id]||0)+1;
+    const blocked=new Set();
+    for(const r of (msRes.data||[]))blocked.add(r.deal_id);
+    for(const r of (ckRes.data||[]))blocked.add(r.deal_id);
+    for(const r of (lnRes.data||[]))blocked.add(r.deal_id);
+    for(const r of (exRes.data||[]))blocked.add(r.deal_id);
+    for(const r of (dcRes||[]))blocked.add(r.deal_id);
+    for(const id of pursuingIds){
+      const d=dealById[id];
+      if(blocked.has(id))continue;
+      if((histCount[id]||0)!==1)continue;
+      if(d.offer_price!=null||d.purchase_price!=null||d.notes!=null)continue;
+      undoable.add(id);
+    }
+  }
+
   // Decorate + refresh per-row pill.
   for(const l of listings){
     const m=byMls[l.mls];
     if(m){
       l.dealId=m.dealId;
       l.dealPhase=m.dealPhase;
+      l.undoable=undoable.has(m.dealId);
     } else {
       l.dealId=null;
       l.dealPhase=null;
+      l.undoable=false;
     }
     refreshRowDealPill(l.mls);
   }
