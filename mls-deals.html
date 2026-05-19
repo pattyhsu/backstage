@@ -615,19 +615,14 @@ function compsPanel(l){
   if(cm.loading)h+=`<div style="padding:12px;text-align:center;color:var(--text-4);font-size:11px">Loading comps...</div>`;
   else if(!cm.comps.length)h+=`<div style="padding:12px;text-align:center;color:var(--text-4);font-size:11px">No comps found</div>`;
   else h+=cm.comps.map((c,i)=>compH(c,i,l.mls)).join('');
-  const avgPsf=cm.comps.length?Math.round(cm.comps.map(c=>c.psf).filter(Boolean).reduce((a,b)=>a+b,0)/cm.comps.filter(c=>c.psf).length):0;
-  h+=`<div class="ab" id="comp-arv-${mid}">Avg $/sf: $${avgPsf} → ARV = ${l.sqft.toLocaleString()} sf × $${avgPsf} = ${F(avgPsf*l.sqft)}</div>`;
-  // v7.4.1 is too noisy for cities with a per-city regression + smart comps.
-  if(!HAS_PER_CITY_REGRESSION.has(l.city))h+=renderArvEstimateBlock(l.mls,mid);
-  if(l.city==='CERRITOS')h+=renderV4ArvBlock(l,mid);
-  if(l.city==='CERRITOS')h+=renderSmartCompsPanel(l,mid);
-  if(l.city==='LA PALMA')h+=renderLaPalmaArvBlock(l,mid);
-  if(l.city==='LA PALMA')h+=renderLaPalmaSmartCompsPanel(l,mid);
-  if(l.city==='CYPRESS')h+=renderCypressArvBlock(l,mid);
-  if(l.city==='CYPRESS')h+=renderCypressSmartCompsPanel(l,mid);
-  if(l.city==='DIAMOND BAR')h+=renderDiamondBarArvBlock(l,mid);
-  if(l.city==='DIAMOND BAR')h+=renderDiamondBarSmartCompsPanel(l,mid);
-  h+=renderDealScoreBlock(l.mls,mid);
+  // Cards row (Comp avg + per-city ARV cards + Deal Score) lives in a
+  // single wrapper so async re-renderers can replace it atomically. The
+  // old stacked .ab strips (renderArvEstimateBlock / renderV4ArvBlock /
+  // renderLaPalmaArvBlock / renderCypressArvBlock / renderDiamondBarArvBlock
+  // / renderSmartCompsPanel + city variants / renderDealScoreBlock) are
+  // now folded into renderArvScoreRow — same data, horizontal cards +
+  // detail strip with collapsible expanders.
+  h+=renderArvScoreRow(l,mid);
   setTimeout(()=>ensureArvEstimate(l.mls,mid),50);
   setTimeout(()=>ensureDealScore(l.mls,mid),50);
   setTimeout(()=>renderCompMap(l,cm,mid),200);
@@ -645,23 +640,384 @@ const HAS_PER_CITY_REGRESSION=new Set(['CERRITOS','LA PALMA','CYPRESS','DIAMOND 
 // first expand and cache per-MLS so re-renders don't refetch.
 const arvEstimateCache={};
 
-// Best-available ARV for the deal analyzer:
-//   smart_comps_arv → per_city_arv → live comps avg.
+// Best-available ARV for the deal analyzer. The default priority is
+//   smart_comps_arv → per_city_arv → comps-avg (per-city cities)
+//   smart_comps_arv → v7.4.1 headline_arv → comps-avg (non-per-city)
+// — but the user can override per-listing by clicking a different card
+// in the ARV cards row (see setArvSource + arvSourceMap below).
 // arvEstimateCache may be empty on first render; ensureArvEstimate()
 // re-seeds the input once the row resolves.
-function preferredArvFor(l,cm){
+const arvSourceMap={};           // mls -> 'comp-avg' | 'per-city' | 'smart-comps' | 'v7'
+const compAvgOverride={};        // mid -> {psf, count} (set by recalcCompSummary when user trims comps)
+
+// Snapshot of which ARV sources have a usable value for this listing
+// right now. Used by activeArvSource (default priority + validity check)
+// and by renderArvScoreRow (which cards to render + which to disable for
+// click-to-switch).
+function cardAvailability(l,cm){
   const c=arvEstimateCache[l.mls];
   const r=(c&&c.state==='ok')?c.row:null;
-  if(r&&r.smart_comps_arv)return{arv:r.smart_comps_arv,source:'smart-comps'};
-  if(r&&r.per_city_arv)return{arv:r.per_city_arv,source:'per-city'};
-  return{arv:cm.hp*l.sqft,source:'comps-avg'};
+  // Comp avg uses the user-trimmed override when present (recalcCompSummary
+  // mutates compAvgOverride[mid] when the user toggles comp checkboxes).
+  const mid=l.mls.replace(/[^a-zA-Z0-9]/g,'');
+  const ov=compAvgOverride[mid];
+  let compPsf,compCount;
+  if(ov){compPsf=ov.psf;compCount=ov.count;}
+  else{
+    const ppsfs=cm.comps.map(c=>c.psf).filter(Boolean);
+    compPsf=ppsfs.length?Math.round(ppsfs.reduce((a,b)=>a+b,0)/ppsfs.length):0;
+    compCount=ppsfs.length;
+  }
+  const compArv=compPsf*l.sqft;
+  const isPerCity=HAS_PER_CITY_REGRESSION.has(l.city);
+  const perCityArv=(r&&r.per_city_arv)||null;
+  const smartConf=r?String(r.smart_comps_confidence||'').toLowerCase():'';
+  const smartArv=(r&&r.smart_comps_arv)||null;
+  const smartDeclined=(smartConf==='none');
+  const v7Arv=(r&&r.headline_arv)||null;
+  return {r,isPerCity,compPsf,compCount,compArv,perCityArv,smartArv,smartConf,smartDeclined,v7Arv};
+}
+
+// Source feeding the ARV input. Locked → 'locked' (no active marker).
+// User pick takes precedence if still valid; otherwise default priority.
+function activeArvSource(l,cm){
+  if(l.lockedArv)return'locked';
+  const av=cardAvailability(l,cm);
+  const valid=(src)=>{
+    if(src==='comp-avg')return av.compArv>0;
+    if(src==='per-city')return av.perCityArv!=null;
+    if(src==='smart-comps')return av.smartArv!=null;
+    if(src==='v7')return!av.isPerCity&&av.v7Arv!=null;
+    return false;
+  };
+  const picked=arvSourceMap[l.mls];
+  if(picked&&valid(picked))return picked;
+  // Default priority
+  if(valid('smart-comps'))return'smart-comps';
+  if(av.isPerCity){
+    if(valid('per-city'))return'per-city';
+  }else{
+    if(valid('v7'))return'v7';
+  }
+  return'comp-avg';
+}
+
+function preferredArvFor(l,cm){
+  const av=cardAvailability(l,cm);
+  const src=activeArvSource(l,cm);
+  if(src==='smart-comps')return{arv:av.smartArv,source:'smart-comps'};
+  if(src==='per-city')return{arv:av.perCityArv,source:'per-city'};
+  if(src==='v7')return{arv:av.v7Arv,source:'v7'};
+  // 'locked' or 'comp-avg' fall through to comp-avg arv (locked uses
+  // l.lockedArv at the call site; the arv we return here is just the
+  // fallback the input would otherwise show).
+  return{arv:av.compArv,source:src==='locked'?'locked':'comp-avg'};
 }
 function arvSourceLabel(l,source,arv){
-  if(l.lockedArv)return`Locked: ${F(arv)}`;
-  if(source==='smart-comps')return`Comp ARV: ${F(arv)}`;
+  if(l.lockedArv||source==='locked')return`Locked: ${F(arv)}`;
+  if(source==='smart-comps')return`Smart comps: ${F(arv)}`;
   if(source==='per-city')return`Per-city: ${F(arv)}`;
-  return`From comps: ${F(arv)}`;
+  if(source==='v7')return`v7.4.1: ${F(arv)}`;
+  return`Comp avg: ${F(arv)}`;
 }
+
+// ========== ARV/SCORE CARDS ROW ======================================
+// Replaces the old stacked .ab strips (comp-arv, per-city ARV, smart
+// comps, v7.4.1, deal score) with a single horizontal cards row + a
+// full-width detail strip below for the collapsible expanders. Click an
+// ARV card to make it the source feeding the deal analyzer's ARV input.
+// The active card gets a colored top border + "◀ used" badge; Deal Score
+// is never "active" (it's a verdict).
+function renderArvScoreRow(l,mid){
+  const cm=getComps(l);
+  const av=cardAvailability(l,cm);
+  const active=activeArvSource(l,cm);
+  const isPerCity=av.isPerCity;
+  // Per-city: 4 cards (comp-avg, per-city, smart-comps, deal-score).
+  // Non-per-city: 3 cards (comp-avg, v7, deal-score).
+  const slots=isPerCity?['comp-avg','per-city','smart-comps','deal-score']:['comp-avg','v7','deal-score'];
+  const cardsHtml=slots.map(src=>renderArvScoreCard(l,mid,src,av,active)).join('');
+  const detail=renderArvScoreDetail(l,mid,av);
+  return `<div id="arv-score-row-${mid}" style="margin-top:8px">
+    <div style="display:grid;grid-template-columns:repeat(${slots.length},1fr);gap:6px">${cardsHtml}</div>
+    ${detail}
+  </div>`;
+}
+
+function renderArvScoreCard(l,mid,src,av,active){
+  const c=arvEstimateCache[l.mls];
+  const cachePending=!c||c.state==='pending';
+  const cacheMissing=c&&c.state==='missing';
+  const cacheErr=c&&c.state==='error';
+  const dc=dealScoreCache[l.mls];
+  const dsPending=!dc||dc.state==='pending';
+  const dsMissing=dc&&dc.state==='missing';
+  const dsErr=dc&&dc.state==='error';
+
+  const isActive=(src===active);
+  const isArvSrc=(src!=='deal-score');
+  // Active marker: top border + "◀ used" badge in the corner. Only on
+  // ARV cards (Deal Score is never active).
+  const topBorder=isActive&&isArvSrc?`border-top:3px solid var(--accent)`:`border-top:1px solid var(--border)`;
+  const baseBox=`background:var(--bg);border:1px solid var(--border);${topBorder};border-radius:5px;padding:6px 8px;position:relative;min-height:64px`;
+  const usedBadge=isActive&&isArvSrc?`<span style="position:absolute;top:3px;right:5px;font-size:9px;font-weight:700;color:var(--accent);letter-spacing:.3px">◀ USED</span>`:'';
+
+  // Click behavior: ARV cards become source-pickers (unless already active
+  // or unavailable). Deal score is never clickable for source-switching.
+  const canClick=isArvSrc&&!isActive&&cardHasValue(src,av);
+  const cursor=canClick?'cursor:pointer':'';
+  const onclick=canClick?`onclick="event.stopPropagation();setArvSource('${l.mls}','${mid}','${src}')"`:'';
+  const title=canClick?`title="Use this ARV in the deal analyzer"`:'';
+
+  // Title row (uppercase, muted) — same for every card.
+  const titleText=({'comp-avg':'Comp avg','per-city':'Per-city','smart-comps':'Smart comps','v7':'ARV est (v7.4.1)','deal-score':'Deal score'})[src];
+  const titleHtml=`<div style="font-size:9px;font-weight:700;color:var(--text-4);letter-spacing:.5px;text-transform:uppercase">${titleText}</div>`;
+
+  // Per-source body.
+  let body='';
+  if(src==='comp-avg'){
+    const psf=av.compPsf,cnt=av.compCount,arv=av.compArv;
+    if(!cnt){
+      body=`<div style="font-size:14px;font-weight:700;color:var(--text-4);margin-top:2px">—</div>
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">no comps</div>`;
+    }else{
+      body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(arv)}</div>
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">${l.sqft.toLocaleString()}sf × $${psf}</div>
+        <div style="font-size:10px;color:var(--text-4)">avg of ${cnt} selected</div>`;
+    }
+  }
+  else if(src==='per-city'){
+    if(cachePending)body=cardSubText('14px','pending');
+    else if(cacheMissing||cacheErr||av.perCityArv==null)body=cardSubText('14px','—');
+    else{
+      body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(av.perCityArv)}</div>
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">OLS regression</div>
+        <div style="font-size:10px;color:var(--text-4)">${perCityModelNote(l.city)}</div>`;
+    }
+  }
+  else if(src==='smart-comps'){
+    if(cachePending)body=cardSubText('14px','pending');
+    else if(cacheMissing||cacheErr)body=cardSubText('14px','—');
+    else if(av.smartDeclined){
+      const data2=av.r&&av.r.smart_comps_data||{};
+      const flags2Raw=Array.isArray(data2.flags)?data2.flags:[];
+      // Strip globally-fired DG/DB flag from the per-listing summary —
+      // matches the legacy per-city renderers' suppression.
+      const flags2=flags2Raw.filter(f=>f!=='drift_disagrees_with_v1');
+      const flagsLine=flags2.length?` <span style="color:var(--text-4)">(${flags2.map(f=>escapeHtml(String(f))).join(', ')})</span>`:'';
+      body=`<div style="font-size:13px;font-weight:700;color:var(--text-3);margin-top:2px">declined</div>
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">no good local comps${flagsLine}</div>`;
+    }
+    else if(av.smartArv==null)body=cardSubText('14px','—');
+    else{
+      const data=av.r&&av.r.smart_comps_data||{};
+      const n=data.n_anchors!=null?data.n_anchors:'?';
+      // Δ per-city when both available, else Δ v4 for non-per-city
+      // Cerritos (smart vs headline). Per spec: "Δ per-city ±N%".
+      let disLine='';
+      const baseline=av.isPerCity?av.perCityArv:(av.r&&av.r.headline_arv);
+      const baselineLabel=av.isPerCity?'per-city':'v4';
+      if(baseline&&av.smartArv){
+        const dis=(av.smartArv-baseline)/baseline*100;
+        const a=Math.abs(dis);
+        const col=a<=3?'var(--green)':a<=7?'var(--amber)':'var(--red)';
+        disLine=`<div style="font-size:10px;color:${col};margin-top:2px">Δ ${baselineLabel} ${dis>=0?'+':''}${dis.toFixed(1)}%</div>`;
+      }
+      body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(av.smartArv)}</div>
+        ${disLine}
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">${n} anchors · see below</div>`;
+    }
+  }
+  else if(src==='v7'){
+    if(cachePending)body=cardSubText('14px','pending');
+    else if(cacheMissing||cacheErr||av.v7Arv==null)body=cardSubText('14px','—');
+    else{
+      body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(av.v7Arv)}</div>
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">layer breakdown · see below</div>`;
+    }
+  }
+  else if(src==='deal-score'){
+    if(dsPending)body=cardSubText('14px','pending');
+    else if(dsErr)body=cardSubText('14px','error');
+    else if(dsMissing||!dc.row||!dc.row.grade)body=cardSubText('14px','—');
+    else{
+      const r=dc.row,g=r.grade||'?';
+      const pill=`<span style="${dsGradeStyle(g)};font-size:13px;font-weight:800;padding:2px 10px;border-radius:10px;letter-spacing:.5px">${g}</span>`;
+      const spread=r.spread!=null?F(r.spread):'—';
+      const pct=r.spread_pct!=null?(r.spread_pct>=0?'+':'')+Number(r.spread_pct).toFixed(2)+'%':'—';
+      body=`<div style="margin-top:4px">${pill}</div>
+        <div style="font-size:10px;color:var(--text-4);margin-top:4px">spread ${spread}</div>
+        <div style="font-size:10px;color:var(--text-4)">${pct}</div>`;
+    }
+  }
+
+  return `<div ${title} ${onclick} style="${baseBox};${cursor}">${usedBadge}${titleHtml}${body}</div>`;
+}
+
+function cardHasValue(src,av){
+  if(src==='comp-avg')return av.compArv>0;
+  if(src==='per-city')return av.perCityArv!=null;
+  if(src==='smart-comps')return av.smartArv!=null;
+  if(src==='v7')return!av.isPerCity&&av.v7Arv!=null;
+  return false;
+}
+function cardSubText(size,txt){return `<div style="font-size:${size};font-weight:700;color:var(--text-4);margin-top:2px">${txt}</div>`;}
+function confPill(lvl){
+  if(!lvl||lvl==='?')return'';
+  const style=lvl==='high'?'background:var(--green-bg);color:var(--green)':lvl==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
+  return `<span style="${style};font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;letter-spacing:.3px;margin-left:5px;vertical-align:middle">${lvl.toUpperCase()}</span>`;
+}
+function perCityModelNote(city){
+  if(city==='CERRITOS')return'cerritos_v4.pkl';
+  if(city==='LA PALMA')return'la_palma_v1.pkl';
+  if(city==='CYPRESS')return'cypress_v1.pkl';
+  if(city==='DIAMOND BAR')return'diamond_bar_v1.pkl';
+  return'';
+}
+
+// Full-width detail strip below the cards row. Hosts collapsible
+// expanders for whichever cards have detail (smart comps anchors, v7
+// layer breakdown, deal score breakdown). Each <details> is collapsed
+// by default. Renders nothing when nothing to show.
+function renderArvScoreDetail(l,mid,av){
+  const c=arvEstimateCache[l.mls];
+  const cacheOk=c&&c.state==='ok';
+  const dc=dealScoreCache[l.mls];
+  const dsOk=dc&&dc.state==='ok'&&dc.row&&dc.row.grade;
+  const parts=[];
+  if(cacheOk){
+    if(av.isPerCity&&av.smartArv!=null)parts.push(renderSmartCompsDetail(l,av));
+    else if(!av.isPerCity&&av.v7Arv!=null)parts.push(renderV7LayerDetail(av));
+  }
+  if(dsOk)parts.push(renderDealScoreDetail(dc.row));
+  if(!parts.length)return'';
+  return `<div style="margin-top:6px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:5px">${parts.join('<div style=\"height:6px\"></div>')}</div>`;
+}
+
+// Anchors table — reused for all per-city smart-comps cities. Optional
+// HS-adj column appears when any comp has a non-zero adjustment (matches
+// la_palma + diamond_bar pattern). Cypress + Cerritos pass no HS adj
+// → column auto-hides.
+function renderSmartCompsDetail(l,av){
+  const r=av.r,data=r.smart_comps_data||{};
+  const radius=data.anchor_radius_miles!=null?data.anchor_radius_miles:'?';
+  const monthsBack=data.anchor_months_back!=null?data.anchor_months_back:'?';
+  const n=data.n_anchors!=null?data.n_anchors:'?';
+  const ppsf=data.ppsf_today_t6!=null?Math.round(data.ppsf_today_t6):'—';
+  // Suppress globally-fired flag per Brief DG / diamond_bar_phase2_writeback.
+  const flagsRaw=Array.isArray(data.flags)?data.flags:[];
+  const flags=flagsRaw.filter(f=>f!=='drift_disagrees_with_v1');
+  const flagsHtml=flags.length?`<div style="font-size:10px;color:var(--text-4);margin-top:2px">flags: ${flags.map(f=>escapeHtml(String(f))).join(', ')}</div>`:'';
+  const comps=Array.isArray(data.comps)?data.comps:[];
+  const hasHsAdj=comps.some(co=>co.comp_hs_adjustment_pct!=null&&Math.abs(co.comp_hs_adjustment_pct)>0.01);
+  let compsRows='';
+  if(comps.length){
+    const head=`<thead><tr style="font-size:9px;font-weight:700;color:var(--text-4);text-transform:uppercase">
+      <th style="text-align:left;padding:3px 4px">Mi</th>
+      <th style="text-align:left;padding:3px 4px">Tier</th>
+      <th style="text-align:left;padding:3px 4px">Sold</th>
+      <th style="text-align:right;padding:3px 4px">Sale</th>
+      <th style="text-align:right;padding:3px 4px">$/sf</th>
+      <th style="text-align:right;padding:3px 4px">$/sf today</th>
+      <th style="text-align:right;padding:3px 4px">$/sf T6</th>
+      ${hasHsAdj?`<th style="text-align:right;padding:3px 4px">HS adj</th>`:''}
+      <th style="text-align:right;padding:3px 4px">w</th></tr></thead>`;
+    const body=comps.map(co=>{
+      const t=co.condition_tier;
+      const tierStr=t===6?'T6':t===5?'T5*':t===4?'T4*':`T${t}`;
+      const tCol=t===6?'var(--green)':t===5?'var(--amber)':'var(--text-3)';
+      const hsPct=co.comp_hs_adjustment_pct;
+      const hsStr=(hsPct==null||Math.abs(hsPct)<0.01)?'—':(hsPct>0?'+':'')+hsPct.toFixed(2)+'%';
+      const hsCol=(hsPct==null||Math.abs(hsPct)<0.01)?'var(--text-4)':(hsPct>0?'var(--green)':'var(--red)');
+      const hsCell=hasHsAdj?`<td style="padding:3px 4px;text-align:right;color:${hsCol}">${hsStr}</td>`:'';
+      return `<tr style="font-size:11px;border-top:1px solid var(--border)">
+        <td style="padding:3px 4px">${(co.distance_miles||0).toFixed(2)}</td>
+        <td style="padding:3px 4px;color:${tCol};font-weight:600">${tierStr}</td>
+        <td style="padding:3px 4px;color:var(--text-3)">${(co.sold_date||'').slice(0,7)}</td>
+        <td style="padding:3px 4px;text-align:right">${co.sale_price?'$'+Math.round(co.sale_price/1000)+'K':'—'}</td>
+        <td style="padding:3px 4px;text-align:right;color:var(--text-3)">$${Math.round(co.raw_ppsf||0)}</td>
+        <td style="padding:3px 4px;text-align:right">$${Math.round(co.ppsf_today||0)}</td>
+        <td style="padding:3px 4px;text-align:right;font-weight:600">$${Math.round(co.ppsf_t6_today||0)}</td>
+        ${hsCell}
+        <td style="padding:3px 4px;text-align:right;color:var(--text-4)">${((co.weight||0)*100).toFixed(0)}%</td></tr>`;
+    }).join('');
+    compsRows=`<table style="width:100%;border-collapse:collapse;margin-top:6px">${head}<tbody>${body}</tbody></table>`;
+  }else{
+    compsRows=`<div style="padding:6px;color:var(--text-4);font-size:11px;font-style:italic">No anchor comps</div>`;
+  }
+  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Smart comps anchors (${n} within ${radius}mi · ${monthsBack}mo · $${ppsf}/sf median T6-eq)</summary>${flagsHtml}${compsRows}</details>`;
+}
+
+function renderV7LayerDetail(av){
+  const r=av.r;
+  const lb=(r.result_json&&r.result_json.layer_breakdown)||{};
+  const l2med=lb.layer_2_knn_median_ppsf,l2arv=lb.layer_2_implied_arv,drift=lb.layer_3_market_drift;
+  let driftLine='<i style="color:var(--text-4)">abstained (scope unavailable)</i>';
+  if(drift&&drift.scope!=='unavailable'){
+    const pct=drift.pct_applied,sign=pct>=0?'+':'';
+    driftLine=`${sign}${pct}% applied (${drift.scope} scope)`;
+  }
+  const flags=Array.isArray(r.flags)?r.flags:[];
+  const flagsHtml=flags.length?`<ul style="margin:4px 0 0 16px;padding:0;font-size:10px;color:var(--text-3)">${flags.map(f=>`<li>${escapeHtml(String(f))}</li>`).join('')}</ul>`:'<span style="color:var(--text-4);font-size:10px">(none)</span>';
+  const computed=r.computed_at?new Date(r.computed_at).toLocaleString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(',','')+' PT':'(unknown)';
+  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">v7.4.1 layer breakdown</summary>
+    <div style="margin-top:4px;font-size:11px;font-weight:500;color:var(--text-2);display:grid;grid-template-columns:auto 1fr;gap:4px 10px">
+      <div style="color:var(--text-4)">Layer 2 $/sqft:</div><div>${l2med!=null?'$'+Math.round(l2med):'—'}${l2arv!=null?` → ${F(l2arv)}`:''}</div>
+      <div style="color:var(--text-4)">Layer 3 drift:</div><div>${driftLine}</div>
+      <div style="color:var(--text-4)">Layer 4 score:</div><div>${r.confidence_score!=null?r.confidence_score+'/100':'—'}</div>
+      <div style="color:var(--text-4)">Flags:</div><div>${flagsHtml}</div>
+      <div style="color:var(--text-4)">Computed:</div><div>${computed}</div>
+    </div></details>`;
+}
+
+function renderDealScoreDetail(r){
+  const bd=r.breakdown_json||{};
+  const gap=bd.gap_vs_list;
+  const gapStr=gap!=null?(gap>=0?'+':'')+F(gap):'—';
+  const spreadPctStr=bd.spread_pct!=null?' · '+(bd.spread_pct>=0?'+':'')+Number(bd.spread_pct).toFixed(2)+'%':'';
+  const computed=r.computed_at?new Date(r.computed_at).toLocaleString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(',','')+' PT':'(unknown)';
+  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Deal score breakdown</summary>
+    <div style="margin-top:4px;font-size:11px;font-weight:500;color:var(--text-2);display:grid;grid-template-columns:auto 1fr;gap:4px 10px">
+      <div style="color:var(--text-4)">List price:</div><div>${bd.list_price!=null?F(bd.list_price):'—'}</div>
+      <div style="color:var(--text-4)">ARV:</div><div>${bd.arv!=null?F(bd.arv):'—'}</div>
+      <div style="color:var(--text-4)">Rehab:</div><div>${bd.rehab!=null?F(bd.rehab):'—'}${bd.rehab_locked?' <i style="color:var(--text-4)">(locked)</i>':''}</div>
+      <div style="color:var(--text-4)">Financing:</div><div>${bd.financing!=null?F(bd.financing):'—'}</div>
+      <div style="color:var(--text-4)">Purchase close:</div><div>${bd.purchase_close!=null?F(bd.purchase_close):'—'}</div>
+      <div style="color:var(--text-4)">Sale close:</div><div>${bd.sale_close!=null?F(bd.sale_close):'—'}</div>
+      <div style="color:var(--text-4)">Spread:</div><div>${bd.spread!=null?F(bd.spread):'—'}${spreadPctStr}</div>
+      <div style="color:var(--text-4)">Target buy:</div><div>${bd.target_buy!=null?F(bd.target_buy):'—'}</div>
+      <div style="color:var(--text-4)">Gap vs list:</div><div>${gapStr}</div>
+      <div style="color:var(--text-4)">Computed:</div><div>${computed}</div>
+    </div></details>`;
+}
+
+// Click handler: user picks a different ARV card. Validates the source
+// has a value, updates the source map, re-renders the cards row, and
+// pushes the new ARV into the deal-analyzer input.
+function setArvSource(mls,mid,src){
+  const l=listings.find(x=>x.mls===mls);
+  if(!l)return;
+  if(l.lockedArv)return; // locked input ignores card clicks
+  const cm=getComps(l);
+  const av=cardAvailability(l,cm);
+  if(!cardHasValue(src,av))return;
+  arvSourceMap[mls]=src;
+  let newArv=0;
+  if(src==='comp-avg')newArv=av.compArv;
+  else if(src==='per-city')newArv=av.perCityArv;
+  else if(src==='smart-comps')newArv=av.smartArv;
+  else if(src==='v7')newArv=av.v7Arv;
+  if(newArv){
+    setNumVal('arv-'+mid,newArv);
+    calcDeal(mid,l.price,l.sqft);
+    const srcEl=document.getElementById('arv-source-'+mid);
+    if(srcEl)srcEl.textContent=arvSourceLabel(l,src,newArv);
+  }
+  const rowEl=document.getElementById('arv-score-row-'+mid);
+  if(rowEl)rowEl.outerHTML=renderArvScoreRow(l,mid);
+}
+window.setArvSource=setArvSource;
+// ========== END ARV/SCORE CARDS ROW ==================================
 function renderArvEstimateBlock(mls,mid){
   const c=arvEstimateCache[mls];
   if(!c||c.state==='pending'||c.state==='missing')
@@ -707,79 +1063,23 @@ async function ensureArvEstimate(mls,mid){
     else if(!data){arvEstimateCache[mls]={state:'missing'};}
     else{arvEstimateCache[mls]={state:(data.status==='error'?'error':'ok'),row:data};}
   }catch(e){arvEstimateCache[mls]={state:'missing'};}
-  const el=document.getElementById('arv-est-'+mid);
-  if(el)el.outerHTML=renderArvEstimateBlock(mls,mid);
-  // v4 + smart-comps panels read from the same arv_estimates row — refresh
-  // them once the cache is populated. Cerritos-only.
-  const v4El=document.getElementById('v4-arv-'+mid);
-  if(v4El){
-    const listing=listings.find(x=>x.mls===mls);
-    if(listing&&listing.city==='CERRITOS'){
-      v4El.outerHTML=renderV4ArvBlock(listing,mid);
-    }
-  }
-  const smartEl=document.getElementById('smart-comps-'+mid);
-  if(smartEl){
-    const listing=listings.find(x=>x.mls===mls);
-    if(listing&&listing.city==='CERRITOS'){
-      smartEl.outerHTML=renderSmartCompsPanel(listing,mid);
-    }
-  }
-  const lpEl=document.getElementById('la-palma-arv-'+mid);
-  if(lpEl){
-    const listing=listings.find(x=>x.mls===mls);
-    if(listing&&listing.city==='LA PALMA'){
-      lpEl.outerHTML=renderLaPalmaArvBlock(listing,mid);
-    }
-  }
-  const lpSmartEl=document.getElementById('la-palma-smart-comps-'+mid);
-  if(lpSmartEl){
-    const listing=listings.find(x=>x.mls===mls);
-    if(listing&&listing.city==='LA PALMA'){
-      lpSmartEl.outerHTML=renderLaPalmaSmartCompsPanel(listing,mid);
-    }
-  }
-  const cyEl=document.getElementById('cypress-arv-'+mid);
-  if(cyEl){
-    const listing=listings.find(x=>x.mls===mls);
-    if(listing&&listing.city==='CYPRESS'){
-      cyEl.outerHTML=renderCypressArvBlock(listing,mid);
-    }
-  }
-  const cySmartEl=document.getElementById('cypress-smart-comps-'+mid);
-  if(cySmartEl){
-    const listing=listings.find(x=>x.mls===mls);
-    if(listing&&listing.city==='CYPRESS'){
-      cySmartEl.outerHTML=renderCypressSmartCompsPanel(listing,mid);
-    }
-  }
-  const dbEl=document.getElementById('diamond-bar-arv-'+mid);
-  if(dbEl){
-    const listing=listings.find(x=>x.mls===mls);
-    if(listing&&listing.city==='DIAMOND BAR'){
-      dbEl.outerHTML=renderDiamondBarArvBlock(listing,mid);
-    }
-  }
-  const dbSmartEl=document.getElementById('diamond-bar-smart-comps-'+mid);
-  if(dbSmartEl){
-    const listing=listings.find(x=>x.mls===mls);
-    if(listing&&listing.city==='DIAMOND BAR'){
-      dbSmartEl.outerHTML=renderDiamondBarSmartCompsPanel(listing,mid);
-    }
-  }
+  // Re-render the cards row in place — replaces what was previously a
+  // handful of per-block re-renders (arv-est-, v4-arv-, smart-comps-,
+  // la-palma-arv-, la-palma-smart-comps-, cypress-arv-, cypress-smart-comps-,
+  // diamond-bar-arv-, diamond-bar-smart-comps-).
+  const listing=listings.find(x=>x.mls===mls);
+  const rowEl=document.getElementById('arv-score-row-'+mid);
+  if(rowEl&&listing)rowEl.outerHTML=renderArvScoreRow(listing,mid);
   // Re-seed the deal analyzer's ARV input now that smart_comps_arv /
   // per_city_arv have loaded. Skip if user locked ARV.
   const arvInputEl=document.getElementById('arv-'+mid);
-  if(arvInputEl){
-    const listing=listings.find(x=>x.mls===mls);
-    if(listing&&!listing.lockedArv){
-      const cmL=getComps(listing);
-      const pref=preferredArvFor(listing,cmL);
-      setNumVal('arv-'+mid,pref.arv);
-      const srcEl=document.getElementById('arv-source-'+mid);
-      if(srcEl)srcEl.textContent=arvSourceLabel(listing,pref.source,pref.arv);
-      calcDeal(mid,listing.price,listing.sqft);
-    }
+  if(arvInputEl&&listing&&!listing.lockedArv){
+    const cmL=getComps(listing);
+    const pref=preferredArvFor(listing,cmL);
+    setNumVal('arv-'+mid,pref.arv);
+    const srcEl=document.getElementById('arv-source-'+mid);
+    if(srcEl)srcEl.textContent=arvSourceLabel(listing,pref.source,pref.arv);
+    calcDeal(mid,listing.price,listing.sqft);
   }
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -1363,8 +1663,10 @@ async function ensureDealScore(mls,mid){
     }catch(e){dealScoreCache[mls]={state:'missing'};}
   }
   if(mid){
-    const el=document.getElementById('ds-block-'+mid);
-    if(el)el.outerHTML=renderDealScoreBlock(mls,mid);
+    // Re-render the cards row (Deal Score card is the rightmost slot).
+    const listing=listings.find(x=>x.mls===mls);
+    const rowEl=document.getElementById('arv-score-row-'+mid);
+    if(rowEl&&listing)rowEl.outerHTML=renderArvScoreRow(listing,mid);
   }
   refreshDealCardPill(mls);
 }
@@ -1543,7 +1845,20 @@ function recalcCompSummary(mid){
   // Note: this updates the detail-panel ARV input only — compCache[activeMls].hp
   // is intentionally NOT mutated, so getArvLabel() in the list view keeps showing
   // the system's all-comps ARV. Detail = user-trimmed; list = system best-guess.
-  if(l&&avgPsf){const newArv=avgPsf*l.sqft;const ae=document.getElementById('comp-arv-'+mid);if(ae)ae.innerHTML=`Avg $/sf: $${avgPsf} → ARV = ${l.sqft.toLocaleString()} sf × $${avgPsf} = ${F(newArv)}`;setNumVal('arv-'+mid,newArv);calcDeal(mid,l.price,l.sqft);}
+  // Stash the user-trimmed comp avg so renderArvScoreRow picks it up on
+  // the next re-render (cards row replaces the old single comp-arv strip).
+  if(l){
+    compAvgOverride[mid]={psf:avgPsf,count:checked.length};
+    const rowEl=document.getElementById('arv-score-row-'+mid);
+    if(rowEl)rowEl.outerHTML=renderArvScoreRow(l,mid);
+    // If the active source is 'comp-avg' (and not locked), push the new
+    // trimmed value into the deal-analyzer input.
+    if(avgPsf&&!l.lockedArv&&activeArvSource(l,getComps(l))==='comp-avg'){
+      const newArv=avgPsf*l.sqft;
+      setNumVal('arv-'+mid,newArv);
+      calcDeal(mid,l.price,l.sqft);
+    }
+  }
 }
 
 // ========== DEAL ANALYZER ==========
