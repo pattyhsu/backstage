@@ -608,13 +608,7 @@ function compsPanel(l){
     ${compToleranceHtml(l.mls,mid,'sqft','200',['150','200','250','300','400','500'])}
     ${compToleranceHtml(l.mls,mid,'months','12',['1','3','6','9','12','24','36'])}</div>`;
   h+=`<div id="comp-summary-${mid}">`;
-  if(cm.comps.length>0){const avg=arr=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;const prices=cm.comps.map(c=>c.price).filter(Boolean);const ppsfs=cm.comps.map(c=>c.psf).filter(Boolean);const sqfts=cm.comps.map(c=>c.sqft).filter(Boolean);
-    h+=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:8px">
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 7px"><div style="font-size:9px;font-weight:600;color:var(--text-4);text-transform:uppercase">Comps</div><div style="font-size:15px;font-weight:700;color:var(--accent)">${cm.comps.length}</div></div>
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 7px"><div style="font-size:9px;font-weight:600;color:var(--text-4);text-transform:uppercase">Avg Price</div><div style="font-size:13px;font-weight:700;color:var(--accent)">$${Math.round(avg(prices)).toLocaleString()}</div></div>
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 7px"><div style="font-size:9px;font-weight:600;color:var(--text-4);text-transform:uppercase">Avg $/SF</div><div style="font-size:15px;font-weight:700;color:var(--accent)">$${Math.round(avg(ppsfs))}</div></div>
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 7px"><div style="font-size:9px;font-weight:600;color:var(--text-4);text-transform:uppercase">Avg SqFt</div><div style="font-size:15px;font-weight:700;color:var(--accent)">${Math.round(avg(sqfts)).toLocaleString()}</div></div></div>`;}
-  else if(!cm.loading){h+=`<div style="padding:8px;color:var(--text-4);font-size:11px;font-style:italic">No comps found within current tolerances. Adjust radius/sqft/months above to widen the search.</div>`;}
+  if(!cm.comps.length&&!cm.loading){h+=`<div style="padding:8px;color:var(--text-4);font-size:11px;font-style:italic">No comps found within current tolerances. Adjust radius/sqft/months above to widen the search.</div>`;}
   h+=`</div>`;
   h+=`<div id="comp-map-${mid}" style="width:100%;height:250px;border-radius:6px;border:1px solid var(--border);margin-bottom:8px;background:var(--bg-alt)"></div>`;
   h+=`<div style="font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:.5px;margin-bottom:4px">COMPS (${cm.comps.length})</div>`;
@@ -623,7 +617,8 @@ function compsPanel(l){
   else h+=cm.comps.map((c,i)=>compH(c,i,l.mls)).join('');
   const avgPsf=cm.comps.length?Math.round(cm.comps.map(c=>c.psf).filter(Boolean).reduce((a,b)=>a+b,0)/cm.comps.filter(c=>c.psf).length):0;
   h+=`<div class="ab" id="comp-arv-${mid}">Avg $/sf: $${avgPsf} → ARV = ${l.sqft.toLocaleString()} sf × $${avgPsf} = ${F(avgPsf*l.sqft)}</div>`;
-  h+=renderArvEstimateBlock(l.mls,mid);
+  // v7.4.1 is too noisy for cities with a per-city regression + smart comps.
+  if(!HAS_PER_CITY_REGRESSION.has(l.city))h+=renderArvEstimateBlock(l.mls,mid);
   if(l.city==='CERRITOS')h+=renderV4ArvBlock(l,mid);
   if(l.city==='CERRITOS')h+=renderSmartCompsPanel(l,mid);
   if(l.city==='LA PALMA')h+=renderLaPalmaArvBlock(l,mid);
@@ -639,11 +634,34 @@ function compsPanel(l){
   return h;
 }
 
+// Cities that have BOTH a per-city regression and smart comps — v7.4.1 is
+// suppressed for these (and the deal-analyzer ARV prefills from smart
+// comps → per-city regression → comps avg via preferredArvFor()).
+const HAS_PER_CITY_REGRESSION=new Set(['CERRITOS','LA PALMA','CYPRESS','DIAMOND BAR']);
+
 // ========== ARV ESTIMATOR (v7.4.1) — Layer 2+3+4 nightly batch ==========
 // Reads the latest row from `arv_estimates` (written by
 // `python -m arv_estimator.batch`). One row per subject; we fetch on
 // first expand and cache per-MLS so re-renders don't refetch.
 const arvEstimateCache={};
+
+// Best-available ARV for the deal analyzer:
+//   smart_comps_arv → per_city_arv → live comps avg.
+// arvEstimateCache may be empty on first render; ensureArvEstimate()
+// re-seeds the input once the row resolves.
+function preferredArvFor(l,cm){
+  const c=arvEstimateCache[l.mls];
+  const r=(c&&c.state==='ok')?c.row:null;
+  if(r&&r.smart_comps_arv)return{arv:r.smart_comps_arv,source:'smart-comps'};
+  if(r&&r.per_city_arv)return{arv:r.per_city_arv,source:'per-city'};
+  return{arv:cm.hp*l.sqft,source:'comps-avg'};
+}
+function arvSourceLabel(l,source,arv){
+  if(l.lockedArv)return`Locked: ${F(arv)}`;
+  if(source==='smart-comps')return`Smart comps: ${F(arv)}`;
+  if(source==='per-city')return`Per-city: ${F(arv)}`;
+  return`From comps: ${F(arv)}`;
+}
 function renderArvEstimateBlock(mls,mid){
   const c=arvEstimateCache[mls];
   if(!c||c.state==='pending'||c.state==='missing')
@@ -747,6 +765,20 @@ async function ensureArvEstimate(mls,mid){
     const listing=listings.find(x=>x.mls===mls);
     if(listing&&listing.city==='DIAMOND BAR'){
       dbSmartEl.outerHTML=renderDiamondBarSmartCompsPanel(listing,mid);
+    }
+  }
+  // Re-seed the deal analyzer's ARV input now that smart_comps_arv /
+  // per_city_arv have loaded. Skip if user locked ARV.
+  const arvInputEl=document.getElementById('arv-'+mid);
+  if(arvInputEl){
+    const listing=listings.find(x=>x.mls===mls);
+    if(listing&&!listing.lockedArv){
+      const cmL=getComps(listing);
+      const pref=preferredArvFor(listing,cmL);
+      setNumVal('arv-'+mid,pref.arv);
+      const srcEl=document.getElementById('arv-source-'+mid);
+      if(srcEl)srcEl.textContent=arvSourceLabel(listing,pref.source,pref.arv);
+      calcDeal(mid,listing.price,listing.sqft);
     }
   }
 }
@@ -1721,13 +1753,13 @@ function markConstCustom(id){constIsCustom[id]=true;}
 function resetPP(id,lp,sq){ppIsCustom[id]=false;const r=document.getElementById('pp-reset-'+id);if(r)r.style.display='none';calcDeal(id,lp,sq);}
 
 function detHTML(l){
-  const cm=getComps(l),liveArv=cm.hp*l.sqft,arv=l.lockedArv||liveArv,id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
+  const cm=getComps(l),pref=preferredArvFor(l,cm),arv=l.lockedArv||pref.arv,id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
   return`<div class="cb" style="position:relative">
     ${!l.dealId?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><button id="open-offer-${id}" onclick="event.stopPropagation();openOffer('${l.mls}')" style="padding:6px 12px;border-radius:5px;border:1px solid var(--accent);font-size:12px;font-weight:700;font-family:inherit;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap" title="Open Pipeline tracking at the Pursuing phase (acquisition lead)">📤 Open offer</button><span style="font-size:11px;color:var(--text-4)">Start Pipeline tracking for this deal.</span><a id="mark-as-listing-${id}" onclick="event.stopPropagation();markAsListing('${l.mls}');return false;" href="#" style="font-size:11px;color:var(--text-4);text-decoration:underline;margin-left:auto;cursor:pointer" title="Rare — link this MLS row as the relist of one of our under_construction deals">or: mark as relist of an existing deal →</a></div>`:''}
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--text-4);flex-shrink:0;width:100px">ARV</span>
       <input type="text" id="arv-${id}" value="${F(arv)}" oninput="calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--accent);font-family:inherit;background:var(--bg)">
       <button id="lock-arv-${id}" onclick="event.stopPropagation();toggleLockArv('${l.mls}','${id}')" style="padding:4px 10px;border-radius:5px;border:1px solid ${l.lockedArv?'var(--green)':'var(--border)'};font-size:11px;font-weight:600;font-family:inherit;background:${l.lockedArv?'var(--green-bg)':'var(--bg)'};color:${l.lockedArv?'var(--green)':'var(--text-3)'};cursor:pointer;white-space:nowrap">${l.lockedArv?'🔒 Locked':'Lock ARV'}</button>
-      <span style="font-size:10px;color:var(--text-4);white-space:nowrap">From comps: ${F(arv)}</span></div>
+      <span id="arv-source-${id}" style="font-size:10px;color:var(--text-4);white-space:nowrap">${arvSourceLabel(l,pref.source,arv)}</span></div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--text-4);flex-shrink:0;width:100px">CONSTRUCTION</span>
       <input type="text" id="const-${id}" value="${F(l.lockedConstruction||estimateConstruction(l.sqft,l.mls))}" ${l.lockedConstruction?'readonly':''} oninput="markConstCustom('${id}');calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--text);font-family:inherit;background:${l.lockedConstruction?'var(--bg-alt)':'var(--bg)'}">
       <button onclick="event.stopPropagation();openConstEditor('${l.mls}','${id}',${l.sqft||0})" style="padding:4px 10px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:var(--bg);color:var(--text-3);cursor:pointer;white-space:nowrap">Edit</button>
