@@ -628,6 +628,8 @@ function compsPanel(l){
   if(l.city==='CERRITOS')h+=renderSmartCompsPanel(l,mid);
   if(l.city==='LA PALMA')h+=renderLaPalmaArvBlock(l,mid);
   if(l.city==='LA PALMA')h+=renderLaPalmaSmartCompsPanel(l,mid);
+  if(l.city==='CYPRESS')h+=renderCypressArvBlock(l,mid);
+  if(l.city==='CYPRESS')h+=renderCypressSmartCompsPanel(l,mid);
   h+=renderDealScoreBlock(l.mls,mid);
   setTimeout(()=>ensureArvEstimate(l.mls,mid),50);
   setTimeout(()=>ensureDealScore(l.mls,mid),50);
@@ -715,6 +717,20 @@ async function ensureArvEstimate(mls,mid){
     const listing=listings.find(x=>x.mls===mls);
     if(listing&&listing.city==='LA PALMA'){
       lpSmartEl.outerHTML=renderLaPalmaSmartCompsPanel(listing,mid);
+    }
+  }
+  const cyEl=document.getElementById('cypress-arv-'+mid);
+  if(cyEl){
+    const listing=listings.find(x=>x.mls===mls);
+    if(listing&&listing.city==='CYPRESS'){
+      cyEl.outerHTML=renderCypressArvBlock(listing,mid);
+    }
+  }
+  const cySmartEl=document.getElementById('cypress-smart-comps-'+mid);
+  if(cySmartEl){
+    const listing=listings.find(x=>x.mls===mls);
+    if(listing&&listing.city==='CYPRESS'){
+      cySmartEl.outerHTML=renderCypressSmartCompsPanel(listing,mid);
     }
   }
 }
@@ -862,6 +878,125 @@ function renderLaPalmaSmartCompsPanel(l,mid){
   }
   return `<div class="ab" id="la-palma-smart-comps-${mid}" style="display:block">
     <div>Smart comps (DB La Palma): ${F(smart)}${confPill}${disPill}</div>
+    <details style="margin-top:6px">
+      <summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Anchors (${n} within ${radius}mi · ${monthsBack}mo · $${ppsf}/sf median T6-eq)</summary>
+      ${flagsHtml}
+      ${compsRows}
+    </details>
+  </div>`;
+}
+
+// ========== CYPRESS ARV BLOCK (DE — Cypress only) ====================
+// Reads `arv_estimates.per_city_arv` + `per_city_confidence` +
+// `per_city_data` (jsonb), populated by `python -m
+// arv_estimator.per_city.cypress --predict-active`. Cypress-only via the
+// `l.city==='CYPRESS'` filter in compsPanel(). model_version='cypress_v1'.
+// Migration 061 collapsed cypress_v1_* into shared per_city_* — same
+// columns la_palma + cerritos already use.
+function renderCypressArvBlock(l,mid){
+  const c=arvEstimateCache[l.mls];
+  if(!c||c.state==='pending'||c.state==='missing'){
+    return `<div class="ab" id="cypress-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v1 Cypress): pending — runs nightly</div>`;
+  }
+  if(c.state==='error')return '';
+  const r=c.row;
+  if(r.per_city_arv==null){
+    return `<div class="ab" id="cypress-arv-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate (v1 Cypress): pending — runs nightly</div>`;
+  }
+  const conf=(r.per_city_confidence||'').toLowerCase();
+  const confStyle=conf==='high'?'background:var(--green-bg);color:var(--green)':conf==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
+  const confPill=`<span style="${confStyle};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:8px">${(conf||'?').toUpperCase()}</span>`;
+  return `<div class="ab" id="cypress-arv-${mid}" style="display:block">
+    <div>ARV estimate (v1 Cypress): ${F(r.per_city_arv)}${confPill}</div>
+    <div style="font-size:10px;color:var(--text-4);margin-top:4px">Per-city OLS regression — see arv_estimator/models/cypress_v1.pkl</div>
+  </div>`;
+}
+
+// ========== CYPRESS SMART COMP PANEL (DF — Cypress only) ============
+// Reads `arv_estimates.smart_comps_arv` + `smart_comps_confidence` +
+// `smart_comps_data` (jsonb), populated by `python -m
+// arv_estimator.per_city.cypress_smart_comps --predict-active`. Pairs
+// with v1 Cypress — disagreement |Δ| green ≤3% / amber 3-7% / red >7%.
+// Cypress-only via the `l.city==='CYPRESS'` filter in compsPanel().
+// model_version='cypress_smart_comps'. Brief DG Locked Decision #9
+// suppresses the `drift_disagrees_with_v1` flag from the per-listing
+// flags row — it fires globally right now (dataset-level signal) and
+// would become visual wallpaper. Stays in smart_comps_data.flags for
+// queryability.
+function renderCypressSmartCompsPanel(l,mid){
+  const c=arvEstimateCache[l.mls];
+  if(!c||c.state==='pending'||c.state==='missing'){
+    return `<div class="ab" id="cypress-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (DF Cypress): pending — runs nightly</div>`;
+  }
+  if(c.state==='error')return '';
+  const r=c.row;
+  const confLc=(r.smart_comps_confidence||'').toLowerCase();
+  // v2 declined state: confidence='none' means DF declined (no good
+  // local comps); arv is intentionally NULL. Render the declined strip.
+  if(confLc==='none'&&r.smart_comps_data){
+    const data2=r.smart_comps_data;
+    const flags2Raw=Array.isArray(data2.flags)?data2.flags:[];
+    const flags2=flags2Raw.filter(f=>f!=='drift_disagrees_with_v1');
+    const flagsHtml2=flags2.length?` <span style="color:var(--text-4)">(${flags2.map(f=>escapeHtml(String(f))).join(', ')})</span>`:'';
+    return `<div class="ab" id="cypress-smart-comps-${mid}" style="opacity:0.85;background:var(--bg);color:var(--text-3);font-weight:500">Smart comps (DF Cypress): declined — no good local comps${flagsHtml2}<div style="font-size:10px;color:var(--text-4);margin-top:2px">v1 covers this listing.</div></div>`;
+  }
+  if(r.smart_comps_arv==null||!r.smart_comps_data){
+    return `<div class="ab" id="cypress-smart-comps-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Smart comps (DF Cypress): not yet scored</div>`;
+  }
+  const data=r.smart_comps_data,conf=confLc;
+  const v1=r.per_city_arv,smart=r.smart_comps_arv;
+  let dis=null,disColor='var(--text-4)',disBg='var(--bg)';
+  if(v1&&smart){
+    dis=(smart-v1)/v1*100;
+    const a=Math.abs(dis);
+    if(a<=3){disColor='var(--green)';disBg='var(--green-bg)';}
+    else if(a<=7){disColor='var(--amber)';disBg='var(--amber-bg)';}
+    else{disColor='var(--red)';disBg='var(--red-bg)';}
+  }
+  const confStyle=conf==='high'?'background:var(--green-bg);color:var(--green)':conf==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
+  const confPill=`<span style="${confStyle};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:8px">${(conf||'?').toUpperCase()}</span>`;
+  const disPill=dis!=null?`<span style="background:${disBg};color:${disColor};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:6px">Δ vs v1 ${dis>=0?'+':''}${dis.toFixed(1)}%</span>`:'';
+  const radius=data.anchor_radius_miles!=null?data.anchor_radius_miles:'?';
+  const monthsBack=data.anchor_months_back!=null?data.anchor_months_back:'?';
+  const n=data.n_anchors!=null?data.n_anchors:'?';
+  const ppsf=data.ppsf_today_t6!=null?Math.round(data.ppsf_today_t6):'—';
+  // Suppress drift_disagrees_with_v1 per Brief DG Locked Decision #9.
+  const flagsRaw=Array.isArray(data.flags)?data.flags:[];
+  const flags=flagsRaw.filter(f=>f!=='drift_disagrees_with_v1');
+  const flagsHtml=flags.length?`<div style="font-size:10px;color:var(--text-4);margin-top:2px">flags: ${flags.map(f=>escapeHtml(String(f))).join(', ')}</div>`:'';
+  let compsRows='';
+  const comps=Array.isArray(data.comps)?data.comps:[];
+  if(comps.length){
+    const head=`<thead><tr style="font-size:9px;font-weight:700;color:var(--text-4);text-transform:uppercase">
+      <th style="text-align:left;padding:3px 4px">Mi</th>
+      <th style="text-align:left;padding:3px 4px">Tier</th>
+      <th style="text-align:left;padding:3px 4px">Sold</th>
+      <th style="text-align:right;padding:3px 4px">Sale</th>
+      <th style="text-align:right;padding:3px 4px">$/sf</th>
+      <th style="text-align:right;padding:3px 4px">$/sf today</th>
+      <th style="text-align:right;padding:3px 4px">$/sf T6</th>
+      <th style="text-align:right;padding:3px 4px">w</th></tr></thead>`;
+    const body=comps.map(co=>{
+      const t=co.condition_tier;
+      const tierStr=t===6?'T6':t===5?'T5*':t===4?'T4*':`T${t}`;
+      const tCol=t===6?'var(--green)':t===5?'var(--amber)':'var(--text-3)';
+      return `<tr style="font-size:11px;border-top:1px solid var(--border)">
+        <td style="padding:3px 4px">${(co.distance_miles||0).toFixed(2)}</td>
+        <td style="padding:3px 4px;color:${tCol};font-weight:600">${tierStr}</td>
+        <td style="padding:3px 4px;color:var(--text-3)">${(co.sold_date||'').slice(0,7)}</td>
+        <td style="padding:3px 4px;text-align:right">${co.sale_price?'$'+Math.round(co.sale_price/1000)+'K':'—'}</td>
+        <td style="padding:3px 4px;text-align:right;color:var(--text-3)">$${Math.round(co.raw_ppsf||0)}</td>
+        <td style="padding:3px 4px;text-align:right">$${Math.round(co.ppsf_today||0)}</td>
+        <td style="padding:3px 4px;text-align:right;font-weight:600">$${Math.round(co.ppsf_t6_today||0)}</td>
+        <td style="padding:3px 4px;text-align:right;color:var(--text-4)">${((co.weight||0)*100).toFixed(0)}%</td></tr>`;
+    }).join('');
+    compsRows=`<table style="width:100%;border-collapse:collapse;margin-top:6px">${head}<tbody>${body}</tbody></table>
+      <div style="font-size:10px;color:var(--text-4);margin-top:4px">*T4/T5 upcast to T6-equivalent via cypress_v1 coefficients</div>`;
+  }else{
+    compsRows=`<div style="padding:6px;color:var(--text-4);font-size:11px;font-style:italic">No anchor comps</div>`;
+  }
+  return `<div class="ab" id="cypress-smart-comps-${mid}" style="display:block">
+    <div>Smart comps (DF Cypress): ${F(smart)}${confPill}${disPill}</div>
     <details style="margin-top:6px">
       <summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Anchors (${n} within ${radius}mi · ${monthsBack}mo · $${ppsf}/sf median T6-eq)</summary>
       ${flagsHtml}
