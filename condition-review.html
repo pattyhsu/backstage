@@ -26,6 +26,10 @@
   .filter-bar select:hover { border-color:var(--border-hover); }
   .filter-toggle { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--text-3); cursor:pointer; }
   .filter-toggle input { accent-color:var(--accent); }
+  .search-input { padding:7px 12px; background:var(--bg-page); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-family:var(--sans); font-size:13px; outline:none; min-width:260px; transition:border-color .12s; }
+  .search-input:hover { border-color:var(--border-hover); }
+  .search-input:focus { border-color:var(--accent); }
+  .search-input::placeholder { color:var(--text-4); }
 
   /* Custom button-based dropdowns (Tesla-friendly; replaces native <select>) */
   .chip-btn { padding: 7px 12px; background: var(--bg-page); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-family: var(--sans); font-size: 13px; cursor: pointer; min-width: 140px; text-align: left; display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -171,6 +175,7 @@
 </div>
 
 <div class="filter-bar">
+  <input type="text" class="search-input" id="fSearch" placeholder="Search MLS# or address…" oninput="setSearchFilter(this.value)" autocomplete="off">
   <div class="chip-wrap" id="fCity-wrap">
     <button class="chip-btn" id="fCity-btn" onclick="event.stopPropagation();toggleChipDrop('fCity-drop')"><span id="fCity-label">All Cities</span></button>
     <div class="chip-drop" id="fCity-drop"></div>
@@ -240,7 +245,8 @@ let currentPage=0;
 let totalCount=0;
 
 // Filter state (replaces native <select> .value reads — Tesla-friendly).
-let filters={city:'',tier:'',confidence:''};
+let filters={city:'',tier:'',confidence:'',search:''};
+let searchDebounce=null;
 
 // ========== INIT ==========
 async function init(){
@@ -303,6 +309,12 @@ function setTierFilter(value){
   resetAndLoad();
 }
 
+function setSearchFilter(value){
+  filters.search=(value||'').trim();
+  if(searchDebounce) clearTimeout(searchDebounce);
+  searchDebounce=setTimeout(()=>{resetAndLoad();},250);
+}
+
 function setConfidenceFilter(value){
   filters.confidence=value;
   const labels={'':'All Confidence',low:'Low',medium:'Medium',high:'High'};
@@ -360,6 +372,12 @@ async function loadCards(){
   if(tier) query=query.eq('condition_tier',parseInt(tier));
   if(conf) query=query.eq('condition_confidence',conf);
   if(unreviewed) query=query.or('condition_overridden.is.null,condition_overridden.eq.false');
+  if(filters.search){
+    // Strip commas/quotes/parens — PostgREST .or() splits on commas and
+    // treats quotes/parens as syntax, so unsanitized input would break the filter.
+    const s=filters.search.replace(/[",()]/g,'');
+    if(s) query=query.or(`mls.ilike.%${s}%,address.ilike.%${s}%`);
+  }
 
   // Pagination
   const from=currentPage*PAGE_SIZE;
