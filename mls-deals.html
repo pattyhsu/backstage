@@ -715,10 +715,10 @@ function preferredArvFor(l,cm){
 }
 function arvSourceLabel(l,source,arv){
   if(l.lockedArv||source==='locked')return`Locked: ${F(arv)}`;
-  if(source==='smart-comps')return`Smart comps: ${F(arv)}`;
-  if(source==='per-city')return`Per-city: ${F(arv)}`;
+  if(source==='smart-comps')return`Comp ARV: ${F(arv)}`;
+  if(source==='per-city')return`Baseline ARV: ${F(arv)}`;
   if(source==='v7')return`v7.4.1: ${F(arv)}`;
-  return`Comp avg: ${F(arv)}`;
+  return`Manual comp avg: ${F(arv)}`;
 }
 
 // ========== ARV/SCORE CARDS ROW ======================================
@@ -770,7 +770,7 @@ function renderArvScoreCard(l,mid,src,av,active){
   const title=canClick?`title="Use this ARV in the deal analyzer"`:'';
 
   // Title row (uppercase, muted) — same for every card.
-  const titleText=({'comp-avg':'Comp avg','per-city':'Per-city','smart-comps':'Smart comps','v7':'ARV est (v7.4.1)','deal-score':'Deal score'})[src];
+  const titleText=({'comp-avg':'Manual comp avg','per-city':'Baseline ARV','smart-comps':'Comp ARV','v7':'ARV est (v7.4.1)','deal-score':'Deal score'})[src];
   const titleHtml=`<div style="font-size:9px;font-weight:700;color:var(--text-4);letter-spacing:.5px;text-transform:uppercase">${titleText}</div>`;
 
   // Per-source body.
@@ -782,8 +782,7 @@ function renderArvScoreCard(l,mid,src,av,active){
         <div style="font-size:10px;color:var(--text-4);margin-top:2px">no comps</div>`;
     }else{
       body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(arv)}</div>
-        <div style="font-size:10px;color:var(--text-4);margin-top:2px">${l.sqft.toLocaleString()}sf × $${psf}</div>
-        <div style="font-size:10px;color:var(--text-4)">avg of ${cnt} selected</div>`;
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">${l.sqft.toLocaleString()}sf × $${psf}</div>`;
     }
   }
   else if(src==='per-city'){
@@ -791,8 +790,7 @@ function renderArvScoreCard(l,mid,src,av,active){
     else if(cacheMissing||cacheErr||av.perCityArv==null)body=cardSubText('14px','—');
     else{
       body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(av.perCityArv)}</div>
-        <div style="font-size:10px;color:var(--text-4);margin-top:2px">OLS regression</div>
-        <div style="font-size:10px;color:var(--text-4)">${perCityModelNote(l.city)}</div>`;
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">OLS regression</div>`;
     }
   }
   else if(src==='smart-comps'){
@@ -812,19 +810,7 @@ function renderArvScoreCard(l,mid,src,av,active){
     else{
       const data=av.r&&av.r.smart_comps_data||{};
       const n=data.n_anchors!=null?data.n_anchors:'?';
-      // Δ per-city when both available, else Δ v4 for non-per-city
-      // Cerritos (smart vs headline). Per spec: "Δ per-city ±N%".
-      let disLine='';
-      const baseline=av.isPerCity?av.perCityArv:(av.r&&av.r.headline_arv);
-      const baselineLabel=av.isPerCity?'per-city':'v4';
-      if(baseline&&av.smartArv){
-        const dis=(av.smartArv-baseline)/baseline*100;
-        const a=Math.abs(dis);
-        const col=a<=3?'var(--green)':a<=7?'var(--amber)':'var(--red)';
-        disLine=`<div style="font-size:10px;color:${col};margin-top:2px">Δ ${baselineLabel} ${dis>=0?'+':''}${dis.toFixed(1)}%</div>`;
-      }
       body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(av.smartArv)}</div>
-        ${disLine}
         <div style="font-size:10px;color:var(--text-4);margin-top:2px">${n} anchors · see below</div>`;
     }
   }
