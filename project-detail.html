@@ -2432,6 +2432,7 @@ function rpaAddCommas(s){
 function rpaStripCommas(s){return String(s||'').replace(/,/g,'');}
 function rpaFmt(v){const n=parseFloat(v);return isNaN(n)?(v||'—'):n.toLocaleString('en-US');}
 function rpaTodayMDY(){const d=new Date();return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear();}
+function rpaTitleCase(s){return String(s||'').toLowerCase().replace(/\b\w/g, c=>c.toUpperCase());}
 
 function rpaSyncDomFromValues(){
   // Text/number/textarea
@@ -2534,8 +2535,8 @@ async function openRpaModal(){
   // Overlay from DB
   const p=primaryProperty();
   if(p){
-    rpaValues.propertyAddress=p.address||'';
-    rpaValues.city=p.city||'';
+    rpaValues.propertyAddress=rpaTitleCase(p.address||'');
+    rpaValues.city=rpaTitleCase(p.city||'');
     rpaValues.zip=p.zip||'';
     rpaValues.apn=p.apn||'';
     rpaValues.sellerAgentName=p.agent_name||'';
