@@ -322,24 +322,24 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .loan-modal .lm-btn-secondary { background:var(--bg); color:var(--text-3); border:1px solid var(--border); }
 .loan-modal .lm-msg { font-size:11px; min-height:14px; color:var(--red); margin-top:6px; }
 
-/* RPA Generator modal — wider two-column layout */
+/* RPA Generator modal — label-left compact layout */
 .rpa-modal-overlay { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.4); align-items:center; justify-content:center; padding:24px; }
 .rpa-modal-overlay.open { display:flex; }
-.rpa-modal { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:20px 24px; max-width:780px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,.18); }
+.rpa-modal { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:18px 22px; max-width:640px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,.18); }
 .rpa-modal h3 { font-size:14px; font-weight:700; margin:0 0 4px; color:var(--accent); letter-spacing:-.2px; }
 .rpa-modal .rpa-sub { font-size:11px; color:var(--text-4); margin:0 0 14px; }
-.rpa-modal .rpa-section-h { font-size:10px; font-weight:700; color:var(--text-4); text-transform:uppercase; letter-spacing:.08em; margin:14px 0 6px; padding-bottom:4px; border-bottom:1px solid var(--border); }
-.rpa-modal .rpa-section-h:first-of-type { margin-top:4px; }
-.rpa-modal .rpa-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; }
-.rpa-modal .rpa-grid.full { grid-template-columns:1fr; }
-.rpa-modal .rpa-field { display:flex; flex-direction:column; gap:3px; }
-.rpa-modal .rpa-field.full { grid-column:1 / -1; }
-.rpa-modal .rpa-field label { font-size:10px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
-.rpa-modal .rpa-field input, .rpa-modal .rpa-field textarea, .rpa-modal .rpa-field select { font-family:inherit; font-size:12px; padding:5px 8px; border:1px solid var(--border); border-radius:4px; background:var(--bg); color:var(--text); outline:none; box-sizing:border-box; width:100%; }
+.rpa-modal .rpa-section-h { font-size:10px; font-weight:700; color:var(--text-4); text-transform:uppercase; letter-spacing:.08em; margin:14px 0 8px; padding-bottom:5px; border-bottom:1px solid var(--border); }
+.rpa-modal .rpa-section-h:first-of-type { margin-top:6px; }
+.rpa-modal .rpa-grid { display:flex; flex-direction:column; gap:5px; }
+.rpa-modal .rpa-row-pair { display:flex; gap:14px; }
+.rpa-modal .rpa-row-pair > .rpa-field { flex:1; }
+.rpa-modal .rpa-row-pair > .rpa-field + .rpa-field > label { flex:0 0 80px; }
+.rpa-modal .rpa-field { display:flex; align-items:center; gap:10px; min-height:26px; }
+.rpa-modal .rpa-field label { flex:0 0 130px; text-align:right; font-size:10px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; line-height:1.2; }
+.rpa-modal .rpa-field input, .rpa-modal .rpa-field textarea, .rpa-modal .rpa-field select { flex:1; font-family:inherit; font-size:12px; padding:5px 8px; border:1px solid var(--border); border-radius:4px; background:var(--bg); color:var(--text); outline:none; }
 .rpa-modal .rpa-field textarea { resize:vertical; min-height:44px; }
 .rpa-modal .rpa-field input:focus, .rpa-modal .rpa-field textarea:focus { border-color:var(--accent); }
-.rpa-modal .rpa-toggle-row { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-2); padding-top:18px; }
-.rpa-modal .rpa-toggle-row input[type=checkbox] { width:auto; margin:0; }
+.rpa-modal input[type=checkbox].rpa-check { flex:0 0 auto; width:14px; height:14px; margin:0; }
 .rpa-modal .lm-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border); }
 .rpa-modal .lm-msg { font-size:11px; min-height:14px; color:var(--red); margin-top:6px; }
 
@@ -403,57 +403,79 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 
     <div class="rpa-section-h">Property</div>
     <div class="rpa-grid">
-      <div class="rpa-field full"><label>Street Address</label><input type="text" id="rpa_propertyAddress" placeholder="13353 Beach St"></div>
-      <div class="rpa-field"><label>City</label><input type="text" id="rpa_city" placeholder="Cerritos"></div>
-      <div class="rpa-field"><label>County</label><input type="text" id="rpa_county" placeholder="Los Angeles"></div>
-      <div class="rpa-field"><label>Zip</label><input type="text" id="rpa_zip" placeholder="90703"></div>
-      <div class="rpa-field"><label>APN</label><input type="text" id="rpa_apn" placeholder="0000-000-000"></div>
+      <div class="rpa-field"><label for="rpa_propertyAddress">Street Address</label><input type="text" id="rpa_propertyAddress"></div>
+      <div class="rpa-row-pair">
+        <div class="rpa-field"><label for="rpa_city">City</label><input type="text" id="rpa_city"></div>
+        <div class="rpa-field"><label for="rpa_county">County</label><input type="text" id="rpa_county" placeholder="Los Angeles"></div>
+      </div>
+      <div class="rpa-row-pair">
+        <div class="rpa-field"><label for="rpa_zip">Zip</label><input type="text" id="rpa_zip"></div>
+        <div class="rpa-field"><label for="rpa_apn">APN</label><input type="text" id="rpa_apn"></div>
+      </div>
     </div>
 
     <div class="rpa-section-h">Buyer</div>
     <div class="rpa-grid">
-      <div class="rpa-field"><label>Buyer Name</label><input type="text" id="rpa_buyerName"></div>
-      <div class="rpa-toggle-row"><input type="checkbox" id="rpa_isEntityBuyer"><label for="rpa_isEntityBuyer" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-4);">Entity Buyer</label></div>
-      <div class="rpa-field"><label>Entity Name</label><input type="text" id="rpa_buyerEntity"></div>
-      <div class="rpa-field"><label>Authorized Signer</label><input type="text" id="rpa_authorizedSigner"></div>
-      <div class="rpa-field"><label>Signer Title</label><input type="text" id="rpa_signerTitle"></div>
-      <div class="rpa-field"><label>Initials</label><input type="text" id="rpa_buyerInitials"></div>
-      <div class="rpa-field full"><label>Signature</label><input type="text" id="rpa_buyerSignature"></div>
+      <div class="rpa-field"><label for="rpa_buyerName">Buyer Name</label><input type="text" id="rpa_buyerName"></div>
+      <div class="rpa-field"><label for="rpa_isEntityBuyer">Entity Buyer</label><input type="checkbox" id="rpa_isEntityBuyer" class="rpa-check"></div>
+      <div class="rpa-row-pair">
+        <div class="rpa-field"><label for="rpa_authorizedSigner">Authorized Signer</label><input type="text" id="rpa_authorizedSigner"></div>
+        <div class="rpa-field"><label for="rpa_buyerEntity">Entity Name</label><input type="text" id="rpa_buyerEntity"></div>
+      </div>
+      <div class="rpa-row-pair">
+        <div class="rpa-field"><label for="rpa_signerTitle">Signer Title</label><input type="text" id="rpa_signerTitle"></div>
+        <div class="rpa-field"><label for="rpa_buyerInitials">Initials</label><input type="text" id="rpa_buyerInitials"></div>
+      </div>
+      <div class="rpa-field"><label for="rpa_buyerSignature">Signature</label><input type="text" id="rpa_buyerSignature"></div>
     </div>
 
     <div class="rpa-section-h">Offer Terms</div>
     <div class="rpa-grid">
-      <div class="rpa-field"><label>Date</label><input type="text" id="rpa_offerDate" placeholder="M/D/YYYY"></div>
-      <div class="rpa-field"><label>Offer Price ($)</label><input type="text" id="rpa_purchasePrice" placeholder="1,000,000"></div>
-      <div class="rpa-field"><label>EMD ($)</label><input type="text" id="rpa_emdDollars" placeholder="30,000"></div>
-      <div class="rpa-field"><label>EMD (%)</label><input type="text" id="rpa_emdPercent" placeholder="3.00"></div>
-      <div class="rpa-field"><label>Down Payment ($)</label><input type="text" id="rpa_downPayment"></div>
-      <div class="rpa-field"><label>COE Days</label><input type="text" id="rpa_coeDays" placeholder="15"></div>
-      <div class="rpa-toggle-row"><input type="checkbox" id="rpa_hasCompensation"><label for="rpa_hasCompensation" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-4);">Compensation</label></div>
-      <div class="rpa-field"><label>Comp (%)</label><input type="text" id="rpa_compensationPercent" placeholder="2.50"></div>
+      <div class="rpa-row-pair">
+        <div class="rpa-field"><label for="rpa_offerDate">Date</label><input type="text" id="rpa_offerDate" placeholder="M/D/YYYY"></div>
+        <div class="rpa-field"><label for="rpa_purchasePrice">Offer Price ($)</label><input type="text" id="rpa_purchasePrice"></div>
+      </div>
+      <div class="rpa-row-pair">
+        <div class="rpa-field"><label for="rpa_emdDollars">EMD ($)</label><input type="text" id="rpa_emdDollars"></div>
+        <div class="rpa-field"><label for="rpa_emdPercent">EMD (%)</label><input type="text" id="rpa_emdPercent" placeholder="3.00"></div>
+      </div>
+      <div class="rpa-row-pair">
+        <div class="rpa-field"><label for="rpa_downPayment">Down Payment ($)</label><input type="text" id="rpa_downPayment"></div>
+        <div class="rpa-field"><label for="rpa_coeDays">COE Days</label><input type="text" id="rpa_coeDays" placeholder="15"></div>
+      </div>
+      <div class="rpa-row-pair">
+        <div class="rpa-field"><label for="rpa_compensationPercent">Comp (%)</label><input type="text" id="rpa_compensationPercent" placeholder="2.50"></div>
+        <div class="rpa-field"><label for="rpa_hasCompensation">Compensation</label><input type="checkbox" id="rpa_hasCompensation" class="rpa-check"></div>
+      </div>
     </div>
 
     <div class="rpa-section-h">Contingencies</div>
     <div class="rpa-grid">
-      <div class="rpa-toggle-row"><input type="checkbox" id="rpa_allCash"><label for="rpa_allCash" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-4);">All Cash</label></div>
-      <div class="rpa-toggle-row"><input type="checkbox" id="rpa_noCRB"><label for="rpa_noCRB" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-4);">Remove All Contingency</label></div>
-      <div class="rpa-toggle-row"><input type="checkbox" id="rpa_noInspection"><label for="rpa_noInspection" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-4);">No Inspection Contingency</label></div>
-      <div class="rpa-field"><label>Inspection Days</label><input type="text" id="rpa_inspectionDays" placeholder="7"></div>
+      <div class="rpa-field"><label for="rpa_allCash">All Cash</label><input type="checkbox" id="rpa_allCash" class="rpa-check"></div>
+      <div class="rpa-field"><label for="rpa_noCRB">Remove All Contingency</label><input type="checkbox" id="rpa_noCRB" class="rpa-check"></div>
+      <div class="rpa-row-pair">
+        <div class="rpa-field"><label for="rpa_inspectionDays">Inspection Days</label><input type="text" id="rpa_inspectionDays" placeholder="7"></div>
+        <div class="rpa-field"><label for="rpa_noInspection">No Inspection Contingency</label><input type="checkbox" id="rpa_noInspection" class="rpa-check"></div>
+      </div>
     </div>
 
     <div class="rpa-section-h">Other</div>
-    <div class="rpa-grid full">
-      <div class="rpa-field full"><label>Other Terms</label><textarea id="rpa_otherTerms"></textarea></div>
+    <div class="rpa-grid">
+      <div class="rpa-field"><label for="rpa_otherTerms">Other Terms</label><textarea id="rpa_otherTerms"></textarea></div>
     </div>
 
     <div class="rpa-section-h">Seller Agent</div>
     <div class="rpa-grid">
-      <div class="rpa-field"><label>Agent Name</label><input type="text" id="rpa_sellerAgentName"></div>
-      <div class="rpa-field"><label>Agent License #</label><input type="text" id="rpa_sellerAgentLicense"></div>
-      <div class="rpa-field"><label>Broker Name</label><input type="text" id="rpa_sellerBrokerName"></div>
-      <div class="rpa-field"><label>Broker License #</label><input type="text" id="rpa_sellerBrokerLicense"></div>
-      <div class="rpa-field"><label>Seller / Agent Email</label><input type="text" id="rpa_sellerEmail" placeholder="agent@example.com"></div>
-      <div class="rpa-field"><label>Seller Agent Phone</label><input type="text" id="rpa_sellerAgentPhone"></div>
+      <div class="rpa-row-pair">
+        <div class="rpa-field"><label for="rpa_sellerAgentName">Agent Name</label><input type="text" id="rpa_sellerAgentName"></div>
+        <div class="rpa-field"><label for="rpa_sellerAgentLicense">Agent License #</label><input type="text" id="rpa_sellerAgentLicense"></div>
+      </div>
+      <div class="rpa-row-pair">
+        <div class="rpa-field"><label for="rpa_sellerBrokerName">Broker Name</label><input type="text" id="rpa_sellerBrokerName"></div>
+        <div class="rpa-field"><label for="rpa_sellerBrokerLicense">Broker License #</label><input type="text" id="rpa_sellerBrokerLicense"></div>
+      </div>
+      <div class="rpa-field"><label for="rpa_sellerEmail">Seller / Agent Email</label><input type="text" id="rpa_sellerEmail" placeholder="agent@example.com"></div>
+      <div class="rpa-field"><label for="rpa_sellerAgentPhone">Seller Agent Phone</label><input type="text" id="rpa_sellerAgentPhone"></div>
     </div>
 
     <div class="lm-msg" id="rpaMsg"></div>
@@ -2520,9 +2542,14 @@ async function openRpaModal(){
     const cityKey=String(rpaValues.city||'').trim().toLowerCase();
     rpaValues.county=CITY_TO_COUNTY[cityKey]||'';
   }
-  if(currentDeal && currentDeal.offer_price!=null && currentDeal.offer_price!==''){
-    rpaValues.purchasePrice=String(currentDeal.offer_price);
-  }
+  const arv=(p && p.locked_arv!=null)
+    ? p.locked_arv
+    : (typeof lastArvRow!=='undefined' && lastArvRow ? lastArvRow.headline_arv : 1200000);
+  const fallbackOffer=Math.round(arv*0.68);
+  const priceVal=(currentDeal && currentDeal.offer_price!=null && currentDeal.offer_price!=='')
+    ? currentDeal.offer_price
+    : fallbackOffer;
+  rpaValues.purchasePrice=String(priceVal);
   rpaValues.offerDate=rpaTodayMDY();
 
   // Agents lookup (synchronous before render)
