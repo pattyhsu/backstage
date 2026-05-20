@@ -126,6 +126,7 @@ body { overflow:hidden; height:100vh; }
 .pnl-tbl .carry-hot { color:var(--red); font-weight:700; }
 .pnl-tbl .carry-ok  { color:var(--text-2); }
 .pnl-tbl td.c-days  { font-family:var(--sans); font-size:11px; color:var(--text-4); font-weight:500; text-align:center; }
+.pnl-tbl td.date-cell { font-size:11px; color:var(--text-3); white-space:nowrap; }
 .pnl-tbl .group-row td { background:var(--bg-inset); font-family:var(--sans); font-size:10px; font-weight:700; color:var(--text-3); text-transform:uppercase; letter-spacing:.08em; padding:5px 10px; text-align:left; }
 
 /* Phase pill (table + days-strip) */
@@ -740,6 +741,15 @@ function renderPnL() {
       if (col === 'hold')  { va = a.holding_actual || 0; vb = b.holding_actual || 0; }
       if (col === 'fin')   { va = a.financing_actual || 0; vb = b.financing_actual || 0; }
       if (col === 'disp')  { va = a.disposition_actual || 0; vb = b.disposition_actual || 0; }
+      if (col === 'sale_date') {
+        // Sort by sale_close_date; nulls (in-flight rows) sink to the bottom
+        // regardless of direction so the sold-section ordering is what matters.
+        va = a._sale_close_date ? new Date(a._sale_close_date).getTime() : null;
+        vb = b._sale_close_date ? new Date(b._sale_close_date).getTime() : null;
+        if (va == null && vb == null) return 0;
+        if (va == null) return 1;
+        if (vb == null) return -1;
+      }
       const cmp = (va > vb) - (va < vb);
       return dir === 'asc' ? cmp : -cmp;
     };
@@ -765,6 +775,7 @@ function renderPnL() {
     { k:'profit',          lbl:'Profit' },
     { k:'ann_roi',         lbl:'Ann ROI' },
     { k:'carry',           lbl:'Carry %' },
+    { k:'sale_date',       lbl:'Sold' },
   ];
 
   function rowHtml(r, isSold) {
@@ -810,6 +821,7 @@ function renderPnL() {
       + '<td class="' + profitClass + '">' + escapeHtml(profitTxt) + '</td>'
       + '<td class="' + annRoiClass + '">' + escapeHtml(annRoiTxt) + '</td>'
       + '<td class="' + carryClass + '">' + escapeHtml(carryTxt) + '</td>'
+      + '<td class="date-cell">' + (r._sale_close_date ? escapeHtml(fmtDate(r._sale_close_date)) : '—') + '</td>'
       + '</tr>';
   }
 
@@ -823,16 +835,16 @@ function renderPnL() {
   }
   html += '</tr></thead><tbody>';
 
-  html += '<tr class="group-row"><td colspan="13">In flight (' + inFlight.length + ') — Ann ROI &amp; Carry % projected against assumed close</td></tr>';
+  html += '<tr class="group-row"><td colspan="14">In flight (' + inFlight.length + ') — Ann ROI &amp; Carry % projected against assumed close</td></tr>';
   if (inFlight.length === 0) {
-    html += '<tr><td colspan="13" style="text-align:center; padding:24px; color:var(--text-4);">No in-flight deals.</td></tr>';
+    html += '<tr><td colspan="14" style="text-align:center; padding:24px; color:var(--text-4);">No in-flight deals.</td></tr>';
   } else {
     for (const r of inFlight) html += rowHtml(r, false);
   }
 
-  html += '<tr class="group-row"><td colspan="13">Sold (' + sold.length + ')</td></tr>';
+  html += '<tr class="group-row"><td colspan="14">Sold (' + sold.length + ')</td></tr>';
   if (sold.length === 0) {
-    html += '<tr><td colspan="13" style="text-align:center; padding:24px; color:var(--text-4);">No sold deals.</td></tr>';
+    html += '<tr><td colspan="14" style="text-align:center; padding:24px; color:var(--text-4);">No sold deals.</td></tr>';
   } else {
     for (const r of sold) html += rowHtml(r, true);
   }
