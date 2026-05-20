@@ -2827,12 +2827,19 @@ async function generateRpa(){
   // Fire-and-forget agent upsert
   rpaUpsertAgent(v);
 
-  // Gmail draft
+  // Gmail draft + copy body to clipboard (fallback for when Gmail strips long URLs)
   rpaOpenGmailDraft(v);
+  let copied=false;
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(rpaEmailBody(v));
+      copied=true;
+    }
+  }catch(e){console.warn('clipboard write failed', e);}
 
   btn.disabled=false;
   closeRpaModal();
-  bsToast('RPA generated · Gmail opened');
+  bsToast(copied ? 'RPA generated · Gmail opened · email copied' : 'RPA generated · Gmail opened');
 }
 window.generateRpa=generateRpa;
 
