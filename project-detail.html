@@ -328,8 +328,10 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .rpa-modal { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:18px 22px; max-width:640px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,.18); }
 .rpa-modal h3 { font-size:14px; font-weight:700; margin:0 0 4px; color:var(--accent); letter-spacing:-.2px; }
 .rpa-modal .rpa-sub { font-size:11px; color:var(--text-4); margin:0 0 14px; }
-.rpa-modal .rpa-section-h { font-size:10px; font-weight:700; color:var(--text-4); text-transform:uppercase; letter-spacing:.08em; margin:14px 0 8px; padding-bottom:5px; border-bottom:1px solid var(--border); }
+.rpa-modal .rpa-section-h { font-size:10px; font-weight:700; color:var(--text-4); text-transform:uppercase; letter-spacing:.08em; margin:14px 0 8px; padding-bottom:5px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .rpa-modal .rpa-section-h:first-of-type { margin-top:6px; }
+.rpa-modal .rpa-section-search { background:none; border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:11px; cursor:pointer; color:var(--text-4); font-family:inherit; transition:all .12s; }
+.rpa-modal .rpa-section-search:hover { border-color:var(--accent); color:var(--accent); }
 .rpa-modal .rpa-grid { display:flex; flex-direction:column; gap:5px; }
 .rpa-modal .rpa-row-pair { display:flex; gap:14px; }
 .rpa-modal .rpa-row-pair > .rpa-field { flex:1; }
@@ -464,7 +466,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
       <div class="rpa-field"><label for="rpa_otherTerms">Other Terms</label><textarea id="rpa_otherTerms"></textarea></div>
     </div>
 
-    <div class="rpa-section-h">Seller Agent</div>
+    <div class="rpa-section-h">Seller Agent<button type="button" class="rpa-section-search" onclick="rpaSearchCompass()" title="Search Compass for this listing (to look up DRE numbers)">🔍 Compass</button></div>
     <div class="rpa-grid">
       <div class="rpa-row-pair">
         <div class="rpa-field"><label for="rpa_sellerAgentName">Agent Name</label><input type="text" id="rpa_sellerAgentName"></div>
@@ -2593,6 +2595,16 @@ function closeRpaModal(){
 }
 window.closeRpaModal=closeRpaModal;
 function _rpaKey(e){if(e.key==='Escape')closeRpaModal();}
+
+function rpaSearchCompass(){
+  const addr=(document.getElementById('rpa_propertyAddress')||{}).value||'';
+  const city=(document.getElementById('rpa_city')||{}).value||'';
+  const zip=(document.getElementById('rpa_zip')||{}).value||'';
+  const q=[addr, city, 'CA', zip].filter(s=>String(s).trim()).join(' ');
+  if(!q.trim()){bsToast('Enter an address first');return;}
+  window.open('https://www.google.com/search?q=site:compass.com+'+encodeURIComponent(q), '_blank');
+}
+window.rpaSearchCompass=rpaSearchCompass;
 
 function rpaEmailBody(v){
   const shortAddr=[v.propertyAddress, v.city].filter(Boolean).join(', ');
