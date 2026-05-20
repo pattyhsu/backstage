@@ -751,7 +751,7 @@ async function loadProject(){
   propertiesByMls={};
   if(mlsList.length){
     const {data:props, error:pErr}=await sb.from('properties')
-      .select('id, mls, address, city, zip, beds, baths, sqft, lot_size, pool, year_built, list_price, sale_price, sold_date, locked_arv, locked_construction, elementary_school, middle_school, high_school, elementary_rating, middle_rating, high_rating, agent_name, agent_email, agent_broker, double_ended, photo_count, change_type')
+      .select('id, mls, address, city, zip, apn, beds, baths, sqft, lot_size, pool, year_built, list_price, sale_price, sold_date, locked_arv, locked_construction, elementary_school, middle_school, high_school, elementary_rating, middle_rating, high_rating, agent_name, agent_email, agent_broker, agent_phone, agent_cell, agent_office_phone, double_ended, photo_count, change_type')
       .in('mls', mlsList);
     if(pErr){console.warn('[project-detail] properties load failed:', pErr);}
     else { for(const r of (props||[])){propertiesByMls[r.mls]=r;} }
@@ -2539,6 +2539,7 @@ async function openRpaModal(){
     rpaValues.sellerAgentName=p.agent_name||'';
     rpaValues.sellerEmail=p.agent_email||'';
     rpaValues.sellerBrokerName=p.agent_broker||'';
+    rpaValues.sellerAgentPhone=p.agent_cell||p.agent_phone||p.agent_office_phone||'';
     const cityKey=String(rpaValues.city||'').trim().toLowerCase();
     rpaValues.county=CITY_TO_COUNTY[cityKey]||'';
   }
