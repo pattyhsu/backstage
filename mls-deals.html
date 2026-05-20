@@ -1965,20 +1965,26 @@ async function decorateListingsWithDeals(){
   if(!listings.length)return;
   const allMls=listings.map(l=>l.mls).filter(Boolean);
   if(!allMls.length)return;
-  // PostgREST .or() takes a single comma-delimited expression. Each
-  // individual filter (.in()) uses parens around the value list. To
-  // combine two .in() conditions in one .or(), pass them as a single
-  // string with commas separating the disjuncts. Quote each MLS for
-  // safety against commas/parens in the id.
-  const list=allMls.map(m=>'"'+String(m).replace(/"/g,'\\"')+'"').join(',');
-  const orExpr='buy_side_mls.in.('+list+'),relist_mls.in.('+list+')';
+  // Two separate .in() queries (one per column) instead of a single
+  // .or(buy_side.in.(),relist.in.()). The combined .or() URL exceeds
+  // PostgREST's ~8KB cap on filters like Unread (~645 listings × 14
+  // chars × 2 columns) → 400 error → decoration silently dies.
+  const cols=['buy_side_mls','relist_mls'];
+  const sel='id, phase, buy_side_mls, relist_mls, offer_price, purchase_price, notes';
   let deals=[];
   try{
-    const{data,error}=await sb.from('deals')
-      .select('id, phase, buy_side_mls, relist_mls, offer_price, purchase_price, notes')
-      .or(orExpr);
-    if(error){console.warn('[decorateListingsWithDeals] failed',error);return;}
-    deals=data||[];
+    const results=await Promise.all(cols.map(c=>
+      sb.from('deals').select(sel).in(c, allMls)
+    ));
+    const seen=new Set();
+    for(const r of results){
+      if(r&&r.error){console.warn('[decorateListingsWithDeals] failed',r.error);return;}
+      for(const d of (r.data||[])){
+        if(seen.has(d.id))continue;
+        seen.add(d.id);
+        deals.push(d);
+      }
+    }
   }catch(e){
     console.warn('[decorateListingsWithDeals] failed',e);
     return;
