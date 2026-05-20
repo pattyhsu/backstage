@@ -98,8 +98,14 @@ body { overflow:hidden; height:100vh; }
 .ps-n { font-size:10px; color:var(--text-4); font-family:var(--mono); }
 
 /* === P&L TABLE (Tab 1) === */
-.pnl-tbl { width:100%; border-collapse:collapse; background:var(--bg); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
-.pnl-tbl thead th { background:var(--bg-page); font-size:10px; font-weight:600; color:var(--text-4); text-transform:uppercase; letter-spacing:.04em; padding:9px 10px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; cursor:pointer; user-select:none; }
+/* No overflow:hidden — that would create a sticky containing block and
+   neutralize the sticky thead. Corner rounding is applied per-cell below. */
+.pnl-tbl { width:100%; border-collapse:separate; border-spacing:0; background:var(--bg); border:1px solid var(--border); border-radius:8px; }
+.pnl-tbl thead th { position:sticky; top:44px; background:var(--bg-page); font-size:10px; font-weight:600; color:var(--text-4); text-transform:uppercase; letter-spacing:.04em; padding:9px 10px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; cursor:pointer; user-select:none; z-index:3; }
+.pnl-tbl thead tr:first-child th:first-child { border-top-left-radius:8px; }
+.pnl-tbl thead tr:first-child th:last-child  { border-top-right-radius:8px; }
+.pnl-tbl tbody tr:last-child td:first-child   { border-bottom-left-radius:8px; }
+.pnl-tbl tbody tr:last-child td:last-child    { border-bottom-right-radius:8px; }
 .pnl-tbl thead th.lh { text-align:left; }
 .pnl-tbl thead th:hover { color:var(--text-3); }
 .pnl-tbl thead th.sorted { color:var(--accent); }
