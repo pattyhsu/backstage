@@ -2446,6 +2446,18 @@ function rpaStripCommas(s){return String(s||'').replace(/,/g,'');}
 function rpaFmt(v){const n=parseFloat(v);return isNaN(n)?(v||'—'):n.toLocaleString('en-US');}
 function rpaTodayMDY(){const d=new Date();return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear();}
 function rpaTitleCase(s){return String(s||'').toLowerCase().replace(/\b\w/g, c=>c.toUpperCase());}
+// MLS stores agents as "Last, First". Flip to "First Last" for display + downstream first-name extraction.
+function rpaFlipName(s){
+  s=String(s||'').trim();
+  if(!s)return '';
+  const i=s.indexOf(',');
+  if(i<0)return s;
+  const last=s.slice(0,i).trim();
+  const first=s.slice(i+1).trim();
+  if(!first)return last;
+  if(!last)return first;
+  return first+' '+last;
+}
 
 const RPA_CR_TEMPLATE_URL='https://photos.dottyhomes.com/templates/cr_empty.pdf';
 
@@ -2627,7 +2639,7 @@ async function openRpaModal(){
     rpaValues.city=rpaTitleCase(p.city||'');
     rpaValues.zip=p.zip||'';
     rpaValues.apn=p.apn||'';
-    rpaValues.sellerAgentName=p.agent_name||'';
+    rpaValues.sellerAgentName=rpaFlipName(p.agent_name||'');
     rpaValues.sellerEmail=p.agent_email||'';
     rpaValues.sellerBrokerName=p.agent_broker||'';
     rpaValues.sellerAgentPhone=p.agent_cell||p.agent_phone||p.agent_office_phone||'';
