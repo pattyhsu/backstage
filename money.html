@@ -756,8 +756,10 @@ function renderPnL() {
   }
 
   inFlight.sort(sorter(pnlSort.col, pnlSort.dir));
-  // For sold rows, default is profit desc unless user picked another col.
-  const soldSortCol = pnlSort.col === 'days_in_flight' ? 'profit' : pnlSort.col;
+  // For sold rows, default is sale_date desc (latest sale first) unless user
+  // picked another col. In-flight default (days_in_flight) is the trigger
+  // for "user hasn't picked anything" since that's the initial pnlSort state.
+  const soldSortCol = pnlSort.col === 'days_in_flight' ? 'sale_date' : pnlSort.col;
   const soldSortDir = pnlSort.col === 'days_in_flight' ? 'desc' : pnlSort.dir;
   sold.sort(sorter(soldSortCol, soldSortDir));
 
