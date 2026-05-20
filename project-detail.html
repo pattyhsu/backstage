@@ -343,6 +343,12 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .rpa-modal .rpa-field input:focus, .rpa-modal .rpa-field textarea:focus { border-color:var(--accent); }
 .rpa-modal input[type=checkbox].rpa-check { flex:0 0 auto; width:14px; height:14px; margin:0; }
 .rpa-modal .lm-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border); }
+.rpa-modal .rpa-email-preview { margin-top:14px; padding-top:12px; border-top:1px solid var(--border); }
+.rpa-modal .rpa-email-preview .rpa-email-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+.rpa-modal .rpa-email-preview .rpa-email-head .rpa-email-label { font-size:10px; font-weight:700; color:var(--text-4); text-transform:uppercase; letter-spacing:.06em; }
+.rpa-modal .rpa-email-preview .rpa-email-copy { background:none; border:1px solid var(--border); border-radius:4px; padding:2px 8px; font-size:11px; cursor:pointer; color:var(--text-4); font-family:inherit; transition:all .12s; }
+.rpa-modal .rpa-email-preview .rpa-email-copy:hover { border-color:var(--accent); color:var(--accent); }
+.rpa-modal .rpa-email-preview textarea { width:100%; min-height:140px; font-family:var(--mono); font-size:11px; line-height:1.45; padding:8px 10px; border:1px solid var(--border); border-radius:4px; background:var(--bg-alt); color:var(--text-2); resize:vertical; box-sizing:border-box; }
 .rpa-modal .lm-msg { font-size:11px; min-height:14px; color:var(--red); margin-top:6px; }
 
 /* RPA inline button in cash sect header */
@@ -484,6 +490,13 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
     <div class="lm-actions">
       <button class="lm-btn lm-btn-secondary" onclick="closeRpaModal()">Cancel</button>
       <button class="lm-btn lm-btn-primary" id="rpaGenerateBtn" onclick="generateRpa()">Generate</button>
+    </div>
+    <div class="rpa-email-preview">
+      <div class="rpa-email-head">
+        <span class="rpa-email-label">Email body (Gmail draft uses this)</span>
+        <button type="button" class="rpa-email-copy" onclick="rpaCopyEmailBody()">📋 Copy</button>
+      </div>
+      <textarea id="rpaEmailPreview" readonly></textarea>
     </div>
   </div>
 </div>
@@ -2434,6 +2447,30 @@ function rpaFmt(v){const n=parseFloat(v);return isNaN(n)?(v||'—'):n.toLocaleSt
 function rpaTodayMDY(){const d=new Date();return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear();}
 function rpaTitleCase(s){return String(s||'').toLowerCase().replace(/\b\w/g, c=>c.toUpperCase());}
 
+function rpaUpdateEmailPreview(){
+  const ta=document.getElementById('rpaEmailPreview');
+  if(!ta)return;
+  rpaReadDomIntoValues();
+  ta.value=rpaEmailBody(rpaValues);
+}
+
+async function rpaCopyEmailBody(){
+  const ta=document.getElementById('rpaEmailPreview');
+  if(!ta)return;
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(ta.value);
+    }else{
+      ta.select();document.execCommand('copy');
+    }
+    bsToast('Email body copied');
+  }catch(e){
+    console.warn('clipboard write failed', e);
+    bsToast('Copy failed — select the text manually');
+  }
+}
+window.rpaCopyEmailBody=rpaCopyEmailBody;
+
 function rpaSyncDomFromValues(){
   // Text/number/textarea
   RPA_TEXT_FIELDS.forEach(k=>{
@@ -2577,6 +2614,7 @@ async function openRpaModal(){
 
   rpaSyncDomFromValues();
   rpaWireAutoCalc();
+  rpaUpdateEmailPreview();
 
   const msg=document.getElementById('rpaMsg');
   if(msg)msg.textContent='';
@@ -2585,6 +2623,17 @@ async function openRpaModal(){
   if(overlay){
     overlay.classList.add('open');
     document.addEventListener('keydown', _rpaKey);
+    // Live-refresh email preview whenever any modal field changes
+    const modal=overlay.querySelector('.rpa-modal');
+    if(modal && !modal.dataset.previewWired){
+      modal.addEventListener('input', function(e){
+        if(e.target && e.target.id!=='rpaEmailPreview')rpaUpdateEmailPreview();
+      });
+      modal.addEventListener('change', function(e){
+        if(e.target && e.target.id!=='rpaEmailPreview')rpaUpdateEmailPreview();
+      });
+      modal.dataset.previewWired='1';
+    }
   }
 }
 window.openRpaModal=openRpaModal;
@@ -2827,19 +2876,12 @@ async function generateRpa(){
   // Fire-and-forget agent upsert
   rpaUpsertAgent(v);
 
-  // Gmail draft + copy body to clipboard (fallback for when Gmail strips long URLs)
+  // Gmail draft (email body also visible/copyable in the modal preview pane)
   rpaOpenGmailDraft(v);
-  let copied=false;
-  try{
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      await navigator.clipboard.writeText(rpaEmailBody(v));
-      copied=true;
-    }
-  }catch(e){console.warn('clipboard write failed', e);}
 
   btn.disabled=false;
   closeRpaModal();
-  bsToast(copied ? 'RPA generated · Gmail opened · email copied' : 'RPA generated · Gmail opened');
+  bsToast('RPA generated · Gmail opened');
 }
 window.generateRpa=generateRpa;
 
