@@ -1963,28 +1963,19 @@ async function undoOpenOffer(dealId, mls){
 // "Open offer" / "Mark as listing" buttons disappear when a deal exists.
 async function decorateListingsWithDeals(){
   if(!listings.length)return;
-  const allMls=listings.map(l=>l.mls).filter(Boolean);
-  if(!allMls.length)return;
-  // Two separate .in() queries (one per column) instead of a single
-  // .or(buy_side.in.(),relist.in.()). The combined .or() URL exceeds
-  // PostgREST's ~8KB cap on filters like Unread (~645 listings × 14
-  // chars × 2 columns) → 400 error → decoration silently dies.
-  const cols=['buy_side_mls','relist_mls'];
-  const sel='id, phase, buy_side_mls, relist_mls, offer_price, purchase_price, notes';
+  const listingMls=new Set(listings.map(l=>l.mls).filter(Boolean));
+  if(!listingMls.size)return;
+  // Fetch all deals unfiltered (<50 in production). Avoids the URL
+  // length cap that bit large filter tabs like Unread (~645 listings)
+  // where buy_side_mls.in.(...) + relist_mls.in.(...) exceeded the
+  // edge proxy's ~8KB filter cap → 400 → silent decoration failure.
   let deals=[];
   try{
-    const results=await Promise.all(cols.map(c=>
-      sb.from('deals').select(sel).in(c, allMls)
-    ));
-    const seen=new Set();
-    for(const r of results){
-      if(r&&r.error){console.warn('[decorateListingsWithDeals] failed',r.error);return;}
-      for(const d of (r.data||[])){
-        if(seen.has(d.id))continue;
-        seen.add(d.id);
-        deals.push(d);
-      }
-    }
+    const{data,error}=await sb.from('deals')
+      .select('id, phase, buy_side_mls, relist_mls, offer_price, purchase_price, notes');
+    if(error){console.warn('[decorateListingsWithDeals] failed',error);return;}
+    // Keep only deals that touch a currently-visible listing.
+    deals=(data||[]).filter(d=>listingMls.has(d.buy_side_mls)||listingMls.has(d.relist_mls));
   }catch(e){
     console.warn('[decorateListingsWithDeals] failed',e);
     return;
