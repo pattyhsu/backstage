@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="backstage.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="auth.js"></script>
 <script src="sidebar.js"></script>
 <style>
@@ -321,6 +322,35 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .loan-modal .lm-btn-secondary { background:var(--bg); color:var(--text-3); border:1px solid var(--border); }
 .loan-modal .lm-msg { font-size:11px; min-height:14px; color:var(--red); margin-top:6px; }
 
+/* RPA Generator modal — wider two-column layout */
+.rpa-modal-overlay { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.4); align-items:center; justify-content:center; padding:24px; }
+.rpa-modal-overlay.open { display:flex; }
+.rpa-modal { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:20px 24px; max-width:780px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,.18); }
+.rpa-modal h3 { font-size:14px; font-weight:700; margin:0 0 4px; color:var(--accent); letter-spacing:-.2px; }
+.rpa-modal .rpa-sub { font-size:11px; color:var(--text-4); margin:0 0 14px; }
+.rpa-modal .rpa-section-h { font-size:10px; font-weight:700; color:var(--text-4); text-transform:uppercase; letter-spacing:.08em; margin:14px 0 6px; padding-bottom:4px; border-bottom:1px solid var(--border); }
+.rpa-modal .rpa-section-h:first-of-type { margin-top:4px; }
+.rpa-modal .rpa-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; }
+.rpa-modal .rpa-grid.full { grid-template-columns:1fr; }
+.rpa-modal .rpa-field { display:flex; flex-direction:column; gap:3px; }
+.rpa-modal .rpa-field.full { grid-column:1 / -1; }
+.rpa-modal .rpa-field label { font-size:10px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.rpa-modal .rpa-field input, .rpa-modal .rpa-field textarea, .rpa-modal .rpa-field select { font-family:inherit; font-size:12px; padding:5px 8px; border:1px solid var(--border); border-radius:4px; background:var(--bg); color:var(--text); outline:none; box-sizing:border-box; width:100%; }
+.rpa-modal .rpa-field textarea { resize:vertical; min-height:44px; }
+.rpa-modal .rpa-field input:focus, .rpa-modal .rpa-field textarea:focus { border-color:var(--accent); }
+.rpa-modal .rpa-toggle-row { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-2); padding-top:18px; }
+.rpa-modal .rpa-toggle-row input[type=checkbox] { width:auto; margin:0; }
+.rpa-modal .lm-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border); }
+.rpa-modal .lm-msg { font-size:11px; min-height:14px; color:var(--red); margin-top:6px; }
+
+/* RPA inline button in cash sect header */
+.rpa-btn-inline { font-size:11px; font-weight:600; padding:3px 9px; border:1px solid var(--border); border-radius:5px; background:#fff; color:var(--text-2); cursor:pointer; font-family:inherit; margin-right:8px; transition:all .12s; }
+.rpa-btn-inline:hover { border-color:var(--accent); color:var(--accent); }
+
+/* Lightweight toast (only added if not present elsewhere) */
+.bs-toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#1f2937; color:#fff; padding:9px 18px; border-radius:6px; font-size:12px; font-weight:500; z-index:10100; box-shadow:0 4px 16px rgba(0,0,0,.2); opacity:0; transition:opacity .15s; pointer-events:none; }
+.bs-toast.show { opacity:1; }
+
 /* Loan edit popover (inline-edit per-loan from financing row) */
 .loan-edit-pop { position:absolute; background:#fff; border:1px solid var(--border-strong); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.08); padding:12px; z-index:30; min-width:340px; }
 .loan-edit-pop .grid { display:grid; grid-template-columns:auto 1fr; gap:6px 10px; align-items:center; }
@@ -360,6 +390,78 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
   <button class="acq-lb-close" onclick="closeAcqLightbox()" aria-label="Close lightbox">✕</button>
   <div class="acq-lb-addr" id="acqLightboxAddr"></div>
   <img class="acq-lb-img" id="acqLightboxImg" alt="" onclick="closeAcqLightbox()">
+</div>
+
+<!-- Backstage toast (used by RPA generator + future surfaces) -->
+<div class="bs-toast" id="bsToast"></div>
+
+<!-- RPA Generator modal — fills CAR RPA PDF for the current deal -->
+<div class="rpa-modal-overlay" id="rpaModal" onclick="if(event.target===this)closeRpaModal()">
+  <div class="rpa-modal">
+    <h3>Generate RPA</h3>
+    <p class="rpa-sub">Pre-filled from this deal. Edit any field, then Generate to download the PDF and open a Gmail draft.</p>
+
+    <div class="rpa-section-h">Property</div>
+    <div class="rpa-grid">
+      <div class="rpa-field full"><label>Street Address</label><input type="text" id="rpa_propertyAddress" placeholder="13353 Beach St"></div>
+      <div class="rpa-field"><label>City</label><input type="text" id="rpa_city" placeholder="Cerritos"></div>
+      <div class="rpa-field"><label>County</label><input type="text" id="rpa_county" placeholder="Los Angeles"></div>
+      <div class="rpa-field"><label>Zip</label><input type="text" id="rpa_zip" placeholder="90703"></div>
+      <div class="rpa-field"><label>APN</label><input type="text" id="rpa_apn" placeholder="0000-000-000"></div>
+    </div>
+
+    <div class="rpa-section-h">Buyer</div>
+    <div class="rpa-grid">
+      <div class="rpa-field"><label>Buyer Name</label><input type="text" id="rpa_buyerName"></div>
+      <div class="rpa-toggle-row"><input type="checkbox" id="rpa_isEntityBuyer"><label for="rpa_isEntityBuyer" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-4);">Entity Buyer</label></div>
+      <div class="rpa-field"><label>Entity Name</label><input type="text" id="rpa_buyerEntity"></div>
+      <div class="rpa-field"><label>Authorized Signer</label><input type="text" id="rpa_authorizedSigner"></div>
+      <div class="rpa-field"><label>Signer Title</label><input type="text" id="rpa_signerTitle"></div>
+      <div class="rpa-field"><label>Initials</label><input type="text" id="rpa_buyerInitials"></div>
+      <div class="rpa-field full"><label>Signature</label><input type="text" id="rpa_buyerSignature"></div>
+    </div>
+
+    <div class="rpa-section-h">Offer Terms</div>
+    <div class="rpa-grid">
+      <div class="rpa-field"><label>Date</label><input type="text" id="rpa_offerDate" placeholder="M/D/YYYY"></div>
+      <div class="rpa-field"><label>Offer Price ($)</label><input type="text" id="rpa_purchasePrice" placeholder="1,000,000"></div>
+      <div class="rpa-field"><label>EMD ($)</label><input type="text" id="rpa_emdDollars" placeholder="30,000"></div>
+      <div class="rpa-field"><label>EMD (%)</label><input type="text" id="rpa_emdPercent" placeholder="3.00"></div>
+      <div class="rpa-field"><label>Down Payment ($)</label><input type="text" id="rpa_downPayment"></div>
+      <div class="rpa-field"><label>COE Days</label><input type="text" id="rpa_coeDays" placeholder="15"></div>
+      <div class="rpa-toggle-row"><input type="checkbox" id="rpa_hasCompensation"><label for="rpa_hasCompensation" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-4);">Compensation</label></div>
+      <div class="rpa-field"><label>Comp (%)</label><input type="text" id="rpa_compensationPercent" placeholder="2.50"></div>
+    </div>
+
+    <div class="rpa-section-h">Contingencies</div>
+    <div class="rpa-grid">
+      <div class="rpa-toggle-row"><input type="checkbox" id="rpa_allCash"><label for="rpa_allCash" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-4);">All Cash</label></div>
+      <div class="rpa-toggle-row"><input type="checkbox" id="rpa_noCRB"><label for="rpa_noCRB" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-4);">Remove All Contingency</label></div>
+      <div class="rpa-toggle-row"><input type="checkbox" id="rpa_noInspection"><label for="rpa_noInspection" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-4);">No Inspection Contingency</label></div>
+      <div class="rpa-field"><label>Inspection Days</label><input type="text" id="rpa_inspectionDays" placeholder="7"></div>
+    </div>
+
+    <div class="rpa-section-h">Other</div>
+    <div class="rpa-grid full">
+      <div class="rpa-field full"><label>Other Terms</label><textarea id="rpa_otherTerms"></textarea></div>
+    </div>
+
+    <div class="rpa-section-h">Seller Agent</div>
+    <div class="rpa-grid">
+      <div class="rpa-field"><label>Agent Name</label><input type="text" id="rpa_sellerAgentName"></div>
+      <div class="rpa-field"><label>Agent License #</label><input type="text" id="rpa_sellerAgentLicense"></div>
+      <div class="rpa-field"><label>Broker Name</label><input type="text" id="rpa_sellerBrokerName"></div>
+      <div class="rpa-field"><label>Broker License #</label><input type="text" id="rpa_sellerBrokerLicense"></div>
+      <div class="rpa-field"><label>Seller / Agent Email</label><input type="text" id="rpa_sellerEmail" placeholder="agent@example.com"></div>
+      <div class="rpa-field"><label>Seller Agent Phone</label><input type="text" id="rpa_sellerAgentPhone"></div>
+    </div>
+
+    <div class="lm-msg" id="rpaMsg"></div>
+    <div class="lm-actions">
+      <button class="lm-btn lm-btn-secondary" onclick="closeRpaModal()">Cancel</button>
+      <button class="lm-btn lm-btn-primary" id="rpaGenerateBtn" onclick="generateRpa()">Generate</button>
+    </div>
+  </div>
 </div>
 
 <!-- MG — Loan modal (fires after in_escrow transition with no existing loan). -->
@@ -1413,12 +1515,15 @@ function renderCashSection(role, cfg){
       }).join('')}
     </div>
   `;
+  const rpaBtnHtml=(currentDeal && currentDeal.phase==='pursuing')
+    ? `<button class="rpa-btn-inline" onclick="openRpaModal()" title="Fill CAR RPA for this deal">📄 Generate RPA</button>`
+    : '';
   return `
     <div class="sect" id="cashSect">
       <div class="sect-h">
         <h2 id="cashSectTitle">${escapeHtml(cfg.cashTitle||'Cash position')}</h2>
         <span class="sub" id="cashSectSub">${escapeHtml(cfg.cashSub||'')}</span>
-        <span class="right"><a href="money.html">Money page →</a></span>
+        <span class="right">${rpaBtnHtml}<a href="money.html">Money page →</a></span>
       </div>
       ${cashGridHtml}
       ${renderOfferCalc()}
@@ -2192,6 +2297,503 @@ async function saveLoanFromModal(){
   await loadProject();
 }
 window.saveLoanFromModal=saveLoanFromModal;
+
+// ============================================================
+// RPA GENERATOR — fills CAR RPA PDF for the current deal.
+// Ported (and simplified to single-deal) from /Users/pattyhsu/RPA Generator/dotty-offer-usable.html.
+// ============================================================
+const RPA_DEFAULTS = {
+  allCash: true,
+  emdPercent: "3.00",
+  noInspection: false,
+  noCRB: false,
+  inspectionDays: "7",
+  compensationPercent: "2.50",
+  hasCompensation: true,
+  buyerName: "Dotty Homes",
+  isEntityBuyer: true,
+  buyerEntity: "Dotty Homes",
+  authorizedSigner: "Cheng Yuan Tsai",
+  signerTitle: "Manager",
+  buyerInitials: "CYT",
+  buyerSignature: "Cheng Yuan Tsai",
+  buyerAgentName: "Hsin-Yih Hsu",
+  buyerAgentLicense: "02099400",
+  buyerBrokerName: "Pellego, Inc.",
+  buyerBrokerLicense: "02043232",
+  sellerAgentName: "",
+  sellerAgentLicense: "",
+  sellerBrokerName: "",
+  sellerBrokerLicense: "",
+  sellerName: "",
+  sellerEmail: "",
+  sellerAgentPhone: "",
+  otherTerms: "All cash with options to secure financing",
+  offerDate: "",
+  purchasePrice: "",
+  emdDollars: "",
+  downPayment: "",
+  coeDays: "15",
+  propertyAddress: "",
+  city: "",
+  county: "",
+  zip: "",
+  apn: "",
+};
+
+const RPA_PDF_TEMPLATE_URL = 'https://photos.dottyhomes.com/templates/rpa_empty.pdf';
+
+const CITY_TO_COUNTY = {
+  // LA County
+  'pasadena':'Los Angeles','arcadia':'Los Angeles','san gabriel':'Los Angeles','alhambra':'Los Angeles',
+  'monterey park':'Los Angeles','rosemead':'Los Angeles','temple city':'Los Angeles','monrovia':'Los Angeles',
+  'duarte':'Los Angeles','el monte':'Los Angeles','south el monte':'Los Angeles','baldwin park':'Los Angeles',
+  'covina':'Los Angeles','west covina':'Los Angeles','glendora':'Los Angeles','azusa':'Los Angeles',
+  'diamond bar':'Los Angeles','walnut':'Los Angeles','la puente':'Los Angeles','hacienda heights':'Los Angeles',
+  'rowland heights':'Los Angeles','whittier':'Los Angeles','la mirada':'Los Angeles','pico rivera':'Los Angeles',
+  'norwalk':'Los Angeles','cerritos':'Los Angeles','artesia':'Los Angeles','bellflower':'Los Angeles',
+  'lakewood':'Los Angeles','long beach':'Los Angeles','signal hill':'Los Angeles','carson':'Los Angeles',
+  'compton':'Los Angeles','paramount':'Los Angeles','downey':'Los Angeles','south gate':'Los Angeles',
+  'lynwood':'Los Angeles','huntington park':'Los Angeles','commerce':'Los Angeles','montebello':'Los Angeles',
+  'san marino':'Los Angeles','south pasadena':'Los Angeles','glendale':'Los Angeles','burbank':'Los Angeles',
+  'altadena':'Los Angeles','los angeles':'Los Angeles','beverly hills':'Los Angeles','west hollywood':'Los Angeles',
+  'culver city':'Los Angeles','inglewood':'Los Angeles','el segundo':'Los Angeles','manhattan beach':'Los Angeles',
+  'hermosa beach':'Los Angeles','redondo beach':'Los Angeles','torrance':'Los Angeles','lomita':'Los Angeles',
+  'san pedro':'Los Angeles','gardena':'Los Angeles','hawthorne':'Los Angeles','lawndale':'Los Angeles',
+  // Orange County
+  'anaheim':'Orange','santa ana':'Orange','irvine':'Orange','costa mesa':'Orange','newport beach':'Orange',
+  'huntington beach':'Orange','garden grove':'Orange','fountain valley':'Orange','westminster':'Orange',
+  'buena park':'Orange','fullerton':'Orange','la habra':'Orange','brea':'Orange','yorba linda':'Orange',
+  'placentia':'Orange','orange':'Orange','tustin':'Orange','aliso viejo':'Orange','mission viejo':'Orange',
+  'laguna niguel':'Orange','laguna hills':'Orange','laguna beach':'Orange','lake forest':'Orange',
+  'rancho santa margarita':'Orange','san juan capistrano':'Orange','san clemente':'Orange','dana point':'Orange',
+  'cypress':'Orange','stanton':'Orange','los alamitos':'Orange','seal beach':'Orange',
+  // San Bernardino
+  'chino':'San Bernardino','chino hills':'San Bernardino','ontario':'San Bernardino','upland':'San Bernardino',
+  'rancho cucamonga':'San Bernardino','fontana':'San Bernardino','rialto':'San Bernardino','colton':'San Bernardino',
+  'san bernardino':'San Bernardino','highland':'San Bernardino','redlands':'San Bernardino','yucaipa':'San Bernardino',
+  // Riverside
+  'riverside':'Riverside','moreno valley':'Riverside','corona':'Riverside','norco':'Riverside','eastvale':'Riverside',
+  'jurupa valley':'Riverside','perris':'Riverside','hemet':'Riverside','menifee':'Riverside','murrieta':'Riverside',
+  'temecula':'Riverside','lake elsinore':'Riverside',
+};
+
+const RPA_MONEY_FIELDS = ['purchasePrice','emdDollars','downPayment'];
+const RPA_TOGGLE_FIELDS = ['isEntityBuyer','hasCompensation','allCash','noCRB','noInspection'];
+const RPA_TEXT_FIELDS = [
+  'propertyAddress','city','county','zip','apn',
+  'buyerName','buyerEntity','authorizedSigner','signerTitle','buyerInitials','buyerSignature',
+  'offerDate','purchasePrice','emdDollars','emdPercent','downPayment','coeDays','compensationPercent',
+  'inspectionDays','otherTerms',
+  'sellerAgentName','sellerAgentLicense','sellerBrokerName','sellerBrokerLicense','sellerEmail','sellerAgentPhone',
+];
+
+let rpaValues = {};
+
+function bsToast(msg){
+  const el=document.getElementById('bsToast');
+  if(!el)return;
+  el.textContent=msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>el.classList.remove('show'), 2400);
+}
+
+function rpaAddCommas(s){
+  s=String(s||'');
+  const parts=s.split('.');
+  parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  return parts.join('.');
+}
+function rpaStripCommas(s){return String(s||'').replace(/,/g,'');}
+function rpaFmt(v){const n=parseFloat(v);return isNaN(n)?(v||'—'):n.toLocaleString('en-US');}
+function rpaTodayMDY(){const d=new Date();return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear();}
+
+function rpaSyncDomFromValues(){
+  // Text/number/textarea
+  RPA_TEXT_FIELDS.forEach(k=>{
+    const el=document.getElementById('rpa_'+k);
+    if(!el)return;
+    let v=rpaValues[k]||'';
+    if(RPA_MONEY_FIELDS.indexOf(k)>=0 && v)v=rpaAddCommas(rpaStripCommas(v));
+    el.value=v;
+  });
+  // Toggles
+  RPA_TOGGLE_FIELDS.forEach(k=>{
+    const el=document.getElementById('rpa_'+k);
+    if(!el)return;
+    el.checked=!!rpaValues[k];
+  });
+}
+
+function rpaReadDomIntoValues(){
+  RPA_TEXT_FIELDS.forEach(k=>{
+    const el=document.getElementById('rpa_'+k);
+    if(!el)return;
+    let v=el.value;
+    if(RPA_MONEY_FIELDS.indexOf(k)>=0)v=rpaStripCommas(v);
+    rpaValues[k]=v;
+  });
+  RPA_TOGGLE_FIELDS.forEach(k=>{
+    const el=document.getElementById('rpa_'+k);
+    if(!el)return;
+    rpaValues[k]=!!el.checked;
+  });
+}
+
+function rpaWireAutoCalc(){
+  const priceEl=document.getElementById('rpa_purchasePrice');
+  const pctEl=document.getElementById('rpa_emdPercent');
+  const emdEl=document.getElementById('rpa_emdDollars');
+  const dpEl=document.getElementById('rpa_downPayment');
+  if(!priceEl||!pctEl||!emdEl||!dpEl)return;
+
+  function recalcFromPriceOrPct(){
+    const price=parseFloat(rpaStripCommas(priceEl.value));
+    const pct=parseFloat(pctEl.value);
+    if(!isNaN(price) && !isNaN(pct)){
+      const emd=Math.round(price*pct/100);
+      const dp=price-emd;
+      emdEl.value=rpaAddCommas(String(emd));
+      dpEl.value=rpaAddCommas(String(dp));
+    }
+  }
+  function recalcFromEmd(){
+    const price=parseFloat(rpaStripCommas(priceEl.value));
+    const emd=parseFloat(rpaStripCommas(emdEl.value));
+    if(!isNaN(price) && price>0){
+      pctEl.value=((emd/price)*100).toFixed(2);
+      const dp=price-(isNaN(emd)?0:emd);
+      dpEl.value=rpaAddCommas(String(dp));
+    }
+  }
+  function liveCommas(el){
+    const raw=rpaStripCommas(el.value);
+    if(!raw)return;
+    const cursorPos=el.selectionStart;
+    const beforeLen=el.value.length;
+    el.value=rpaAddCommas(raw);
+    const afterLen=el.value.length;
+    const newPos=cursorPos+(afterLen-beforeLen);
+    try{el.setSelectionRange(newPos,newPos);}catch(e){}
+  }
+
+  priceEl.addEventListener('input',()=>{liveCommas(priceEl); recalcFromPriceOrPct();});
+  pctEl.addEventListener('input',recalcFromPriceOrPct);
+  emdEl.addEventListener('input',()=>{liveCommas(emdEl); recalcFromEmd();});
+  dpEl.addEventListener('input',()=>liveCommas(dpEl));
+}
+
+async function rpaLookupAgent(name){
+  const key=String(name||'').trim().toLowerCase();
+  if(!key)return null;
+  try{
+    const {data}=await sb.from('agents')
+      .select('agent_dre,broker_dre,broker_name')
+      .eq('agent_name_key', key)
+      .maybeSingle();
+    return data||null;
+  }catch(e){
+    console.warn('[rpa] agent lookup failed:', e);
+    return null;
+  }
+}
+
+async function openRpaModal(){
+  if(!currentDeal || currentDeal.phase!=='pursuing'){
+    bsToast('RPA generator only available in the Pursuing phase');
+    return;
+  }
+  // Start from defaults (deep copy)
+  rpaValues=JSON.parse(JSON.stringify(RPA_DEFAULTS));
+
+  // Overlay from DB
+  const p=primaryProperty();
+  if(p){
+    rpaValues.propertyAddress=p.address||'';
+    rpaValues.city=p.city||'';
+    rpaValues.zip=p.zip||'';
+    rpaValues.apn=p.apn||'';
+    rpaValues.sellerAgentName=p.agent_name||'';
+    rpaValues.sellerEmail=p.agent_email||'';
+    rpaValues.sellerBrokerName=p.agent_broker||'';
+    const cityKey=String(rpaValues.city||'').trim().toLowerCase();
+    rpaValues.county=CITY_TO_COUNTY[cityKey]||'';
+  }
+  if(currentDeal && currentDeal.offer_price!=null && currentDeal.offer_price!==''){
+    rpaValues.purchasePrice=String(currentDeal.offer_price);
+  }
+  rpaValues.offerDate=rpaTodayMDY();
+
+  // Agents lookup (synchronous before render)
+  if(rpaValues.sellerAgentName){
+    const row=await rpaLookupAgent(rpaValues.sellerAgentName);
+    if(row){
+      if(row.agent_dre)rpaValues.sellerAgentLicense=row.agent_dre;
+      if(row.broker_dre)rpaValues.sellerBrokerLicense=row.broker_dre;
+      if(row.broker_name && !rpaValues.sellerBrokerName)rpaValues.sellerBrokerName=row.broker_name;
+    }
+  }
+
+  // EMD auto-calc once before rendering
+  const price=parseFloat(rpaStripCommas(rpaValues.purchasePrice));
+  const pct=parseFloat(rpaValues.emdPercent);
+  if(!isNaN(price) && !isNaN(pct)){
+    const emd=Math.round(price*pct/100);
+    rpaValues.emdDollars=String(emd);
+    rpaValues.downPayment=String(price-emd);
+  }
+
+  rpaSyncDomFromValues();
+  rpaWireAutoCalc();
+
+  const msg=document.getElementById('rpaMsg');
+  if(msg)msg.textContent='';
+
+  const overlay=document.getElementById('rpaModal');
+  if(overlay){
+    overlay.classList.add('open');
+    document.addEventListener('keydown', _rpaKey);
+  }
+}
+window.openRpaModal=openRpaModal;
+
+function closeRpaModal(){
+  const overlay=document.getElementById('rpaModal');
+  if(overlay)overlay.classList.remove('open');
+  document.removeEventListener('keydown', _rpaKey);
+}
+window.closeRpaModal=closeRpaModal;
+function _rpaKey(e){if(e.key==='Escape')closeRpaModal();}
+
+function rpaEmailBody(v){
+  const shortAddr=[v.propertyAddress, v.city].filter(Boolean).join(', ');
+  const priceFmt=rpaFmt(v.purchasePrice);
+  const emdFmt=rpaFmt(v.emdDollars);
+  const firstName=(v.sellerAgentName||'').split(' ')[0] || 'Hi';
+  const lines=[];
+  lines.push('Hi '+firstName+',');
+  lines.push('');
+  lines.push('*Please confirm receipt of this offer*');
+  lines.push('');
+  lines.push('I am writing to submit an offer for '+shortAddr+'.');
+  lines.push('');
+  lines.push('Here are the key terms:');
+  lines.push('• Offer Price: $'+priceFmt);
+  lines.push('• EMD: $'+emdFmt);
+  lines.push('• '+(v.allCash?'ALL CASH offer':'Financed offer'));
+  lines.push('• COE: '+(v.coeDays||'15')+' days');
+  if(v.noCRB){
+    lines.push('• No contingencies');
+  } else {
+    if(v.noInspection){
+      lines.push('• No inspection contingency');
+    } else {
+      lines.push('• Physical inspection: '+(v.inspectionDays||'7')+' days');
+    }
+  }
+  lines.push('');
+  lines.push('Attached please find the RPA and POF.');
+  lines.push('Please let me know if there are any questions. We are eager to move forward quickly and efficiently!');
+  lines.push('');
+  lines.push('Regards,');
+  lines.push('Patty');
+  lines.push('(626) 503-9018');
+  return lines.join('\n');
+}
+
+function rpaOpenGmailDraft(v){
+  const to=v.sellerEmail||'';
+  const shortAddr=[v.propertyAddress, v.city].filter(Boolean).join(', ');
+  const subject='PURCHASE OFFER: '+(shortAddr||'Property');
+  const body=rpaEmailBody(v);
+  window.open('https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(to)+'&su='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body), '_blank');
+}
+
+function rpaUpsertAgent(v){
+  if(!v.sellerAgentName || !v.sellerAgentName.trim())return;
+  try{
+    const row={
+      agent_name_key: v.sellerAgentName.trim().toLowerCase(),
+      agent_name: v.sellerAgentName.trim(),
+      agent_dre: v.sellerAgentLicense || null,
+      broker_name: v.sellerBrokerName || null,
+      broker_dre: v.sellerBrokerLicense || null,
+      updated_at: new Date().toISOString(),
+    };
+    sb.from('agents').upsert(row, {onConflict:'agent_name_key'})
+      .then(({error})=>{ if(error)console.warn('[rpa] agent upsert error:', error.message); });
+  }catch(e){
+    console.warn('[rpa] agent upsert threw:', e);
+  }
+}
+
+async function generateRpa(){
+  const msg=document.getElementById('rpaMsg');
+  const btn=document.getElementById('rpaGenerateBtn');
+  if(msg)msg.textContent='';
+
+  rpaReadDomIntoValues();
+  const v=rpaValues;
+
+  // Validation
+  const missing=[];
+  if(!v.propertyAddress || !v.propertyAddress.trim())missing.push('Street Address');
+  if(!v.purchasePrice || !rpaStripCommas(v.purchasePrice).trim())missing.push('Offer Price');
+  if(!v.sellerEmail || !v.sellerEmail.trim())missing.push('Seller / Agent Email');
+  if(missing.length){
+    if(msg)msg.textContent='Missing: '+missing.join(', ');
+    return;
+  }
+
+  if(typeof PDFLib==='undefined'){
+    if(msg)msg.textContent='PDF library not loaded. Refresh and try again.';
+    return;
+  }
+
+  btn.disabled=true;
+
+  let templateBytes=null;
+  try{
+    const resp=await fetch(RPA_PDF_TEMPLATE_URL);
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
+    templateBytes=await resp.arrayBuffer();
+  }catch(e){
+    btn.disabled=false;
+    if(msg)msg.textContent='Could not fetch RPA template: '+e.message;
+    bsToast('RPA template fetch failed');
+    return;
+  }
+
+  function fmtPrice(val){
+    const n=parseFloat(rpaStripCommas(val));
+    if(isNaN(n))return val||'';
+    return n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  function fmtInt(val){
+    const n=parseFloat(rpaStripCommas(val));
+    if(isNaN(n))return val||'';
+    return n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  try{
+    const pdfDoc=await PDFLib.PDFDocument.load(templateBytes, {ignoreEncryption:true});
+    const form=pdfDoc.getForm();
+    const allFields=form.getFields();
+    const fieldLookup={};
+    allFields.forEach(f=>{fieldLookup[f.getName()]=f;});
+
+    const userDate=v.offerDate || rpaTodayMDY();
+
+    // NOTE: corrected per template ("buyer initial", "entity buyer name", "buyer signature")
+    const fieldMap={
+      // Property
+      'street address': v.propertyAddress||'',
+      'full address': (v.propertyAddress||'')+', '+(v.city||'')+', CA '+(v.zip||''),
+      'City': v.city||'',
+      'County': v.county||'',
+      'zipcode': v.zip||'',
+      'APN': v.apn||'',
+      // Buyer
+      'buyer': v.buyerName||'',
+      'entity buyer': v.isEntityBuyer?'X':'',
+      'entity buyer name': v.isEntityBuyer?(v.buyerEntity||''):'',
+      'authorized signer': v.isEntityBuyer?(v.authorizedSigner||''):'',
+      'authorized signer title': v.isEntityBuyer?(v.signerTitle||''):'',
+      'buyer initial': v.buyerInitials||'',
+      'buyer signature': v.buyerSignature||'',
+      // Dates
+      'date': userDate,
+      'sign date': userDate,
+      'date number form': userDate,
+      // Offer terms
+      'offer price': fmtPrice(v.purchasePrice),
+      'emd $': fmtInt(v.emdDollars),
+      'emd %': v.emdPercent||'',
+      'balance': fmtInt(v.downPayment),
+      'COE': v.coeDays||'',
+      'compensation': v.hasCompensation?'X':'',
+      'compensation %': v.hasCompensation?(v.compensationPercent||''):'',
+      // Contingencies
+      'all cash': v.allCash?'X':'',
+      'no contingency': v.noCRB?'X':'',
+      'physical inspection days': v.inspectionDays||'',
+      // Other
+      'other terms': v.otherTerms||'',
+      // Buyer agent (from defaults)
+      'buyer agent': v.buyerAgentName||'',
+      'buyer agent #': v.buyerAgentLicense||'',
+      'buyer broker': v.buyerBrokerName||'',
+      'buyer broker #': v.buyerBrokerLicense||'',
+      // Seller agent
+      'seller agent': v.sellerAgentName||'',
+      'seller agent #': v.sellerAgentLicense||'',
+      'seller broker': v.sellerBrokerName||'',
+      'seller broker #': v.sellerBrokerLicense||'',
+    };
+
+    const alwaysWrite=['all cash','no contingency','compensation','compensation %','entity buyer'];
+
+    Object.keys(fieldMap).forEach(fieldName=>{
+      const value=fieldMap[fieldName];
+      if(!value && alwaysWrite.indexOf(fieldName)===-1)return;
+      const field=fieldLookup[fieldName];
+      if(!field)return;
+      try{
+        const dict=field.acroField.dict;
+        const existingDA=dict.get(PDFLib.PDFName.of('DA'));
+        let daString='/Helv 10 Tf 0 g';
+        if(existingDA){
+          if(existingDA.decodeText)daString=existingDA.decodeText();
+          else if(existingDA.asString)daString=existingDA.asString();
+          else { daString=existingDA.toString().replace(/^\(/,'').replace(/\)$/,''); }
+        }
+        dict.set(PDFLib.PDFName.of('V'), PDFLib.PDFHexString.fromText(value));
+        dict.set(PDFLib.PDFName.of('DA'), PDFLib.PDFString.of(daString));
+        const widgets=field.acroField.getWidgets();
+        widgets.forEach(w=>{ w.dict.delete(PDFLib.PDFName.of('AP')); });
+      }catch(e){
+        console.warn('[rpa] field fill failed for', fieldName, e.message);
+      }
+    });
+
+    try{
+      const acroFormRef=pdfDoc.catalog.get(PDFLib.PDFName.of('AcroForm'));
+      const acroFormDict=acroFormRef instanceof PDFLib.PDFDict ? acroFormRef : pdfDoc.context.lookup(acroFormRef);
+      if(acroFormDict && acroFormDict.set){
+        acroFormDict.set(PDFLib.PDFName.of('NeedAppearances'), PDFLib.PDFBool.True);
+      }
+    }catch(e){}
+
+    const pdfBytes=await pdfDoc.save();
+    const blob=new Blob([pdfBytes], {type:'application/pdf'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='RPA ('+((v.propertyAddress||'Offer').trim())+').pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }catch(e){
+    btn.disabled=false;
+    console.error('[rpa] generate failed:', e);
+    if(msg)msg.textContent='PDF generation failed: '+e.message;
+    bsToast('RPA generation failed');
+    return;
+  }
+
+  // Fire-and-forget agent upsert
+  rpaUpsertAgent(v);
+
+  // Gmail draft
+  rpaOpenGmailDraft(v);
+
+  btn.disabled=false;
+  closeRpaModal();
+  bsToast('RPA generated · Gmail opened');
+}
+window.generateRpa=generateRpa;
 
 // ============================================================
 // INIT
