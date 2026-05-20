@@ -2447,6 +2447,57 @@ function rpaFmt(v){const n=parseFloat(v);return isNaN(n)?(v||'—'):n.toLocaleSt
 function rpaTodayMDY(){const d=new Date();return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear();}
 function rpaTitleCase(s){return String(s||'').toLowerCase().replace(/\b\w/g, c=>c.toUpperCase());}
 
+const RPA_CR_TEMPLATE_URL='https://photos.dottyhomes.com/templates/cr_empty.pdf';
+
+// Fetches a PDF template, fills it with the given fieldMap, triggers a download.
+// alwaysWrite[] is the set of field names that should be written even when blank
+// (e.g. checkbox-style "X" markers we want to clear out from the template).
+async function rpaFillAndDownload(templateUrl, fieldMap, filename, alwaysWrite){
+  const resp=await fetch(templateUrl);
+  if(!resp.ok)throw new Error('HTTP '+resp.status);
+  const templateBytes=await resp.arrayBuffer();
+  const pdfDoc=await PDFLib.PDFDocument.load(templateBytes, {ignoreEncryption:true});
+  const form=pdfDoc.getForm();
+  const fieldLookup={};
+  form.getFields().forEach(f=>{fieldLookup[f.getName()]=f;});
+  const aw=alwaysWrite||[];
+  Object.keys(fieldMap).forEach(fieldName=>{
+    const value=fieldMap[fieldName];
+    if(!value && aw.indexOf(fieldName)===-1)return;
+    const field=fieldLookup[fieldName];
+    if(!field)return;
+    try{
+      const dict=field.acroField.dict;
+      const existingDA=dict.get(PDFLib.PDFName.of('DA'));
+      let daString='/Helv 10 Tf 0 g';
+      if(existingDA){
+        if(existingDA.decodeText)daString=existingDA.decodeText();
+        else if(existingDA.asString)daString=existingDA.asString();
+        else { daString=existingDA.toString().replace(/^\(/,'').replace(/\)$/,''); }
+      }
+      dict.set(PDFLib.PDFName.of('V'), PDFLib.PDFHexString.fromText(value));
+      dict.set(PDFLib.PDFName.of('DA'), PDFLib.PDFString.of(daString));
+      field.acroField.getWidgets().forEach(w=>{ w.dict.delete(PDFLib.PDFName.of('AP')); });
+    }catch(e){
+      console.warn('[rpa] field fill failed for', fieldName, e.message);
+    }
+  });
+  try{
+    const acroFormRef=pdfDoc.catalog.get(PDFLib.PDFName.of('AcroForm'));
+    const acroFormDict=acroFormRef instanceof PDFLib.PDFDict ? acroFormRef : pdfDoc.context.lookup(acroFormRef);
+    if(acroFormDict && acroFormDict.set){
+      acroFormDict.set(PDFLib.PDFName.of('NeedAppearances'), PDFLib.PDFBool.True);
+    }
+  }catch(e){}
+  const pdfBytes=await pdfDoc.save();
+  const blob=new Blob([pdfBytes], {type:'application/pdf'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function rpaUpdateEmailPreview(){
   const ta=document.getElementById('rpaEmailPreview');
   if(!ta)return;
@@ -2743,18 +2794,6 @@ async function generateRpa(){
 
   btn.disabled=true;
 
-  let templateBytes=null;
-  try{
-    const resp=await fetch(RPA_PDF_TEMPLATE_URL);
-    if(!resp.ok)throw new Error('HTTP '+resp.status);
-    templateBytes=await resp.arrayBuffer();
-  }catch(e){
-    btn.disabled=false;
-    if(msg)msg.textContent='Could not fetch RPA template: '+e.message;
-    bsToast('RPA template fetch failed');
-    return;
-  }
-
   function fmtPrice(val){
     const n=parseFloat(rpaStripCommas(val));
     if(isNaN(n))return val||'';
@@ -2766,111 +2805,80 @@ async function generateRpa(){
     return n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
   }
 
+  const userDate=v.offerDate || rpaTodayMDY();
+  const addrSafe=(v.propertyAddress||'Offer').trim();
+  const fullAddr=(v.propertyAddress||'')+', '+(v.city||'')+', CA '+(v.zip||'');
+
+  // RPA field map — corrected per template ("buyer initial", "entity buyer name", "buyer signature")
+  const rpaMap={
+    'street address': v.propertyAddress||'',
+    'full address': fullAddr,
+    'City': v.city||'',
+    'County': v.county||'',
+    'zipcode': v.zip||'',
+    'APN': v.apn||'',
+    'buyer': v.buyerName||'',
+    'entity buyer': v.isEntityBuyer?'X':'',
+    'entity buyer name': v.isEntityBuyer?(v.buyerEntity||''):'',
+    'authorized signer': v.isEntityBuyer?(v.authorizedSigner||''):'',
+    'authorized signer title': v.isEntityBuyer?(v.signerTitle||''):'',
+    'buyer initial': v.buyerInitials||'',
+    'buyer signature': v.buyerSignature||'',
+    'date': userDate,
+    'sign date': userDate,
+    'date number form': userDate,
+    'offer price': fmtPrice(v.purchasePrice),
+    'emd $': fmtInt(v.emdDollars),
+    'emd %': v.emdPercent||'',
+    'balance': fmtInt(v.downPayment),
+    'COE': v.coeDays||'',
+    'compensation': v.hasCompensation?'X':'',
+    'compensation %': v.hasCompensation?(v.compensationPercent||''):'',
+    'all cash': v.allCash?'X':'',
+    'no contingency': v.noCRB?'X':'',
+    'physical inspection days': v.inspectionDays||'',
+    'other terms': v.otherTerms||'',
+    'buyer agent': v.buyerAgentName||'',
+    'buyer agent #': v.buyerAgentLicense||'',
+    'buyer broker': v.buyerBrokerName||'',
+    'buyer broker #': v.buyerBrokerLicense||'',
+    'seller agent': v.sellerAgentName||'',
+    'seller agent #': v.sellerAgentLicense||'',
+    'seller broker': v.sellerBrokerName||'',
+    'seller broker #': v.sellerBrokerLicense||'',
+  };
+  const rpaAlwaysWrite=['all cash','no contingency','compensation','compensation %','entity buyer'];
+
   try{
-    const pdfDoc=await PDFLib.PDFDocument.load(templateBytes, {ignoreEncryption:true});
-    const form=pdfDoc.getForm();
-    const allFields=form.getFields();
-    const fieldLookup={};
-    allFields.forEach(f=>{fieldLookup[f.getName()]=f;});
-
-    const userDate=v.offerDate || rpaTodayMDY();
-
-    // NOTE: corrected per template ("buyer initial", "entity buyer name", "buyer signature")
-    const fieldMap={
-      // Property
-      'street address': v.propertyAddress||'',
-      'full address': (v.propertyAddress||'')+', '+(v.city||'')+', CA '+(v.zip||''),
-      'City': v.city||'',
-      'County': v.county||'',
-      'zipcode': v.zip||'',
-      'APN': v.apn||'',
-      // Buyer
-      'buyer': v.buyerName||'',
-      'entity buyer': v.isEntityBuyer?'X':'',
-      'entity buyer name': v.isEntityBuyer?(v.buyerEntity||''):'',
-      'authorized signer': v.isEntityBuyer?(v.authorizedSigner||''):'',
-      'authorized signer title': v.isEntityBuyer?(v.signerTitle||''):'',
-      'buyer initial': v.buyerInitials||'',
-      'buyer signature': v.buyerSignature||'',
-      // Dates
-      'date': userDate,
-      'sign date': userDate,
-      'date number form': userDate,
-      // Offer terms
-      'offer price': fmtPrice(v.purchasePrice),
-      'emd $': fmtInt(v.emdDollars),
-      'emd %': v.emdPercent||'',
-      'balance': fmtInt(v.downPayment),
-      'COE': v.coeDays||'',
-      'compensation': v.hasCompensation?'X':'',
-      'compensation %': v.hasCompensation?(v.compensationPercent||''):'',
-      // Contingencies
-      'all cash': v.allCash?'X':'',
-      'no contingency': v.noCRB?'X':'',
-      'physical inspection days': v.inspectionDays||'',
-      // Other
-      'other terms': v.otherTerms||'',
-      // Buyer agent (from defaults)
-      'buyer agent': v.buyerAgentName||'',
-      'buyer agent #': v.buyerAgentLicense||'',
-      'buyer broker': v.buyerBrokerName||'',
-      'buyer broker #': v.buyerBrokerLicense||'',
-      // Seller agent
-      'seller agent': v.sellerAgentName||'',
-      'seller agent #': v.sellerAgentLicense||'',
-      'seller broker': v.sellerBrokerName||'',
-      'seller broker #': v.sellerBrokerLicense||'',
-    };
-
-    const alwaysWrite=['all cash','no contingency','compensation','compensation %','entity buyer'];
-
-    Object.keys(fieldMap).forEach(fieldName=>{
-      const value=fieldMap[fieldName];
-      if(!value && alwaysWrite.indexOf(fieldName)===-1)return;
-      const field=fieldLookup[fieldName];
-      if(!field)return;
-      try{
-        const dict=field.acroField.dict;
-        const existingDA=dict.get(PDFLib.PDFName.of('DA'));
-        let daString='/Helv 10 Tf 0 g';
-        if(existingDA){
-          if(existingDA.decodeText)daString=existingDA.decodeText();
-          else if(existingDA.asString)daString=existingDA.asString();
-          else { daString=existingDA.toString().replace(/^\(/,'').replace(/\)$/,''); }
-        }
-        dict.set(PDFLib.PDFName.of('V'), PDFLib.PDFHexString.fromText(value));
-        dict.set(PDFLib.PDFName.of('DA'), PDFLib.PDFString.of(daString));
-        const widgets=field.acroField.getWidgets();
-        widgets.forEach(w=>{ w.dict.delete(PDFLib.PDFName.of('AP')); });
-      }catch(e){
-        console.warn('[rpa] field fill failed for', fieldName, e.message);
-      }
-    });
-
-    try{
-      const acroFormRef=pdfDoc.catalog.get(PDFLib.PDFName.of('AcroForm'));
-      const acroFormDict=acroFormRef instanceof PDFLib.PDFDict ? acroFormRef : pdfDoc.context.lookup(acroFormRef);
-      if(acroFormDict && acroFormDict.set){
-        acroFormDict.set(PDFLib.PDFName.of('NeedAppearances'), PDFLib.PDFBool.True);
-      }
-    }catch(e){}
-
-    const pdfBytes=await pdfDoc.save();
-    const blob=new Blob([pdfBytes], {type:'application/pdf'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;
-    a.download='RPA ('+((v.propertyAddress||'Offer').trim())+').pdf';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    await rpaFillAndDownload(RPA_PDF_TEMPLATE_URL, rpaMap, 'RPA ('+addrSafe+').pdf', rpaAlwaysWrite);
   }catch(e){
     btn.disabled=false;
     console.error('[rpa] generate failed:', e);
-    if(msg)msg.textContent='PDF generation failed: '+e.message;
+    if(msg)msg.textContent='RPA generation failed: '+e.message;
     bsToast('RPA generation failed');
     return;
+  }
+
+  // Contingency Removal (CR) — only when "Remove All Contingency" is checked.
+  // Fills the same buyer/date/address info; seller name not captured anywhere
+  // in the modal so it's left blank for ink-fill.
+  let crGenerated=false;
+  if(v.noCRB){
+    const crMap={
+      'buyer': v.isEntityBuyer ? (v.buyerEntity||v.buyerName||'') : (v.buyerName||''),
+      'buyer signature': v.buyerSignature||'',
+      'date number form': userDate,
+      'sign date': userDate,
+      'full address': fullAddr,
+      // 'seller' intentionally left blank — no DB source, fill in pen.
+    };
+    try{
+      await rpaFillAndDownload(RPA_CR_TEMPLATE_URL, crMap, 'CR ('+addrSafe+').pdf', []);
+      crGenerated=true;
+    }catch(e){
+      console.error('[rpa] CR fill failed:', e);
+      bsToast('CR template fetch/fill failed — RPA still downloaded');
+    }
   }
 
   // Fire-and-forget agent upsert
@@ -2881,7 +2889,7 @@ async function generateRpa(){
 
   btn.disabled=false;
   closeRpaModal();
-  bsToast('RPA generated · Gmail opened');
+  bsToast(crGenerated ? 'RPA + CR generated · Gmail opened' : 'RPA generated · Gmail opened');
 }
 window.generateRpa=generateRpa;
 
