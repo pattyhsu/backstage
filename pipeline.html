@@ -84,6 +84,19 @@ body { overflow:hidden; height:100vh; }
 .card .age { font-size:10px; color:var(--text-4); font-family:var(--mono); }
 .card .sub { font-size:10px; color:var(--text-3); margin-top:2px; }
 
+/* Rehab budget mini-bar — Under Construction cards only (Brief MH Phase 3).
+   The one phase where rehab spend is live and steerable. Color by variance. */
+.card-bar { margin-top:9px; padding-top:8px; border-top:1px solid var(--border); }
+.card-bar-cap { display:flex; justify-content:space-between; align-items:baseline; font-size:10px; margin-bottom:5px; gap:8px; }
+.card-bar-cap .cb-lbl { font-weight:600; color:var(--text-3); letter-spacing:.02em; }
+.card-bar-cap .cb-num { color:var(--text-4); font-family:var(--mono); white-space:nowrap; }
+.card-bar-track { height:5px; border-radius:3px; background:var(--bg-inset); overflow:hidden; }
+.card-bar-fill { height:100%; border-radius:3px; }
+.card-bar-fill.under   { background:var(--green); }
+.card-bar-fill.ontrack { background:var(--blue); }
+.card-bar-fill.warn    { background:var(--amber); }
+.card-bar-fill.over    { background:var(--red); }
+
 /* Mobile / narrow viewport — stack columns vertically. */
 @media (max-width: 900px) {
   .board { flex-direction:column; overflow-x:hidden; overflow-y:auto; }
@@ -192,10 +205,54 @@ async function loadPipeline(){
     }
   }
 
-  renderBoard(dealRows, propsByMls, latestByDeal);
+  // Brief MH Phase 3 — per-deal rehab budget vs actual for the Under
+  // Construction card mini-bar. v_deal_cost_breakdown is owner-only RLS;
+  // a non-owner viewer gets an empty set (or error) and simply sees no
+  // badge — degrade gracefully, never block the board.
+  const costByDeal={};
+  try{
+    const {data:cb, error:cbErr}=await sb.from('v_deal_cost_breakdown')
+      .select('deal_id, rehab_budget, rehab_actual');
+    if(cbErr){console.warn('[pipeline] v_deal_cost_breakdown unavailable (non-fatal)',cbErr);}
+    for(const r of (cb||[])){costByDeal[r.deal_id]=r;}
+  }catch(e){console.warn('[pipeline] cost-breakdown fetch threw (non-fatal)',e);}
+
+  renderBoard(dealRows, propsByMls, latestByDeal, costByDeal);
 }
 
-function renderBoard(deals, propsByMls, latestByDeal){
+// Brief MH Phase 3 — rehab mini-bar for one Under Construction card.
+// Reads rehab_actual + rehab_budget from v_deal_cost_breakdown. Graceful:
+// no row, or no/zero budget -> spent-only caption (or omit when nothing
+// spent either). Color by variance.
+function rehabBarHtml(cost){
+  if(!cost)return '';
+  const actual=cost.rehab_actual||0;
+  const budget=cost.rehab_budget;
+  const hasBudget=budget!=null&&budget>0;
+  if(!hasBudget){
+    // No rehab budget set — show spent-only, or omit entirely if $0 spent.
+    if(actual<=0)return '';
+    return `<div class="card-bar">
+      <div class="card-bar-cap"><span class="cb-lbl">Rehab spent</span><span class="cb-num">${FK(actual)} · no budget</span></div>
+      <div class="card-bar-track"><div class="card-bar-fill ontrack" style="width:100%"></div></div>
+    </div>`;
+  }
+  const ratio=actual/budget;
+  const pct=Math.round(ratio*100);
+  const width=Math.min(Math.max(ratio,0),1)*100;
+  // green <0 (under, n/a here) · blue <80% · amber 80-100% · red >100%
+  let cls='ontrack';
+  if(ratio>1)cls='over';
+  else if(ratio>=0.8)cls='warn';
+  else cls='ontrack';
+  return `<div class="card-bar">
+    <div class="card-bar-cap"><span class="cb-lbl">Rehab budget</span><span class="cb-num">${FK(actual)} / ${FK(budget)} · ${pct}%</span></div>
+    <div class="card-bar-track"><div class="card-bar-fill ${cls}" style="width:${width}%"></div></div>
+  </div>`;
+}
+
+function renderBoard(deals, propsByMls, latestByDeal, costByDeal){
+  costByDeal=costByDeal||{};
   const byPhase={};
   for(const s of PHASES)byPhase[s]=[];
   for(const d of deals){
@@ -238,6 +295,10 @@ function renderBoard(deals, propsByMls, latestByDeal){
         const cityText=p?(p.city||''):'';
         const href='project-detail.html?deal='+encodeURIComponent(d.id);
 
+        // Brief MH Phase 3 — rehab spent/budget mini-bar, Under Construction
+        // cards only. The card stays a plain <a> link to project-detail.
+        const rehabBar=(phase==='under_construction')?rehabBarHtml(costByDeal[d.id]):'';
+
         html+=`<a class="card" href="${href}">
           <div class="addr">${escapeHtml(addrText)}</div>
           <div class="city">${escapeHtml(cityText)}</div>
@@ -246,6 +307,7 @@ function renderBoard(deals, propsByMls, latestByDeal){
             <span class="price">${priceStr}</span>
             <span class="age">${age?'in phase '+age:''}</span>
           </div>
+          ${rehabBar}
         </a>`;
       }
     }

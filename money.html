@@ -129,6 +129,92 @@ body { overflow:hidden; height:100vh; }
 .pnl-tbl td.date-cell { font-size:11px; color:var(--text-3); white-space:nowrap; }
 .pnl-tbl .group-row td { background:var(--bg-inset); font-family:var(--sans); font-size:10px; font-weight:700; color:var(--text-3); text-transform:uppercase; letter-spacing:.08em; padding:5px 10px; text-align:left; }
 
+/* === COST BREAKDOWN DRILL-DOWN (Brief MH Phase 2) === */
+/* Deal rows become expandable; the drill row below holds two panels. */
+.pnl-tbl tbody tr.deal-row { cursor:pointer; }
+.pnl-tbl tbody tr.deal-row.expanded { background:var(--accent-dim); }
+.pnl-tbl tbody tr.deal-row.expanded td { border-bottom-color:var(--accent-dim2); }
+.pnl-tbl .addr-cell .twist { display:inline-block; width:11px; font-family:var(--sans); font-size:9px; color:var(--text-4); margin-right:4px; transition:transform .12s; }
+.pnl-tbl tbody tr.deal-row.expanded .addr-cell .twist { color:var(--accent); }
+.pnl-tbl tbody tr.drill-row > td { padding:0 !important; background:var(--bg-alt); border-bottom:1px solid var(--border); }
+.drill-inner { padding:18px 24px 20px; display:grid; grid-template-columns:1fr 1fr; gap:24px; font-variant-numeric:tabular-nums; }
+.drill-col h4 { font-family:var(--sans); font-size:11px; font-weight:700; color:var(--text-4); letter-spacing:.08em; text-transform:uppercase; margin:0 0 11px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.drill-col h4 .badge { background:var(--bg); border:1px solid var(--border); padding:1px 7px; border-radius:8px; font-size:9px; font-weight:600; color:var(--text-3); letter-spacing:.03em; text-transform:none; }
+.drill-loading { grid-column:1 / -1; padding:24px 0; text-align:center; color:var(--text-4); font-size:12px; font-family:var(--sans); }
+
+/* Budget-vs-actual bar chart (left panel) */
+.bva { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px 14px; }
+.bva-row { display:grid; grid-template-columns:78px 1fr 158px; align-items:center; gap:12px; padding:10px 0; font-size:12px; font-family:var(--sans); }
+.bva-row + .bva-row { border-top:1px solid var(--border); }
+.bva-cat { font-weight:700; font-size:11px; color:var(--text-2); display:flex; align-items:center; gap:5px; letter-spacing:.02em; }
+.bva-bar-wrap { position:relative; height:14px; background:var(--bg-inset); border-radius:7px; overflow:hidden; }
+.bva-bar { position:absolute; top:0; height:100%; border-radius:7px; }
+.bva-bar.under   { background:var(--green); }
+.bva-bar.over    { background:var(--red); }
+.bva-bar.ontrack { background:var(--blue); }
+.bva-bar.spent   { background:var(--amber); }
+.bva-bar.budget-line { width:2px; background:var(--text); opacity:.6; border-radius:0; }
+.bva-fig { text-align:right; line-height:1.35; font-family:var(--sans); }
+.bva-fig .top { display:flex; justify-content:flex-end; align-items:center; gap:6px; margin-bottom:3px; }
+.bva-fig .a { font-family:var(--mono); font-weight:700; font-size:13px; color:var(--text); }
+.bva-fig .a.est { font-style:italic; color:var(--text-3); font-weight:600; }
+.bva-fig .status { font-size:9.5px; font-weight:700; padding:2px 7px; border-radius:9px; letter-spacing:.02em; white-space:nowrap; }
+.bva-fig .status.neutral { color:var(--text-3); background:var(--bg-inset); }
+.bva-fig .status.pos { color:var(--green); background:var(--green-bg); }
+.bva-fig .status.neg { color:var(--red);   background:var(--red-bg); }
+.bva-fig .status.dur { color:var(--blue);  background:var(--blue-bg); }
+.bva-fig .status.muted { color:var(--text-4); background:var(--bg-inset); }
+.bva-fig .budget { font-size:10px; color:var(--text-4); font-family:var(--mono); cursor:pointer; }
+.bva-fig .budget:hover { color:var(--accent); text-decoration:underline; }
+.bva-fig .budget.nobudget { color:var(--amber); font-style:italic; font-family:var(--sans); }
+
+/* Info icon + tooltip */
+.bva-info { display:inline-flex; align-items:center; justify-content:center; width:13px; height:13px; border-radius:50%; background:var(--bg-inset); color:var(--text-3); font-size:8.5px; font-weight:700; cursor:help; position:relative; font-family:Georgia,serif; font-style:italic; }
+.bva-info:hover { background:var(--accent-dim2); color:var(--accent); }
+.bva-info .tt { position:absolute; bottom:calc(100% + 9px); left:-9px; width:300px; background:var(--text); color:#fff; padding:12px 14px; border-radius:8px; font-size:10.5px; font-weight:400; line-height:1.55; letter-spacing:0; text-transform:none; box-shadow:0 8px 24px rgba(0,0,0,.25); opacity:0; pointer-events:none; transition:opacity .15s; z-index:50; font-family:var(--sans); font-style:normal; text-align:left; }
+.bva-info:hover .tt { opacity:1; pointer-events:auto; }
+.bva-info .tt::after { content:''; position:absolute; top:100%; left:13px; border:6px solid transparent; border-top-color:var(--text); }
+.bva-info .tt .ttlabel { display:block; font-size:8.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#F0D284; margin-top:8px; margin-bottom:2px; }
+.bva-info .tt .ttlabel:first-child { margin-top:0; }
+.bva-info .tt code { font-family:var(--mono); font-size:9.5px; background:rgba(255,255,255,.08); padding:1px 4px; border-radius:3px; color:#f5d9a3; }
+.bva-info .tt em { color:#FFD580; font-style:normal; }
+
+/* QBO category tree (right panel) */
+.qbo-banner { background:var(--amber-bg); border-left:3px solid var(--amber); padding:8px 12px; border-radius:0 6px 6px 0; font-size:11px; line-height:1.5; color:var(--text-2); margin-bottom:10px; font-family:var(--sans); }
+.qbo-banner strong.amt-a { color:var(--amber); }
+.qbo-banner strong.amt-b { color:var(--text); }
+.qbo-banner .sub2 { color:var(--text-3); }
+.qbo-list { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:4px 0; max-height:560px; overflow-y:auto; }
+.qbo-line { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:10px; padding:6px 14px; font-size:12px; font-family:var(--sans); }
+.qbo-line + .qbo-line { border-top:1px solid var(--border); }
+.qbo-line.section { background:var(--bg-alt); font-size:10px; font-weight:700; color:var(--text-4); letter-spacing:.06em; text-transform:uppercase; padding:6px 14px; }
+.qbo-line .cat { color:var(--text-2); }
+.qbo-line.l0 .cat { font-weight:600; }
+.qbo-line.l1 { background:rgba(0,0,0,.015); padding-left:30px; }
+.qbo-line.l1 .cat { font-weight:500; font-size:11.5px; }
+.qbo-line.l2 { padding-left:48px; }
+.qbo-line.l2 .cat { color:var(--text-3); font-size:11px; }
+.qbo-line.l2 .amt { font-size:10.5px; color:var(--text-3); font-weight:500; }
+.qbo-line .amt { font-family:var(--mono); font-weight:600; font-size:11px; text-align:right; }
+.qbo-line .pct { font-family:var(--mono); font-size:10px; color:var(--text-4); min-width:38px; text-align:right; }
+.qbo-line.total { background:var(--bg-inset); font-weight:700; }
+.qbo-line.total .cat { color:var(--text); }
+.qbo-line.neg-line .amt { color:var(--red); }
+.qbo-line .empty-note { color:var(--text-4); font-style:italic; }
+.drill-footer { grid-column:1 / -1; display:flex; align-items:center; justify-content:space-between; gap:16px; padding-top:11px; border-top:1px dashed var(--border-hover); margin-top:4px; font-size:11px; color:var(--text-3); font-family:var(--sans); flex-wrap:wrap; }
+.drill-footer code { font-family:var(--mono); background:var(--bg-inset); padding:1px 5px; border-radius:3px; font-size:10px; }
+.drill-footer .links { display:flex; gap:16px; }
+.drill-footer a { color:var(--accent); text-decoration:none; font-weight:600; cursor:pointer; }
+.drill-footer a:hover { text-decoration:underline; }
+
+/* Inline budget editor */
+.budget-edit { display:flex; align-items:center; gap:6px; justify-content:flex-end; font-family:var(--sans); }
+.budget-edit input { width:84px; font-family:var(--mono); font-size:11px; padding:3px 6px; border:1px solid var(--border-hover); border-radius:4px; text-align:right; }
+.budget-edit button { font-family:var(--sans); font-size:10px; font-weight:700; padding:3px 8px; border-radius:4px; border:1px solid var(--border); cursor:pointer; }
+.budget-edit button.save { background:var(--accent); color:#fff; border-color:var(--accent); }
+.budget-edit button.cancel { background:var(--bg); color:var(--text-3); }
+.budget-edit .err { color:var(--red); font-size:10px; }
+
 /* Phase pill (table + days-strip) */
 .phase-pill { display:inline-block; font-family:var(--sans); font-size:10px; font-weight:700; padding:2px 8px; border-radius:8px; letter-spacing:.3px; }
 .phase-pursuing       { background:var(--accent-dim); color:var(--accent); }
@@ -493,9 +579,12 @@ async function loadData() {
     portfolioOverhead,
     qboSyncState,
     cashByClass,
+    costBreakdown,
+    dealExpenses,
+    qboAccountCategories,
   ] = await Promise.all([
     sb.from('deal_pnl_v1').select('*'),
-    sb.from('deals').select('id, phase, buy_side_mls, relist_mls, escrow_start_date, target_close_date, actual_close_date, sale_close_date, list_date, accepted_offer_price, sale_price, purchase_price, rehab_budget'),
+    sb.from('deals').select('id, phase, buy_side_mls, relist_mls, escrow_start_date, target_close_date, actual_close_date, sale_close_date, list_date, accepted_offer_price, sale_price, purchase_price, rehab_budget, qbo_project_id'),
     sb.from('capital_sources').select('*').eq('active', true),
     sb.from('capital_source_balances_v1').select('*'),
     sb.from('deal_loans').select('id, deal_id, capital_source_id, loan_purpose, status, loan_amount, rate_apr, origination_date, funded_date, term_months, maturity_date'),
@@ -509,6 +598,12 @@ async function loadData() {
     // Per-QBO-class cash breakdown (Migration 059) — powers the Tab 2
     // expandable per-class row beneath Total Cash.
     sb.from('cash_by_class_v1').select('*'),
+    // Brief MH — per-deal 4-bucket budget vs actual (migrations 071/072).
+    sb.from('v_deal_cost_breakdown').select('*'),
+    // Brief MH — per-deal QBO expense lines for the drill-down category tree.
+    sb.from('deal_expenses').select('deal_id, qbo_account_id, qbo_account_name, qbo_account_path, amount'),
+    // Brief MH — QBO account -> bucket mapping for the category tree.
+    sb.from('qbo_account_categories').select('qbo_account_name, bucket'),
   ]);
 
   // Surface any per-query error explicitly — the MC tabs depend on
@@ -529,6 +624,17 @@ async function loadData() {
   if (cashByClass.error) {
     console.warn('[money] cash_by_class_v1 not available (apply Migration 059); per-class breakdown will be hidden:', cashByClass.error.message);
   }
+  // Brief MH cost-breakdown sources are soft deps — degrade gracefully if
+  // migrations 071/072 not yet applied. The drill-down hides itself.
+  if (costBreakdown.error) {
+    console.warn('[money] v_deal_cost_breakdown not available (apply migrations 071/072); cost-breakdown drill-down disabled:', costBreakdown.error.message);
+  }
+  if (dealExpenses.error) {
+    console.warn('[money] deal_expenses not available; QBO category tree disabled:', dealExpenses.error.message);
+  }
+  if (qboAccountCategories.error) {
+    console.warn('[money] qbo_account_categories not available; QBO category tree disabled:', qboAccountCategories.error.message);
+  }
   if (errs.length) {
     const msg = 'Data fetch failed: ' + errs.map(([t, e]) => t + ' (' + e.message + ')').join('; ');
     showError(msg);
@@ -547,12 +653,36 @@ async function loadData() {
     portfolioOverhead: portfolioOverhead.data || [],
     lastSyncAt: (qboSyncState.data && qboSyncState.data[0]) ? qboSyncState.data[0].last_sync_at : null,
     cashByClass: cashByClass.data || [],
+    costBreakdown: costBreakdown.data || [],
+    dealExpenses: dealExpenses.data || [],
+    qboAccountCategories: qboAccountCategories.data || [],
   };
 
   // Build a deal-id → joined deal+pnl map for cross-tab convenience.
   const dealById = {};
   for (const d of window.MC_DATA.deals) dealById[d.id] = d;
   window.MC_DATA.dealById = dealById;
+
+  // Brief MH — deal-id → cost-breakdown row (4-bucket budget vs actual).
+  const costByDeal = {};
+  for (const c of window.MC_DATA.costBreakdown) costByDeal[c.deal_id] = c;
+  window.MC_DATA.costByDeal = costByDeal;
+
+  // Brief MH — qbo_account_name → bucket (acquisition / rehab_* / holding /
+  // financing / disposition / overhead / exclude).
+  const bucketByAccount = {};
+  for (const q of window.MC_DATA.qboAccountCategories) {
+    if (q.qbo_account_name) bucketByAccount[q.qbo_account_name] = q.bucket;
+  }
+  window.MC_DATA.bucketByAccount = bucketByAccount;
+
+  // Brief MH — deal-id → array of QBO expense lines for the drill-down tree.
+  const expensesByDeal = {};
+  for (const e of window.MC_DATA.dealExpenses) {
+    if (!expensesByDeal[e.deal_id]) expensesByDeal[e.deal_id] = [];
+    expensesByDeal[e.deal_id].push(e);
+  }
+  window.MC_DATA.expensesByDeal = expensesByDeal;
 
   // Build mls → rehab_estimate map (Tab 2's "Rehab budget" reference column).
   const rehabBudgetByMls = {};
@@ -805,11 +935,19 @@ function renderPnL() {
     const annRoiClass = isSold ? (annRoi != null && annRoi >= 0 ? 'profit-pos' : 'profit-neg') : 'projected';
     const annRoiTxt = annRoi != null ? (annRoi * 100).toFixed(1) + '%' + (isSold ? '' : '*') : '—';
 
-    const addrHtml = '<a href="' + escapeHtml(detailHref(r.deal_id)) + '">'
+    // Brief MH — in-flight deals are expandable into a cost-breakdown
+    // drill-down. Sold deals stay non-expandable (no live spend to steer);
+    // the address still deep-links to project-detail. The twist caret only
+    // shows on expandable rows.
+    const expandable = !isSold && window.MC_DATA && window.MC_DATA.costByDeal
+      && window.MC_DATA.costByDeal[r.deal_id];
+    const twist = expandable ? '<span class="twist">▸</span>' : '';
+    const addrHtml = twist
+      + '<a href="' + escapeHtml(detailHref(r.deal_id)) + '" onclick="event.stopPropagation()">'
       + escapeHtml(r.address || '(no address)') + '</a>'
       + (r._buy_side_mls ? '<div class="addr-sub">' + escapeHtml(r._buy_side_mls) + '</div>' : '');
 
-    return '<tr>'
+    return '<tr' + (expandable ? ' class="deal-row" data-deal="' + escapeHtml(r.deal_id) + '"' : '') + '>'
       + '<td class="left addr-cell">' + addrHtml + '</td>'
       + '<td class="c-days">' + (days ? days + 'd' : '—') + '</td>'
       + '<td><span class="phase-pill ' + phaseClass(r._phase) + '">' + escapeHtml(phaseLabel(r._phase)) + '</span></td>'
@@ -864,6 +1002,512 @@ function renderPnL() {
       renderPnL();
     });
   });
+
+  // Brief MH — wire cost-breakdown drill-down expand/collapse. Clicking a
+  // deal row toggles a drill row beneath it; the address link still
+  // navigates (it stops propagation). Re-expands any previously-open deal.
+  document.querySelectorAll('.pnl-tbl tbody tr.deal-row').forEach(tr => {
+    if (pnlExpanded.has(tr.dataset.deal)) toggleDrill(tr, true);
+    tr.addEventListener('click', () => toggleDrill(tr, false));
+  });
+}
+
+// Set of deal-ids whose drill-down is currently expanded — survives sort /
+// refresh re-renders.
+const pnlExpanded = new Set();
+
+// Toggle (or, with forceOpen, just open) the drill-down row for a deal.
+function toggleDrill(tr, forceOpen) {
+  const dealId = tr.dataset.deal;
+  const isOpen = tr.classList.contains('expanded');
+  if (isOpen && !forceOpen) {
+    tr.classList.remove('expanded');
+    const twist = tr.querySelector('.twist'); if (twist) twist.textContent = '▸';
+    const next = tr.nextElementSibling;
+    if (next && next.classList.contains('drill-row')) next.remove();
+    pnlExpanded.delete(dealId);
+    return;
+  }
+  if (isOpen) return;  // forceOpen on an already-open row — no-op
+  tr.classList.add('expanded');
+  const twist = tr.querySelector('.twist'); if (twist) twist.textContent = '▾';
+  pnlExpanded.add(dealId);
+  const drill = document.createElement('tr');
+  drill.className = 'drill-row';
+  drill.innerHTML = '<td colspan="14">' + renderDrillDown(dealId) + '</td>';
+  tr.parentNode.insertBefore(drill, tr.nextElementSibling);
+}
+</script>
+
+<script>
+// ============================================================
+// COST-BREAKDOWN DRILL-DOWN (Brief MH Phase 2)
+// Two panels: LEFT = 4 phase-aware budget-vs-actual bars from
+// v_deal_cost_breakdown; RIGHT = QBO category tree from deal_expenses
+// bucketed via qbo_account_categories. Whole-dollar precision on the right,
+// $K on the left. Owner-only (the whole page is owner-gated).
+// ============================================================
+
+// $K with one decimal under $1M-ish ranges, integer above — bar figures.
+function fmtBarK(n) {
+  if (n == null || isNaN(n)) return '—';
+  const k = n / 1000;
+  const abs = Math.abs(k);
+  if (abs === 0) return '$0';
+  // Whole-dollar precision in $K: 1 decimal under 100K, integer at/above.
+  const dec = abs < 100 ? 1 : 0;
+  const formatted = abs.toLocaleString(undefined, { minimumFractionDigits:dec, maximumFractionDigits:dec });
+  return (k < 0 ? '−' : '') + '$' + formatted + 'K';
+}
+
+// Whole-dollar, no cents — QBO category panel.
+function fmtDollar(n) {
+  if (n == null || isNaN(n)) return '—';
+  const abs = Math.abs(Math.round(n));
+  return (n < 0 ? '−' : '') + '$' + abs.toLocaleString();
+}
+
+// Bucket-label tooltip copy (lifted from the mockup, tightened).
+const BUCKET_TT = {
+  ACQ: '<span class="ttlabel">Actual</span>Σ QBO categories bucketed <code>acquisition</code>: '
+     + '<code>Cost of Property Purchased</code> + <code>Wholesaler Fee</code> + <code>Purchase Costs</code>.'
+     + '<span class="ttlabel">Budget</span><code>purchase_price × 1.02</code> — offer price plus a closing-cost '
+     + 'estimate. Frozen at acquisition.'
+     + '<span class="ttlabel">Variance</span><code>actual − budget</code>. Should sit near zero — ACQ is '
+     + 'essentially known at close.',
+  REHAB: '<span class="ttlabel">Actual</span>Σ <code>Construction Costs</code> (all labor + materials sub-lines) '
+     + 'plus inspection / permit fees — whatever QBO has booked.'
+     + '<span class="ttlabel">Budget</span>Underwriter rehab estimate (<code>deal_scores.rehab_estimate</code>), '
+     + 'snapshotted into <code>deal_budgets</code>. Never re-computed.'
+     + '<span class="ttlabel">Variance</span><code>actual / budget − 1</code>. <em>Over</em> usually means scope '
+     + 'grew or labor/material estimates were soft.',
+  CARRY: '<span class="ttlabel">Actual — accrued, not QBO</span>Combined holding + financing cost. '
+     + '<code>days_held × daily_burn</code> where daily burn = loan interest + property tax + insurance + '
+     + 'utilities run-rate.'
+     + '<span class="ttlabel">Why not QBO</span>CA property tax hits Nov + Feb; HML interest is billed monthly. '
+     + 'Both lag reality — accrued captures the true cost-to-date.'
+     + '<span class="ttlabel">Budget — fixed 3 months</span><code>3 × monthly_burn</code>, matching '
+     + '<code>financing_hold_months: 3</code> — the assumption priced into the offer.'
+     + '<span class="ttlabel">What "over plan" means</span>Every month past month 3 burns carry that was never '
+     + 'priced in. <em>That is profit erosion</em>.',
+  DISP: '<span class="ttlabel">Actual</span>Σ <code>Advertising &amp; Marketing</code> + <code>Staging</code>. '
+     + 'At close: + broker commissions + closing costs + Form 593 withholding.'
+     + '<span class="ttlabel">Budget</span><code>projected_revenue × 0.05</code> — the underwriter\'s exit '
+     + 'assumption (commission + closing + staging).'
+     + '<span class="ttlabel">Variance</span><em>Partial until close</em> — the bar shows spend progress against '
+     + 'the full DISP budget, not a meaningful variance. Variance becomes real once the sale closes.',
+};
+
+// Render one budget-vs-actual bar row.
+//   cat      — 'ACQ' | 'REHAB' | 'CARRY' | 'DISP'
+//   actual   — number (spent / accrued)
+//   budget   — number | null  (null/0 -> spent-only graceful render)
+//   mode     — 'estimated' (in_escrow) | 'actual' | 'spent' (under-constr REHAB)
+//              | 'accrued' (carry) | 'disp-partial'
+//   dealId, bucketKey — for the click-to-edit budget affordance
+function bvaRow(cat, actual, budget, mode, dealId, bucketKey) {
+  const a = actual || 0;
+  const hasBudget = budget != null && budget > 0;
+  const info = '<span class="bva-info">i<span class="tt">' + BUCKET_TT[cat] + '</span></span>';
+
+  let barsHtml = '', figClass = '', statusHtml = '', budgetHtml = '';
+
+  // --- Budget figure / editor affordance (always click-to-edit) ---
+  const budgetTxt = hasBudget
+    ? 'budget ' + fmtBarK(budget)
+    : 'no budget set';
+  budgetHtml = '<div class="budget' + (hasBudget ? '' : ' nobudget') + '" '
+    + 'data-edit-budget="' + escapeHtml(dealId) + '" data-bucket="' + bucketKey + '" '
+    + 'data-current="' + (budget == null ? '' : budget) + '" '
+    + 'title="Click to edit budget">' + escapeHtml(budgetTxt)
+    + (hasBudget && cat === 'CARRY' ? ' (3 mo)' : '') + '</div>';
+
+  if (mode === 'estimated') {
+    // In Escrow — nothing spent; show the budget as an italic estimate.
+    figClass = ' est';
+    statusHtml = '<span class="status muted">estimated</span>';
+    barsHtml = '<div class="bva-bar ontrack" style="left:0;width:0%"></div>'
+      + (hasBudget ? '<div class="bva-bar budget-line" style="left:100%"></div>' : '');
+    return ''
+      + '<div class="bva-row">'
+      + '<div class="bva-cat">' + cat + ' ' + info + '</div>'
+      + '<div class="bva-bar-wrap">' + barsHtml + '</div>'
+      + '<div class="bva-fig">'
+      + '<div class="top"><span class="a est">' + fmtBarK(hasBudget ? budget : a) + '</span>' + statusHtml + '</div>'
+      + budgetHtml + '</div></div>';
+  }
+
+  // --- Spent-only path: no budget, OR explicit spent/accrued-with-no-budget ---
+  if (!hasBudget) {
+    // Graceful null-budget render — never an "infinite % over" bar.
+    // Bar fills fully in a neutral blue; figure is the spend; no variance.
+    barsHtml = '<div class="bva-bar ontrack" style="left:0;width:' + (a > 0 ? 100 : 0) + '%"></div>';
+    statusHtml = a > 0
+      ? '<span class="status neutral">spent</span>'
+      : '<span class="status muted">not started</span>';
+    return ''
+      + '<div class="bva-row">'
+      + '<div class="bva-cat">' + cat + ' ' + info + '</div>'
+      + '<div class="bva-bar-wrap">' + barsHtml + '</div>'
+      + '<div class="bva-fig">'
+      + '<div class="top"><span class="a">' + fmtBarK(a) + '</span>' + statusHtml + '</div>'
+      + budgetHtml + '</div></div>';
+  }
+
+  // --- Has a real budget: compute variance + bar widths ---
+  const ratio = a / budget;                              // 1.0 = exactly on budget
+  const pctOfBar = Math.min(ratio, 1) * 100;             // bar capped at 100% width
+  const budgetLineLeft = Math.min(100 / Math.max(ratio, 1), 100); // line moves left as spend exceeds budget
+
+  let barClass;
+  if (mode === 'spent') {
+    // Under-construction REHAB — spent-only against budget. Amber = active
+    // spend in progress. NO projected-final ghost bar (deferred to Brief BN).
+    barClass = 'spent';
+    const pctTxt = (ratio * 100).toFixed(0);
+    statusHtml = ratio > 1
+      ? '<span class="status neg">' + pctTxt + '% of budget</span>'
+      : '<span class="status dur">' + pctTxt + '% spent</span>';
+  } else if (mode === 'accrued') {
+    // CARRY — accrued vs the fixed 3-month budget.
+    barClass = ratio > 1 ? 'over' : 'under';
+    const months = ratio * 3;
+    statusHtml = ratio > 1
+      ? '<span class="status neg">' + (months - 3).toFixed(1) + ' mo over</span>'
+      : '<span class="status dur">' + months.toFixed(1) + ' / 3 mo</span>';
+  } else if (mode === 'disp-partial') {
+    // DISP while not yet closed — spend progress, not a variance.
+    barClass = 'under';
+    statusHtml = a > 0
+      ? '<span class="status muted">partial · live</span>'
+      : '<span class="status muted">not started</span>';
+  } else {
+    // ACQ, or any closed-out bucket — true budget-vs-actual variance.
+    const variancePct = (ratio - 1) * 100;
+    if (Math.abs(variancePct) < 2) {
+      barClass = 'ontrack';
+      statusHtml = '<span class="status neutral">on plan</span>';
+    } else if (variancePct > 0) {
+      barClass = 'over';
+      statusHtml = '<span class="status neg">+' + variancePct.toFixed(0) + '% over</span>';
+    } else {
+      barClass = 'under';
+      statusHtml = '<span class="status pos">' + Math.abs(variancePct).toFixed(0) + '% under</span>';
+    }
+  }
+
+  barsHtml = '<div class="bva-bar ' + barClass + '" style="left:0;width:' + pctOfBar + '%"></div>'
+    + '<div class="bva-bar budget-line" style="left:' + budgetLineLeft + '%"></div>';
+
+  return ''
+    + '<div class="bva-row">'
+    + '<div class="bva-cat">' + cat + ' ' + info + '</div>'
+    + '<div class="bva-bar-wrap">' + barsHtml + '</div>'
+    + '<div class="bva-fig">'
+    + '<div class="top"><span class="a">' + fmtBarK(a) + '</span>' + statusHtml + '</div>'
+    + budgetHtml + '</div></div>';
+}
+
+// Build the QBO category tree for one deal. Groups deal_expenses by bucket,
+// then hierarchically by qbo_account_path (category -> sub -> line).
+function renderQboTree(dealId, phase) {
+  const D = window.MC_DATA;
+  const lines = (D.expensesByDeal && D.expensesByDeal[dealId]) || [];
+  if (!lines.length) {
+    return '<div class="qbo-list"><div class="qbo-line"><span class="cat empty-note">'
+      + 'No QBO transactions linked to this deal yet.</span><span class="amt">—</span>'
+      + '<span class="pct">—</span></div></div>';
+  }
+
+  // Bucket-name -> display section. CARRY merges holding + financing.
+  // overhead lines are surfaced as "Allocated overhead"; exclude is dropped.
+  function sectionOf(bucket) {
+    if (bucket === 'acquisition') return 'Acquisition';
+    if (bucket === 'rehab_labor' || bucket === 'rehab_materials'
+        || bucket === 'rehab_soft' || bucket === 'rehab_other') return 'Rehab';
+    if (bucket === 'holding' || bucket === 'financing') return 'Carry';
+    if (bucket === 'disposition') return 'Disposition';
+    if (bucket === 'overhead') return 'Allocated overhead';
+    return null;  // exclude / unmapped -> dropped
+  }
+  const SECTION_ORDER = ['Acquisition', 'Rehab', 'Carry', 'Disposition', 'Allocated overhead'];
+
+  // Build a nested tree:  section -> path[0] -> path[1] -> path[2] = amount.
+  // qbo_account_path is the colon-split array; fall back to splitting the
+  // name if the array column is empty.
+  const tree = {};          // section -> { _total, nodes: { l0name -> node } }
+  let grandTotal = 0;
+  for (const e of lines) {
+    const bucket = D.bucketByAccount[e.qbo_account_name];
+    const section = sectionOf(bucket);
+    if (!section) continue;  // exclude / unmapped
+    const amt = e.amount || 0;
+    const path = (Array.isArray(e.qbo_account_path) && e.qbo_account_path.length)
+      ? e.qbo_account_path
+      : String(e.qbo_account_name || '').split(':');
+    if (!tree[section]) tree[section] = { total: 0, nodes: {} };
+    tree[section].total += amt;
+    grandTotal += amt;
+    let level = tree[section].nodes;
+    for (let i = 0; i < path.length; i++) {
+      const key = path[i];
+      if (!level[key]) level[key] = { name: key, amount: 0, children: {} };
+      level[key].amount += amt;
+      if (i === path.length - 1) break;
+      level = level[key].children;
+    }
+  }
+
+  // Flatten the tree into qbo-line rows. Depth 0/1/2 -> l0/l1/l2.
+  function emitNode(node, depth, out) {
+    const cls = 'l' + Math.min(depth, 2);
+    const negCls = node.amount < 0 ? ' neg-line' : '';
+    const pct = grandTotal > 0 ? (node.amount / grandTotal * 100) : 0;
+    out.push('<div class="qbo-line ' + cls + negCls + '">'
+      + '<span class="cat">' + escapeHtml(node.name) + '</span>'
+      + '<span class="amt">' + fmtDollar(node.amount) + '</span>'
+      + '<span class="pct">' + (Math.abs(pct) < 0.05 ? '—' : pct.toFixed(1) + '%') + '</span>'
+      + '</div>');
+    const kids = Object.values(node.children)
+      .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+    for (const k of kids) emitNode(k, depth + 1, out);
+  }
+
+  const out = [];
+  for (const section of SECTION_ORDER) {
+    const sec = tree[section];
+    if (!sec) continue;
+    out.push('<div class="qbo-line section"><span class="cat">'
+      + escapeHtml(section) + ' · ' + fmtDollar(sec.total) + '</span>'
+      + '<span class="amt"></span><span class="pct"></span></div>');
+    const tops = Object.values(sec.nodes)
+      .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+    for (const t of tops) emitNode(t, 0, out);
+  }
+  out.push('<div class="qbo-line total"><span class="cat">Total spent to date</span>'
+    + '<span class="amt">' + fmtDollar(grandTotal) + '</span><span class="pct">100%</span></div>');
+
+  return '<div class="qbo-list">' + out.join('') + '</div>';
+}
+
+// Render the full two-panel drill-down for a deal.
+function renderDrillDown(dealId) {
+  const D = window.MC_DATA;
+  const c = D.costByDeal && D.costByDeal[dealId];
+  if (!c) {
+    return '<div class="drill-inner"><div class="drill-loading">'
+      + 'No cost-breakdown data for this deal.</div></div>';
+  }
+  const deal = D.dealById[dealId] || {};
+  const phase = deal.phase || c.phase;
+
+  // --- Phase-aware bucket modes (Brief phase table) ---
+  // in_escrow:          all 4 estimated
+  // under_construction: ACQ/CARRY actual, REHAB spent-only, DISP estimated
+  // selling / sold:     ACQ/REHAB/DISP actual, CARRY accrued
+  let acqMode, rehabMode, carryMode, dispMode;
+  if (phase === 'in_escrow') {
+    acqMode = rehabMode = carryMode = dispMode = 'estimated';
+  } else if (phase === 'under_construction') {
+    acqMode = 'actual'; rehabMode = 'spent'; carryMode = 'accrued'; dispMode = 'estimated';
+  } else {  // selling / sold
+    acqMode = 'actual'; rehabMode = 'actual'; carryMode = 'accrued'; dispMode = 'disp-partial';
+  }
+
+  const phaseBadge = {
+    in_escrow: 'in escrow · all estimated',
+    under_construction: 'under construction · live actuals',
+    selling: 'selling · actuals + accrued carry',
+    sold: 'sold · final actuals',
+  }[phase] || phase;
+
+  const bars =
+      bvaRow('ACQ',   c.acq_actual,   c.acq_budget,   acqMode,   dealId, 'acq')
+    + bvaRow('REHAB', c.rehab_actual, c.rehab_budget, rehabMode, dealId, 'rehab')
+    + bvaRow('CARRY', c.carry_actual, c.carry_budget, carryMode, dealId, 'carry')
+    + bvaRow('DISP',  c.disp_actual,  c.disp_budget,  dispMode,  dealId, 'disp');
+
+  // --- Booked-vs-accrued banner ---
+  // QBO booked total = sum of all deal_expenses (cash-timing). Accrued total
+  // swaps the QBO-booked carry for the time-accrued carry figure.
+  const lines = (D.expensesByDeal && D.expensesByDeal[dealId]) || [];
+  let bookedTotal = 0;
+  for (const e of lines) {
+    const bucket = D.bucketByAccount[e.qbo_account_name];
+    if (bucket === 'exclude' || !bucket) continue;
+    bookedTotal += e.amount || 0;
+  }
+  const carryBooked = c.carry_booked || 0;
+  const carryAccrued = c.carry_accrued || 0;
+  const accruedTotal = bookedTotal - carryBooked + carryAccrued;
+  const delta = accruedTotal - bookedTotal;
+  const txnCount = lines.length;
+  const projId = deal.qbo_project_id || null;
+
+  const banner =
+      '<div class="qbo-banner">'
+    + '<strong class="amt-a">Booked ' + fmtDollar(bookedTotal) + '</strong> · '
+    + '<strong class="amt-b">accrued ' + fmtDollar(accruedTotal) + '</strong>'
+    + (Math.abs(delta) >= 500
+        ? ' · Δ ' + (delta >= 0 ? '+' : '−') + fmtDollar(Math.abs(delta))
+          + ' = carry accrued but not yet billed (CA property tax + HML interest lag).'
+        : ' · booked ≈ accrued.')
+    + '<br><span class="sub2">Left bars use accrued cost-to-date for CARRY. '
+    + 'This panel shows what QBO has actually booked.</span></div>';
+
+  const qboTree = renderQboTree(dealId, phase);
+
+  // --- Footer links ---
+  const footer =
+      '<div class="drill-footer">'
+    + '<div>QBO project '
+    + (projId ? '<code>' + escapeHtml(projId) + '</code>' : '<span style="color:var(--text-4)">not linked</span>')
+    + ' · ' + txnCount + ' txn' + (txnCount === 1 ? '' : 's') + '</div>'
+    + '<div class="links">'
+    + '<a href="' + escapeHtml(detailHref(dealId)) + '">Project detail →</a>'
+    + '<a data-edit-budget="' + escapeHtml(dealId) + '" data-bucket="rehab" '
+    +   'data-current="' + (c.rehab_budget == null ? '' : c.rehab_budget) + '">Edit budget</a>'
+    + '</div></div>';
+
+  return ''
+    + '<div class="drill-inner">'
+    + '<div class="drill-col">'
+    +   '<h4>Budget vs Actual by bucket <span class="badge">' + escapeHtml(phaseBadge) + '</span></h4>'
+    +   '<div class="bva">' + bars + '</div>'
+    + '</div>'
+    + '<div class="drill-col">'
+    +   '<h4>QBO categories <span class="badge">' + txnCount + ' txn'
+    +     (txnCount === 1 ? '' : 's') + ' · matches QBO tree</span></h4>'
+    +   banner + qboTree
+    + '</div>'
+    + footer
+    + '</div>';
+}
+
+// ============================================================
+// MINIMAL EDIT-BUDGET — click a bucket budget figure to edit it.
+// Writes the bucket column on deal_budgets + revised_at = now(). Owner-only
+// (RLS enforces it; the page is owner-gated too). Delegated click handler so
+// it survives drill-down re-renders.
+// ============================================================
+const BUDGET_COL = { acq:'acq_budget', rehab:'rehab_budget', carry:'carry_budget', disp:'disp_budget' };
+
+document.addEventListener('click', async (ev) => {
+  const trigger = ev.target.closest('[data-edit-budget]');
+  if (!trigger) return;
+  ev.stopPropagation();
+  ev.preventDefault();
+  if (trigger.dataset.editing === '1') return;   // editor already open here
+  openBudgetEditor(trigger);
+});
+
+function openBudgetEditor(trigger) {
+  const dealId = trigger.dataset.editBudget;
+  const bucket = trigger.dataset.bucket;
+  const col = BUDGET_COL[bucket];
+  if (!col) return;
+  const current = trigger.dataset.current;
+  const original = trigger.innerHTML;
+  trigger.dataset.editing = '1';
+
+  // Pre-fill with whole dollars (the stored value), not the $K display.
+  const curDollars = current ? Math.round(parseFloat(current)) : '';
+  const editor = document.createElement('span');
+  editor.className = 'budget-edit';
+  editor.innerHTML =
+      '$<input type="number" step="1" min="0" value="' + curDollars + '" '
+    + 'placeholder="dollars" />'
+    + '<button class="save">Save</button>'
+    + '<button class="cancel">Cancel</button>'
+    + '<span class="err"></span>';
+  trigger.replaceWith(editor);
+  const input = editor.querySelector('input');
+  input.focus();
+  input.select();
+
+  function restore(node) {
+    editor.replaceWith(node);
+  }
+  function rebuildTrigger(newVal) {
+    // Re-render the whole drill-down so bars + figures pick up the new budget.
+    const tr = document.querySelector('.pnl-tbl tbody tr.deal-row.expanded[data-deal="'
+      + (window.CSS && CSS.escape ? CSS.escape(dealId) : dealId) + '"]');
+    if (tr && tr.nextElementSibling && tr.nextElementSibling.classList.contains('drill-row')) {
+      tr.nextElementSibling.querySelector('td').innerHTML = renderDrillDown(dealId);
+    } else {
+      // Fallback — just put a static span back.
+      const span = document.createElement('span');
+      span.innerHTML = original;
+      restore(span);
+    }
+  }
+
+  editor.querySelector('.cancel').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const span = document.createElement('span');
+    span.innerHTML = original;
+    // Re-attach the data-* so it stays editable.
+    span.className = trigger.className;
+    for (const a of ['editBudget','bucket','current']) {
+      if (trigger.dataset[a] != null) span.dataset[a] = trigger.dataset[a];
+    }
+    restore(span);
+  });
+
+  editor.querySelector('.save').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const errEl = editor.querySelector('.err');
+    errEl.textContent = '';
+    const raw = input.value.trim();
+    const val = raw === '' ? null : Number(raw);
+    if (val != null && (!isFinite(val) || val < 0)) {
+      errEl.textContent = 'Enter a non-negative number.';
+      return;
+    }
+    const btn = editor.querySelector('.save');
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      await saveBudget(dealId, col, val);
+      rebuildTrigger(val);
+    } catch (err) {
+      console.error('[money] budget save failed', err);
+      errEl.textContent = err.message || 'Save failed.';
+      btn.disabled = false; btn.textContent = 'Save';
+    }
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); editor.querySelector('.save').click(); }
+    if (e.key === 'Escape') { e.preventDefault(); editor.querySelector('.cancel').click(); }
+  });
+}
+
+// Upsert the budget value into deal_budgets and refresh the in-memory cache.
+// deal_budgets has PK deal_id; a deal may not have a row yet (no snapshot) —
+// upsert covers both. acq/rehab/carry/disp columns are NOT NULL, so when we
+// insert a fresh row we must fill the other three (0 default) to satisfy the
+// constraint; existing rows just get the one column updated.
+async function saveBudget(dealId, col, val) {
+  const D = window.MC_DATA;
+  const existing = D.costByDeal && D.costByDeal[dealId];
+  // Build the full row so an insert satisfies the NOT NULL columns.
+  const row = {
+    deal_id: dealId,
+    acq_budget:   (existing && existing.acq_budget   != null) ? existing.acq_budget   : 0,
+    rehab_budget: (existing && existing.rehab_budget != null) ? existing.rehab_budget : 0,
+    carry_budget: (existing && existing.carry_budget != null) ? existing.carry_budget : 0,
+    disp_budget:  (existing && existing.disp_budget  != null) ? existing.disp_budget  : 0,
+    revised_at: new Date().toISOString(),
+  };
+  row[col] = val == null ? 0 : val;
+  const { error } = await sb.from('deal_budgets')
+    .upsert(row, { onConflict: 'deal_id' });
+  if (error) throw new Error(error.message);
+  // Reflect the new value in the in-memory cost-breakdown cache so the
+  // re-rendered drill-down (and any later expand) shows it immediately.
+  if (D.costByDeal && D.costByDeal[dealId]) {
+    D.costByDeal[dealId][col] = (val == null ? 0 : val);
+  }
 }
 </script>
 
