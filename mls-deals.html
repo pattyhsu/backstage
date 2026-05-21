@@ -853,13 +853,6 @@ function confPill(lvl){
   const style=lvl==='high'?'background:var(--green-bg);color:var(--green)':lvl==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
   return `<span style="${style};font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;letter-spacing:.3px;margin-left:5px;vertical-align:middle">${lvl.toUpperCase()}</span>`;
 }
-function perCityModelNote(city){
-  if(city==='CERRITOS')return'cerritos_v4.pkl';
-  if(city==='LA PALMA')return'la_palma_v1.pkl';
-  if(city==='CYPRESS')return'cypress_v1.pkl';
-  if(city==='DIAMOND BAR')return'diamond_bar_v1.pkl';
-  return'';
-}
 
 // Full-width detail strip below the cards row. Hosts collapsible
 // expanders for whichever cards have detail (smart comps anchors, v7
