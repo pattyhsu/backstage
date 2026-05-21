@@ -889,8 +889,15 @@ function renderPnL() {
       if (col === 'total_cost') { va = a.total_costs_actual || 0; vb = b.total_costs_actual || 0; }
       if (col === 'acq')   { va = a.acquisition_actual || 0; vb = b.acquisition_actual || 0; }
       if (col === 'rehab') { va = a.rehab_actual || 0; vb = b.rehab_actual || 0; }
-      if (col === 'hold')  { va = a.holding_actual || 0; vb = b.holding_actual || 0; }
-      if (col === 'fin')   { va = a.financing_actual || 0; vb = b.financing_actual || 0; }
+      if (col === 'carry_cost') {
+        // CARRY = holding + financing actuals (or projected carry budget for
+        // fully-forecast in-escrow rows — see rowHtml).
+        const ac = (a._phase === 'in_escrow' && a._cb && a._cb.carry_budget != null)
+          ? a._cb.carry_budget : ((a.holding_actual || 0) + (a.financing_actual || 0));
+        const bc = (b._phase === 'in_escrow' && b._cb && b._cb.carry_budget != null)
+          ? b._cb.carry_budget : ((b.holding_actual || 0) + (b.financing_actual || 0));
+        va = ac; vb = bc;
+      }
       if (col === 'disp')  { va = a.disposition_actual || 0; vb = b.disposition_actual || 0; }
       if (col === 'sale_date') {
         // Sort by sale_close_date; nulls (in-flight rows) sink to the bottom
@@ -920,8 +927,7 @@ function renderPnL() {
     { k:'phase',           lbl:'Phase' },
     { k:'acq',             lbl:'Acq' },
     { k:'rehab',           lbl:'Rehab' },
-    { k:'hold',            lbl:'Hold' },
-    { k:'fin',             lbl:'Fin' },
+    { k:'carry_cost',      lbl:'Carry' },
     { k:'disp',            lbl:'Disp' },
     { k:'total_cost',      lbl:'Total cost' },
     { k:'revenue',         lbl:'Revenue' },
@@ -937,16 +943,47 @@ function renderPnL() {
     const revenueTxt = revenueRaw != null ? (fmtK(revenueRaw) + (isProjectedRevenue ? '*' : '')) : '—';
 
     // Brief MH follow-up — IN FLIGHT rows read as a forecast of the deal's
-    // final outcome. The disposition cost (selling commission, ~5% of sale
-    // price) is still in the future for a not-yet-closed deal, so DISP shows
-    // the *projected* DISP (v_deal_cost_breakdown.disp_budget = 5% × proj
-    // revenue) rather than disposition_actual (marketing spent so far). TOTAL
-    // COST and PROFIT swap actual DISP for projected DISP so the row stays
-    // internally coherent. SOLD rows are real actuals — left untouched.
+    // final outcome.
+    //
+    // For UNDER-CONSTRUCTION / SELLING rows: ACQ/REHAB/CARRY are real
+    // actuals; only DISP (selling commission, ~5% of sale price) is still in
+    // the future, so DISP shows the *projected* DISP
+    // (v_deal_cost_breakdown.disp_budget = 5% × proj revenue) and TOTAL COST /
+    // PROFIT swap actual DISP for projected DISP.
+    //
+    // For IN-ESCROW rows: nothing is booked yet — actuals are all $0 and a
+    // DISP-only forecast produced a nonsensical PROFIT. So ALL FOUR buckets
+    // are projected from the v_deal_cost_breakdown budgets (acq/rehab/carry/
+    // disp_budget), each rendered italic+grey+asterisk like the REVENUE cell.
+    //
+    // SOLD rows are real actuals — left untouched.
     const cb = (!isSold && window.MC_DATA && window.MC_DATA.costByDeal)
       ? window.MC_DATA.costByDeal[r.deal_id] : null;
+    r._cb = cb;  // stash for the carry_cost sorter
     const projDisp = (cb && cb.disp_budget != null) ? cb.disp_budget : null;
     const useForecast = !isSold && projDisp != null;
+    // Fully-projected in-escrow row: every bucket comes from the budget.
+    const fullProject = r._phase === 'in_escrow' && cb != null;
+
+    // ACQ / REHAB cells.
+    const acqProjNum  = fullProject ? (cb.acq_budget   || 0) : (r.acquisition_actual || 0);
+    const rehabProjNum = fullProject ? (cb.rehab_budget || 0) : (r.rehab_actual || 0);
+    const acqTxt = acqProjNum
+      ? (fmtK(acqProjNum) + (fullProject ? '*' : ''))
+      : (fullProject ? '0*' : '—');
+    const rehabTxt = rehabProjNum
+      ? (fmtK(rehabProjNum, {decimals: fullProject ? 1 : 0}) + (fullProject ? '*' : ''))
+      : (fullProject ? '0*' : '—');
+
+    // CARRY cell — merged holding + financing. Actuals for under-constr /
+    // selling; the projected carry_budget for in-escrow.
+    const carryActualNum = (r.holding_actual || 0) + (r.financing_actual || 0);
+    const carryNum = fullProject
+      ? (cb.carry_budget || 0)
+      : carryActualNum;
+    const carryTxtCell = carryNum
+      ? (fmtK(carryNum, {decimals:1}) + (fullProject ? '*' : ''))
+      : (fullProject ? '0*' : '—');
 
     // DISP cell: projected for in-flight (italic/grey/asterisk like REVENUE),
     // actual for sold.
@@ -954,11 +991,16 @@ function renderPnL() {
     const dispTxt = dispNum ? (fmtK(dispNum, {decimals:1}) + (useForecast ? '*' : ''))
                             : '—';
 
-    // TOTAL COST: forecast swaps actual DISP for projected DISP.
+    // TOTAL COST.
+    //  - in-escrow fully-projected: sum the four projected buckets.
+    //  - other in-flight: actual total with actual DISP swapped for proj DISP.
+    //  - sold: actual total.
     const totalCostActual = r.total_costs_actual || 0;
-    const totalCostNum = useForecast
-      ? (totalCostActual - (r.disposition_actual || 0) + projDisp)
-      : totalCostActual;
+    const totalCostNum = fullProject
+      ? (acqProjNum + rehabProjNum + carryNum + (projDisp || 0))
+      : (useForecast
+          ? (totalCostActual - (r.disposition_actual || 0) + projDisp)
+          : totalCostActual);
     const totalCostTxt = totalCostNum
       ? (fmtK(totalCostNum) + (useForecast ? '*' : ''))
       : '—';
@@ -1013,10 +1055,9 @@ function renderPnL() {
       + '<td class="left addr-cell">' + addrHtml + '</td>'
       + '<td class="c-days">' + (days ? days + 'd' : '—') + '</td>'
       + '<td><span class="phase-pill ' + phaseClass(r._phase) + '">' + escapeHtml(phaseLabel(r._phase)) + '</span></td>'
-      + '<td>' + (r.acquisition_actual ? fmtK(r.acquisition_actual) : '—') + '</td>'
-      + '<td>' + (r.rehab_actual ? fmtK(r.rehab_actual) : '—') + '</td>'
-      + '<td>' + (r.holding_actual ? fmtK(r.holding_actual, {decimals:1}) : '—') + '</td>'
-      + '<td>' + (r.financing_actual ? fmtK(r.financing_actual, {decimals:1}) : '—') + '</td>'
+      + '<td class="' + (fullProject ? 'projected' : '') + '">' + escapeHtml(acqTxt) + '</td>'
+      + '<td class="' + (fullProject ? 'projected' : '') + '">' + escapeHtml(rehabTxt) + '</td>'
+      + '<td class="' + (fullProject ? 'projected' : '') + '">' + escapeHtml(carryTxtCell) + '</td>'
       + '<td class="' + (useForecast ? 'projected' : '') + '">' + escapeHtml(dispTxt) + '</td>'
       + '<td class="total">' + escapeHtml(totalCostTxt) + '</td>'
       + '<td class="' + (isProjectedRevenue ? 'projected' : '') + '">' + escapeHtml(revenueTxt) + '</td>'
@@ -1037,16 +1078,16 @@ function renderPnL() {
   }
   html += '</tr></thead><tbody>';
 
-  html += '<tr class="group-row"><td colspan="14">In flight (' + inFlight.length + ') — Ann ROI &amp; Carry % projected against assumed close</td></tr>';
+  html += '<tr class="group-row"><td colspan="13">In flight (' + inFlight.length + ') — Ann ROI &amp; Carry % projected against assumed close</td></tr>';
   if (inFlight.length === 0) {
-    html += '<tr><td colspan="14" style="text-align:center; padding:24px; color:var(--text-4);">No in-flight deals.</td></tr>';
+    html += '<tr><td colspan="13" style="text-align:center; padding:24px; color:var(--text-4);">No in-flight deals.</td></tr>';
   } else {
     for (const r of inFlight) html += rowHtml(r, false);
   }
 
-  html += '<tr class="group-row"><td colspan="14">Sold (' + sold.length + ')</td></tr>';
+  html += '<tr class="group-row"><td colspan="13">Sold (' + sold.length + ')</td></tr>';
   if (sold.length === 0) {
-    html += '<tr><td colspan="14" style="text-align:center; padding:24px; color:var(--text-4);">No sold deals.</td></tr>';
+    html += '<tr><td colspan="13" style="text-align:center; padding:24px; color:var(--text-4);">No sold deals.</td></tr>';
   } else {
     for (const r of sold) html += rowHtml(r, true);
   }
@@ -1096,7 +1137,7 @@ function toggleDrill(tr, forceOpen) {
   pnlExpanded.add(dealId);
   const drill = document.createElement('tr');
   drill.className = 'drill-row';
-  drill.innerHTML = '<td colspan="14">' + renderDrillDown(dealId) + '</td>';
+  drill.innerHTML = '<td colspan="13">' + renderDrillDown(dealId) + '</td>';
   tr.parentNode.insertBefore(drill, tr.nextElementSibling);
 }
 </script>
@@ -1139,8 +1180,10 @@ const BUCKET_TT = {
      + 'essentially known at close.',
   REHAB: '<span class="ttlabel">Actual</span>Σ <code>Construction Costs</code> (all labor + materials sub-lines) '
      + 'plus inspection / permit fees — whatever QBO has booked.'
-     + '<span class="ttlabel">Budget</span>Underwriter rehab estimate (<code>deal_scores.rehab_estimate</code>), '
-     + 'snapshotted into <code>deal_budgets</code>. Never re-computed.'
+     + '<span class="ttlabel">Budget</span>The owner\'s locked construction estimate '
+     + '(<code>properties.locked_construction</code>), falling back to the underwriter rehab '
+     + 'estimate (<code>deal_scores.rehab_estimate</code>) when no lock exists. '
+     + 'Snapshotted into <code>deal_budgets</code>. Never re-computed.'
      + '<span class="ttlabel">Variance</span><code>actual / budget − 1</code>. <em>Over</em> usually means scope '
      + 'grew or labor/material estimates were soft.',
   CARRY: '<span class="ttlabel">Actual — accrued, not QBO</span>Combined holding + financing cost. '
@@ -1148,9 +1191,9 @@ const BUCKET_TT = {
      + 'utilities run-rate.'
      + '<span class="ttlabel">Why not QBO</span>CA property tax hits Nov + Feb; HML interest is billed monthly. '
      + 'Both lag reality — accrued captures the true cost-to-date.'
-     + '<span class="ttlabel">Budget — fixed 3 months</span><code>3 × monthly_burn</code>, matching '
-     + '<code>financing_hold_months: 3</code> — the assumption priced into the offer.'
-     + '<span class="ttlabel">What "over plan" means</span>Every month past month 3 burns carry that was never '
+     + '<span class="ttlabel">Budget — fixed 4 months</span><code>4 × monthly_burn</code>, where the loan is '
+     + 'modeled at 90% LTV / 9% APR — the assumption priced into the offer.'
+     + '<span class="ttlabel">What "over plan" means</span>Every month past month 4 burns carry that was never '
      + 'priced in. <em>That is profit erosion</em>.',
   DISP: '<span class="ttlabel">Actual</span>Σ <code>Advertising &amp; Marketing</code> + <code>Staging</code>. '
      + 'At close: + broker commissions + closing costs + Form 593 withholding.'
@@ -1182,7 +1225,7 @@ function bvaRow(cat, actual, budget, mode, dealId, bucketKey) {
     + 'data-edit-budget="' + escapeHtml(dealId) + '" data-bucket="' + bucketKey + '" '
     + 'data-current="' + (budget == null ? '' : budget) + '" '
     + 'title="Click to edit budget">' + escapeHtml(budgetTxt)
-    + (hasBudget && cat === 'CARRY' ? ' (3 mo)' : '') + '</div>';
+    + (hasBudget && cat === 'CARRY' ? ' (4 mo)' : '') + '</div>';
 
   if (mode === 'estimated') {
     // In Escrow — nothing spent; show the budget as an italic estimate.
@@ -1231,12 +1274,12 @@ function bvaRow(cat, actual, budget, mode, dealId, bucketKey) {
       ? '<span class="status neg">' + pctTxt + '% of budget</span>'
       : '<span class="status dur">' + pctTxt + '% spent</span>';
   } else if (mode === 'accrued') {
-    // CARRY — accrued vs the fixed 3-month budget.
+    // CARRY — accrued vs the fixed 4-month budget.
     barClass = ratio > 1 ? 'over' : 'under';
-    const months = ratio * 3;
+    const months = ratio * 4;
     statusHtml = ratio > 1
-      ? '<span class="status neg">' + (months - 3).toFixed(1) + ' mo over</span>'
-      : '<span class="status dur">' + months.toFixed(1) + ' / 3 mo</span>';
+      ? '<span class="status neg">' + (months - 4).toFixed(1) + ' mo over</span>'
+      : '<span class="status dur">' + months.toFixed(1) + ' / 4 mo</span>';
   } else if (mode === 'disp-partial') {
     // DISP while not yet closed — spend progress, not a variance.
     barClass = 'under';
