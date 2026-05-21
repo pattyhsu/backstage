@@ -770,7 +770,7 @@ async function loadProject(){
   propertiesByMls={};
   if(mlsList.length){
     const {data:props, error:pErr}=await sb.from('properties')
-      .select('id, mls, address, city, zip, apn, beds, baths, sqft, lot_size, pool, year_built, list_price, sale_price, sold_date, locked_arv, locked_construction, elementary_school, middle_school, high_school, elementary_rating, middle_rating, high_rating, agent_name, agent_email, agent_broker, agent_phone, agent_cell, agent_office_phone, double_ended, photo_count, change_type')
+      .select('id, mls, address, city, zip, apn, beds, baths, sqft, lot_size, pool, year_built, list_price, list_date, sale_price, sold_date, locked_arv, locked_construction, elementary_school, middle_school, high_school, elementary_rating, middle_rating, high_rating, agent_name, agent_email, agent_broker, agent_phone, agent_cell, agent_office_phone, double_ended, photo_count, change_type')
       .in('mls', mlsList);
     if(pErr){console.warn('[project-detail] properties load failed:', pErr);}
     else { for(const r of (props||[])){propertiesByMls[r.mls]=r;} }
@@ -1979,13 +1979,17 @@ function wireWhatsNext(){
 // ============================================================
 function renderListingSection(){
   const d=currentDeal;
-  const dom=d.list_date?daysBetween(d.list_date, todayStr()):null;
+  // List date: manual deals.list_date override, else the relist MLS listing's
+  // own list_date (written by the daily import from the hotsheet CSV).
+  const relistProp=d.relist_mls?propertiesByMls[d.relist_mls]:null;
+  const effListDate=d.list_date ?? (relistProp?relistProp.list_date:null) ?? null;
+  const dom=effListDate?daysBetween(effListDate, todayStr()):null;
   return `
     <div class="sect phase-hide" id="listingSect">
       <div class="sect-h"><h2>Listing</h2><span class="sub">${d.relist_mls?'relist MLS# '+escapeHtml(d.relist_mls)+' · ':''}click any field to edit${dom!=null?' · '+dom+' DOM':''}</span></div>
       <div class="kv-grid">
         <div class="kv"><label>List price</label><div class="val${d.list_price?'':' dim'}" data-listing-field="list_price" data-listing-type="number">${d.list_price?FK(d.list_price):'—'}</div></div>
-        <div class="kv"><label>List date</label><div class="val${d.list_date?'':' dim'}" data-listing-field="list_date" data-listing-type="date">${d.list_date?fmtDate(d.list_date):'—'}</div></div>
+        <div class="kv"><label>List date</label><div class="val${effListDate?'':' dim'}" data-listing-field="list_date" data-listing-type="date">${effListDate?fmtDate(effListDate):'—'}</div></div>
         <div class="kv"><label>Days on market</label><div class="val${dom!=null?'':' dim'}">${dom!=null?dom+'d':'—'}</div></div>
         <div class="kv"><label>Accepted offer</label><div class="val${d.accepted_offer_price?'':' dim'}" data-listing-field="accepted_offer_price" data-listing-type="number">${d.accepted_offer_price?FK(d.accepted_offer_price):'—'}</div></div>
         <div class="kv"><label>Accepted date</label><div class="val${d.accepted_offer_date?'':' dim'}" data-listing-field="accepted_offer_date" data-listing-type="date">${d.accepted_offer_date?fmtDate(d.accepted_offer_date):'—'}</div></div>
