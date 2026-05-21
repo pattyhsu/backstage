@@ -1994,6 +1994,7 @@ function renderListingSection(){
         <div class="kv"><label>Accepted offer</label><div class="val${d.accepted_offer_price?'':' dim'}" data-listing-field="accepted_offer_price" data-listing-type="number">${d.accepted_offer_price?FK(d.accepted_offer_price):'—'}</div></div>
         <div class="kv"><label>Accepted date</label><div class="val${d.accepted_offer_date?'':' dim'}" data-listing-field="accepted_offer_date" data-listing-type="date">${d.accepted_offer_date?fmtDate(d.accepted_offer_date):'—'}</div></div>
         <div class="kv"><label>Sale close</label><div class="val${d.sale_close_date?'':' dim'}" data-listing-field="sale_close_date" data-listing-type="date">${d.sale_close_date?fmtDate(d.sale_close_date):'—'}</div></div>
+        <div class="kv"><label>Commission %</label><div class="val${d.commission_pct!=null?'':' dim'}" data-listing-field="commission_pct" data-listing-type="percent">${d.commission_pct!=null?d.commission_pct+'%':'—'}</div></div>
       </div>
     </div>
   `;
@@ -2014,6 +2015,11 @@ function _beginListingEdit(el){
   if(type==='number'){
     input.type='number'; input.min='0'; input.step='1';
     input.value=cur==null?'':String(Math.round(cur));
+  } else if(type==='percent'){
+    // commission_pct stores the percent number itself (5.5 = 5.5%), so the
+    // input accepts a decimal and is not rounded.
+    input.type='number'; input.min='0'; input.step='0.25';
+    input.value=cur==null?'':String(cur);
   } else {
     input.type='date';
     input.value=cur||'';
@@ -2021,7 +2027,7 @@ function _beginListingEdit(el){
   el.innerHTML='';
   el.appendChild(input);
   input.focus();
-  if(type==='number')input.select();
+  if(type==='number'||type==='percent')input.select();
   let committed=false, cancelled=false;
   input.addEventListener('keydown', async (e)=>{
     if(e.key==='Enter'){e.preventDefault();committed=true;await _commitListingEdit(el, field, type, input.value);}
@@ -2042,6 +2048,15 @@ async function _commitListingEdit(el, field, type, raw){
       const dollars=Number(trimmed);
       if(!isFinite(dollars)||dollars<0||dollars>50000000){alert('Value out of range.');renderPage();return;}
       newVal=dollars;
+    }
+  } else if(type==='percent'){
+    // Percent number stored as-is (5.5 = 5.5%); not rounded, range 0–100.
+    const trimmed=(raw==null?'':String(raw).trim());
+    if(trimmed===''){newVal=null;}
+    else{
+      const pct=Number(trimmed);
+      if(!isFinite(pct)||pct<0||pct>100){alert('Commission % must be between 0 and 100.');renderPage();return;}
+      newVal=pct;
     }
   } else {
     newVal=(raw||'').trim()||null;
