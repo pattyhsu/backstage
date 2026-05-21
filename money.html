@@ -935,16 +935,57 @@ function renderPnL() {
     const isProjectedRevenue = !isSold;
     const revenueRaw = r.actual_revenue_total || r.actual_sale_price || r.projected_revenue;
     const revenueTxt = revenueRaw != null ? (fmtK(revenueRaw) + (isProjectedRevenue ? '*' : '')) : '—';
-    const profitNum = r.projected_gross_profit;
+
+    // Brief MH follow-up — IN FLIGHT rows read as a forecast of the deal's
+    // final outcome. The disposition cost (selling commission, ~5% of sale
+    // price) is still in the future for a not-yet-closed deal, so DISP shows
+    // the *projected* DISP (v_deal_cost_breakdown.disp_budget = 5% × proj
+    // revenue) rather than disposition_actual (marketing spent so far). TOTAL
+    // COST and PROFIT swap actual DISP for projected DISP so the row stays
+    // internally coherent. SOLD rows are real actuals — left untouched.
+    const cb = (!isSold && window.MC_DATA && window.MC_DATA.costByDeal)
+      ? window.MC_DATA.costByDeal[r.deal_id] : null;
+    const projDisp = (cb && cb.disp_budget != null) ? cb.disp_budget : null;
+    const useForecast = !isSold && projDisp != null;
+
+    // DISP cell: projected for in-flight (italic/grey/asterisk like REVENUE),
+    // actual for sold.
+    const dispNum = useForecast ? projDisp : r.disposition_actual;
+    const dispTxt = dispNum ? (fmtK(dispNum, {decimals:1}) + (useForecast ? '*' : ''))
+                            : '—';
+
+    // TOTAL COST: forecast swaps actual DISP for projected DISP.
+    const totalCostActual = r.total_costs_actual || 0;
+    const totalCostNum = useForecast
+      ? (totalCostActual - (r.disposition_actual || 0) + projDisp)
+      : totalCostActual;
+    const totalCostTxt = totalCostNum
+      ? (fmtK(totalCostNum) + (useForecast ? '*' : ''))
+      : '—';
+
+    // PROFIT: for forecast rows recompute = projected revenue − forecast
+    // total cost so it reflects the unbilled commission. SOLD keeps the
+    // view's projected_gross_profit (which is the realized figure there).
+    const profitNum = (useForecast && revenueRaw != null)
+      ? (revenueRaw - totalCostNum)
+      : r.projected_gross_profit;
     const profitClass = profitNum == null ? '' : (profitNum >= 0 ? 'profit-pos' : 'profit-neg');
-    const profitTxt = profitNum != null ? fmtK(profitNum, {sign:true}) : '—';
+    const profitTxt = profitNum != null
+      ? (fmtK(profitNum, {sign:true}) + (useForecast ? '*' : ''))
+      : '—';
     // Annualized ROI: roi_pct * 365 / days_in_flight; for in-flight clamp days to ≥30
     // so ratios on day-1 deals don't look insane (mockup notes this projects to today).
+    // Forecast rows recompute ROI from the new PROFIT / TOTAL COST so the row
+    // stays coherent with its swapped-in projected DISP.
     let annRoi = null;
     const days = r.days_in_flight || 0;
-    if (r.projected_roi_pct != null && days > 0) {
+    if (days > 0) {
       const useDays = Math.max(days, 30);
-      annRoi = r.projected_roi_pct * (365 / useDays);
+      if (useForecast && totalCostNum > 0 && profitNum != null) {
+        annRoi = (profitNum / totalCostNum) * (365 / useDays);
+      } else if (r.projected_roi_pct != null) {
+        annRoi = r.projected_roi_pct * (365 / useDays);
+      }
     }
     // Carry %: (financing + holding) / projected_gross_profit
     let carry = null;
@@ -976,8 +1017,8 @@ function renderPnL() {
       + '<td>' + (r.rehab_actual ? fmtK(r.rehab_actual) : '—') + '</td>'
       + '<td>' + (r.holding_actual ? fmtK(r.holding_actual, {decimals:1}) : '—') + '</td>'
       + '<td>' + (r.financing_actual ? fmtK(r.financing_actual, {decimals:1}) : '—') + '</td>'
-      + '<td>' + (r.disposition_actual ? fmtK(r.disposition_actual, {decimals:1}) : '—') + '</td>'
-      + '<td class="total">' + (r.total_costs_actual ? fmtK(r.total_costs_actual) : '—') + '</td>'
+      + '<td class="' + (useForecast ? 'projected' : '') + '">' + escapeHtml(dispTxt) + '</td>'
+      + '<td class="total">' + escapeHtml(totalCostTxt) + '</td>'
       + '<td class="' + (isProjectedRevenue ? 'projected' : '') + '">' + escapeHtml(revenueTxt) + '</td>'
       + '<td class="' + profitClass + '">' + escapeHtml(profitTxt) + '</td>'
       + '<td class="' + annRoiClass + '">' + escapeHtml(annRoiTxt) + '</td>'
