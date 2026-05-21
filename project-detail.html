@@ -263,6 +263,10 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .kv label { font-size:10px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
 .kv .val { font-family:var(--mono); font-size:13px; color:var(--text); }
 .kv .val.dim { color:var(--text-4); font-style:italic; }
+.kv .val[data-listing-field] { cursor:text; padding:1px 3px; border-radius:3px; align-self:flex-start; }
+.kv .val[data-listing-field]:hover { background:var(--accent-dim); }
+.kv .val[data-listing-field].editing { background:var(--bg); padding:0; }
+.kv .val[data-listing-field] input { font:inherit; border:1px solid var(--accent); border-radius:3px; padding:1px 4px; outline:none; background:var(--bg); color:var(--text); width:130px; }
 
 /* Docs */
 .docs-tbl { width:100%; border-collapse:collapse; }
@@ -1173,6 +1177,7 @@ function renderPage(){
   wireChecklists();
   wirePrepNotes();
   wireEscrowEdits();
+  wireListingEdits();
   wireFinancing();
   wireSpendingTree();
   wireHistoryToggle();
@@ -1977,17 +1982,72 @@ function renderListingSection(){
   const dom=d.list_date?daysBetween(d.list_date, todayStr()):null;
   return `
     <div class="sect phase-hide" id="listingSect">
-      <div class="sect-h"><h2>Listing</h2><span class="sub">${d.relist_mls?'relist MLS# '+escapeHtml(d.relist_mls):''}${dom!=null?' · '+dom+' DOM':''}</span></div>
+      <div class="sect-h"><h2>Listing</h2><span class="sub">${d.relist_mls?'relist MLS# '+escapeHtml(d.relist_mls)+' · ':''}click any field to edit${dom!=null?' · '+dom+' DOM':''}</span></div>
       <div class="kv-grid">
-        <div class="kv"><label>List price</label><div class="val${d.list_price?'':' dim'}">${d.list_price?FK(d.list_price):'—'}</div></div>
-        <div class="kv"><label>List date</label><div class="val${d.list_date?'':' dim'}">${d.list_date?fmtDate(d.list_date):'—'}</div></div>
+        <div class="kv"><label>List price</label><div class="val${d.list_price?'':' dim'}" data-listing-field="list_price" data-listing-type="number">${d.list_price?FK(d.list_price):'—'}</div></div>
+        <div class="kv"><label>List date</label><div class="val${d.list_date?'':' dim'}" data-listing-field="list_date" data-listing-type="date">${d.list_date?fmtDate(d.list_date):'—'}</div></div>
         <div class="kv"><label>Days on market</label><div class="val${dom!=null?'':' dim'}">${dom!=null?dom+'d':'—'}</div></div>
-        <div class="kv"><label>Accepted offer</label><div class="val${d.accepted_offer_price?'':' dim'}">${d.accepted_offer_price?FK(d.accepted_offer_price):'—'}</div></div>
-        <div class="kv"><label>Accepted date</label><div class="val${d.accepted_offer_date?'':' dim'}">${d.accepted_offer_date?fmtDate(d.accepted_offer_date):'—'}</div></div>
-        <div class="kv"><label>Sale close</label><div class="val${d.sale_close_date?'':' dim'}">${d.sale_close_date?fmtDate(d.sale_close_date):'—'}</div></div>
+        <div class="kv"><label>Accepted offer</label><div class="val${d.accepted_offer_price?'':' dim'}" data-listing-field="accepted_offer_price" data-listing-type="number">${d.accepted_offer_price?FK(d.accepted_offer_price):'—'}</div></div>
+        <div class="kv"><label>Accepted date</label><div class="val${d.accepted_offer_date?'':' dim'}" data-listing-field="accepted_offer_date" data-listing-type="date">${d.accepted_offer_date?fmtDate(d.accepted_offer_date):'—'}</div></div>
+        <div class="kv"><label>Sale close</label><div class="val${d.sale_close_date?'':' dim'}" data-listing-field="sale_close_date" data-listing-type="date">${d.sale_close_date?fmtDate(d.sale_close_date):'—'}</div></div>
       </div>
     </div>
   `;
+}
+
+function wireListingEdits(){
+  document.querySelectorAll('.val[data-listing-field]').forEach(el=>{
+    el.addEventListener('click', ()=>_beginListingEdit(el));
+  });
+}
+function _beginListingEdit(el){
+  if(el.classList.contains('editing'))return;
+  const field=el.dataset.listingField;
+  const type=el.dataset.listingType;
+  const cur=currentDeal[field];
+  el.classList.add('editing');
+  const input=document.createElement('input');
+  if(type==='number'){
+    input.type='number'; input.min='0'; input.step='1';
+    input.value=cur==null?'':String(Math.round(cur));
+  } else {
+    input.type='date';
+    input.value=cur||'';
+  }
+  el.innerHTML='';
+  el.appendChild(input);
+  input.focus();
+  if(type==='number')input.select();
+  let committed=false, cancelled=false;
+  input.addEventListener('keydown', async (e)=>{
+    if(e.key==='Enter'){e.preventDefault();committed=true;await _commitListingEdit(el, field, type, input.value);}
+    else if(e.key==='Escape'){cancelled=true;el.classList.remove('editing');renderPage();}
+  });
+  input.addEventListener('blur', async ()=>{
+    if(committed||cancelled)return;
+    committed=true;
+    await _commitListingEdit(el, field, type, input.value);
+  });
+}
+async function _commitListingEdit(el, field, type, raw){
+  let newVal;
+  if(type==='number'){
+    const trimmed=(raw==null?'':String(raw).trim());
+    if(trimmed===''){newVal=null;}
+    else{
+      const dollars=Number(trimmed);
+      if(!isFinite(dollars)||dollars<0||dollars>50000000){alert('Value out of range.');renderPage();return;}
+      newVal=dollars;
+    }
+  } else {
+    newVal=(raw||'').trim()||null;
+  }
+  const updates={updated_at:new Date().toISOString()};
+  updates[field]=newVal;
+  const {error}=await sb.from('deals').update(updates).eq('id', currentDeal.id);
+  if(error){alert('Save failed: '+error.message);renderPage();return;}
+  currentDeal[field]=newVal;
+  await loadProject();
 }
 
 function renderHandoffSection(){
