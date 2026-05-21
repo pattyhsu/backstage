@@ -180,19 +180,19 @@ body { overflow:hidden; height:100vh; }
 .bva-info .tt em { color:#FFD580; font-style:normal; }
 
 /* QBO category tree (right panel) */
-.qbo-banner { background:var(--amber-bg); border-left:3px solid var(--amber); padding:8px 12px; border-radius:0 6px 6px 0; font-size:11px; line-height:1.5; color:var(--text-2); margin-bottom:10px; font-family:var(--sans); }
+.qbo-banner { background:var(--amber-bg); border-left:3px solid var(--amber); padding:8px 12px; border-radius:0 6px 6px 0; font-size:11px; line-height:1.5; color:var(--text-2); margin-bottom:10px; font-family:var(--sans); text-align:left; }
 .qbo-banner strong.amt-a { color:var(--amber); }
 .qbo-banner strong.amt-b { color:var(--text); }
 .qbo-banner .sub2 { color:var(--text-3); }
-.qbo-list { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:4px 0; max-height:560px; overflow-y:auto; }
-.qbo-line { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:10px; padding:6px 14px; font-size:12px; font-family:var(--sans); }
+.qbo-list { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:4px 0; max-height:560px; overflow-y:auto; text-align:left; }
+.qbo-line { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:10px; padding:6px 14px; font-size:12px; font-family:var(--sans); text-align:left; }
 .qbo-line + .qbo-line { border-top:1px solid var(--border); }
 .qbo-line.section { background:var(--bg-alt); font-size:10px; font-weight:700; color:var(--text-4); letter-spacing:.06em; text-transform:uppercase; padding:6px 14px; }
-.qbo-line .cat { color:var(--text-2); }
+.qbo-line .cat { color:var(--text-2); text-align:left; }
 .qbo-line.l0 .cat { font-weight:600; }
-.qbo-line.l1 { background:rgba(0,0,0,.015); padding-left:30px; }
+.qbo-line.l1 { background:rgba(0,0,0,.015); padding-left:32px; }
 .qbo-line.l1 .cat { font-weight:500; font-size:11.5px; }
-.qbo-line.l2 { padding-left:48px; }
+.qbo-line.l2 { padding-left:54px; }
 .qbo-line.l2 .cat { color:var(--text-3); font-size:11px; }
 .qbo-line.l2 .amt { font-size:10.5px; color:var(--text-3); font-weight:500; }
 .qbo-line .amt { font-family:var(--mono); font-weight:600; font-size:11px; text-align:right; }
@@ -565,6 +565,25 @@ function clearError() {
 // ============================================================
 window.MC_DATA = null;
 
+// Paginated select — PostgREST caps a plain select at 1000 rows, so a large
+// table (deal_expenses has ~8K rows) silently truncates. Loop .range() pages
+// until a short page returns, then concatenate. Returns the same
+// { data, error } shape as a normal supabase-js query so callers are unchanged.
+async function selectAll(table, columns) {
+  const PAGE = 1000;
+  let all = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await sb
+      .from(table)
+      .select(columns)
+      .range(from, from + PAGE - 1);
+    if (error) return { data: null, error };
+    all = all.concat(data || []);
+    if (!data || data.length < PAGE) break;  // short page -> last page
+  }
+  return { data: all, error: null };
+}
+
 async function loadData() {
   clearError();
   // Fetch in parallel.
@@ -601,7 +620,9 @@ async function loadData() {
     // Brief MH — per-deal 4-bucket budget vs actual (migrations 071/072).
     sb.from('v_deal_cost_breakdown').select('*'),
     // Brief MH — per-deal QBO expense lines for the drill-down category tree.
-    sb.from('deal_expenses').select('deal_id, qbo_account_id, qbo_account_name, qbo_account_path, amount'),
+    // PAGINATED: deal_expenses has ~8K rows; a plain select caps at 1000 and
+    // would silently truncate (every deal past the cap loses transactions).
+    selectAll('deal_expenses', 'deal_id, qbo_account_id, qbo_account_name, qbo_account_path, amount'),
     // Brief MH — QBO account -> bucket mapping for the category tree.
     sb.from('qbo_account_categories').select('qbo_account_name, bucket'),
   ]);
