@@ -1123,11 +1123,11 @@ function renderPage(){
       </div>
     </div>
 
-    <!-- UNDERWRITING BAR (owner-only — dollar values: Bought At / ARV / Construction / Projected Profit) -->
+    <!-- UNDERWRITING BAR (owner-only — dollar values: Bought At / Sell price / Construction / Projected Profit) -->
     ${role==='owner' ? `<div class="uw-bar" id="uwBar">
       <div class="uw-stat"><div class="uw-label">${buyLabel}</div>${fmtUw(buyVal,false,buyIsOffer?'offer':'bought')}</div>
       <div class="uw-sep">·</div>
-      <div class="uw-stat"><div class="uw-label">ARV</div>${fmtUw(arvVal,arvLocked,'arv')}</div>
+      <div class="uw-stat"><div class="uw-label">Sell price</div>${fmtUw(arvVal,arvLocked,'arv')}</div>
       <div class="uw-sep">·</div>
       <div class="uw-stat"><div class="uw-label">Construction</div>${fmtUw(constrVal,constrLocked,'construction')}</div>
       <div class="uw-sep">·</div>
@@ -1593,7 +1593,7 @@ function computeCashCells(){
     return [
       ['Equity locked', FK(equity), 'down · no rehab spent yet', false],
       ['Daily holding cost', loan && loan.status==='funded'?FK(dailyHold)+'/d':'— pending', loan?'$'+Math.round(loanAmt/1000)+'K × '+(loanRate*100).toFixed(1)+'% / 365':'will accrue once funded', loan?(loan.status!=='funded'):true],
-      ['Projected exit (net)', projectedNet!=null?FK(projectedNet):'—', 'ARV × 0.96 − loan', false],
+      ['Projected exit (net)', projectedNet!=null?FK(projectedNet):'—', 'Sell price × 0.96 − loan', false],
       ['Annualized ROI', annualROI!=null?annualROI+'%':'—', 'profit ÷ equity, '+cycleDays+'-day cycle', false],
     ];
   }
@@ -1657,7 +1657,7 @@ function renderOfferCalc(){
       </div>
       <div class="lp-output six">
         <div class="lp-out-cell accent"><div class="lbl">Effective purchase</div><div class="val" id="ocEffective">—</div><div class="sub" id="ocEffectiveSub">offer − reduction − comm rebate</div></div>
-        <div class="lp-out-cell"><div class="lbl">ARV 🔒</div><div class="val">${FK(arv)}</div><div class="sub">click UW bar to edit · locked</div></div>
+        <div class="lp-out-cell"><div class="lbl">Sell price 🔒</div><div class="val">${FK(arv)}</div><div class="sub">click UW bar to edit · locked</div></div>
         <div class="lp-out-cell"><div class="lbl">Construction 🔒</div><div class="val">${FK(construction)}</div><div class="sub">click UW bar to edit · locked</div></div>
         <div class="lp-out-cell profit"><div class="lbl">Profit</div><div class="val" id="ocProfit">—</div><div class="sub" id="ocSpreadSub">spread</div></div>
         <div class="lp-out-cell"><div class="lbl">Cash if won</div><div class="val" id="ocCash">—</div><div class="sub" id="ocCashSub">down + rehab + carry</div></div>
