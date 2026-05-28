@@ -633,7 +633,7 @@ function compsPanel(l){
 // Cities that have BOTH a per-city regression and smart comps — v7.4.1 is
 // suppressed for these (and the deal-analyzer ARV prefills from smart
 // comps → per-city regression → comps avg via preferredArvFor()).
-const HAS_PER_CITY_REGRESSION=new Set(['CERRITOS','LA PALMA','CYPRESS','DIAMOND BAR','LONG BEACH','ANAHEIM','ANAHEIM HILLS','FULLERTON']);
+const HAS_PER_CITY_REGRESSION=new Set(['CERRITOS','LA PALMA','CYPRESS','DIAMOND BAR','LONG BEACH','ANAHEIM','ANAHEIM HILLS','FULLERTON','TEMPLE CITY']);
 
 // ========== ARV ESTIMATOR (v7.4.1) — Layer 2+3+4 nightly batch ==========
 // Reads the latest row from `arv_estimates` (written by
@@ -894,6 +894,14 @@ function renderSmartCompsDetail(l,av){
   // analog, swapped HS→pool). Column auto-hides for cities that pass no
   // pool adjustment (Cerritos/Cypress/Diamond Bar/etc).
   const hasPoolAdj=comps.some(co=>co.pool_adjustment_pct!=null&&Math.abs(co.pool_adjustment_pct)>0.01);
+  // Temple City smart-comps emits per-comp comp_total_adjustment_pct (the
+  // cumulative normalization that drives the adjustment-trust down-weight,
+  // temple_city_smart_comps Decision #11) + a top-level count of comps
+  // hard-skipped past the 40% cliff. Both columns/notes auto-hide for cities
+  // that don't emit the field.
+  const hasTotalAdj=comps.some(co=>co.comp_total_adjustment_pct!=null);
+  const nSkipped=data.n_skipped_high_adjustment||0;
+  const skipNote=nSkipped>0?`<div style="font-size:10px;color:var(--text-4);margin-top:2px">${nSkipped} comp${nSkipped===1?'':'s'} excluded (&gt;40% total adjustment)</div>`:'';
   let compsRows='';
   if(comps.length){
     const head=`<thead><tr style="font-size:9px;font-weight:700;color:var(--text-4);text-transform:uppercase">
@@ -906,6 +914,7 @@ function renderSmartCompsDetail(l,av){
       <th style="text-align:right;padding:3px 4px">$/sf T6</th>
       ${hasHsAdj?`<th style="text-align:right;padding:3px 4px">HS adj</th>`:''}
       ${hasPoolAdj?`<th style="text-align:right;padding:3px 4px">Pool adj</th>`:''}
+      ${hasTotalAdj?`<th style="text-align:right;padding:3px 4px">Total adj</th>`:''}
       <th style="text-align:right;padding:3px 4px">w</th></tr></thead>`;
     const body=comps.map(co=>{
       const t=co.condition_tier;
@@ -919,6 +928,11 @@ function renderSmartCompsDetail(l,av){
       const poolStr=(poolPct==null||Math.abs(poolPct)<0.01)?'—':(poolPct>0?'+':'')+poolPct.toFixed(2)+'%';
       const poolCol=(poolPct==null||Math.abs(poolPct)<0.01)?'var(--text-4)':(poolPct>0?'var(--green)':'var(--red)');
       const poolCell=hasPoolAdj?`<td style="padding:3px 4px;text-align:right;color:${poolCol}">${poolStr}</td>`:'';
+      const totPct=co.comp_total_adjustment_pct;
+      const totStr=(totPct==null)?'—':totPct.toFixed(1)+'%';
+      // Higher cumulative adjustment = lower trust (down-weighted). Amber past 25%.
+      const totCol=(totPct==null)?'var(--text-4)':(totPct>25?'var(--amber)':'var(--text-3)');
+      const totalCell=hasTotalAdj?`<td style="padding:3px 4px;text-align:right;color:${totCol}">${totStr}</td>`:'';
       return `<tr style="font-size:11px;border-top:1px solid var(--border)">
         <td style="padding:3px 4px">${(co.distance_miles||0).toFixed(2)}</td>
         <td style="padding:3px 4px;color:${tCol};font-weight:600">${tierStr}</td>
@@ -929,13 +943,14 @@ function renderSmartCompsDetail(l,av){
         <td style="padding:3px 4px;text-align:right;font-weight:600">$${Math.round(co.ppsf_t6_today||0)}</td>
         ${hsCell}
         ${poolCell}
+        ${totalCell}
         <td style="padding:3px 4px;text-align:right;color:var(--text-4)">${((co.weight||0)*100).toFixed(0)}%</td></tr>`;
     }).join('');
     compsRows=`<table style="width:100%;border-collapse:collapse;margin-top:6px">${head}<tbody>${body}</tbody></table>`;
   }else{
     compsRows=`<div style="padding:6px;color:var(--text-4);font-size:11px;font-style:italic">No anchor comps</div>`;
   }
-  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Smart comps anchors (${n} within ${radius}mi · ${monthsBack}mo · $${ppsf}/sf median T6-eq)</summary>${flagsHtml}${compsRows}</details>`;
+  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Smart comps anchors (${n} within ${radius}mi · ${monthsBack}mo · $${ppsf}/sf median T6-eq)</summary>${flagsHtml}${skipNote}${compsRows}</details>`;
 }
 
 function renderV7LayerDetail(av){
