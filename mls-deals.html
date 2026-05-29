@@ -237,6 +237,15 @@ body{overflow:hidden;height:100vh}
         <button class="btn" id="bf-all" onclick="setFilter('all');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">All</button>
       </div>
     </div>
+    <span style="display:inline-flex;align-items:center;gap:3px;margin-left:6px">
+      <span style="font-size:10px;color:var(--text-4);margin-right:2px">Grade:</span>
+      <button class="btn btn-on" id="gf-all" onclick="setGradeFilter(null)" style="padding:4px 8px">All <span id="gcnt-all"></span></button>
+      <button class="btn" id="gf-A" onclick="setGradeFilter('A')" style="padding:4px 8px">A <span id="gcnt-A"></span></button>
+      <button class="btn" id="gf-B" onclick="setGradeFilter('B')" style="padding:4px 8px">B <span id="gcnt-B"></span></button>
+      <button class="btn" id="gf-C" onclick="setGradeFilter('C')" style="padding:4px 8px">C <span id="gcnt-C"></span></button>
+      <button class="btn" id="gf-D" onclick="setGradeFilter('D')" style="padding:4px 8px">D <span id="gcnt-D"></span></button>
+      <button class="btn" id="gf-ungraded" onclick="setGradeFilter('ungraded')" style="padding:4px 8px">Ungraded <span id="gcnt-ungraded"></span></button>
+    </span>
     <span id="db-status" style="font-size:10px;color:var(--text-4)"></span>
   </div>
 </div>
@@ -491,6 +500,10 @@ async function findComps(listing){
 const MAX_LIST_PRICE=2500000;
 let listings=[],sort_='priority',active=null,compCache={};
 let currentFilter='unread',cityFilters=new Set(),tagFilters=new Set();
+// Client-side deal-grade filter (the "bucket"). null = all; otherwise one of
+// 'A'|'B'|'C'|'D'|'ungraded'. Mirrors cityFilters/tagFilters; applied in
+// getSorted() against the dealScoreCache.
+let gradeFilter=null;
 // Brief AJ: bulk-archive selection set. In-memory only; cleared on bulk-archive
 // completion or Cancel. List-card render preserves checked state via
 // selectedMls.has(l.mls).
@@ -825,16 +838,41 @@ function renderArvScoreCard(l,mid,src,av,active){
   }
   else if(src==='deal-score'){
     if(dsPending)body=cardSubText('14px','pending');
-    else if(dsErr)body=cardSubText('14px','error');
+    else if(dsErr){
+      // Ungraded buckets (expected, not real errors): listings outside the
+      // 8 per-city ARV markets, or ARV-pipeline lag. Show a neutral grey
+      // "ungraded" pill + a short subtext. Any other message = real problem.
+      const em=(dc.row&&dc.row.error_message)||'';
+      if(em.indexOf('outside per-city coverage')===0||em.indexOf('no ARV available')===0){
+        const sub=em.indexOf('outside per-city coverage')===0?'outside per-city coverage':'ARV pending';
+        const upill=`<span style="${dsGradeStyle('?')};font-size:13px;font-weight:800;padding:2px 10px;border-radius:10px;letter-spacing:.5px">ungraded</span>`;
+        body=`<div style="margin-top:4px">${upill}</div>
+          <div style="font-size:10px;color:var(--text-4);margin-top:4px">${escapeHtml(sub)}</div>`;
+      }else{
+        body=`<div style="font-size:14px;font-weight:700;color:var(--text-4);margin-top:2px">error</div>
+          <div style="font-size:10px;color:var(--text-4);margin-top:2px">${escapeHtml(em||'unknown error')}</div>`;
+      }
+    }
     else if(dsMissing||!dc.row||!dc.row.grade)body=cardSubText('14px','—');
     else{
       const r=dc.row,g=r.grade||'?';
+      const bd=r.breakdown_json||{};
       const pill=`<span style="${dsGradeStyle(g)};font-size:13px;font-weight:800;padding:2px 10px;border-radius:10px;letter-spacing:.5px">${g}</span>`;
-      const spread=r.spread!=null?F(r.spread):'—';
-      const pct=r.spread_pct!=null?(r.spread_pct>=0?'+':'')+Number(r.spread_pct).toFixed(2)+'%':'—';
-      body=`<div style="margin-top:4px">${pill}</div>
-        <div style="font-size:10px;color:var(--text-4);margin-top:4px">spread ${spread}</div>
-        <div style="font-size:10px;color:var(--text-4)">${pct}</div>`;
+      let detailLines;
+      if(bd.shave_required_pct!=null&&bd.max_offer!=null){
+        // Negotiation-shave grade driver: % off list needed + the strict
+        // fully-loaded max offer. shave<=0 means it pencils at list.
+        const shaveLine=Number(bd.shave_required_pct)<=0?'works at list':'needs '+Number(bd.shave_required_pct).toFixed(1)+'% off';
+        detailLines=`<div style="font-size:10px;color:var(--text-4);margin-top:4px">${shaveLine}</div>
+          <div style="font-size:10px;color:var(--text-4)">max ${F(bd.max_offer)}</div>`;
+      }else{
+        // Legacy row lacking the new fields → fall back to spread display.
+        const spread=r.spread!=null?F(r.spread):'—';
+        const pct=r.spread_pct!=null?(r.spread_pct>=0?'+':'')+Number(r.spread_pct).toFixed(2)+'%':'—';
+        detailLines=`<div style="font-size:10px;color:var(--text-4);margin-top:4px">spread ${spread}</div>
+          <div style="font-size:10px;color:var(--text-4)">${pct}</div>`;
+      }
+      body=`<div style="margin-top:4px">${pill}</div>${detailLines}`;
     }
   }
 
@@ -983,6 +1021,8 @@ function renderDealScoreDetail(r){
   const computed=r.computed_at?new Date(r.computed_at).toLocaleString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(',','')+' PT':'(unknown)';
   return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Deal score breakdown</summary>
     <div style="margin-top:4px;font-size:11px;font-weight:500;color:var(--text-2);display:grid;grid-template-columns:auto 1fr;gap:4px 10px">
+      <div style="color:var(--text-4)">Max offer:</div><div>${bd.max_offer!=null?F(bd.max_offer):'—'}</div>
+      <div style="color:var(--text-4)">Shave required:</div><div>${bd.shave_required_pct!=null?Number(bd.shave_required_pct).toFixed(1)+'% off list':'—'}</div>
       <div style="color:var(--text-4)">List price:</div><div>${bd.list_price!=null?F(bd.list_price):'—'}</div>
       <div style="color:var(--text-4)">ARV:</div><div>${bd.arv!=null?F(bd.arv):'—'}</div>
       <div style="color:var(--text-4)">Rehab:</div><div>${bd.rehab!=null?F(bd.rehab):'—'}${bd.rehab_locked?' <i style="color:var(--text-4)">(locked)</i>':''}</div>
@@ -990,8 +1030,8 @@ function renderDealScoreDetail(r){
       <div style="color:var(--text-4)">Purchase close:</div><div>${bd.purchase_close!=null?F(bd.purchase_close):'—'}</div>
       <div style="color:var(--text-4)">Sale close:</div><div>${bd.sale_close!=null?F(bd.sale_close):'—'}</div>
       <div style="color:var(--text-4)">Spread:</div><div>${bd.spread!=null?F(bd.spread):'—'}${spreadPctStr}</div>
-      <div style="color:var(--text-4)">Target buy:</div><div>${bd.target_buy!=null?F(bd.target_buy):'—'}</div>
-      <div style="color:var(--text-4)">Gap vs list:</div><div>${gapStr}</div>
+      <div style="color:var(--text-4)">Target buy (loose):</div><div>${bd.target_buy!=null?F(bd.target_buy):'—'}</div>
+      <div style="color:var(--text-4)">Gap vs list (loose):</div><div>${gapStr}</div>
       <div style="color:var(--text-4)">Computed:</div><div>${computed}</div>
     </div></details>`;
 }
@@ -1104,51 +1144,66 @@ function dsGradeStyle(g){
   if(g==='D')return'background:var(--red-bg);color:var(--red)';
   return'background:var(--bg-alt);color:var(--text-4)';
 }
-function renderDealScoreBlock(mls,mid){
-  const c=dealScoreCache[mls];
-  if(!c||c.state==='pending'||c.state==='missing')
-    return`<div class="ab" id="ds-block-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">Deal score: pending — runs per-listing</div>`;
-  if(c.state==='error')
-    return`<div class="ab" id="ds-block-${mid}" style="background:var(--bg);color:var(--text-4);font-weight:500">Deal score unavailable: ${escapeHtml(c.row&&c.row.error_message||'unknown error')}</div>`;
-  const r=c.row,g=r.grade||'?';
-  const pill=`<span style="${dsGradeStyle(g)};font-size:11px;font-weight:800;padding:2px 8px;border-radius:10px;letter-spacing:.5px;margin-right:6px">${g}</span>`;
-  const spread=r.spread!=null?F(r.spread):'—';
-  const pct=r.spread_pct!=null?(r.spread_pct>=0?'+':'')+Number(r.spread_pct).toFixed(2)+'%':'—';
-  const bd=r.breakdown_json||{};
-  const gap=bd.gap_vs_list;
-  const gapStr=gap!=null?(gap>=0?'+':'')+F(gap):'—';
-  const spreadPctStr=bd.spread_pct!=null?' · '+(bd.spread_pct>=0?'+':'')+Number(bd.spread_pct).toFixed(2)+'%':'';
-  const computed=r.computed_at?new Date(r.computed_at).toLocaleString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(',','')+' PT':'(unknown)';
-  return`<div class="ab" id="ds-block-${mid}" style="display:block">
-    <div>Deal score: ${pill}spread ${spread} · ${pct}</div>
-    <details style="margin-top:6px">
-      <summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Score breakdown</summary>
-      <div style="margin-top:4px;font-size:11px;font-weight:500;color:var(--text-2);display:grid;grid-template-columns:auto 1fr;gap:4px 10px">
-        <div style="color:var(--text-4)">List price:</div><div>${bd.list_price!=null?F(bd.list_price):'—'}</div>
-        <div style="color:var(--text-4)">ARV:</div><div>${bd.arv!=null?F(bd.arv):'—'}</div>
-        <div style="color:var(--text-4)">Rehab:</div><div>${bd.rehab!=null?F(bd.rehab):'—'}${bd.rehab_locked?' <i style="color:var(--text-4)">(locked)</i>':''}</div>
-        <div style="color:var(--text-4)">Financing:</div><div>${bd.financing!=null?F(bd.financing):'—'}</div>
-        <div style="color:var(--text-4)">Purchase close:</div><div>${bd.purchase_close!=null?F(bd.purchase_close):'—'}</div>
-        <div style="color:var(--text-4)">Sale close:</div><div>${bd.sale_close!=null?F(bd.sale_close):'—'}</div>
-        <div style="color:var(--text-4)">Spread:</div><div>${bd.spread!=null?F(bd.spread):'—'}${spreadPctStr}</div>
-        <div style="color:var(--text-4)">Target buy:</div><div>${bd.target_buy!=null?F(bd.target_buy):'—'}</div>
-        <div style="color:var(--text-4)">Gap vs list:</div><div>${gapStr}</div>
-        <div style="color:var(--text-4)">Computed:</div><div>${computed}</div>
-      </div>
-    </details>
-  </div>`;
-}
 function renderDealGradePill(mls){
   const c=dealScoreCache[mls];
+  // Per-row bucket marker for listings outside the 8 per-city ARV markets:
+  // a neutral grey middot, visually distinct from A-D and from the blank
+  // pending placeholder. Keep ds-card-pill + data-ds-mls so refresh works.
+  if(c&&c.state==='error'&&c.row&&typeof c.row.error_message==='string'&&c.row.error_message.indexOf('outside per-city coverage')===0)
+    return`<span class="ds-card-pill" data-ds-mls="${mls}" title="ungraded — outside per-city coverage" style="${dsGradeStyle('?')};font-size:10px;font-weight:800;padding:1px 6px;border-radius:8px;margin-left:6px;letter-spacing:.4px;vertical-align:middle">·</span>`;
   if(!c||c.state!=='ok'||!c.row||!c.row.grade)
     return`<span class="ds-card-pill" data-ds-mls="${mls}"></span>`;
   const g=c.row.grade;
-  return`<span class="ds-card-pill" data-ds-mls="${mls}" style="${dsGradeStyle(g)};font-size:10px;font-weight:800;padding:1px 6px;border-radius:8px;margin-left:6px;letter-spacing:.4px;vertical-align:middle">${g}</span>`;
+  // Hover title carries the negotiation-shave driver when available.
+  const bd=c.row.breakdown_json||{};
+  let titleAttr='';
+  if(bd.shave_required_pct!=null&&bd.max_offer!=null){
+    const shaveTxt=Number(bd.shave_required_pct)<=0?'works at list':'needs '+Number(bd.shave_required_pct).toFixed(1)+'% off list';
+    titleAttr=` title="${shaveTxt} · max ${F(bd.max_offer)}"`;
+  }
+  return`<span class="ds-card-pill" data-ds-mls="${mls}"${titleAttr} style="${dsGradeStyle(g)};font-size:10px;font-weight:800;padding:1px 6px;border-radius:8px;margin-left:6px;letter-spacing:.4px;vertical-align:middle">${g}</span>`;
 }
 function refreshDealCardPill(mls){
   // List-card pills for this MLS may exist multiple times if the same
   // listing appears across filter views; update them all in place.
   document.querySelectorAll('.ds-card-pill[data-ds-mls="'+mls+'"]').forEach(el=>{el.outerHTML=renderDealGradePill(mls);});
+}
+// Maps an MLS to its grade bucket for the client-side filter/counts.
+// 'A'|'B'|'C'|'D' for graded OK rows, 'ungraded' for error/missing cache
+// states (outside coverage, no ARV, or genuinely no row), null for
+// pending/unknown (not counted, not filtered).
+function dealGradeOf(mls){
+  const c=dealScoreCache[mls];
+  if(!c)return null;
+  if(c.state==='ok'&&c.row&&c.row.grade)return c.row.grade;
+  if(c.state==='error'||c.state==='missing')return 'ungraded';
+  return null;
+}
+function setGradeFilter(g){
+  gradeFilter=g;
+  // Toggle btn-on on the selected chip (All = the null one), btn on the rest.
+  const ids={'null':'gf-all',A:'gf-A',B:'gf-B',C:'gf-C',D:'gf-D',ungraded:'gf-ungraded'};
+  Object.keys(ids).forEach(k=>{
+    const el=document.getElementById(ids[k]);
+    if(!el)return;
+    const sel=(k==='null'?g===null:k===g);
+    el.className='btn'+(sel?' btn-on':'');
+  });
+  render();
+}
+function updateGradeCounts(){
+  const counts={A:0,B:0,C:0,D:0,ungraded:0};
+  let total=0;
+  (listings||[]).forEach(l=>{
+    const g=dealGradeOf(l.mls);
+    if(g==null)return; // pending/unknown — don't count
+    if(counts[g]!=null)counts[g]++;
+    total++;
+  });
+  const set=(id,n)=>{const el=document.getElementById(id);if(el)el.textContent=n?'('+n+')':'';};
+  set('gcnt-all',total);
+  set('gcnt-A',counts.A);set('gcnt-B',counts.B);set('gcnt-C',counts.C);set('gcnt-D',counts.D);
+  set('gcnt-ungraded',counts.ungraded);
 }
 function refreshRowComps(mls){
   // Called per-MLS after batchFetchComps loads comps. Updates ARV +
@@ -1207,6 +1262,10 @@ async function bulkLoadDealScores(mlses){
     need.forEach(m=>{if(dealScoreCache[m]&&dealScoreCache[m].state==='pending')dealScoreCache[m]={state:'missing'};});
   }
   need.forEach(m=>refreshDealCardPill(m));
+  // Scores just finished loading: repopulate the bucket counts and, if a
+  // grade filter is active, re-apply it now that the cache is complete.
+  updateGradeCounts();
+  if(gradeFilter)render();
 }
 // ========== END DEAL SCORER ==========
 
@@ -1643,6 +1702,7 @@ function getSorted(){
   let d=[...listings];
   if(cityFilters.size)d=d.filter(l=>cityFilters.has(l.city.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())));
   if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));
+  if(gradeFilter)d=d.filter(l=>dealGradeOf(l.mls)===gradeFilter);
   if(sort_==='priority'){d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));return d;}
   const idx=sort_.lastIndexOf('-');
   if(idx<0)return d;
@@ -1678,6 +1738,7 @@ function render(){
   document.getElementById('lb').innerHTML=h;
   document.getElementById('tc').textContent=data.length;
   updateStageCounts();
+  updateGradeCounts();
   renderBulkActionBar();
 }
 async function updateStageCounts(){
@@ -1774,7 +1835,7 @@ function opn(m,prefetched){
   }
 }
 function cls(){if(openCompPoll){clearInterval(openCompPoll);openCompPoll=null;}active=null;document.querySelector('.main').classList.remove('detail-view');render();}
-function setFilter(f){if(active){active=null;document.querySelector('.main').classList.remove('detail-view');}currentFilter=f;cityFilters.clear();tagFilters.clear();updateCityBtn();updateTagBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
+function setFilter(f){if(active){active=null;document.querySelector('.main').classList.remove('detail-view');}currentFilter=f;cityFilters.clear();tagFilters.clear();gradeFilter=null;['gf-all','gf-A','gf-B','gf-C','gf-D','gf-ungraded'].forEach(id=>{const b=document.getElementById(id);if(b)b.className='btn'+(id==='gf-all'?' btn-on':'');});updateCityBtn();updateTagBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
 function toggleCityFilter(city){if(cityFilters.has(city))cityFilters.delete(city);else cityFilters.add(city);updateCityBtn();render();}
 function cfSelectAll(){const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;cityFilters.add(cb.value);});updateCityBtn();render();}
 function cfSelectNone(){cityFilters.clear();const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateCityBtn();render();}
