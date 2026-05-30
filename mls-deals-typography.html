@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MLS Deals — Typography Spec (mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<style>
+/* ============================================================
+   MLS DEALS — TYPOGRAPHY SPEC SHEET (mockup, not shipped)
+   Goal: one coherent type system, mirroring money.html's
+   "unify number typography" pass (commit 0b50224).
+
+   RULES (canon = money.html):
+   1. ONE size scale. No ad-hoc 8/14/16/18/22/24 sprinkled inline.
+   2. Weights stop at 700. (mls-deals currently uses 800/900.)
+   3. Numbers render in DM Sans, NOT mono. Mono only for codes
+      (MLS#, DB ids).
+   4. Any container with right-aligned numeric columns gets
+      font-variant-numeric:tabular-nums so digits line up.
+   ============================================================ */
+
+body { background:var(--bg-page); color:var(--text); font-family:var(--sans); margin:0; }
+.wrap { max-width:1040px; margin:0 auto; padding:40px 32px 80px; }
+
+.doc-title { font-size:24px; font-weight:700; letter-spacing:-.4px; }
+.doc-sub   { font-size:13px; color:var(--text-3); margin-top:6px; line-height:1.55; max-width:680px; }
+
+.sec { margin-top:42px; }
+.sec-h { font-size:11px; font-weight:600; color:var(--text-4); text-transform:uppercase; letter-spacing:.6px; margin-bottom:14px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+.sec-note { font-size:12px; color:var(--text-3); margin:-6px 0 16px; line-height:1.55; }
+
+.card { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:20px 22px; }
+
+/* ---- scale reference table ---- */
+.scale { width:100%; border-collapse:collapse; background:var(--bg); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.scale th { font-size:10px; font-weight:600; color:var(--text-4); text-transform:uppercase; letter-spacing:.06em; text-align:left; padding:10px 14px; background:var(--bg-page); border-bottom:1px solid var(--border); }
+.scale td { padding:12px 14px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.scale tr:last-child td { border-bottom:none; }
+.scale .role { font-size:13px; font-weight:600; color:var(--text); white-space:nowrap; }
+.scale .spec { font-family:var(--mono); font-size:11px; color:var(--text-3); white-space:nowrap; }
+.scale .use  { font-size:12px; color:var(--text-3); }
+.scale .sample { color:var(--text); }
+
+.tok { display:inline-block; font-family:var(--mono); font-size:11px; background:var(--bg-inset); color:var(--text-2); padding:1px 6px; border-radius:4px; }
+
+/* ---- before/after blocks ---- */
+.ba { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.ba-col { border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.ba-tag { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:7px 14px; }
+.ba-bad  { background:var(--red-bg);   color:var(--red); }
+.ba-good { background:var(--green-bg); color:var(--green); }
+.ba-body { padding:16px; background:var(--bg); }
+
+/* digit-alignment demo */
+.alndemo { font-size:13px; }
+.alndemo .row { display:flex; justify-content:space-between; padding:3px 0; }
+.alndemo .lbl { color:var(--text-3); }
+.alndemo.tab { font-variant-numeric:tabular-nums; }
+.alndemo .amt { font-weight:600; }
+
+/* ---- applied component samples (rebuilt mls-deals surfaces, canon type) ---- */
+.demo-th { display:grid; grid-template-columns:52px minmax(180px,1fr) 90px 90px 80px 80px; gap:8px; align-items:center; padding:8px 12px; background:var(--bg-alt); border:1px solid var(--border); border-bottom:none; border-radius:8px 8px 0 0; font-size:10px; font-weight:700; color:var(--text-3); letter-spacing:.06em; text-transform:uppercase; }
+.demo-rw { display:grid; grid-template-columns:52px minmax(180px,1fr) 90px 90px 80px 80px; gap:8px; align-items:center; padding:10px 12px; background:var(--bg); border:1px solid var(--border); border-top:none; font-variant-numeric:tabular-nums; }
+.demo-rw:last-child { border-radius:0 0 8px 8px; }
+.demo-rw .at { font-size:13px; font-weight:700; color:var(--text); }
+.demo-rw .as { font-size:11px; font-weight:500; color:var(--text-3); margin-top:1px; }
+.demo-rw .num { font-size:12px; font-weight:500; color:var(--text-2); text-align:right; }
+.demo-rw .thumb { width:48px; height:36px; border-radius:4px; background:var(--bg-alt); display:grid; place-items:center; font-size:10px; color:var(--text-4); }
+.pill { display:inline-flex; align-items:center; gap:2px; font-size:10px; font-weight:600; padding:2px 6px; border-radius:4px; }
+.pill .lv { font-size:8px; font-weight:700; opacity:.7; }
+.pg { background:var(--green-bg); color:var(--green); } .pa { background:var(--amber-bg); color:var(--amber); }
+
+/* verdict / offer-calculator card (the worst current offender: 22/900) */
+.verdict { display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-radius:8px; background:var(--accent-dim); border:1px solid var(--accent-dim2); font-variant-numeric:tabular-nums; }
+.verdict .v   { font-size:19px; font-weight:700; color:var(--accent); line-height:1.1; }
+.verdict .vs  { font-size:10px; color:var(--text-3); margin-top:3px; }
+.verdict .pf  { font-size:16px; font-weight:700; color:var(--green); text-align:right; }
+.verdict .pft { font-size:10px; color:var(--text-3); text-align:right; margin-top:3px; }
+
+.weights { display:flex; gap:14px; flex-wrap:wrap; }
+.weights div { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px 14px; font-size:18px; color:var(--text); }
+.weights .w400{font-weight:400}.weights .w500{font-weight:500}.weights .w600{font-weight:600}.weights .w700{font-weight:700}
+.weights .ban{font-weight:800;opacity:.4;text-decoration:line-through}
+.weights small{display:block;font-size:9px;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.06em;margin-top:4px;}
+
+.map { width:100%; border-collapse:collapse; font-size:12px; }
+.map th { font-size:10px; font-weight:600; color:var(--text-4); text-transform:uppercase; letter-spacing:.06em; text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); }
+.map td { padding:8px 12px; border-bottom:1px solid var(--border); color:var(--text-2); }
+.map td:first-child { font-family:var(--mono); color:var(--red); }
+.map td:nth-child(2) { font-family:var(--mono); color:var(--green); font-weight:600; }
+.map tr:last-child td { border-bottom:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="doc-title">MLS Deals — Typography Spec</div>
+  <div class="doc-sub">
+    Proposed single type system so the page reads coherently, mirroring the
+    <span class="tok">money.html</span> "unify number typography" pass. This is a
+    mockup for sign-off — nothing here is shipped yet. Once approved, these roles
+    get applied across the deal list, detail page, comp panel, and per-city ARV cards.
+  </div>
+
+  <!-- 1. THE SCALE -->
+  <div class="sec">
+    <div class="sec-h">1 · The size scale (canon = money.html)</div>
+    <div class="sec-note">
+      Every text element maps to one of these roles. No more inline 8 / 14 / 16 / 18 / 22 / 24px one-offs.
+    </div>
+    <table class="scale">
+      <thead><tr><th>Role</th><th>Spec</th><th>Used for</th><th style="text-align:right">Sample</th></tr></thead>
+      <tbody>
+        <tr><td class="role">Page title</td><td class="spec">20px / 700</td><td class="use">The one page H1</td><td class="sample" style="text-align:right;font-size:20px;font-weight:700">Deal Machine</td></tr>
+        <tr><td class="role">Hero metric</td><td class="spec">19px / 700 · tab</td><td class="use">Top stat-card values, profit verdict</td><td class="sample" style="text-align:right;font-size:19px;font-weight:700;font-variant-numeric:tabular-nums">$842,000</td></tr>
+        <tr><td class="role">Secondary metric</td><td class="spec">16px / 700 · tab</td><td class="use">Supporting figures in a card</td><td class="sample" style="text-align:right;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums">+$96,400</td></tr>
+        <tr><td class="role">Body / primary</td><td class="spec">13px / 600–700</td><td class="use">Address, comp rows, base text</td><td class="sample" style="text-align:right;font-size:13px;font-weight:700">1024 Camino Real</td></tr>
+        <tr><td class="role">Data cell</td><td class="spec">12px / 500 · tab</td><td class="use">Table & grid numeric cells</td><td class="sample" style="text-align:right;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums">1,847 sqft</td></tr>
+        <tr><td class="role">Secondary text</td><td class="spec">11px / 500</td><td class="use">Subtext under address, notes</td><td class="sample" style="text-align:right;font-size:11px;font-weight:500;color:var(--text-3)">Listed 14 days ago</td></tr>
+        <tr><td class="role">Strong label</td><td class="spec">11px / 600 · upper .6</td><td class="use">Section headers</td><td class="sample" style="text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-4)">Comparables</td></tr>
+        <tr><td class="role">Micro label</td><td class="spec">10px / 600–700 · upper .06em</td><td class="use">Column heads, pills, tags</td><td class="sample" style="text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-4)">ARV / sqft</td></tr>
+        <tr><td class="role">Tiny</td><td class="spec">8–9px / 700</td><td class="use">Level badges, sort arrows only</td><td class="sample" style="text-align:right;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-4)">ELEM</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 2. WEIGHTS -->
+  <div class="sec">
+    <div class="sec-h">2 · Font weights stop at 700</div>
+    <div class="sec-note">
+      money.html never goes above 700. The deal-detail offer calculator currently uses
+      <span class="tok">800</span> and <span class="tok">900</span> — those flatten to 700.
+    </div>
+    <div class="weights">
+      <div><span class="w400">400</span><small>regular / body</small></div>
+      <div><span class="w500">500</span><small>data cells</small></div>
+      <div><span class="w600">600</span><small>labels / emphasis</small></div>
+      <div><span class="w700">700</span><small>titles / metrics — max</small></div>
+      <div><span class="ban">800</span><small style="color:var(--red)">drop</small></div>
+      <div><span class="ban">900</span><small style="color:var(--red)">drop</small></div>
+    </div>
+  </div>
+
+  <!-- 3. SANS VS MONO + TABULAR -->
+  <div class="sec">
+    <div class="sec-h">3 · Numbers = DM Sans + tabular-nums · mono = codes only</div>
+    <div class="sec-note">
+      Same rule money.html adopted. Today mls-deals has <b>zero</b> tabular-nums, so numeric
+      columns drift. Add <span class="tok">font-variant-numeric:tabular-nums</span> to any container
+      holding aligned numbers. JetBrains Mono stays only on MLS#/DB ids.
+    </div>
+    <div class="ba">
+      <div class="ba-col">
+        <div class="ba-tag ba-bad">Now — proportional digits drift</div>
+        <div class="ba-body">
+          <div class="alndemo">
+            <div class="row"><span class="lbl">List price</span><span class="amt">$1,189,000</span></div>
+            <div class="row"><span class="lbl">ARV</span><span class="amt">$1,310,000</span></div>
+            <div class="row"><span class="lbl">Spread</span><span class="amt">$111,000</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="ba-col">
+        <div class="ba-tag ba-good">Proposed — tabular-nums, digits align</div>
+        <div class="ba-body">
+          <div class="alndemo tab">
+            <div class="row"><span class="lbl">List price</span><span class="amt">$1,189,000</span></div>
+            <div class="row"><span class="lbl">ARV</span><span class="amt">$1,310,000</span></div>
+            <div class="row"><span class="lbl">Spread</span><span class="amt">$111,000</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px;display:flex;align-items:center;gap:18px;">
+      <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-4)">Mono — codes only</span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--text-3)">Buy MLS# PW24178342</span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--text-3)">deal_id 0c8f-44a1</span>
+    </div>
+  </div>
+
+  <!-- 4. APPLIED: DEAL LIST ROW -->
+  <div class="sec">
+    <div class="sec-h">4 · Applied — deal list row</div>
+    <div class="sec-note">Address 13/700 · subtext 11/500 · numeric cells 12/500 tabular · column heads 10 upper · pills 10 (level badge 8).</div>
+    <div class="demo-th">
+      <span>Photo</span><span>Address</span><span style="text-align:right">List</span><span style="text-align:right">ARV</span><span style="text-align:right">$/sqft</span><span style="text-align:right">DOM</span>
+    </div>
+    <div class="demo-rw">
+      <span class="thumb">IMG</span>
+      <span><div class="at">1024 Camino Real</div><div class="as">San Gabriel, CA 91776 · 3bd / 2ba</div><div style="margin-top:4px"><span class="pill pg"><span class="lv">ELEM</span>9</span> <span class="pill pa"><span class="lv">HIGH</span>6</span></div></span>
+      <span class="num">$1,189,000</span><span class="num">$1,310,000</span><span class="num">$642</span><span class="num">14</span>
+    </div>
+    <div class="demo-rw">
+      <span class="thumb">IMG</span>
+      <span><div class="at">88 Las Tunas Dr</div><div class="as">Temple City, CA 91780 · 4bd / 3ba</div><div style="margin-top:4px"><span class="pill pg"><span class="lv">ELEM</span>8</span> <span class="pill pg"><span class="lv">HIGH</span>9</span></div></span>
+      <span class="num">$998,500</span><span class="num">$1,145,000</span><span class="num">$571</span><span class="num">3</span>
+    </div>
+  </div>
+
+  <!-- 5. APPLIED: VERDICT / OFFER CARD -->
+  <div class="sec">
+    <div class="sec-h">5 · Applied — offer-calculator verdict (the current 22px/900 offender)</div>
+    <div class="ba">
+      <div class="ba-col">
+        <div class="ba-tag ba-bad">Now — 22px/900 + 16px/700, no tabular</div>
+        <div class="ba-body">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-radius:8px;background:var(--accent-dim);border:1px solid var(--accent-dim2)">
+            <div><div style="font-size:22px;font-weight:900;color:var(--accent)">GO</div><div style="font-size:10px;color:var(--text-3)">Profit meets 10% target</div></div>
+            <div style="text-align:right"><div style="font-size:16px;font-weight:700;color:var(--green)">$96,400</div><div style="font-size:10px;color:var(--text-3)">Target: $84,000</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="ba-col">
+        <div class="ba-tag ba-good">Proposed — 19px/700 hero, 16px/700, tabular</div>
+        <div class="ba-body">
+          <div class="verdict">
+            <div><div class="v">GO</div><div class="vs">Profit meets 10% target</div></div>
+            <div><div class="pf">$96,400</div><div class="pft">Target: $84,000</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. MIGRATION MAP -->
+  <div class="sec">
+    <div class="sec-h">6 · Migration map (current → canon)</div>
+    <div class="sec-note">How today's sizes collapse onto the scale. Counts are rough occurrences in mls-deals.html.</div>
+    <table class="map">
+      <thead><tr><th>Current</th><th>→ Canon</th><th>Where / note</th></tr></thead>
+      <tbody>
+        <tr><td>24px</td><td>n/a</td><td>Lightbox close ✕ — UI glyph, leave as-is (not text)</td></tr>
+        <tr><td>22px / 900</td><td>19px / 700</td><td>Offer verdict (GO/MAYBE/NO)</td></tr>
+        <tr><td>20px / 800</td><td>19px / 700</td><td>Construction total, list-vs-target gap</td></tr>
+        <tr><td>18px / 800</td><td>16px / 700</td><td>Profit figure</td></tr>
+        <tr><td>16px / 800</td><td>16px / 700</td><td>Detail address headline — keep size, drop weight</td></tr>
+        <tr><td>14px (×15)</td><td>13px</td><td>Stray body bumps → base; keep 14 only for shell/brand</td></tr>
+        <tr><td>13 / 12 / 11 / 10</td><td>unchanged</td><td>Already on-scale — just add tabular-nums to numeric containers</td></tr>
+        <tr><td>9px / 8px</td><td>keep</td><td>School level badges & sort arrows only</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>

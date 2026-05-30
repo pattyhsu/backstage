@@ -1,0 +1,2596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MLS Deals — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBtxBe0q6i46rUomZzVE3BKmJ4EQNYGvvU"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js"></script>
+<style>
+/* === DEAL MACHINE — local layout only === */
+/* All shared styles (buttons, tags, modals, school pills, toggles, etc.) come from backstage.css */
+
+/* Thumbnail in list rows */
+.rw-thumb{width:48px;height:36px;border-radius:4px;object-fit:cover;cursor:pointer;background:var(--bg-alt);flex-shrink:0}
+.rw-thumb-empty{width:48px;height:36px;border-radius:4px;background:var(--bg-alt);flex-shrink:0;display:grid;place-items:center;font-size:10px;color:var(--text-4)}
+
+/* Photo lightbox */
+.lb-overlay{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.92);overflow-y:auto}
+.lb-overlay.open{display:block}
+.lb-close{position:fixed;top:16px;right:20px;background:rgba(0,0,0,.5);border:none;color:#fff;font-size:24px;cursor:pointer;z-index:10001;padding:4px 12px;line-height:1;border-radius:6px;backdrop-filter:blur(4px)}
+.lb-close:hover{background:rgba(255,255,255,.2)}
+.lb-addr{color:#fff;font-size:14px;font-weight:600;text-align:center;padding:16px 60px 12px;position:sticky;top:0;background:rgba(0,0,0,.8);backdrop-filter:blur(10px);z-index:10000}
+.lb-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px 4px 40px;max-width:1200px;margin:0 auto}
+.lb-grid img{width:100%;display:block;cursor:pointer;border-radius:2px}
+.lb-grid img.lb-full{position:fixed;inset:0;max-width:95vw;max-height:95vh;margin:auto;z-index:10002;border-radius:6px;object-fit:contain;cursor:zoom-out}
+
+body{overflow:hidden;height:100vh}
+#cf-drop{display:none}
+#cf-drop.open{display:block}
+#cf-drop label{display:flex;align-items:center;gap:8px;padding:5px 12px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer}
+#cf-drop label:hover{background:var(--bg-alt)}
+#tf-drop{display:none}
+#tf-drop.open{display:block}
+#tf-drop label{display:flex;align-items:center;gap:8px;padding:5px 12px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer}
+#tf-drop label:hover{background:var(--bg-alt)}
+#more-filters-drop{display:none}
+#more-filters-drop.open{display:block}
+
+/* === Tesla-friendly custom dropdowns for the comp panel ===
+   Native <select> popups don't render on Tesla's browser, so the three
+   tolerance selects (radius/sqft/months) and the per-comp retag select are
+   replaced with button + floating div pairs styled to match the same size
+   as the originals. CSS triangle (::after) is used for the chevron because
+   Tesla doesn't render unicode arrows. */
+.cmp-wrap{position:relative;display:inline-block}
+.cmp-drop-btn{padding:3px 16px 3px 6px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:inherit;background:var(--bg);color:var(--text);cursor:pointer;line-height:1.4;position:relative}
+.cmp-drop-btn::after{content:'';position:absolute;right:5px;top:50%;transform:translateY(-25%);width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-top:4px solid currentColor;opacity:.55}
+.cmp-drop{display:none;position:absolute;top:100%;left:0;margin-top:2px;background:var(--bg);border:1px solid var(--border);border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:70px;padding:2px 0}
+.cmp-drop.open{display:block}
+.cmp-drop button{display:block;width:100%;text-align:left;padding:4px 8px;border:none;background:none;font-family:inherit;font-size:10px;color:var(--text);cursor:pointer}
+.cmp-drop button:hover{background:var(--bg-alt)}
+.cmp-drop button.selected{background:var(--bg-alt);color:var(--accent);font-weight:600}
+
+.retag-wrap{position:relative;display:inline-block;margin-right:3px}
+.retag-btn{padding:1px 12px 1px 3px;border:1px solid transparent;border-radius:3px;font-family:inherit;font-size:8px;font-weight:700;cursor:pointer;text-transform:uppercase;line-height:1.3;position:relative}
+.retag-btn::after{content:'';position:absolute;right:3px;top:50%;transform:translateY(-25%);width:0;height:0;border-left:2.5px solid transparent;border-right:2.5px solid transparent;border-top:3px solid currentColor;opacity:.6}
+.retag-drop{display:none;position:absolute;top:100%;left:0;margin-top:2px;background:var(--bg);border:1px solid var(--border);border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:60px;padding:2px 0}
+.retag-drop.open{display:block}
+.retag-drop button{display:block;width:100%;text-align:left;padding:3px 7px;border:none;background:none;font-family:inherit;font-size:8px;font-weight:700;cursor:pointer;text-transform:uppercase}
+.retag-drop button:hover{background:var(--bg-alt)}
+
+.sp{position:relative}
+.sp:hover::after{content:attr(data-school);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#fff;color:var(--text);font-size:11px;font-weight:500;padding:4px 8px;border-radius:4px;border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,.12);white-space:nowrap;z-index:100;pointer-events:none}
+
+/* === BACKSTAGE SHELL === */
+
+.app-shell { display:flex; height:100vh; }
+
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+.bs-sidebar.collapsed { width:56px; }
+.bs-sidebar.collapsed .side-brand span, .bs-sidebar.collapsed .side-section-label, .bs-sidebar.collapsed .side-label, .bs-sidebar.collapsed .side-user-name, .bs-sidebar.collapsed .lock-btn { display:none; }
+.bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+.bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+.bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+.bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+.bs-sidebar.collapsed .side-user { justify-content:center; }
+
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.lock-btn:hover { color:var(--text); }
+.collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
+.collapse-btn:hover { color:var(--text); }
+
+.main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
+
+/* Header */
+.hdr{position:sticky;top:0;z-index:200;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);height:52px;padding:0 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;color:var(--accent);letter-spacing:-.3px}
+.hdr-meta{font-size:12px;font-weight:500;color:var(--text-3);margin-left:12px;border-left:1px solid var(--border);padding-left:10px}
+.hdr-meta b{color:var(--amber)}
+.hl,.hr{display:flex;align-items:center;gap:6px}
+
+/* Main layout */
+.main{display:flex;height:calc(100vh - 52px);flex:1}
+.ls{width:100%;overflow:auto;min-width:0;font-variant-numeric:tabular-nums}
+.detail-page{display:none;width:100%;overflow-y:auto;background:var(--bg-alt);font-variant-numeric:tabular-nums}
+.main.detail-view .ls{display:none}
+.main.detail-view .detail-page{display:block}
+
+/* Detail page */
+.det-sticky{position:sticky;top:0;z-index:10;background:var(--bg-alt);border-bottom:1px solid var(--border)}
+.det-sticky-inner{max-width:900px;margin:0 auto;padding:12px 24px}
+.det-body{max-width:900px;margin:0 auto;padding:20px 24px 40px}
+.det-full{grid-column:1/-1}
+
+/* List header + rows */
+.th-p{display:grid;grid-template-columns:32px 52px minmax(160px,1fr) 85px 100px 220px 70px 110px 100px 70px 70px 70px;min-width:1200px;align-items:center;padding:8px 10px;background:var(--bg-alt);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.4px;gap:4px}
+#lh{position:sticky;top:0;z-index:20;background:var(--bg-alt)}
+.th-sort{cursor:pointer;user-select:none}
+.th-sort:hover{color:var(--text)}
+.rw{border-bottom:1px solid var(--border);cursor:pointer;transition:background .08s}
+.rw:hover{background:var(--bg-alt)}
+.rw.act,.rw.sel{background:var(--accent-dim)}
+.rw.archived{display:none}
+.rm-p{display:grid;grid-template-columns:32px 52px minmax(160px,1fr) 85px 100px 220px 70px 110px 100px 70px 70px 70px;min-width:1200px;align-items:center;padding:8px 10px;font-size:13px;font-weight:500;gap:4px}
+
+/* Address + subtext */
+.at{font-weight:700;color:var(--text);font-size:13px}
+.as{font-size:11px;font-weight:500;color:var(--text-3);margin-top:1px}
+
+/* School pills (compact) */
+.sp{display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;padding:2px 5px;border-radius:4px}
+.sp .lv{font-size:8px;font-weight:700;opacity:.7}
+.sh{background:var(--green-bg);color:var(--green)}
+.sm{background:var(--amber-bg);color:var(--amber)}
+.sl{background:var(--red-bg);color:var(--red)}
+.sc{display:flex;gap:3px;align-items:center;flex-wrap:nowrap}
+.hs-name{font-size:11px;font-weight:500;color:var(--text-2);margin-left:3px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Comp rows */
+.cr{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:var(--radius-sm);margin-bottom:2px;font-size:13px;font-weight:500}
+.cd{background:var(--purple-bg)}.cf{background:var(--green-bg)}
+.cl{font-size:11px;font-weight:700;letter-spacing:.3px;min-width:40px}
+.cri{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.ab{margin-top:8px;padding:8px 10px;background:var(--accent-dim);border-radius:var(--radius);border:1px solid var(--border);font-size:13px;color:var(--accent);font-weight:700}
+.cb{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-top:8px}
+
+/* Agent + showing info blocks */
+.agb{margin-top:12px;font-size:13px;color:var(--text-2);padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.agb b{color:var(--text);font-weight:600}
+.si{margin-top:8px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.si b{color:var(--text);font-weight:600}
+
+/* Button overrides for this tool */
+.btn-on{border-color:var(--amber);background:var(--amber-bg);color:var(--amber)}
+.btn-lo{padding:4px 10px;font-size:11px}
+.btn-lo-on{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+
+/* Archive modal items */
+.arch-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--bg-alt);font-size:13px}
+.restore-btn{padding:4px 10px;border-radius:var(--radius-sm);border:1px solid var(--green-bg);background:var(--green-bg);color:var(--green);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
+.pc{background:none;border:none;cursor:pointer;font-size:16px;color:var(--text-4);padding:2px 4px}
+.pc:hover{color:var(--text)}
+</style>
+</head>
+<body>
+
+<!-- APP SHELL -->
+<div class="app-shell">
+
+<!-- Sidebar -->
+<!-- Sidebar (rendered by sidebar.js) -->
+<div class="bs-sidebar" id="bsSidebar"></div>
+
+<!-- Main content -->
+<div class="main-content">
+
+<div class="hdr">
+  <div class="hl">
+    <div class="logo">MLS Deals</div>
+    <div style="position:relative;display:inline-block" id="cf-wrap">
+      <button class="btn" id="cf-btn" onclick="document.getElementById('cf-drop').classList.toggle('open')" style="min-width:140px;text-align:left">All Cities ▾</button>
+      <div id="cf-drop" style="position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:200px;max-height:320px;overflow-y:auto;padding:4px 0">
+        <div style="padding:4px 10px;border-bottom:1px solid var(--border);display:flex;gap:6px">
+          <button onclick="cfSelectAll()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">All</button>
+          <button onclick="cfSelectNone()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">None</button>
+        </div>
+        <div id="cf-list"></div>
+      </div>
+    </div>
+    <div style="position:relative;display:inline-block" id="tf-wrap">
+      <button class="btn" id="tf-btn" onclick="document.getElementById('tf-drop').classList.toggle('open')" style="min-width:120px;text-align:left">All Tags ▾</button>
+      <div id="tf-drop" style="position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:220px;padding:4px 0">
+        <div style="padding:4px 10px;border-bottom:1px solid var(--border);display:flex;gap:6px">
+          <button onclick="tfSelectAll()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">All</button>
+          <button onclick="tfSelectNone()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">None</button>
+        </div>
+        <label><input type="checkbox" value="Fixer" onchange="toggleTagFilter(this.value)">Fixer</label>
+        <label><input type="checkbox" value="Dated" onchange="toggleTagFilter(this.value)">Dated</label>
+        <label><input type="checkbox" value="Estate / Trust" onchange="toggleTagFilter(this.value)">Estate / Trust</label>
+        <label><input type="checkbox" value="Price reduced" onchange="toggleTagFilter(this.value)">Price reduced</label>
+        <label><input type="checkbox" value="Already flipped" onchange="toggleTagFilter(this.value)">Already flipped</label>
+      </div>
+    </div>
+    <div style="position:relative;display:inline-block" id="addr-search-wrap">
+      <input type="text" id="addr-search" placeholder="Search address…"
+             oninput="onAddrSearch(this.value)"
+             onfocus="onAddrSearch(this.value)"
+             autocomplete="off"
+             style="padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;min-width:200px;font-family:inherit;background:var(--bg);color:var(--text-1)" />
+      <div id="addr-search-drop" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:280px;max-height:300px;overflow-y:auto;padding:4px 0"></div>
+    </div>
+    <div class="hdr-meta"><span id="tc">0</span> listings</div>
+  </div>
+  <div class="hr">
+    <button class="btn btn-on" id="bf-unread" onclick="setFilter('unread')">Unread <span id="cnt-unread"></span></button>
+    <button class="btn" id="bf-potential" onclick="setFilter('potential')">Potential <span id="cnt-potential"></span></button>
+    <div style="position:relative;display:inline-block" id="more-filters-wrap">
+      <button class="btn" id="more-filters-btn" onclick="document.getElementById('more-filters-drop').classList.toggle('open')" title="More views" style="padding:4px 10px">⋮</button>
+      <div id="more-filters-drop" style="position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:160px;padding:4px 0">
+        <button class="btn" id="bf-off_market_lead" onclick="setFilter('off_market_lead');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">Off-Market</button>
+        <button class="btn" id="bf-unsold_flip" onclick="setFilter('unsold_flip');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">Unsold Flips</button>
+        <button class="btn" id="bf-archived" onclick="setFilter('archived');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">Archive</button>
+        <button class="btn" id="bf-all" onclick="setFilter('all');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">All</button>
+      </div>
+    </div>
+    <span style="display:inline-flex;align-items:center;gap:3px;margin-left:6px">
+      <span style="font-size:10px;color:var(--text-4);margin-right:2px">Grade:</span>
+      <button class="btn btn-on" id="gf-all" onclick="setGradeFilter(null)" style="padding:4px 8px">All <span id="gcnt-all"></span></button>
+      <button class="btn" id="gf-A" onclick="setGradeFilter('A')" style="padding:4px 8px">A <span id="gcnt-A"></span></button>
+      <button class="btn" id="gf-B" onclick="setGradeFilter('B')" style="padding:4px 8px">B <span id="gcnt-B"></span></button>
+      <button class="btn" id="gf-C" onclick="setGradeFilter('C')" style="padding:4px 8px">C <span id="gcnt-C"></span></button>
+      <button class="btn" id="gf-D" onclick="setGradeFilter('D')" style="padding:4px 8px">D <span id="gcnt-D"></span></button>
+      <button class="btn" id="gf-ungraded" onclick="setGradeFilter('ungraded')" style="padding:4px 8px">Ungraded <span id="gcnt-ungraded"></span></button>
+    </span>
+    <span id="db-status" style="font-size:10px;color:var(--text-4)"></span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="ls" id="ls"><div id="bulk-action-bar" style="display:none;position:sticky;top:0;z-index:50;background:var(--accent-bg,#fef3c7);border:1px solid var(--accent);border-radius:var(--radius);padding:8px 14px;margin:0 0 10px 0;gap:10px;align-items:center;font-size:13px;font-weight:600"><span id="bulk-count">0 selected</span><button class="btn" onclick="bulkArchive()" style="background:var(--red);color:#fff;border-color:var(--red)">Archive selected</button><button class="btn" onclick="bulkClear()">Cancel</button></div><div id="lh"></div><div id="lb"></div></div>
+  <div class="detail-page" id="detPage"></div>
+</div>
+
+<div class="modal-bg" id="arch-modal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3>Archived Deals</h3><button class="pc" onclick="closeArchive()">✕</button>
+    </div>
+    <div id="arch-list"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="const-editor">
+  <div class="modal" style="max-width:560px;padding:0">
+    <div style="position:sticky;top:0;z-index:2;background:var(--bg);padding:18px 24px 14px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+        <div style="flex:1;min-width:0">
+          <h3 id="const-editor-title" style="margin:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Construction breakdown</h3>
+          <div id="const-editor-sub" style="font-size:11px;color:var(--text-3);margin-top:2px"></div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-4)">Total</div>
+          <div id="const-editor-total" style="color:var(--accent);font-size:19px;font-weight:700;line-height:1.1">$0</div>
+        </div>
+        <button class="pc" onclick="closeConstEditor()" style="flex-shrink:0">✕</button>
+      </div>
+    </div>
+    <div id="const-editor-body" style="padding:8px 24px 20px"></div>
+  </div>
+</div>
+
+<!-- Photo Lightbox -->
+<div class="lb-overlay" id="photoLightbox">
+  <button class="lb-close" onclick="closeLightbox()">✕</button>
+  <div class="lb-addr" id="lbAddr"></div>
+  <div class="lb-grid" id="lbGrid"></div>
+</div>
+
+<script>
+// ========== SUPABASE CLIENT ==========
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;  // expose for auth.js
+
+// ========== DEAL PHASE HELPER (mirrors pipeline.html / project-detail.html) ==========
+// Brief BK: deals model uses pursuing/in_escrow/under_construction/selling/sold/archived.
+// Brief BV / D2 renamed 'listed' → 'selling'; legacy 'listed' key preserved
+// in the label map as defensive fallback.
+function dealPhaseLabel(s){
+  if(s==null)return '—';
+  return ({pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Under Construction',selling:'Selling',listed:'Selling',sold:'Sold',archived:'Archived',lost:'Lost'})[s]||s;
+}
+
+// ========== PHOTO SUPPORT ==========
+const PHOTO_BASE='https://photos.dottyhomes.com';
+
+function getThumbUrl(mls){return `${PHOTO_BASE}/${mls}/${mls}_01.jpg`;}
+
+// Lightbox state
+let lbMls='';
+
+// Look up photo_count for any MLS — main listings first, then walk
+// compCache so comp-click lightboxes also get an upfront count.
+function findPhotoCount(mls){
+  const l=listings.find(x=>x.mls===mls);
+  if(l)return l.photoCount||0;
+  for(const k in compCache){
+    const found=compCache[k]?.comps?.find(c=>c.mls===mls);
+    if(found)return found.photoCount||0;
+  }
+  return 0;
+}
+
+function openLightbox(mls,addr){
+  lbMls=mls;
+  const myMls=mls;
+  const addrEl=document.getElementById('lbAddr');
+  const grid=document.getElementById('lbGrid');
+  grid.innerHTML='';
+  document.getElementById('photoLightbox').classList.add('open');
+  document.addEventListener('keydown',lbKeyHandler);
+
+  // Header: set once from photo_count (CSV-derived). No tickup.
+  // Look in `listings` first (main rows), then walk compCache for comp clicks.
+  const count=findPhotoCount(mls);
+  addrEl.textContent=count>0
+    ?`${addr} (${count}${count===1?' photo':' photos'})`
+    :addr;
+
+  // Grid: sequential probe, stop on first 404. Same as the original
+  // pre-AM behavior — finds however many photos R2 actually has,
+  // independent of photo_count.
+  let i=1;
+  function loadNext(){
+    if(lbMls!==myMls)return;
+    const num=String(i).padStart(2,'0');
+    const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
+    const img=new Image();
+    img.onload=function(){
+      if(lbMls!==myMls)return;
+      const el=document.createElement('img');
+      el.src=url;
+      el.onclick=function(){
+        if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
+        else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
+      };
+      grid.appendChild(el);
+      i++;
+      loadNext();
+    };
+    img.onerror=function(){/* stop probing */};
+    img.src=url;
+  }
+  loadNext();
+}
+function closeLightbox(){
+  document.getElementById('photoLightbox').classList.remove('open');
+  document.removeEventListener('keydown',lbKeyHandler);
+}
+function lbKeyHandler(e){
+  if(e.key==='Escape'){
+    const full=document.querySelector('.lb-grid img.lb-full');
+    if(full)full.classList.remove('lb-full');
+    else closeLightbox();
+  }
+}
+
+// ========== GEOCODING ==========
+const geocodeCache={};
+const CITY_COORDS={'cerritos':[33.8583,-118.0647],'long beach':[33.7701,-118.1937],'alhambra':[34.0953,-118.1270],'whittier':[33.9792,-118.0328],'diamond bar':[33.9997,-117.8103],'west covina':[34.0686,-117.9394],'monterey park':[34.0625,-118.1228],'pasadena':[34.1478,-118.1445],'rosemead':[34.0806,-118.0728],'rowland heights':[33.9761,-117.9053],'san gabriel':[34.0961,-118.1058],'south pasadena':[34.1161,-118.1503],'inglewood':[33.9617,-118.3531],'la palma':[33.8464,-118.0467],'buena park':[33.8675,-117.9981],'anaheim':[33.8366,-117.9143],'san clemente':[33.4269,-117.6119],'arcadia':[34.1397,-118.0353],'temple city':[34.1072,-118.0578],'el monte':[34.0686,-118.0276],'covina':[34.0900,-117.8903],'glendora':[34.1361,-117.8653],'duarte':[34.1394,-117.9773],'monrovia':[34.1442,-118.0019],'baldwin park':[34.0853,-117.9609],'la puente':[34.0200,-117.9495],'hacienda heights':[33.9931,-117.9689],'walnut':[34.0203,-117.8653],'pomona':[34.0551,-117.7500],'la verne':[34.1008,-117.7678],'san dimas':[34.1067,-117.8064],'claremont':[34.0967,-117.7197],'azusa':[34.1336,-117.9076],'irwindale':[34.1070,-117.9353],'industry':[33.9697,-117.9365]};
+
+// Browser-side fallback only — fires when properties.latitude/longitude are NULL.
+// Production geocoding is Google-primary in daily_pipeline (Brief AS); this is a last-resort lookup.
+async function geocodeAddress(address,city,zipcode){
+  const full=`${address}, ${city}, CA ${zipcode}`.trim();
+  const key=full.toLowerCase();
+  if(geocodeCache[key])return geocodeCache[key];
+  try{
+    const resp=await fetch(`https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?${new URLSearchParams({address:full,benchmark:'Public_AR_Current',format:'json'})}`);
+    const data=await resp.json();
+    const m=(data?.result?.addressMatches||[])[0];
+    if(m?.coordinates?.y&&m?.coordinates?.x){const r=[m.coordinates.y,m.coordinates.x];geocodeCache[key]=r;return r;}
+  }catch(e){console.log('[Geocode] Error:',e);}
+  const fb=CITY_COORDS[(city||'').toLowerCase().trim()]||[null,null];
+  if(fb[0])geocodeCache[key]=fb;
+  return fb;
+}
+
+// ========== HAVERSINE ==========
+function haversine(lat1,lon1,lat2,lon2){
+  const R=3959,toRad=x=>x*Math.PI/180,dlat=toRad(lat2-lat1),dlon=toRad(lon2-lon1);
+  const a=Math.sin(dlat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dlon/2)**2;
+  return R*2*Math.asin(Math.sqrt(a));
+}
+
+// ========== COMP MATCHING (ported from Python) ==========
+async function findComps(listing){
+  const sqft=listing.sqft||0;
+  if(!sqft)return{comps:[],hp:0,arv:0,listingLat:null,listingLng:null};
+  const sqftRange=listing.sqftRange||200,radius=listing.radius||0.25,months=listing.months||12;
+  const sqftMin=sqft-sqftRange,sqftMax=sqft+sqftRange;
+  const cutoff=new Date();cutoff.setDate(cutoff.getDate()-months*30);
+  const cutoffStr=cutoff.toISOString().split('T')[0];
+
+  let lat=parseFloat(listing.latitude)||null,lon=parseFloat(listing.longitude)||null;
+  if(!lat||!lon){const c=await geocodeAddress(listing.address||'',listing.city||'',listing.zip||'');lat=c[0];lon=c[1];}
+
+  // Build bounding box if we have coordinates
+  let boxFilter=null;
+  if(lat&&lon){
+    const box=Math.max(radius*1.5,0.5),dpm=1/69.0,latR=box*dpm,lngR=box*dpm/Math.cos(lat*Math.PI/180);
+    boxFilter={latMin:lat-latR,latMax:lat+latR,lngMin:lon-lngR,lngMax:lon+lngR};
+  }
+
+  // Query 1: Sold comps (matches Comp DB query pattern exactly)
+  let q1=sb.from('properties').select('*').eq('change_type','sold').gte('sold_date',cutoffStr).gte('sqft',sqftMin).lte('sqft',sqftMax).order('sold_date',{ascending:false}).limit(500);
+  if(boxFilter)q1=q1.gte('latitude',boxFilter.latMin).lte('latitude',boxFilter.latMax).gte('longitude',boxFilter.lngMin).lte('longitude',boxFilter.lngMax);
+
+  // Query 2: Unsold flips (separate query, no date filter)
+  let q2=sb.from('properties').select('*').eq('stage','unsold_flip').gte('sqft',sqftMin).lte('sqft',sqftMax).limit(100);
+  if(boxFilter)q2=q2.gte('latitude',boxFilter.latMin).lte('latitude',boxFilter.latMax).gte('longitude',boxFilter.lngMin).lte('longitude',boxFilter.lngMax);
+
+  const[r1,r2]=await Promise.all([q1,q2]);
+  if(r1.error)console.error('[Supabase sold]',r1.error);
+  if(r2.error)console.error('[Supabase flips]',r2.error);
+  const allComps=[...(r1.data||[]),...(r2.data||[])];
+  // Fix #6: surface silent SQL-level exclusion when subject has no geocoded coords.
+  // SQL bbox filter (q1/q2) is skipped above (boxFilter null), so the JS-side falls
+  // back to city-name match — but comps with missing coords + non-matching city are
+  // still excluded by the JS loop below. This warns when the subject itself has no
+  // coords; comps without coords are silently excluded by SQL bbox in the normal path.
+  if(!lat||!lon)console.warn(`[findComps] subject ${listing.mls} has no geocoded coords; box filter skipped, comps without coords may be excluded by SQL bbox filter`);
+
+  const listingHs=(listing.high?.n||'').toLowerCase().trim();
+  const results=[];
+  for(const comp of(allComps||[])){
+    let dist=null;
+    if(lat&&lon&&comp.latitude&&comp.longitude){dist=haversine(lat,lon,comp.latitude,comp.longitude);if(dist>radius)continue;}
+    else{if((comp.city||'').toLowerCase().trim()!==(listing.city||'').toLowerCase().trim())continue;}
+    // School rating filter removed — show all comps regardless of school zone
+    const cHs=(comp.high_school||'').toLowerCase().trim();
+    const schoolMatch=!!(listingHs&&cHs&&(listingHs.includes(cHs)||cHs.includes(listingHs)));
+    const isUnsoldFlip=comp.stage==='unsold_flip'&&!comp.sale_price;
+    const compPrice=comp.sale_price||comp.list_price||0;
+    const compDate=comp.sold_date||comp.list_date||'';
+    const compPsf=(comp.sqft&&compPrice)?Math.round(compPrice/comp.sqft):0;
+    const compType=isUnsoldFlip?'unsold_flip':(comp.comp_type||'general');
+    results.push({
+      type:compType==='general'?'sold':compType,
+      mls:comp.mls||'',
+      addr:((comp.address||'').trim()+', '+(comp.city||'').trim()).replace(/^, |, $/g,''),
+      price:compPrice,sqft:comp.sqft||0,lot:comp.lot_size||'',
+      beds:comp.beds||0,baths:comp.baths||0,
+      psf:compPsf,
+      date:compDate,dist:dist!==null?Math.round(dist*100)/100:null,
+      schoolMatch,highSchool:comp.high_school||'',highRating:comp.high_rating||0,
+      elemSchool:comp.elementary_school||'',elemRating:comp.elementary_rating||0,
+      midSchool:comp.middle_school||'',midRating:comp.middle_rating||0,
+      lat:comp.latitude,lng:comp.longitude,
+      isAsking:isUnsoldFlip,
+      typePriority:{dotty:0,flips:1,halfflips:1,unsold_flip:1,general:2}[compType]??2,
+      doubleEnded:comp.double_ended===true,
+      photoCount:comp.photo_count||0,
+      conditionTier:comp.condition_tier||null,
+      isDotty:comp.is_dotty===true,
+    });
+  }
+  results.sort((a,b)=>(a.schoolMatch?0:1)-(b.schoolMatch?0:1)||(a.typePriority-b.typePriority)||((a.dist??999)-(b.dist??999)));
+  // Deduplicate by address: keep the first occurrence after the sort above
+  // (school match → type priority → distance asc), so the kept row is the
+  // strongest comp for that address, not the most recent.
+  // Strip street suffixes (ST, AVE, DR, etc.) so "13522 Carnaby" and "13522 Carnaby ST" match
+  const normAddr=s=>s.toLowerCase().replace(/\b(st|street|ave|avenue|blvd|boulevard|dr|drive|ln|lane|ct|court|cir|circle|pl|place|way|rd|road|ter|terrace)\b/g,'').replace(/[^a-z0-9]/g,'');
+  const seen=new Set();
+  const deduped=results.filter(c=>{const key=normAddr(c.addr);if(seen.has(key))return false;seen.add(key);return true;});
+  const smPool=deduped.filter(c=>c.schoolMatch);
+  const pool=smPool.length?smPool:deduped;
+  const hp=pool.length?Math.max(...pool.map(c=>c.psf)):0;
+  return{comps:deduped.slice(0,20),hp,arv:hp*sqft,listingLat:lat,listingLng:lon};
+}
+
+// ========== APP STATE ==========
+// Listings above this list price are auto-archived in the UI (stage stays 'unread' in DB;
+// a price drop below the cap will bring them back into Unread on the next page load).
+const MAX_LIST_PRICE=2500000;
+let listings=[],sort_='priority',active=null,compCache={};
+let currentFilter='unread',cityFilters=new Set(),tagFilters=new Set();
+// Client-side deal-grade filter (the "bucket"). null = all; otherwise one of
+// 'A'|'B'|'C'|'D'|'ungraded'. Mirrors cityFilters/tagFilters; applied in
+// getSorted() against the dealScoreCache.
+let gradeFilter=null;
+// Brief AJ: bulk-archive selection set. In-memory only; cleared on bulk-archive
+// completion or Cancel. List-card render preserves checked state via
+// selectedMls.has(l.mls).
+const selectedMls=new Set();
+// Agent double-end counts — seller-side DE rows since 2023-01-01, keyed by lowercased email/name.
+// Populated once per page load via fetchAgentDeCounts() after `listings` loads. Email-primary,
+// name-fallback over disjoint listing populations (no double-counting).
+const deCountByEmail=new Map(),deCountByName=new Map();
+let deCacheReady=false;
+const td_=new Date();
+const F=n=>'$'+Math.round(n).toLocaleString();
+const FK=n=>{if(n>=995000)return'$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';return'$'+Math.round(n/1e3)+'K';};
+const dom=d=>{
+  if(!d)return 0;
+  try{
+    // Normalize separators: "2026/04/29" → "2026-04-29".
+    const s=d.replace(/\//g,'-');
+    const p=s.split('-');
+    if(p.length!==3)return 0;
+    // Branch on which segment is the 4-digit year:
+    //   YYYY-MM-DD (ISO)         → parse as-is
+    //   MM-DD-YYYY (US display)  → reorder to YYYY-MM-DD before parsing
+    //   anything else (fallback) → let Date try the raw string
+    const dt=p[0].length===4
+      ?new Date(s)
+      :p[2].length===4
+        ?new Date(p[2]+'-'+p[0]+'-'+p[1])
+        :new Date(s);
+    if(isNaN(dt))return 0;
+    return Math.max(1,Math.round((td_-dt)/864e5));
+  }catch(e){return 0;}
+};
+const ALL_TAGS=['Fixer','Dated','Estate / Trust','Price reduced','Already flipped'];
+const TAG_COLORS={'Already flipped':['var(--accent-dim)','var(--accent)'],'Estate / Trust':['var(--purple-bg)','var(--purple)'],'Fixer':['var(--amber-bg)','var(--amber)'],'Dated':['var(--green-bg)','var(--green)'],'Price reduced':['var(--red-bg)','var(--red)']};
+function tg(t){const c=TAG_COLORS[t]||['var(--bg-alt)','var(--text-3)'];return`<span class="tag" style="background:${c[0]};color:${c[1]};border:none">★ ${t}</span>`;}
+async function toggleCustomTag(mls,tag){const l=listings.find(x=>x.mls===mls);if(!l)return;const cur=l.tags.includes(tag)?l.tags.filter(t=>t!==tag):[...l.tags,tag];await saveCustomTags(mls,cur);}
+async function saveCustomTags(mls,newTags){const l=listings.find(x=>x.mls===mls);if(!l)return;l.tags=newTags;l.customTags=newTags;const{error}=await sb.from('properties').update({custom_tags:newTags,updated_at:new Date().toISOString()}).eq('mls',mls);if(error)console.error('saveCustomTags error',error);const mid=mls.replace(/[^a-zA-Z0-9]/g,'');renderTagToggles(mls,mid);render();}
+function renderTagToggles(mls,mid){const l=listings.find(x=>x.mls===mls);if(!l)return;const el=document.getElementById('tag-toggles-'+mid);if(!el)return;el.innerHTML=ALL_TAGS.map(t=>{const active=l.tags.includes(t);const c=TAG_COLORS[t]||['var(--bg-alt)','var(--text-3)'];const style=active?`background:${c[0]};color:${c[1]};border:none;cursor:pointer`:`background:var(--bg);color:var(--text-4);border:1px solid var(--border);cursor:pointer;opacity:0.5`;return`<span class="tag" style="${style}" onclick="event.stopPropagation();toggleCustomTag('${mls.replace(/'/g,"\'")}','${t.replace(/'/g,"\'")}')">${active?'★':'☆'} ${t}</span>`;}).join('');}
+
+function getArvLabel(l){
+  // If locked ARV exists, show it with lock icon
+  if(l.lockedArv)return`<span title="Locked">🔒 ${FK(l.lockedArv)}</span>`;
+  // Otherwise show live-calculated from comps
+  const cm=compCache[l.mls];if(!cm||!cm.hp)return'<span style="color:var(--text-4)">—</span>';
+  const arv=cm.hp*l.sqft;return FK(arv);
+}
+
+function getGapLabel(l){if(!getArvVal(l))return'<span style="color:var(--text-4)">—</span>';const diff=getGapVal(l);if(!diff)return'<span style="color:var(--text-4)">—</span>';const ad=Math.abs(diff);const label=ad>=1e6?'$'+(ad/1e6).toFixed(1)+'M':'$'+Math.ceil(ad/1e3)+'K';return diff>0?`<span style="color:var(--red);font-weight:600">+${label}</span>`:`<span style="color:var(--green);font-weight:600">-${label}</span>`;}
+
+function getComps(l){return compCache[l.mls]||{comps:[],hp:0,loading:true};}
+
+async function loadComps(l){
+  try{const d=await findComps(l);compCache[l.mls]=d;}
+  catch(e){compCache[l.mls]={comps:[],hp:0,error:true};}
+  render();
+  if(active===l.mls){
+    // We're the canonical render path; cancel opn()'s polling fallback so it
+    // doesn't redundantly render compsPanel after we just did.
+    if(openCompPoll){clearInterval(openCompPoll);openCompPoll=null;}
+    const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
+    document.getElementById('comp-col').innerHTML=compsPanel(l);
+    requestAnimationFrame(()=>{
+      const cm=getComps(l);
+      if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}
+      else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}
+    });
+  }
+}
+
+function shortName(n){if(!n)return'';return n.replace(/ Elementary School$/,' ES').replace(/ Elementary$/,' ES').replace(/ Middle School$/,' MS').replace(/ Intermediate School$/,' MS').replace(/ High School$/,' HS').replace(/ Senior High School$/,' HS').replace(/ Academy$/,' Acad').replace(/\s*\([^)]+\)\s*/,' ').trim();}
+
+function compSchools(c){if(!c.highSchool&&!c.elemSchool&&!c.midSchool)return'';let s='';
+  if(c.elemRating){const cl=c.elemRating>=7?'sh':c.elemRating>=5?'sm':'sl';s+=`<span class="sp ${cl}"><span class="lv">E</span>${c.elemRating}</span><span style="font-size:9px;color:var(--text-3);margin-right:6px">${shortName(c.elemSchool)}</span>`;}
+  if(c.midRating){const cl=c.midRating>=7?'sh':c.midRating>=5?'sm':'sl';s+=`<span class="sp ${cl}"><span class="lv">M</span>${c.midRating}</span><span style="font-size:9px;color:var(--text-3);margin-right:6px">${shortName(c.midSchool)}</span>`;}
+  if(c.highRating){const cl=c.highRating>=7?'sh':c.highRating>=5?'sm':'sl';s+=`<span class="sp ${cl}"><span class="lv">H</span>${c.highRating}</span><span style="font-size:9px;color:var(--text-3)">${shortName(c.highSchool)}</span>`;}
+  return s;}
+
+// Tesla-friendly custom dropdown for the per-listing comp tolerance selectors.
+// Renders a button (with the existing `comp-${kind}-${mid}` ID so the rest of
+// the code can still look it up) plus a popup with one button per option.
+// The current value is stored in dataset.value; refetchComps() reads from
+// .dataset.value instead of the old .value.
+const COMP_TOL_LABELS={radius:v=>`${v}mi`,sqft:v=>`±${v}sf`,months:v=>`${v}mo`};
+function compToleranceHtml(mls,mid,kind,defaultValue,options){
+  const lblFn=COMP_TOL_LABELS[kind];
+  const btnId=`comp-${kind}-${mid}`,dropId=`comp-${kind}-drop-${mid}`;
+  const opts=options.map(v=>`<button onclick="event.stopPropagation();setCompTolerance('${mls}','${kind}','${v}')"${v===defaultValue?' class="selected"':''}>${lblFn(v)}</button>`).join('');
+  return`<div class="cmp-wrap"><button id="${btnId}" data-value="${defaultValue}" class="cmp-drop-btn" onclick="event.stopPropagation();toggleCompDrop('${dropId}')">${lblFn(defaultValue)}</button><div id="${dropId}" class="cmp-drop">${opts}</div></div>`;
+}
+function toggleCompDrop(dropId){
+  const drop=document.getElementById(dropId);if(!drop)return;
+  const wasOpen=drop.classList.contains('open');
+  // Close every other comp/retag drop first so only one is open at a time.
+  document.querySelectorAll('.cmp-drop.open,.retag-drop.open').forEach(d=>d.classList.remove('open'));
+  if(!wasOpen)drop.classList.add('open');
+}
+function setCompTolerance(mls,kind,value){
+  const mid=mls.replace(/[^a-zA-Z0-9]/g,'');
+  const btn=document.getElementById(`comp-${kind}-${mid}`);
+  if(btn){btn.dataset.value=value;btn.textContent=COMP_TOL_LABELS[kind](value);}
+  const drop=document.getElementById(`comp-${kind}-drop-${mid}`);
+  if(drop){drop.classList.remove('open');drop.querySelectorAll('button').forEach(b=>b.classList.remove('selected'));
+    drop.querySelectorAll('button').forEach(b=>{const oc=b.getAttribute('onclick')||'';if(oc.indexOf(`'${value}'`)>=0)b.classList.add('selected');});}
+  refetchComps(mls);
+}
+
+function compsPanel(l){
+  const cm=getComps(l),mid=l.mls.replace(/[^a-zA-Z0-9]/g,'');
+  // When the listing has no geocoded coords, findComps falls back to a city
+  // centroid (or all-null) and matches comps by city name only — so the
+  // results may be wildly off the actual property location.
+  const usedFallback=!l.latitude||!l.longitude;
+  const fallbackWarning=usedFallback?`<div style="font-size:10px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber);border-radius:4px;padding:3px 6px;margin-bottom:4px">⚠ No geocoded coords — comps matched by city only</div>`:'';
+  let h=fallbackWarning+`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;align-items:center">
+    ${compToleranceHtml(l.mls,mid,'radius','0.25',['0.15','0.25','0.5','0.75','1'])}
+    ${compToleranceHtml(l.mls,mid,'sqft','200',['150','200','250','300','400','500'])}
+    ${compToleranceHtml(l.mls,mid,'months','12',['1','3','6','9','12','24','36'])}</div>`;
+  h+=`<div id="comp-summary-${mid}">`;
+  if(!cm.comps.length&&!cm.loading){h+=`<div style="padding:8px;color:var(--text-4);font-size:11px;font-style:italic">No comps found within current tolerances. Adjust radius/sqft/months above to widen the search.</div>`;}
+  h+=`</div>`;
+  h+=`<div id="comp-map-${mid}" style="width:100%;height:250px;border-radius:6px;border:1px solid var(--border);margin-bottom:8px;background:var(--bg-alt)"></div>`;
+  h+=`<div style="font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:.5px;margin-bottom:4px">COMPS (${cm.comps.length})</div>`;
+  if(cm.loading)h+=`<div style="padding:12px;text-align:center;color:var(--text-4);font-size:11px">Loading comps...</div>`;
+  else if(!cm.comps.length)h+=`<div style="padding:12px;text-align:center;color:var(--text-4);font-size:11px">No comps found</div>`;
+  else h+=cm.comps.map((c,i)=>compH(c,i,l.mls)).join('');
+  // Cards row (Comp avg + per-city ARV cards + Deal Score) lives in a
+  // single wrapper so async re-renderers can replace it atomically. The
+  // old stacked .ab strips (renderArvEstimateBlock / renderV4ArvBlock /
+  // renderLaPalmaArvBlock / renderCypressArvBlock / renderDiamondBarArvBlock
+  // / renderSmartCompsPanel + city variants / renderDealScoreBlock) are
+  // now folded into renderArvScoreRow — same data, horizontal cards +
+  // detail strip with collapsible expanders.
+  h+=renderArvScoreRow(l,mid);
+  setTimeout(()=>ensureArvEstimate(l.mls,mid),50);
+  setTimeout(()=>ensureDealScore(l.mls,mid),50);
+  setTimeout(()=>renderCompMap(l,cm,mid),200);
+  return h;
+}
+
+// Cities that have BOTH a per-city regression and smart comps — v7.4.1 is
+// suppressed for these (and the deal-analyzer ARV prefills from smart
+// comps → per-city regression → comps avg via preferredArvFor()).
+const HAS_PER_CITY_REGRESSION=new Set(['CERRITOS','LA PALMA','CYPRESS','DIAMOND BAR','LONG BEACH','ANAHEIM','ANAHEIM HILLS','FULLERTON','TEMPLE CITY','SAN GABRIEL','ORANGE','YORBA LINDA','MONTEREY PARK']);
+
+// ========== ARV ESTIMATOR (v7.4.1) — Layer 2+3+4 nightly batch ==========
+// Reads the latest row from `arv_estimates` (written by
+// `python -m arv_estimator.batch`). One row per subject; we fetch on
+// first expand and cache per-MLS so re-renders don't refetch.
+const arvEstimateCache={};
+
+// Best-available ARV for the deal analyzer. The default priority is
+//   smart_comps_arv → per_city_arv → comps-avg (per-city cities)
+//   smart_comps_arv → v7.4.1 headline_arv → comps-avg (non-per-city)
+// — but the user can override per-listing by clicking a different card
+// in the ARV cards row (see setArvSource + arvSourceMap below).
+// arvEstimateCache may be empty on first render; ensureArvEstimate()
+// re-seeds the input once the row resolves.
+const arvSourceMap={};           // mls -> 'comp-avg' | 'per-city' | 'smart-comps' | 'v7'
+const compAvgOverride={};        // mid -> {psf, count} (set by recalcCompSummary when user trims comps)
+
+// Snapshot of which ARV sources have a usable value for this listing
+// right now. Used by activeArvSource (default priority + validity check)
+// and by renderArvScoreRow (which cards to render + which to disable for
+// click-to-switch).
+function cardAvailability(l,cm){
+  const c=arvEstimateCache[l.mls];
+  const r=(c&&c.state==='ok')?c.row:null;
+  // Comp avg uses the user-trimmed override when present (recalcCompSummary
+  // mutates compAvgOverride[mid] when the user toggles comp checkboxes).
+  const mid=l.mls.replace(/[^a-zA-Z0-9]/g,'');
+  const ov=compAvgOverride[mid];
+  let compPsf,compCount;
+  if(ov){compPsf=ov.psf;compCount=ov.count;}
+  else{
+    const ppsfs=cm.comps.map(c=>c.psf).filter(Boolean);
+    compPsf=ppsfs.length?Math.round(ppsfs.reduce((a,b)=>a+b,0)/ppsfs.length):0;
+    compCount=ppsfs.length;
+  }
+  const compArv=compPsf*l.sqft;
+  const isPerCity=HAS_PER_CITY_REGRESSION.has(l.city);
+  const perCityArv=(r&&r.per_city_arv)||null;
+  const smartConf=r?String(r.smart_comps_confidence||'').toLowerCase():'';
+  const smartArv=(r&&r.smart_comps_arv)||null;
+  const smartDeclined=(smartConf==='none');
+  const v7Arv=(r&&r.headline_arv)||null;
+  return {r,isPerCity,compPsf,compCount,compArv,perCityArv,smartArv,smartConf,smartDeclined,v7Arv};
+}
+
+// Source feeding the ARV input. Locked → 'locked' (no active marker).
+// User pick takes precedence if still valid; otherwise default priority.
+function activeArvSource(l,cm){
+  if(l.lockedArv)return'locked';
+  const av=cardAvailability(l,cm);
+  const valid=(src)=>{
+    if(src==='comp-avg')return av.compArv>0;
+    if(src==='per-city')return av.perCityArv!=null;
+    if(src==='smart-comps')return av.smartArv!=null;
+    if(src==='v7')return!av.isPerCity&&av.v7Arv!=null;
+    return false;
+  };
+  const picked=arvSourceMap[l.mls];
+  if(picked&&valid(picked))return picked;
+  // Default priority
+  if(valid('smart-comps'))return'smart-comps';
+  if(av.isPerCity){
+    if(valid('per-city'))return'per-city';
+  }else{
+    if(valid('v7'))return'v7';
+  }
+  return'comp-avg';
+}
+
+function preferredArvFor(l,cm){
+  const av=cardAvailability(l,cm);
+  const src=activeArvSource(l,cm);
+  if(src==='smart-comps')return{arv:av.smartArv,source:'smart-comps'};
+  if(src==='per-city')return{arv:av.perCityArv,source:'per-city'};
+  if(src==='v7')return{arv:av.v7Arv,source:'v7'};
+  // 'locked' or 'comp-avg' fall through to comp-avg arv (locked uses
+  // l.lockedArv at the call site; the arv we return here is just the
+  // fallback the input would otherwise show).
+  return{arv:av.compArv,source:src==='locked'?'locked':'comp-avg'};
+}
+function arvSourceLabel(l,source,arv){
+  if(l.lockedArv||source==='locked')return`Locked: ${F(arv)}`;
+  if(source==='smart-comps')return`Comp ARV: ${F(arv)}`;
+  if(source==='per-city')return`Baseline ARV: ${F(arv)}`;
+  if(source==='v7')return`v7.4.1: ${F(arv)}`;
+  return`Manual comp avg: ${F(arv)}`;
+}
+
+// ========== ARV/SCORE CARDS ROW ======================================
+// Replaces the old stacked .ab strips (comp-arv, per-city ARV, smart
+// comps, v7.4.1, deal score) with a single horizontal cards row + a
+// full-width detail strip below for the collapsible expanders. Click an
+// ARV card to make it the source feeding the deal analyzer's ARV input.
+// The active card gets a colored top border + "◀ used" badge; Deal Score
+// is never "active" (it's a verdict).
+function renderArvScoreRow(l,mid){
+  const cm=getComps(l);
+  const av=cardAvailability(l,cm);
+  const active=activeArvSource(l,cm);
+  const isPerCity=av.isPerCity;
+  // Per-city: 4 cards (comp-avg, per-city, smart-comps, deal-score).
+  // Non-per-city: 3 cards (comp-avg, v7, deal-score).
+  const slots=isPerCity?['comp-avg','per-city','smart-comps','deal-score']:['comp-avg','v7','deal-score'];
+  const cardsHtml=slots.map(src=>renderArvScoreCard(l,mid,src,av,active)).join('');
+  const detail=renderArvScoreDetail(l,mid,av);
+  return `<div id="arv-score-row-${mid}" style="margin-top:8px">
+    <div style="display:grid;grid-template-columns:repeat(${slots.length},1fr);gap:6px">${cardsHtml}</div>
+    ${detail}
+  </div>`;
+}
+
+function renderArvScoreCard(l,mid,src,av,active){
+  const c=arvEstimateCache[l.mls];
+  const cachePending=!c||c.state==='pending';
+  const cacheMissing=c&&c.state==='missing';
+  const cacheErr=c&&c.state==='error';
+  const dc=dealScoreCache[l.mls];
+  const dsPending=!dc||dc.state==='pending';
+  const dsMissing=dc&&dc.state==='missing';
+  const dsErr=dc&&dc.state==='error';
+
+  const isActive=(src===active);
+  const isArvSrc=(src!=='deal-score');
+  // Active marker: top border + "◀ used" badge in the corner. Only on
+  // ARV cards (Deal Score is never active).
+  const topBorder=isActive&&isArvSrc?`border-top:3px solid var(--accent)`:`border-top:1px solid var(--border)`;
+  const baseBox=`background:var(--bg);border:1px solid var(--border);${topBorder};border-radius:5px;padding:6px 8px;position:relative;min-height:64px`;
+  const usedBadge=isActive&&isArvSrc?`<span style="position:absolute;top:3px;right:5px;font-size:9px;font-weight:700;color:var(--accent);letter-spacing:.3px">◀ USED</span>`:'';
+
+  // Click behavior: ARV cards become source-pickers (unless already active
+  // or unavailable). Deal score is never clickable for source-switching.
+  const canClick=isArvSrc&&!isActive&&cardHasValue(src,av);
+  const cursor=canClick?'cursor:pointer':'';
+  const onclick=canClick?`onclick="event.stopPropagation();setArvSource('${l.mls}','${mid}','${src}')"`:'';
+  const title=canClick?`title="Use this ARV in the deal analyzer"`:'';
+
+  // Title row (uppercase, muted) — same for every card.
+  const titleText=({'comp-avg':'Manual comp avg','per-city':'Baseline ARV','smart-comps':'Comp ARV','v7':'ARV est (v7.4.1)','deal-score':'Deal score'})[src];
+  const titleHtml=`<div style="font-size:9px;font-weight:700;color:var(--text-4);letter-spacing:.5px;text-transform:uppercase">${titleText}</div>`;
+
+  // Per-source body.
+  let body='';
+  if(src==='comp-avg'){
+    const psf=av.compPsf,cnt=av.compCount,arv=av.compArv;
+    if(!cnt){
+      body=`<div style="font-size:14px;font-weight:700;color:var(--text-4);margin-top:2px">—</div>
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">no comps</div>`;
+    }else{
+      body=`<div style="font-size:14px;font-weight:700;color:var(--accent);margin-top:2px">${F(arv)}</div>
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">${l.sqft.toLocaleString()}sf × $${psf}</div>`;
+    }
+  }
+  else if(src==='per-city'){
+    if(cachePending)body=cardSubText('14px','pending');
+    else if(cacheMissing||cacheErr||av.perCityArv==null)body=cardSubText('14px','—');
+    else{
+      body=`<div style="font-size:14px;font-weight:700;color:var(--accent);margin-top:2px">${F(av.perCityArv)}</div>
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">OLS regression</div>`;
+    }
+  }
+  else if(src==='smart-comps'){
+    if(cachePending)body=cardSubText('14px','pending');
+    else if(cacheMissing||cacheErr)body=cardSubText('14px','—');
+    else if(av.smartDeclined){
+      const data2=av.r&&av.r.smart_comps_data||{};
+      const flags2Raw=Array.isArray(data2.flags)?data2.flags:[];
+      // Strip globally-fired DG/DB flag from the per-listing summary —
+      // matches the legacy per-city renderers' suppression.
+      const flags2=flags2Raw.filter(f=>f!=='drift_disagrees_with_v1');
+      const flagsLine=flags2.length?` <span style="color:var(--text-4)">(${flags2.map(f=>escapeHtml(String(f))).join(', ')})</span>`:'';
+      body=`<div style="font-size:13px;font-weight:700;color:var(--text-3);margin-top:2px">declined</div>
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">no good local comps${flagsLine}</div>`;
+    }
+    else if(av.smartArv==null)body=cardSubText('14px','—');
+    else{
+      const data=av.r&&av.r.smart_comps_data||{};
+      const n=data.n_anchors!=null?data.n_anchors:'?';
+      body=`<div style="font-size:14px;font-weight:700;color:var(--accent);margin-top:2px">${F(av.smartArv)}</div>
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">${n} anchors · see below</div>`;
+    }
+  }
+  else if(src==='v7'){
+    if(cachePending)body=cardSubText('14px','pending');
+    else if(cacheMissing||cacheErr||av.v7Arv==null)body=cardSubText('14px','—');
+    else{
+      body=`<div style="font-size:14px;font-weight:700;color:var(--accent);margin-top:2px">${F(av.v7Arv)}</div>
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">layer breakdown · see below</div>`;
+    }
+  }
+  else if(src==='deal-score'){
+    if(dsPending)body=cardSubText('14px','pending');
+    else if(dsErr){
+      // Ungraded buckets (expected, not real errors): listings outside the
+      // 8 per-city ARV markets, or ARV-pipeline lag. Show a neutral grey
+      // "ungraded" pill + a short subtext. Any other message = real problem.
+      const em=(dc.row&&dc.row.error_message)||'';
+      if(em.indexOf('outside per-city coverage')===0||em.indexOf('no ARV available')===0){
+        const sub=em.indexOf('outside per-city coverage')===0?'outside per-city coverage':'ARV pending';
+        const upill=`<span style="${dsGradeStyle('?')};font-size:13px;font-weight:700;padding:2px 10px;border-radius:10px;letter-spacing:.5px">ungraded</span>`;
+        body=`<div style="margin-top:4px">${upill}</div>
+          <div style="font-size:10px;color:var(--text-4);margin-top:4px">${escapeHtml(sub)}</div>`;
+      }else{
+        body=`<div style="font-size:14px;font-weight:700;color:var(--text-4);margin-top:2px">error</div>
+          <div style="font-size:10px;color:var(--text-4);margin-top:2px">${escapeHtml(em||'unknown error')}</div>`;
+      }
+    }
+    else if(dsMissing||!dc.row||!dc.row.grade)body=cardSubText('14px','—');
+    else{
+      const r=dc.row,g=r.grade||'?';
+      const bd=r.breakdown_json||{};
+      const pill=`<span style="${dsGradeStyle(g)};font-size:13px;font-weight:700;padding:2px 10px;border-radius:10px;letter-spacing:.5px">${g}</span>`;
+      let detailLines;
+      if(bd.shave_required_pct!=null&&bd.max_offer!=null){
+        // Negotiation-shave grade driver: % off list needed + the strict
+        // fully-loaded max offer. shave<=0 means it pencils at list.
+        const shaveLine=Number(bd.shave_required_pct)<=0?'works at list':'needs '+Number(bd.shave_required_pct).toFixed(1)+'% off';
+        detailLines=`<div style="font-size:10px;color:var(--text-4);margin-top:4px">${shaveLine}</div>
+          <div style="font-size:10px;color:var(--text-4)">max ${F(bd.max_offer)}</div>`;
+      }else{
+        // Legacy row lacking the new fields → fall back to spread display.
+        const spread=r.spread!=null?F(r.spread):'—';
+        const pct=r.spread_pct!=null?(r.spread_pct>=0?'+':'')+Number(r.spread_pct).toFixed(2)+'%':'—';
+        detailLines=`<div style="font-size:10px;color:var(--text-4);margin-top:4px">spread ${spread}</div>
+          <div style="font-size:10px;color:var(--text-4)">${pct}</div>`;
+      }
+      body=`<div style="margin-top:4px">${pill}</div>${detailLines}`;
+    }
+  }
+
+  return `<div ${title} ${onclick} style="${baseBox};${cursor}">${usedBadge}${titleHtml}${body}</div>`;
+}
+
+function cardHasValue(src,av){
+  if(src==='comp-avg')return av.compArv>0;
+  if(src==='per-city')return av.perCityArv!=null;
+  if(src==='smart-comps')return av.smartArv!=null;
+  if(src==='v7')return!av.isPerCity&&av.v7Arv!=null;
+  return false;
+}
+function cardSubText(size,txt){return `<div style="font-size:${size};font-weight:700;color:var(--text-4);margin-top:2px">${txt}</div>`;}
+function confPill(lvl){
+  if(!lvl||lvl==='?')return'';
+  const style=lvl==='high'?'background:var(--green-bg);color:var(--green)':lvl==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
+  return `<span style="${style};font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;letter-spacing:.3px;margin-left:5px;vertical-align:middle">${lvl.toUpperCase()}</span>`;
+}
+
+// Full-width detail strip below the cards row. Hosts collapsible
+// expanders for whichever cards have detail (smart comps anchors, v7
+// layer breakdown, deal score breakdown). Each <details> is collapsed
+// by default. Renders nothing when nothing to show.
+function renderArvScoreDetail(l,mid,av){
+  const c=arvEstimateCache[l.mls];
+  const cacheOk=c&&c.state==='ok';
+  const dc=dealScoreCache[l.mls];
+  const dsOk=dc&&dc.state==='ok'&&dc.row&&dc.row.grade;
+  const parts=[];
+  if(cacheOk){
+    if(av.isPerCity&&av.smartArv!=null)parts.push(renderSmartCompsDetail(l,av));
+    else if(!av.isPerCity&&av.v7Arv!=null)parts.push(renderV7LayerDetail(av));
+  }
+  if(dsOk)parts.push(renderDealScoreDetail(dc.row));
+  if(!parts.length)return'';
+  return `<div style="margin-top:6px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:5px">${parts.join('<div style=\"height:6px\"></div>')}</div>`;
+}
+
+// Anchors table — reused for all per-city smart-comps cities. Optional
+// HS-adj column appears when any comp has a non-zero adjustment (matches
+// la_palma + diamond_bar pattern). Cypress + Cerritos pass no HS adj
+// → column auto-hides.
+function renderSmartCompsDetail(l,av){
+  const r=av.r,data=r.smart_comps_data||{};
+  const radius=data.anchor_radius_miles!=null?data.anchor_radius_miles:'?';
+  const monthsBack=data.anchor_months_back!=null?data.anchor_months_back:'?';
+  const n=data.n_anchors!=null?data.n_anchors:'?';
+  const ppsf=data.ppsf_today_t6!=null?Math.round(data.ppsf_today_t6):'—';
+  // Suppress globally-fired flag per Brief DG / diamond_bar_phase2_writeback.
+  const flagsRaw=Array.isArray(data.flags)?data.flags:[];
+  const flags=flagsRaw.filter(f=>f!=='drift_disagrees_with_v1');
+  const flagsHtml=flags.length?`<div style="font-size:10px;color:var(--text-4);margin-top:2px">flags: ${flags.map(f=>escapeHtml(String(f))).join(', ')}</div>`:'';
+  const comps=Array.isArray(data.comps)?data.comps:[];
+  const hasHsAdj=comps.some(co=>co.comp_hs_adjustment_pct!=null&&Math.abs(co.comp_hs_adjustment_pct)>0.01);
+  // Fullerton smart-comps emits per-comp pool_adjustment_pct (the HS-adj
+  // analog, swapped HS→pool). Column auto-hides for cities that pass no
+  // pool adjustment (Cerritos/Cypress/Diamond Bar/etc).
+  const hasPoolAdj=comps.some(co=>co.pool_adjustment_pct!=null&&Math.abs(co.pool_adjustment_pct)>0.01);
+  // Temple City smart-comps emits per-comp comp_total_adjustment_pct (the
+  // cumulative normalization that drives the adjustment-trust down-weight,
+  // temple_city_smart_comps Decision #11) + a top-level count of comps
+  // hard-skipped past the 40% cliff. Both columns/notes auto-hide for cities
+  // that don't emit the field.
+  const hasTotalAdj=comps.some(co=>co.comp_total_adjustment_pct!=null);
+  const nSkipped=data.n_skipped_high_adjustment||0;
+  const skipNote=nSkipped>0?`<div style="font-size:10px;color:var(--text-4);margin-top:2px">${nSkipped} comp${nSkipped===1?'':'s'} excluded (&gt;40% total adjustment)</div>`:'';
+  let compsRows='';
+  if(comps.length){
+    const head=`<thead><tr style="font-size:9px;font-weight:700;color:var(--text-4);text-transform:uppercase">
+      <th style="text-align:left;padding:3px 4px">Mi</th>
+      <th style="text-align:left;padding:3px 4px">Tier</th>
+      <th style="text-align:left;padding:3px 4px">Sold</th>
+      <th style="text-align:right;padding:3px 4px">Sale</th>
+      <th style="text-align:right;padding:3px 4px">$/sf</th>
+      <th style="text-align:right;padding:3px 4px">$/sf today</th>
+      <th style="text-align:right;padding:3px 4px">$/sf T6</th>
+      ${hasHsAdj?`<th style="text-align:right;padding:3px 4px">HS adj</th>`:''}
+      ${hasPoolAdj?`<th style="text-align:right;padding:3px 4px">Pool adj</th>`:''}
+      ${hasTotalAdj?`<th style="text-align:right;padding:3px 4px">Total adj</th>`:''}
+      <th style="text-align:right;padding:3px 4px">w</th></tr></thead>`;
+    const body=comps.map(co=>{
+      const t=co.condition_tier;
+      const tierStr=t===6?'T6':t===5?'T5*':t===4?'T4*':`T${t}`;
+      const tCol=t===6?'var(--green)':t===5?'var(--amber)':'var(--text-3)';
+      const hsPct=co.comp_hs_adjustment_pct;
+      const hsStr=(hsPct==null||Math.abs(hsPct)<0.01)?'—':(hsPct>0?'+':'')+hsPct.toFixed(2)+'%';
+      const hsCol=(hsPct==null||Math.abs(hsPct)<0.01)?'var(--text-4)':(hsPct>0?'var(--green)':'var(--red)');
+      const hsCell=hasHsAdj?`<td style="padding:3px 4px;text-align:right;color:${hsCol}">${hsStr}</td>`:'';
+      const poolPct=co.pool_adjustment_pct;
+      const poolStr=(poolPct==null||Math.abs(poolPct)<0.01)?'—':(poolPct>0?'+':'')+poolPct.toFixed(2)+'%';
+      const poolCol=(poolPct==null||Math.abs(poolPct)<0.01)?'var(--text-4)':(poolPct>0?'var(--green)':'var(--red)');
+      const poolCell=hasPoolAdj?`<td style="padding:3px 4px;text-align:right;color:${poolCol}">${poolStr}</td>`:'';
+      const totPct=co.comp_total_adjustment_pct;
+      const totStr=(totPct==null)?'—':totPct.toFixed(1)+'%';
+      // Higher cumulative adjustment = lower trust (down-weighted). Amber past 25%.
+      const totCol=(totPct==null)?'var(--text-4)':(totPct>25?'var(--amber)':'var(--text-3)');
+      const totalCell=hasTotalAdj?`<td style="padding:3px 4px;text-align:right;color:${totCol}">${totStr}</td>`:'';
+      return `<tr style="font-size:11px;border-top:1px solid var(--border)">
+        <td style="padding:3px 4px">${(co.distance_miles||0).toFixed(2)}</td>
+        <td style="padding:3px 4px;color:${tCol};font-weight:600">${tierStr}</td>
+        <td style="padding:3px 4px;color:var(--text-3)">${(co.sold_date||'').slice(0,7)}</td>
+        <td style="padding:3px 4px;text-align:right">${co.sale_price?'$'+Math.round(co.sale_price/1000)+'K':'—'}</td>
+        <td style="padding:3px 4px;text-align:right;color:var(--text-3)">$${Math.round(co.raw_ppsf||0)}</td>
+        <td style="padding:3px 4px;text-align:right">$${Math.round(co.ppsf_today||0)}</td>
+        <td style="padding:3px 4px;text-align:right;font-weight:600">$${Math.round(co.ppsf_t6_today||0)}</td>
+        ${hsCell}
+        ${poolCell}
+        ${totalCell}
+        <td style="padding:3px 4px;text-align:right;color:var(--text-4)">${((co.weight||0)*100).toFixed(0)}%</td></tr>`;
+    }).join('');
+    compsRows=`<table style="width:100%;border-collapse:collapse;margin-top:6px">${head}<tbody>${body}</tbody></table>`;
+  }else{
+    compsRows=`<div style="padding:6px;color:var(--text-4);font-size:11px;font-style:italic">No anchor comps</div>`;
+  }
+  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Smart comps anchors (${n} within ${radius}mi · ${monthsBack}mo · $${ppsf}/sf median T6-eq)</summary>${flagsHtml}${skipNote}${compsRows}</details>`;
+}
+
+function renderV7LayerDetail(av){
+  const r=av.r;
+  const lb=(r.result_json&&r.result_json.layer_breakdown)||{};
+  const l2med=lb.layer_2_knn_median_ppsf,l2arv=lb.layer_2_implied_arv,drift=lb.layer_3_market_drift;
+  let driftLine='<i style="color:var(--text-4)">abstained (scope unavailable)</i>';
+  if(drift&&drift.scope!=='unavailable'){
+    const pct=drift.pct_applied,sign=pct>=0?'+':'';
+    driftLine=`${sign}${pct}% applied (${drift.scope} scope)`;
+  }
+  const flags=Array.isArray(r.flags)?r.flags:[];
+  const flagsHtml=flags.length?`<ul style="margin:4px 0 0 16px;padding:0;font-size:10px;color:var(--text-3)">${flags.map(f=>`<li>${escapeHtml(String(f))}</li>`).join('')}</ul>`:'<span style="color:var(--text-4);font-size:10px">(none)</span>';
+  const computed=r.computed_at?new Date(r.computed_at).toLocaleString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(',','')+' PT':'(unknown)';
+  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">v7.4.1 layer breakdown</summary>
+    <div style="margin-top:4px;font-size:11px;font-weight:500;color:var(--text-2);display:grid;grid-template-columns:auto 1fr;gap:4px 10px">
+      <div style="color:var(--text-4)">Layer 2 $/sqft:</div><div>${l2med!=null?'$'+Math.round(l2med):'—'}${l2arv!=null?` → ${F(l2arv)}`:''}</div>
+      <div style="color:var(--text-4)">Layer 3 drift:</div><div>${driftLine}</div>
+      <div style="color:var(--text-4)">Layer 4 score:</div><div>${r.confidence_score!=null?r.confidence_score+'/100':'—'}</div>
+      <div style="color:var(--text-4)">Flags:</div><div>${flagsHtml}</div>
+      <div style="color:var(--text-4)">Computed:</div><div>${computed}</div>
+    </div></details>`;
+}
+
+function renderDealScoreDetail(r){
+  const bd=r.breakdown_json||{};
+  const gap=bd.gap_vs_list;
+  const gapStr=gap!=null?(gap>=0?'+':'')+F(gap):'—';
+  const spreadPctStr=bd.spread_pct!=null?' · '+(bd.spread_pct>=0?'+':'')+Number(bd.spread_pct).toFixed(2)+'%':'';
+  const computed=r.computed_at?new Date(r.computed_at).toLocaleString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(',','')+' PT':'(unknown)';
+  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Deal score breakdown</summary>
+    <div style="margin-top:4px;font-size:11px;font-weight:500;color:var(--text-2);display:grid;grid-template-columns:auto 1fr;gap:4px 10px">
+      <div style="color:var(--text-4)">Max offer:</div><div>${bd.max_offer!=null?F(bd.max_offer):'—'}</div>
+      <div style="color:var(--text-4)">Shave required:</div><div>${bd.shave_required_pct!=null?Number(bd.shave_required_pct).toFixed(1)+'% off list':'—'}</div>
+      <div style="color:var(--text-4)">List price:</div><div>${bd.list_price!=null?F(bd.list_price):'—'}</div>
+      <div style="color:var(--text-4)">ARV:</div><div>${bd.arv!=null?F(bd.arv):'—'}</div>
+      <div style="color:var(--text-4)">Rehab:</div><div>${bd.rehab!=null?F(bd.rehab):'—'}${bd.rehab_locked?' <i style="color:var(--text-4)">(locked)</i>':''}</div>
+      <div style="color:var(--text-4)">Financing:</div><div>${bd.financing!=null?F(bd.financing):'—'}</div>
+      <div style="color:var(--text-4)">Purchase close:</div><div>${bd.purchase_close!=null?F(bd.purchase_close):'—'}</div>
+      <div style="color:var(--text-4)">Sale close:</div><div>${bd.sale_close!=null?F(bd.sale_close):'—'}</div>
+      <div style="color:var(--text-4)">Spread:</div><div>${bd.spread!=null?F(bd.spread):'—'}${spreadPctStr}</div>
+      <div style="color:var(--text-4)">Target buy (loose):</div><div>${bd.target_buy!=null?F(bd.target_buy):'—'}</div>
+      <div style="color:var(--text-4)">Gap vs list (loose):</div><div>${gapStr}</div>
+      <div style="color:var(--text-4)">Computed:</div><div>${computed}</div>
+    </div></details>`;
+}
+
+// Click handler: user picks a different ARV card. Validates the source
+// has a value, updates the source map, re-renders the cards row, and
+// pushes the new ARV into the deal-analyzer input.
+function setArvSource(mls,mid,src){
+  const l=listings.find(x=>x.mls===mls);
+  if(!l)return;
+  if(l.lockedArv)return; // locked input ignores card clicks
+  const cm=getComps(l);
+  const av=cardAvailability(l,cm);
+  if(!cardHasValue(src,av))return;
+  arvSourceMap[mls]=src;
+  let newArv=0;
+  if(src==='comp-avg')newArv=av.compArv;
+  else if(src==='per-city')newArv=av.perCityArv;
+  else if(src==='smart-comps')newArv=av.smartArv;
+  else if(src==='v7')newArv=av.v7Arv;
+  if(newArv){
+    setNumVal('arv-'+mid,newArv);
+    calcDeal(mid,l.price,l.sqft);
+    const srcEl=document.getElementById('arv-source-'+mid);
+    if(srcEl)srcEl.textContent=arvSourceLabel(l,src,newArv);
+  }
+  const rowEl=document.getElementById('arv-score-row-'+mid);
+  if(rowEl)rowEl.outerHTML=renderArvScoreRow(l,mid);
+}
+window.setArvSource=setArvSource;
+// ========== END ARV/SCORE CARDS ROW ==================================
+function renderArvEstimateBlock(mls,mid){
+  const c=arvEstimateCache[mls];
+  if(!c||c.state==='pending'||c.state==='missing')
+    return `<div class="ab" id="arv-est-${mid}" style="opacity:0.6;background:var(--bg);color:var(--text-4);font-weight:500">ARV estimate: pending — runs nightly</div>`;
+  if(c.state==='error')
+    return `<div class="ab" id="arv-est-${mid}" style="background:var(--bg);color:var(--text-4);font-weight:500">ARV unavailable: ${escapeHtml(c.row&&c.row.error_message||'unknown error')}</div>`;
+  const r=c.row,lvl=(r.confidence||'').toLowerCase();
+  const pillStyle=lvl==='high'?'background:var(--green-bg);color:var(--green)':lvl==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
+  const pill=`<span style="${pillStyle};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.4px;margin-left:8px">${(r.confidence||'?').toUpperCase()}</span>`;
+  const headline=r.headline_arv!=null?F(r.headline_arv):'—';
+  const lb=(r.result_json&&r.result_json.layer_breakdown)||{};
+  const l2med=lb.layer_2_knn_median_ppsf;
+  const l2arv=lb.layer_2_implied_arv;
+  const drift=lb.layer_3_market_drift;
+  let driftLine='<i style="color:var(--text-4)">abstained (scope unavailable)</i>';
+  if(drift&&drift.scope!=='unavailable'){
+    const pct=drift.pct_applied,sign=pct>=0?'+':'';
+    driftLine=`${sign}${pct}% applied (${drift.scope} scope)`;
+  }
+  const flags=Array.isArray(r.flags)?r.flags:[];
+  const flagsHtml=flags.length?`<ul style="margin:4px 0 0 16px;padding:0;font-size:10px;color:var(--text-3)">${flags.map(f=>`<li>${escapeHtml(String(f))}</li>`).join('')}</ul>`:'<span style="color:var(--text-4);font-size:10px">(none)</span>';
+  const computed=r.computed_at?new Date(r.computed_at).toLocaleString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(',','')+' PT':'(unknown)';
+  return `<div class="ab" id="arv-est-${mid}" style="display:block">
+    <div>ARV estimate (v7.4.1): ${headline}${pill}</div>
+    <details style="margin-top:6px">
+      <summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Layer breakdown</summary>
+      <div style="margin-top:4px;font-size:11px;font-weight:500;color:var(--text-2);display:grid;grid-template-columns:auto 1fr;gap:4px 10px">
+        <div style="color:var(--text-4)">Layer 2 $/sqft:</div><div>${l2med!=null?'$'+Math.round(l2med):'—'}${l2arv!=null?` → ${F(l2arv)}`:''}</div>
+        <div style="color:var(--text-4)">Layer 3 drift:</div><div>${driftLine}</div>
+        <div style="color:var(--text-4)">Layer 4 score:</div><div>${r.confidence_score!=null?r.confidence_score+'/100':'—'}</div>
+        <div style="color:var(--text-4)">Flags:</div><div>${flagsHtml}</div>
+        <div style="color:var(--text-4)">Computed:</div><div>${computed}</div>
+      </div>
+    </details>
+  </div>`;
+}
+async function ensureArvEstimate(mls,mid){
+  if(arvEstimateCache[mls]&&arvEstimateCache[mls].state!=='pending')return;
+  arvEstimateCache[mls]={state:'pending'};
+  try{
+    const {data,error}=await sb.from('arv_estimates').select('*').eq('mls',mls).order('computed_at',{ascending:false}).limit(1).maybeSingle();
+    if(error){arvEstimateCache[mls]={state:'missing'};}
+    else if(!data){arvEstimateCache[mls]={state:'missing'};}
+    else{arvEstimateCache[mls]={state:(data.status==='error'?'error':'ok'),row:data};}
+  }catch(e){arvEstimateCache[mls]={state:'missing'};}
+  // Re-render the cards row in place — replaces what was previously a
+  // handful of per-block re-renders (arv-est-, v4-arv-, smart-comps-,
+  // la-palma-arv-, la-palma-smart-comps-, cypress-arv-, cypress-smart-comps-,
+  // diamond-bar-arv-, diamond-bar-smart-comps-).
+  const listing=listings.find(x=>x.mls===mls);
+  const rowEl=document.getElementById('arv-score-row-'+mid);
+  if(rowEl&&listing)rowEl.outerHTML=renderArvScoreRow(listing,mid);
+  // Re-seed the deal analyzer's ARV input now that smart_comps_arv /
+  // per_city_arv have loaded. Skip if user locked ARV.
+  const arvInputEl=document.getElementById('arv-'+mid);
+  if(arvInputEl&&listing&&!listing.lockedArv){
+    const cmL=getComps(listing);
+    const pref=preferredArvFor(listing,cmL);
+    setNumVal('arv-'+mid,pref.arv);
+    const srcEl=document.getElementById('arv-source-'+mid);
+    if(srcEl)srcEl.textContent=arvSourceLabel(listing,pref.source,pref.arv);
+    calcDeal(mid,listing.price,listing.sqft);
+  }
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+
+// ========== DEAL SCORER — grade pill + score breakdown =============
+// Reads the latest row from `deal_scores` (written by
+// `python -m underwriter.batch`). Cache mirrors arvEstimateCache:
+// module-local, per-MLS, sticky for the session. No polling, no
+// refetch-on-refresh — a missing cache entry just means we haven't
+// looked yet.
+const dealScoreCache={};
+function dsGradeStyle(g){
+  if(g==='A')return'background:var(--green-bg);color:var(--green)';
+  if(g==='B')return'background:var(--blue-bg,var(--accent-dim2));color:var(--blue,var(--accent))';
+  if(g==='C')return'background:var(--amber-bg);color:var(--amber)';
+  if(g==='D')return'background:var(--red-bg);color:var(--red)';
+  return'background:var(--bg-alt);color:var(--text-4)';
+}
+function renderDealGradePill(mls){
+  const c=dealScoreCache[mls];
+  // Per-row bucket marker for listings outside the 8 per-city ARV markets:
+  // a neutral grey middot, visually distinct from A-D and from the blank
+  // pending placeholder. Keep ds-card-pill + data-ds-mls so refresh works.
+  if(c&&c.state==='error'&&c.row&&typeof c.row.error_message==='string'&&c.row.error_message.indexOf('outside per-city coverage')===0)
+    return`<span class="ds-card-pill" data-ds-mls="${mls}" title="ungraded — outside per-city coverage" style="${dsGradeStyle('?')};font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:6px;letter-spacing:.4px;vertical-align:middle">·</span>`;
+  if(!c||c.state!=='ok'||!c.row||!c.row.grade)
+    return`<span class="ds-card-pill" data-ds-mls="${mls}"></span>`;
+  const g=c.row.grade;
+  // Hover title carries the negotiation-shave driver when available.
+  const bd=c.row.breakdown_json||{};
+  let titleAttr='';
+  if(bd.shave_required_pct!=null&&bd.max_offer!=null){
+    const shaveTxt=Number(bd.shave_required_pct)<=0?'works at list':'needs '+Number(bd.shave_required_pct).toFixed(1)+'% off list';
+    titleAttr=` title="${shaveTxt} · max ${F(bd.max_offer)}"`;
+  }
+  return`<span class="ds-card-pill" data-ds-mls="${mls}"${titleAttr} style="${dsGradeStyle(g)};font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:6px;letter-spacing:.4px;vertical-align:middle">${g}</span>`;
+}
+function refreshDealCardPill(mls){
+  // List-card pills for this MLS may exist multiple times if the same
+  // listing appears across filter views; update them all in place.
+  document.querySelectorAll('.ds-card-pill[data-ds-mls="'+mls+'"]').forEach(el=>{el.outerHTML=renderDealGradePill(mls);});
+}
+// Maps an MLS to its grade bucket for the client-side filter/counts.
+// 'A'|'B'|'C'|'D' for graded OK rows, 'ungraded' for error/missing cache
+// states (outside coverage, no ARV, or genuinely no row), null for
+// pending/unknown (not counted, not filtered).
+function dealGradeOf(mls){
+  const c=dealScoreCache[mls];
+  if(!c)return null;
+  if(c.state==='ok'&&c.row&&c.row.grade)return c.row.grade;
+  if(c.state==='error'||c.state==='missing')return 'ungraded';
+  return null;
+}
+function setGradeFilter(g){
+  gradeFilter=g;
+  // Toggle btn-on on the selected chip (All = the null one), btn on the rest.
+  const ids={'null':'gf-all',A:'gf-A',B:'gf-B',C:'gf-C',D:'gf-D',ungraded:'gf-ungraded'};
+  Object.keys(ids).forEach(k=>{
+    const el=document.getElementById(ids[k]);
+    if(!el)return;
+    const sel=(k==='null'?g===null:k===g);
+    el.className='btn'+(sel?' btn-on':'');
+  });
+  render();
+}
+function updateGradeCounts(){
+  const counts={A:0,B:0,C:0,D:0,ungraded:0};
+  let total=0;
+  (listings||[]).forEach(l=>{
+    const g=dealGradeOf(l.mls);
+    if(g==null)return; // pending/unknown — don't count
+    if(counts[g]!=null)counts[g]++;
+    total++;
+  });
+  const set=(id,n)=>{const el=document.getElementById(id);if(el)el.textContent=n?'('+n+')':'';};
+  set('gcnt-all',total);
+  set('gcnt-A',counts.A);set('gcnt-B',counts.B);set('gcnt-C',counts.C);set('gcnt-D',counts.D);
+  set('gcnt-ungraded',counts.ungraded);
+}
+function refreshRowComps(mls){
+  // Called per-MLS after batchFetchComps loads comps. Updates ARV +
+  // GAP cells in place. No full-row rebuild.
+  const l=listings.find(x=>x.mls===mls);
+  if(!l)return;
+  const arvEl=document.querySelector(`[data-cell="arv"][data-mls="${CSS.escape(mls)}"]`);
+  if(arvEl)arvEl.innerHTML=getArvLabel(l);
+  const gapEl=document.querySelector(`[data-cell="gap"][data-mls="${CSS.escape(mls)}"]`);
+  if(gapEl)gapEl.innerHTML=getGapLabel(l);
+}
+function refreshRowDePill(mls){
+  // Called once per row after fetchAgentDeCounts populates the DE
+  // caches. Updates the DE-card pill in place.
+  const l=listings.find(x=>x.mls===mls);
+  if(!l)return;
+  const el=document.querySelector(`[data-cell="de-pill"][data-mls="${CSS.escape(mls)}"]`);
+  if(el)el.innerHTML=renderAgentDeCardPill(l);
+}
+async function ensureDealScore(mls,mid){
+  if(!dealScoreCache[mls]||dealScoreCache[mls].state==='pending'){
+    if(!dealScoreCache[mls])dealScoreCache[mls]={state:'pending'};
+    try{
+      const{data,error}=await sb.from('deal_scores').select('*').eq('mls',mls).order('computed_at',{ascending:false}).limit(1).maybeSingle();
+      if(error){dealScoreCache[mls]={state:'missing'};}
+      else if(!data){dealScoreCache[mls]={state:'missing'};}
+      else{dealScoreCache[mls]={state:(data.status==='error'?'error':'ok'),row:data};}
+    }catch(e){dealScoreCache[mls]={state:'missing'};}
+  }
+  if(mid){
+    // Re-render the cards row (Deal Score card is the rightmost slot).
+    const listing=listings.find(x=>x.mls===mls);
+    const rowEl=document.getElementById('arv-score-row-'+mid);
+    if(rowEl&&listing)rowEl.outerHTML=renderArvScoreRow(listing,mid);
+  }
+  refreshDealCardPill(mls);
+}
+async function bulkLoadDealScores(mlses){
+  // Single bulk fetch for every uncached MLS currently on screen. Same
+  // cache shape as ensureDealScore's per-MLS path; 'missing' sticks.
+  const need=Array.from(new Set(mlses)).filter(m=>m&&!dealScoreCache[m]);
+  if(!need.length)return;
+  need.forEach(m=>{dealScoreCache[m]={state:'pending'};});
+  try{
+    const{data,error}=await sb.from('deal_scores').select('mls,status,grade,spread,spread_pct,breakdown_json,error_message,computed_at').in('mls',need).order('computed_at',{ascending:false});
+    if(error){need.forEach(m=>{dealScoreCache[m]={state:'missing'};});}
+    else{
+      const seen={};
+      (data||[]).forEach(r=>{if(!seen[r.mls])seen[r.mls]=r;});
+      need.forEach(m=>{
+        if(seen[m])dealScoreCache[m]={state:(seen[m].status==='error'?'error':'ok'),row:seen[m]};
+        else dealScoreCache[m]={state:'missing'};
+      });
+    }
+  }catch(e){
+    need.forEach(m=>{if(dealScoreCache[m]&&dealScoreCache[m].state==='pending')dealScoreCache[m]={state:'missing'};});
+  }
+  need.forEach(m=>refreshDealCardPill(m));
+  // Scores just finished loading: repopulate the bucket counts and, if a
+  // grade filter is active, re-apply it now that the cache is complete.
+  updateGradeCounts();
+  if(gradeFilter)render();
+}
+// ========== END DEAL SCORER ==========
+
+function renderCompMap(l,cm,mid){
+  const mapDiv=document.getElementById('comp-map-'+mid);if(!mapDiv||!window.google?.maps)return;
+  const sLat=parseFloat(l.latitude)||parseFloat(cm.listingLat)||0,sLng=parseFloat(l.longitude)||parseFloat(cm.listingLng)||0;
+  if(!sLat){mapDiv.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-4);font-size:11px">No coordinates for map</div>';return;}
+  const map=new google.maps.Map(mapDiv,{zoom:15,center:{lat:sLat,lng:sLng},mapTypeControl:false,streetViewControl:false,fullscreenControl:true});
+  const bounds=new google.maps.LatLngBounds();
+  new google.maps.Marker({position:{lat:sLat,lng:sLng},map,label:{text:'S',color:'#fff',fontWeight:'bold'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:14,fillColor:'#C0392B',fillOpacity:1,strokeColor:'#fff',strokeWeight:2},title:l.address,zIndex:1000});
+  bounds.extend({lat:sLat,lng:sLng});
+  cm.comps.forEach((c,i)=>{if(c.lat&&c.lng){new google.maps.Marker({position:{lat:c.lat,lng:c.lng},map,label:{text:String(i+1),color:'#fff',fontWeight:'bold',fontSize:'11px'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:12,fillColor:'#2B6CB0',fillOpacity:1,strokeColor:'#fff',strokeWeight:2},title:(i+1)+'. '+c.addr+' - $'+(c.price||0).toLocaleString()});bounds.extend({lat:c.lat,lng:c.lng});}});
+  if(cm.comps.some(c=>c.lat))map.fitBounds(bounds,40);
+}
+
+// Brief BS — Inline tier selector replaces the legacy SOLD/HALF/FLIP/DOTTY
+// retag dropdown. Patty can correct a comp's condition_tier (1-6) or flag
+// it as DOTTY directly from the detail view's comp list, instead of having
+// to bounce to condition-review.html. Skip on unsold_flip (active listings
+// matched as comps) and on comps without an MLS — those aren't retaggable.
+// See updateCompTier() for the write path.
+//
+// Menu shows full labels (option b from BS spec); chip on the row shows
+// just the tier number (option a). Order: T6 at top → T1 at bottom →
+// DOTTY at the end, with the parenthetical hints clarifying the
+// non-monotonicity to sale price.
+const TIER_OPTS=[
+  [6,'T6','Tier 6 — Full flip (highest sale)'],
+  [5,'T5','Tier 5 — Half-flip'],
+  [4,'T4','Tier 4 — Lived-in flip'],
+  [3,'T3','Tier 3 — Modern owner-grade'],
+  [2,'T2','Tier 2 — Dated (livable)'],
+  [1,'T1','Tier 1 — Distressed (lowest sale)'],
+  ['dotty','DOTTY','DOTTY — Our property'],
+];
+// Gradient red→green across tiers 1-6. DOTTY gets purple.
+function _tierColors(tier,isDotty){
+  if(isDotty)return{bg:'var(--purple-bg)',col:'var(--purple)'};
+  if(!tier||tier<1||tier>6)return{bg:'var(--bg-alt)',col:'var(--text-4)'};
+  // Lerp red(192,57,43) → green(45,138,78) across t∈[0,1]
+  const t=(tier-1)/5;
+  const r=Math.round(192+(45-192)*t);
+  const g=Math.round(57+(138-57)*t);
+  const b=Math.round(43+(78-43)*t);
+  return{bg:`rgba(${r},${g},${b},0.13)`,col:`rgb(${r},${g},${b})`};
+}
+function compTypeSelectHtml(c,subjectMid){
+  if(!c.mls||c.type==='unsold_flip'){
+    const lbl=c.type==='unsold_flip'?'ASKING':'SOLD';
+    return`<span style="font-size:8px;font-weight:700;color:var(--text-4);margin-right:3px">${lbl}</span>`;
+  }
+  const isDotty=c.isDotty===true;
+  const tier=c.conditionTier;
+  const currentKey=isDotty?'dotty':(tier||null);
+  const{bg,col}=_tierColors(tier,isDotty);
+  const currentChipLbl=isDotty?'DOTTY':(tier?'T'+tier:'?');
+  const compIdSafe=String(c.mls).replace(/[^a-zA-Z0-9]/g,'');
+  const dropId=`retag-drop-${subjectMid}-${compIdSafe}`;
+  const optsHtml=TIER_OPTS.map(([v,_chip,full])=>{
+    const oc=_tierColors(v==='dotty'?null:v, v==='dotty');
+    const isCur=v===currentKey;
+    return`<button onclick="event.stopPropagation();setTierFromDrop('${c.mls}','${subjectMid}','${v}')" style="background:${oc.bg};color:${oc.col};${isCur?'font-weight:700;':''}padding:5px 10px;font-size:10px;text-transform:none;letter-spacing:0">${full}${isCur?' ✓':''}</button>`;
+  }).join('');
+  return`<div class="retag-wrap"><button title="Retag comp condition tier" class="retag-btn" data-value="${currentKey||''}" style="background:${bg};color:${col}" onclick="event.stopPropagation();toggleCompDrop('${dropId}')">${currentChipLbl}</button><div id="${dropId}" class="retag-drop" style="min-width:230px">${optsHtml}</div></div>`;
+}
+// Wrapper so the option-button onclick can close the popup before kicking
+// off the async DB write + re-render that updateCompTier performs.
+function setTierFromDrop(compMls,subjectMid,newKey){
+  document.querySelectorAll('.retag-drop.open,.cmp-drop.open').forEach(d=>d.classList.remove('open'));
+  updateCompTier(compMls,subjectMid,newKey);
+}
+async function updateCompTier(compMls,subjectMid,newKey){
+  // newKey is one of: 1, 2, 3, 4, 5, 6, 'dotty'
+  // Compute the 4 columns to write per BS locked decisions:
+  //   - condition_tier (1-6)
+  //   - is_dotty (true only for 'dotty')
+  //   - condition_overridden = true (this is a manual override)
+  //   - comp_type (backward-compat α mapping per migration 025 + AX Phase 2.4)
+  const isDotty=newKey==='dotty';
+  const tier=isDotty?6:Number(newKey);
+  let compType;
+  if(isDotty)compType='dotty';
+  else if(tier===6)compType='flips';
+  else if(tier===5||tier===4)compType='halfflips';
+  else compType='general';  // tiers 1-3
+  const payload={
+    condition_tier:tier,
+    is_dotty:isDotty,
+    condition_overridden:true,
+    comp_type:compType,
+    updated_at:new Date().toISOString(),
+  };
+  const{error}=await sb.from('properties').update(payload).eq('mls',compMls);
+  if(error){console.error('retag comp failed',error);alert('Retag failed: '+error.message);return;}
+  // Update in-memory cache for the active subject + re-render the panel
+  // so the row's chip + color reflect the new tier.
+  const subjectMls=Object.keys(compCache).find(k=>k.replace(/[^a-zA-Z0-9]/g,'')===subjectMid);
+  if(subjectMls&&compCache[subjectMls]){
+    const comp=compCache[subjectMls].comps.find(c=>c.mls===compMls);
+    if(comp){
+      comp.conditionTier=tier;
+      comp.isDotty=isDotty;
+      comp.type=compType==='general'?'sold':compType;  // keep legacy `type` in sync for any code still reading it
+    }
+    const l=listings.find(x=>x.mls===subjectMls);
+    if(l){const el=document.getElementById('comp-col');if(el)el.innerHTML=compsPanel(l);}
+  }
+}
+function compH(c,idx,mls){
+  // Brief BS — chip + row classification now tier-based instead of legacy
+  // comp_type. isDotty is purple regardless of tier; otherwise gradient
+  // red→green by tier 1-6. Falls back to legacy c.type rendering for
+  // comps that don't yet have a condition_tier set.
+  const isDotty=c.isDotty===true;
+  const tier=c.conditionTier;
+  const hasTier=isDotty||(tier&&tier>=1&&tier<=6);
+  const lbl=hasTier?(isDotty?'DOTTY':'T'+tier):(c.type==='dotty'?'DOTTY':c.type==='flip'||c.type==='flips'?'FLIP':c.type==='halfflips'?'HALF':'SOLD');
+  const col=hasTier?_tierColors(tier,isDotty).col:(c.type==='dotty'?'var(--purple)':c.type==='flip'||c.type==='flips'?'var(--green)':c.type==='halfflips'?'var(--amber)':'var(--text-4)');
+  // Row class drives subtle row-bg tinting (cd/cf/ch existing CSS rules).
+  // Map tier-based to the closest legacy class for visual continuity:
+  // dotty→cd, tier 6→cf, tier 4-5→ch, tier 1-3→none.
+  const cls=isDotty?'cd':(tier===6?'cf':(tier===5||tier===4)?'ch':hasTier?'':(c.type==='dotty'?'cd':c.type==='flip'||c.type==='flips'?'cf':c.type==='halfflips'?'ch':''));
+  const mid=mls.replace(/[^a-zA-Z0-9]/g,'');
+  return`<div class="cr ${cls}" style="flex-wrap:wrap;padding:4px 6px">
+    <div style="display:flex;align-items:center;gap:4px;flex:1;min-width:180px">
+      <input type="checkbox" checked onchange="recalcCompSummary('${mid}')" data-comp-idx="${idx}" data-comp-mls="${mid}" style="flex-shrink:0">
+      <span style="font-size:10px;font-weight:700;color:var(--accent);min-width:14px">${idx+1}</span>
+      ${compTypeSelectHtml(c,mid)}
+      ${c.doubleEnded?`<span title="Double-end — listing agent also represented the buyer" style="background:var(--amber-bg);color:var(--amber);font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:4px;letter-spacing:.3px;flex-shrink:0">🔁 DE</span>`:''}
+      ${c.mls?`<span onclick="event.stopPropagation();openLightbox('${c.mls}','${c.addr.replace(/'/g,"\\'")}')" title="View photos" style="color:var(--text-3);font-size:11px;cursor:pointer;text-decoration:underline;text-decoration-color:var(--text-4);text-decoration-style:dotted;text-underline-offset:2px">${c.addr}</span>`:`<span style="color:var(--text-3);font-size:11px">${c.addr}</span>`}
+      <a href="https://www.zillow.com/homes/${encodeURIComponent(c.addr.replace(/\s+/g,' ').trim()+', CA')}_rb/" target="_blank" onclick="event.stopPropagation()" style="flex-shrink:0"><img src="https://www.zillow.com/favicon.ico" style="width:11px;height:11px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div>
+    <div class="cri"><span style="color:var(--text-4);font-size:10px">${c.dist!=null?c.dist+'mi':''}</span><span style="color:var(--text-4);font-size:10px">${c.beds}/${c.baths}</span><span style="color:var(--text-4);font-size:10px">${c.sqft}sf</span><span style="color:var(--text-4);font-size:10px">${c.lot?c.lot+' lot':''}</span><span style="font-weight:600;${c.isAsking?'color:var(--blue)':''}">${F(c.price)}${c.isAsking?' <span style="font-size:9px;font-weight:400">(asking)</span>':''}</span><span style="color:var(--text-4);font-size:10px">$${c.psf}/sf</span><span style="color:var(--text-4);font-size:10px">${c.date||'—'}</span></div>
+    ${compSchools(c)?'<div style="width:100%;padding:2px 0 0 24px;display:flex;gap:2px;align-items:center">'+compSchools(c)+'</div>':''}</div>`;
+}
+
+function recalcCompSummary(mid){
+  const cbs=document.querySelectorAll('input[data-comp-mls="'+mid+'"]');
+  const activeMls=Object.keys(compCache).find(k=>k.replace(/[^a-zA-Z0-9]/g,'')===mid);
+  if(!activeMls||!compCache[activeMls])return;
+  const all=compCache[activeMls].comps,checked=[];
+  cbs.forEach(cb=>{const idx=parseInt(cb.dataset.compIdx,10);if(cb.checked&&!isNaN(idx)&&all[idx])checked.push(all[idx]);});
+  const avg=arr=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;
+  const ppsfs=checked.map(c=>c.psf).filter(Boolean);
+  // Old 4-card summary (Selected / Avg Price / Avg $/SF / Avg SqFt)
+  // removed — the Manual comp avg card in the ARV/score row already
+  // shows the trimmed value via compAvgOverride[mid].
+  const avgPsf=checked.length?Math.round(avg(ppsfs)):0;
+  const l=listings.find(x=>x.mls===activeMls);
+  // Note: this updates the detail-panel ARV input only — compCache[activeMls].hp
+  // is intentionally NOT mutated, so getArvLabel() in the list view keeps showing
+  // the system's all-comps ARV. Detail = user-trimmed; list = system best-guess.
+  // Stash the user-trimmed comp avg so renderArvScoreRow picks it up on
+  // the next re-render (cards row replaces the old single comp-arv strip).
+  if(l){
+    compAvgOverride[mid]={psf:avgPsf,count:checked.length};
+    const rowEl=document.getElementById('arv-score-row-'+mid);
+    if(rowEl)rowEl.outerHTML=renderArvScoreRow(l,mid);
+    // If the active source is 'comp-avg' (and not locked), push the new
+    // trimmed value into the deal-analyzer input.
+    if(avgPsf&&!l.lockedArv&&activeArvSource(l,getComps(l))==='comp-avg'){
+      const newArv=avgPsf*l.sqft;
+      setNumVal('arv-'+mid,newArv);
+      calcDeal(mid,l.price,l.sqft);
+    }
+  }
+}
+
+// ========== DEAL ANALYZER ==========
+// Keep these in sync with underwriter/ Python config — drift causes deal_score row's target_buy to disagree with the in-page TARGET BUY.
+const SELL_PCT=0.05,CONST_PCT=0.16,PURCH_EXP_PCT=0.02,PROFIT_TARGET_PCT=0.10;
+let ppIsCustom={},constIsCustom={},listPriceMap={};
+// Rehab ladder loaded from Supabase config table (key=rehab_categories).
+// See underwriter/seed_config.py for the seed; underwriter/rehab.py is the Python twin.
+// Data-driven so the Edit modal can render checkboxes from the same source.
+let CONST_CATEGORIES=null;
+async function loadRehabConfig(){
+  try{
+    const{data,error}=await sb.from('config').select('value').eq('key','rehab_categories').limit(1).maybeSingle();
+    if(error||!data||!data.value||!Array.isArray(data.value.categories)){console.warn('rehab_categories not loaded',error);return false;}
+    CONST_CATEGORIES=data.value.categories;
+    return true;
+  }catch(e){console.warn('rehab_categories fetch failed',e);return false;}
+}
+// Per-MLS selected items. When an MLS has no entry, every item is assumed checked.
+let constChecked={};
+// Per-MLS per-item cost overrides (user-typed dollar amounts). Missing → use default.
+let constOverrides={};
+// Declarative cost rule evaluator. Mirrors underwriter/rehab.py:eval_cost_rule.
+// Rule shapes: flat | sqft_band | sqft_linear | sqft_multiplier.
+function evalCostRule(rule,sqft){
+  if(!rule)return 0;
+  const s=sqft;
+  if(rule.type==='flat')return Number(rule.amount)||0;
+  if(rule.type==='sqft_band'){
+    for(const band of rule.bands){
+      if(band.max==null||s<band.max)return Number(band.amount)||0;
+    }
+    return 0;
+  }
+  if(rule.type==='sqft_linear'){
+    const lo=rule.min_sqft,hi=rule.max_sqft;
+    const clamped=Math.max(lo,Math.min(hi,s));
+    const frac=(clamped-lo)/(hi-lo);
+    const raw=rule.min_amount+frac*(rule.max_amount-rule.min_amount);
+    const rt=rule.round_to||1;
+    return Math.round(raw/rt)*rt;
+  }
+  if(rule.type==='sqft_multiplier'){
+    const raw=s*rule.per_sqft;
+    const rt=rule.round_to||1;
+    return Math.round(raw/rt)*rt;
+  }
+  return 0;
+}
+// Applicability evaluator. Mirrors underwriter/rehab.py:evaluate_applicability
+// and the bath/pool logic that used to live inline in getConstChecked.
+function evalApplicability(rule,l){
+  if(!rule||rule.always_on)return true;
+  if(rule.min_full_baths!=null){
+    const b=parseFloat(l&&l.baths)||0;
+    return Math.floor(b)>=rule.min_full_baths;
+  }
+  if(rule.requires_half_bath){
+    const b=parseFloat(l&&l.baths)||0;
+    return b>Math.floor(b);
+  }
+  if(rule.requires_pool){
+    // JS-legacy default: ON unless the pool string is literally 'no'.
+    return ((l&&l.pool)||'').toLowerCase()!=='no';
+  }
+  return true;
+}
+// Note resolver for the construction editor. Preserves the two inline
+// behaviours from the old JS: kitchen picks the matching sqft_band's
+// note; foundation renders "min · $3k" / "max · $10k" / "linear · N sf"
+// from the sqft_linear rule's notes block.
+function evalItemNote(item,sqft){
+  const rule=item.cost;
+  if(!rule)return'';
+  if(rule.type==='sqft_band'){
+    for(const band of rule.bands){
+      if(band.max==null||sqft<band.max)return band.note||'';
+    }
+    return '';
+  }
+  if(rule.type==='sqft_linear'&&rule.notes){
+    if(sqft<=rule.min_sqft)return rule.notes.min_label||'';
+    if(sqft>=rule.max_sqft)return rule.notes.max_label||'';
+    return(rule.notes.linear_label||'').replace('{sqft_comma}',Number(sqft).toLocaleString());
+  }
+  return '';
+}
+function getConstChecked(mls){
+  if(!constChecked[mls]){
+    if(!CONST_CATEGORIES)return {};
+    const l=(typeof listings!=='undefined')?listings.find(x=>x.mls===mls):null;
+    const d={};
+    for(const cat of CONST_CATEGORIES)for(const item of cat.items){
+      d[item.id]=l?evalApplicability(item.applicability,l):true;
+    }
+    constChecked[mls]=d;
+  }
+  return constChecked[mls];
+}
+function getConstOverrides(mls){if(!constOverrides[mls])constOverrides[mls]={};return constOverrides[mls];}
+function costOf(item,sqft,mls){
+  const s=parseFloat(sqft)||0;
+  const ov=mls&&constOverrides[mls]?constOverrides[mls][item.id]:undefined;
+  return ov!=null?ov:evalCostRule(item.cost,s);
+}
+function estimateConstruction(sqft,mls){
+  const s=parseFloat(sqft)||0;if(!s||!CONST_CATEGORIES)return 0;
+  const checked=mls?getConstChecked(mls):null;
+  let t=0;
+  for(const cat of CONST_CATEGORIES)for(const item of cat.items){
+    const on=checked?checked[item.id]!==false:true;
+    if(on)t+=costOf(item,s,mls);
+  }
+  return Math.round(t);
+}
+function renderConstEditorBody(mls,sqft){
+  const body=document.getElementById('const-editor-body');
+  const tot=document.getElementById('const-editor-total');
+  if(!CONST_CATEGORIES){
+    if(body)body.innerHTML='<div style="padding:20px;text-align:center;color:var(--text-4);font-size:12px">Loading rehab config…</div>';
+    if(tot)tot.textContent='—';
+    return;
+  }
+  const s=parseFloat(sqft)||0;
+  const checked=getConstChecked(mls);
+  const overrides=getConstOverrides(mls);
+  let h='';
+  for(const cat of CONST_CATEGORIES){
+    h+=`<div style="font-size:9px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin:12px 0 4px;padding-bottom:4px;border-bottom:1px solid var(--border)">${cat.label}</div>`;
+    for(const item of cat.items){
+      const defaultCost=s?evalCostRule(item.cost,s):0;
+      const effCost=s?costOf(item,s,mls):0;
+      const isOn=checked[item.id]!==false;
+      const isOverridden=overrides[item.id]!=null;
+      const note=s?evalItemNote(item,s):'';
+      h+=`<div style="display:flex;align-items:center;gap:10px;padding:6px 4px;font-size:12px;color:${isOn?'var(--text)':'var(--text-4)'};opacity:${s?1:0.5}">
+        <input type="checkbox" ${isOn?'checked':''} ${s?'':'disabled'} onchange="toggleConstItem('${mls}','${item.id}',${s})" style="cursor:${s?'pointer':'not-allowed'};flex-shrink:0">
+        <span style="flex:1">${item.label}${note?` <span style="color:var(--text-4);font-size:10px;margin-left:4px">${note}</span>`:''}${isOverridden?` <span style="color:var(--text-4);font-size:10px;margin-left:4px">(default ${F(defaultCost)})</span>`:''}</span>
+        <input type="text" value="${F(effCost)}" ${s?'':'disabled'} oninput="setConstCostLive('${mls}','${item.id}',this.value,${s})" onfocus="this.select()" onblur="blurConstCost(this,${defaultCost},'${mls}','${item.id}')" style="width:90px;text-align:right;font-family:inherit;font-size:12px;font-weight:600;color:${isOverridden?'var(--accent)':isOn?'var(--text)':'var(--text-4)'};background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:3px 6px;outline:none">
+      </div>`;
+    }
+  }
+  if(body)body.innerHTML=h;
+  if(tot)tot.textContent=F(estimateConstruction(s,mls));
+}
+function setConstCostLive(mls,itemId,raw,sqft){
+  const cleaned=(raw||'').replace(/[^\d]/g,'');
+  const ov=getConstOverrides(mls);
+  if(cleaned==='')delete ov[itemId]; else ov[itemId]=parseInt(cleaned,10)||0;
+  document.getElementById('const-editor-total').textContent=F(estimateConstruction(sqft,mls));
+  if(_constEditorCtx&&_constEditorCtx.mls===mls){
+    const id=_constEditorCtx.id;
+    const lObj=listings.find(x=>x.mls===mls);
+    if(lObj&&!lObj.lockedConstruction&&!constIsCustom[id]){
+      setNumVal('const-'+id,estimateConstruction(sqft,mls));
+      calcDeal(id,lObj.price,sqft);
+    }
+  }
+}
+function blurConstCost(el,defaultCost,mls,itemId){
+  const cleaned=(el.value||'').replace(/[^\d]/g,'');
+  const ov=getConstOverrides(mls);
+  const n=cleaned===''?defaultCost:parseInt(cleaned,10);
+  el.value=F(n);
+  const isOverridden=ov[itemId]!=null;
+  el.style.color=isOverridden?'var(--accent)':'var(--text)';
+  // If cleared, strip (default …) hint by re-rendering the label span — cheapest is full re-render
+  if(cleaned===''&&_constEditorCtx)renderConstEditorBody(_constEditorCtx.mls,_constEditorCtx.sqft);
+}
+let _constEditorCtx=null; // {mls,id,sqft}
+function openConstEditor(mls,id,sqft){
+  const l=listings.find(x=>x.mls===mls);
+  if(!l)return;
+  _constEditorCtx={mls,id,sqft};
+  document.getElementById('const-editor-title').textContent=`Construction — ${l.address}, ${l.city}`;
+  const parts=[];
+  if(sqft)parts.push(`${Number(sqft).toLocaleString()} sqft`);
+  if(l.lot)parts.push(`${l.lot} lot`);
+  parts.push(`${l.beds||0}bd / ${l.baths||0}ba`);
+  parts.push(`Pool: ${l.pool||'No'}`);
+  let sub=parts.join(' · ');
+  if(!sqft)sub+=' · no sqft — costs unavailable';
+  else if(l.lockedConstruction)sub+=' · locked (toggling updates default only)';
+  document.getElementById('const-editor-sub').textContent=sub;
+  renderConstEditorBody(mls,sqft);
+  document.getElementById('const-editor').classList.add('open');
+}
+function closeConstEditor(){document.getElementById('const-editor').classList.remove('open');_constEditorCtx=null;}
+function toggleConstItem(mls,itemId,sqft){
+  const checked=getConstChecked(mls);
+  checked[itemId]=!checked[itemId];
+  renderConstEditorBody(mls,sqft);
+  // Push updated estimate into the deal analyzer if it's on screen and not locked/custom.
+  if(_constEditorCtx&&_constEditorCtx.mls===mls){
+    const id=_constEditorCtx.id;
+    const lObj=listings.find(x=>x.mls===mls);
+    if(lObj&&!lObj.lockedConstruction&&!constIsCustom[id]){
+      setNumVal('const-'+id,estimateConstruction(sqft,mls));
+      calcDeal(id,lObj.price,sqft);
+    }
+  }
+}
+function getNumVal(id){return parseInt((document.getElementById(id)||{}).value?.replace(/[^\d]/g,'')||'0')||0;}
+function setNumVal(id,n){const el=document.getElementById(id);if(el)el.value=F(n);}
+function markPPCustom(id){ppIsCustom[id]=true;const r=document.getElementById('pp-reset-'+id);if(r)r.style.display='inline';}
+function markConstCustom(id){constIsCustom[id]=true;}
+function resetPP(id,lp,sq){ppIsCustom[id]=false;const r=document.getElementById('pp-reset-'+id);if(r)r.style.display='none';calcDeal(id,lp,sq);}
+
+function detHTML(l){
+  const cm=getComps(l),pref=preferredArvFor(l,cm),arv=l.lockedArv||pref.arv,id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
+  return`<div class="cb" style="position:relative">
+    ${!l.dealId?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><button id="open-offer-${id}" onclick="event.stopPropagation();openOffer('${l.mls}')" style="padding:6px 12px;border-radius:5px;border:1px solid var(--accent);font-size:12px;font-weight:700;font-family:inherit;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap" title="Open Pipeline tracking at the Pursuing phase (acquisition lead)">📤 Open offer</button><span style="font-size:11px;color:var(--text-4)">Start Pipeline tracking for this deal.</span><a id="mark-as-listing-${id}" onclick="event.stopPropagation();markAsListing('${l.mls}');return false;" href="#" style="font-size:11px;color:var(--text-4);text-decoration:underline;margin-left:auto;cursor:pointer" title="Rare — link this MLS row as the relist of one of our under_construction deals">or: mark as relist of an existing deal →</a></div>`:''}
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--text-4);flex-shrink:0;width:100px">ARV</span>
+      <input type="text" id="arv-${id}" value="${F(arv)}" oninput="calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--accent);font-family:inherit;background:var(--bg)">
+      <button id="lock-arv-${id}" onclick="event.stopPropagation();toggleLockArv('${l.mls}','${id}')" style="padding:4px 10px;border-radius:5px;border:1px solid ${l.lockedArv?'var(--green)':'var(--border)'};font-size:11px;font-weight:600;font-family:inherit;background:${l.lockedArv?'var(--green-bg)':'var(--bg)'};color:${l.lockedArv?'var(--green)':'var(--text-3)'};cursor:pointer;white-space:nowrap">${l.lockedArv?'🔒 Locked':'Lock ARV'}</button>
+      <span id="arv-source-${id}" style="font-size:10px;color:var(--text-4);white-space:nowrap">${arvSourceLabel(l,pref.source,arv)}</span></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--text-4);flex-shrink:0;width:100px">CONSTRUCTION</span>
+      <input type="text" id="const-${id}" value="${F(l.lockedConstruction||estimateConstruction(l.sqft,l.mls))}" ${l.lockedConstruction?'readonly':''} oninput="markConstCustom('${id}');calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--text);font-family:inherit;background:${l.lockedConstruction?'var(--bg-alt)':'var(--bg)'}">
+      <button onclick="event.stopPropagation();openConstEditor('${l.mls}','${id}',${l.sqft||0})" style="padding:4px 10px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:var(--bg);color:var(--text-3);cursor:pointer;white-space:nowrap">Edit</button>
+      <button id="lock-const-${id}" onclick="event.stopPropagation();toggleLockConstruction('${l.mls}','${id}')" style="padding:4px 10px;border-radius:5px;border:1px solid ${l.lockedConstruction?'var(--green)':'var(--border)'};font-size:11px;font-weight:600;font-family:inherit;background:${l.lockedConstruction?'var(--green-bg)':'var(--bg)'};color:${l.lockedConstruction?'var(--green)':'var(--text-3)'};cursor:pointer;white-space:nowrap">🔒 Const</button>
+      <span style="font-size:10px;color:var(--text-4);white-space:nowrap">${l.lockedConstruction?'':'16% of ARV = '+F(Math.round(arv*0.16))}</span></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--text-4);flex-shrink:0;width:100px">TARGET BUY</span>
+      <input type="text" id="pp-${id}" value="${F(Math.round((arv*(1-SELL_PCT)-(l.lockedConstruction||estimateConstruction(l.sqft,l.mls)))/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT)))}" oninput="markPPCustom('${id}');calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--accent);font-family:inherit;background:var(--bg)">
+      <button id="pp-reset-${id}" onclick="event.stopPropagation();resetPP('${id}',${l.price},${l.sqft})" style="font-size:10px;color:var(--accent);background:none;border:none;cursor:pointer;font-family:inherit;text-decoration:underline;display:none;white-space:nowrap">Reset</button></div>
+    <div id="gap-${id}"></div><div id="breakdown-${id}" style="margin-top:4px"></div></div>`;
+}
+
+function calcDeal(id,listPrice,sqft){
+  listPriceMap[id]=listPrice;const arv=getNumVal('arv-'+id);
+  const lObj=listings.find(x=>x.mls.replace(/[^a-zA-Z0-9]/g,'')===id);
+  const constLocked=!!(lObj&&lObj.lockedConstruction);
+  // Effective construction cost: locked > user-custom > sqft-based estimator
+  let effConst;
+  if(constLocked){effConst=lObj.lockedConstruction;setNumVal('const-'+id,effConst);}
+  else if(constIsCustom[id])effConst=getNumVal('const-'+id);
+  else{effConst=estimateConstruction(sqft,lObj&&lObj.mls);setNumVal('const-'+id,effConst);}
+  if(!ppIsCustom[id]){const fp=Math.round((arv*(1-SELL_PCT)-effConst)/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT));setNumVal('pp-'+id,fp);}
+  const fPP=getNumVal('pp-'+id),fConst=getNumVal('const-'+id),pExp=fPP*PURCH_EXP_PCT;
+  const profit=arv*(1-SELL_PCT)-fConst-fPP-pExp,gap=listPrice-fPP,gapPct=listPrice>0?((gap/listPrice)*100).toFixed(1):'0',goTh=PROFIT_TARGET_PCT*fPP;
+  const gE=document.getElementById('gap-'+id);
+  if(gE){const gc=gap>0?'var(--red)':'var(--green)',gb=gap>0?'var(--red-bg)':'var(--green-bg)',gbd=gap>0?'#FECACA':'#A7F0BE';
+    gE.innerHTML=`<div style="padding:10px 12px;border-radius:6px;background:${gb};border:1px solid ${gbd};display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:11px;font-weight:700;color:${gc}">${gap>0?'LISTING IS OVER YOUR TARGET':'LISTING IS UNDER YOUR TARGET'}</div><div style="font-size:10px;color:var(--text-3);margin-top:2px">List ${F(listPrice)} vs Your offer ${F(fPP)}</div></div><div style="text-align:right"><div style="font-size:19px;font-weight:700;color:${gc}">${gap>0?'+':''}${F(gap)}</div><div style="font-size:11px;color:var(--text-3)">${gap>0?'+':''}${gapPct}%</div></div></div>`;}
+  const bE=document.getElementById('breakdown-'+id);
+  if(bE){const v=profit>=goTh?'GO':profit>=goTh*0.75?'MAYBE':'NO GO',vc=v==='GO'?'var(--green)':v==='MAYBE'?'var(--amber)':'var(--red)',vb=v==='GO'?'var(--green-bg)':v==='MAYBE'?'var(--amber-bg)':'var(--red-bg)';
+    let h=`<div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:4px;border-top:2px solid var(--border)"><span style="font-size:13px;font-weight:700">Profit</span><span style="font-size:16px;font-weight:700;color:${profit>=0?'var(--green)':'var(--red)'}">${F(profit)}</span></div>`;
+    if(ppIsCustom[id])h+=`<div style="margin-top:6px;padding:10px 14px;border-radius:6px;background:${vb};display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:19px;font-weight:700;color:${vc}">${v}</div><div style="font-size:10px;color:var(--text-3)">${v==='GO'?'Profit meets 10% target':v==='MAYBE'?'Close — negotiate harder':'Below profit target'}</div></div><div style="text-align:right"><div style="font-size:16px;font-weight:700;color:${vc}">${F(profit)}</div><div style="font-size:10px;color:var(--text-3)">Target: ${F(goTh)}</div></div></div>`;
+    bE.innerHTML=h;}
+}
+
+// ========== LIST / DETAIL RENDERING ==========
+function getArvVal(l){if(l.lockedArv)return l.lockedArv;const cm=compCache[l.mls];return(cm&&cm.hp)?cm.hp*l.sqft:0;}
+function getGapVal(l){const arv=getArvVal(l);if(!arv)return 0;const eConst=l.lockedConstruction||estimateConstruction(l.sqft,l.mls);const target=Math.round((arv*(1-SELL_PCT)-eConst)/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT));return l.price-target;}
+function toggleSort(col){if(sort_===col+'-asc')sort_=col+'-desc';else if(sort_===col+'-desc')sort_='priority';else sort_=col+'-asc';render();}
+// Dispatch table for getSorted(). Each entry returns a (a,b)=>number comparator
+// for ascending order; descending is handled by sign-flip in getSorted(). The
+// 'priority' key is special-cased (no -asc/-desc suffix) and ignores direction.
+const _sStr=s=>(s||'').toString().toLowerCase();
+const SORTERS={
+  price:   (a,b)=>a.price-b.price,
+  ppsf:    (a,b)=>a.ppsf-b.ppsf,
+  dom:     (a,b)=>dom(a.listDate)-dom(b.listDate),
+  arv:     (a,b)=>getArvVal(a)-getArvVal(b),
+  gap:     (a,b)=>getGapVal(a)-getGapVal(b),
+  address: (a,b)=>_sStr(a.address).localeCompare(_sStr(b.address)),
+  city:    (a,b)=>_sStr(a.city).localeCompare(_sStr(b.city)),
+  status:  (a,b)=>_sStr(a.changeType).localeCompare(_sStr(b.changeType)),
+};
+function getSorted(){
+  let d=[...listings];
+  if(cityFilters.size)d=d.filter(l=>cityFilters.has(l.city.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())));
+  if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));
+  if(gradeFilter)d=d.filter(l=>dealGradeOf(l.mls)===gradeFilter);
+  if(sort_==='priority'){d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));return d;}
+  const idx=sort_.lastIndexOf('-');
+  if(idx<0)return d;
+  const key=sort_.slice(0,idx),dir=sort_.slice(idx+1);
+  const cmp=SORTERS[key];
+  if(!cmp)return d;
+  const sign=dir==='desc'?-1:1;
+  d.sort((a,b)=>sign*cmp(a,b));
+  return d;
+}
+
+function render(){
+  const data=getSorted();
+  const sa=c=>sort_===c+'-asc'?'↑':sort_===c+'-desc'?'↓':'';
+  document.getElementById('lh').innerHTML=`<div class="th-p"><span></span><span></span><span class="th-sort" onclick="toggleSort('address')">ADDRESS ${sa('address')}</span><span class="th-sort" onclick="toggleSort('city')">CITY ${sa('city')}</span><span class="tr th-sort" style="padding-right:14px" onclick="toggleSort('price')">LIST PRICE ${sa('price')}</span><span>NOTES</span><span class="tr th-sort" style="padding-right:10px" onclick="toggleSort('ppsf')">$/SF ${sa('ppsf')}</span><span>SCHOOLS</span><span class="th-sort" onclick="toggleSort('status')">STATUS ${sa('status')}</span><span class="tr th-sort" onclick="toggleSort('dom')">DOM ${sa('dom')}</span><span class="tr th-sort" onclick="toggleSort('arv')">ARV ${sa('arv')}</span><span class="tr th-sort" style="padding-right:10px" onclick="toggleSort('gap')">GAP ${sa('gap')}</span></div>`;
+  let h='';data.forEach(l=>{const d=dom(l.listDate),dc=d<=7?'dn':d>=30?'do':'dm';
+    const thumbSrc=getThumbUrl(l.mls);
+    const addrFull=l.address+', '+l.city+', CA '+l.zip;
+    h+=`<div class="rw ${active===l.mls?'act':''}" onclick="opn('${l.mls}')"><div class="rm-p">
+      <input type="checkbox" class="row-select" data-mls="${l.mls}" ${selectedMls.has(l.mls)?'checked':''} onclick="event.stopPropagation();toggleRowSelect('${l.mls}',this.checked)" style="margin:0;width:18px;height:18px;cursor:pointer;justify-self:center">
+      <div style="width:48px;height:36px;flex-shrink:0"><img class="rw-thumb" src="${thumbSrc}" alt="" data-mls="${l.mls}" data-addr="${addrFull.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();openLightbox(this.dataset.mls,this.dataset.addr)" onerror="this.style.display='none'"></div>
+      <div><div class="at">${l.address} <a href="https://www.google.com/search?q=redfin+${encodeURIComponent(l.address+' '+l.city+' CA')}&btnI=1" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;vertical-align:middle"><img src="https://www.redfin.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a> <a href="https://www.zillow.com/homes/${encodeURIComponent(l.address+', '+l.city+', CA '+l.zip)}_rb/" target="_blank" onclick="event.stopPropagation()" style="vertical-align:middle"><img src="https://www.zillow.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div><div class="as">${l.beds}bd/${l.baths}ba · ${l.sqft.toLocaleString()} sf</div>${l.tags.map(tg).join('')}</div>
+      <span style="color:var(--text-3);font-weight:600;font-size:12px">${(l.city||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}</span>
+      <span class="tr" style="font-weight:600;font-size:12px;padding-right:14px">${FK(l.price)}${currentFilter==='archived'&&l.price>MAX_LIST_PRICE&&l.status!=='archived'?' <span class="tag" style="background:var(--bg-alt);color:var(--text-3);border:none;font-size:9px;letter-spacing:.4px" title="Auto-hidden because list_price exceeds the $2.5M cap; not user-archived">OVER CAP</span>':''}${renderDealGradePill(l.mls)}<span data-cell="de-pill" data-mls="${l.mls}">${renderAgentDeCardPill(l)}</span></span>
+      <input type="text" id="rownotes-${l.mls.replace(/[^a-zA-Z0-9]/g,'')}" data-mls="${l.mls}" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onkeydown="event.stopPropagation()" oninput="rowNotesInput(this)" onblur="rowNotesBlur(this)" value="${(l.notes||'').replace(/"/g,'&quot;')}" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box;height:28px">
+      <span class="tr" style="font-size:11px;color:var(--text-3);padding-right:10px">${l.ppsf?'$'+Math.round(l.ppsf):'—'}</span>
+      <span style="white-space:nowrap">${l.elem?`<span class="sp ${l.elem.r>=7?'sh':l.elem.r>=5?'sm':'sl'}" data-school="${l.elem.n}"><span class="lv">E</span>${l.elem.r}</span>`:''} ${l.mid?`<span class="sp ${l.mid.r>=7?'sh':l.mid.r>=5?'sm':'sl'}" data-school="${l.mid.n}"><span class="lv">M</span>${l.mid.r}</span>`:''} ${l.high?`<span class="sp ${l.high.r>=7?'sh':l.high.r>=5?'sm':'sl'}" data-school="${l.high.n}"><span class="lv">H</span>${l.high.r}</span>`:''}</span>
+      <span style="font-size:10px;font-weight:600;color:${l.changeType==='coming soon'?'var(--purple)':l.changeType==='new'?'var(--green)':'var(--text-4)'}">${(l.changeType||'—').replace(/\b\w/g,c=>c.toUpperCase())}</span>
+      <span class="tr ${dc}" style="font-weight:600;font-size:12px">${d}d</span>
+      <span class="tr" data-cell="arv" data-mls="${l.mls}" style="font-weight:600;font-size:12px;color:var(--accent)">${getArvLabel(l)}</span>
+      <span class="tr" data-cell="gap" data-mls="${l.mls}" style="font-weight:600;font-size:12px;padding-right:10px">${getGapLabel(l)}</span>
+    </div></div>`;});
+  document.getElementById('lb').innerHTML=h;
+  document.getElementById('tc').textContent=data.length;
+  updateStageCounts();
+  updateGradeCounts();
+  renderBulkActionBar();
+}
+async function updateStageCounts(){
+  try{
+    // Keep the unread count query in sync with loadListings('unread') (L1406):
+    // same .not('mls','is',null) + .neq('change_type','sold') + .eq('stage','unread')
+    // + .or(list_price.is.null,list_price.lte.${MAX_LIST_PRICE}) chain so the badge
+    // count never disagrees with the rendered listing count.
+    const{count:ur}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).neq('change_type','sold').eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
+    const{count:pt}=await sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).neq('change_type','sold').eq('stage','potential');
+    const ue=document.getElementById('cnt-unread');if(ue)ue.textContent=ur?'('+ur+')':'';
+    const pe=document.getElementById('cnt-potential');if(pe)pe.textContent=pt?'('+pt+')':'';
+  }catch(e){
+    console.warn('[updateStageCounts] count fetch failed:',e);
+    const ue=document.getElementById('cnt-unread');if(ue)ue.textContent='(?)';
+    const pe=document.getElementById('cnt-potential');if(pe)pe.textContent='(?)';
+  }
+}
+
+function renderDetailPage(l){
+  const id=l.mls.replace(/[^a-zA-Z0-9]/g,''),d=dom(l.listDate);
+  const redfin=`https://www.google.com/search?q=redfin+${encodeURIComponent(l.address+' '+l.city+' CA')}&btnI=1`;
+  const zillow=`https://www.zillow.com/homes/${encodeURIComponent(l.address+', '+l.city+', CA '+l.zip)}_rb/`;
+  const detAddrFull=(l.address+', '+l.city+', CA '+l.zip).replace(/"/g,'&quot;');
+  let h=`<div class="det-sticky"><div class="det-sticky-inner"><div style="flex:1;min-width:0">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <button onclick="cls()" style="background:none;border:1px solid var(--border);border-radius:5px;padding:4px 10px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-3)">← Back</button>
+      <div style="display:flex;gap:6px">
+        <button title="Click again to clear status" onclick="updateListingStatus('${l.mls}','potential')" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='potential'?'var(--green)':'var(--bg)'};color:${l.status==='potential'?'#fff':'var(--green)'};cursor:pointer">Potential</button>
+        <button title="Click again to clear status" onclick="updateListingStatus('${l.mls}','unsold_flip')" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='unsold_flip'?'var(--blue)':'var(--bg)'};color:${l.status==='unsold_flip'?'#fff':'var(--blue)'};cursor:pointer">Unsold Flip</button>
+        <button title="Click again to clear status" onclick="updateListingStatus('${l.mls}','archived');cls()" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${(l.status==='archived'||l.price>MAX_LIST_PRICE)?'var(--red)':'var(--bg)'};color:${(l.status==='archived'||l.price>MAX_LIST_PRICE)?'#fff':'var(--red)'};cursor:pointer">Archive</button></div></div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div data-mls="${l.mls}" data-addr="${detAddrFull}" onclick="openLightbox(this.dataset.mls,this.dataset.addr)" style="width:48px;height:36px;flex-shrink:0;border-radius:4px;overflow:hidden;border:1px solid var(--border);cursor:pointer;background:var(--bg-alt);display:flex;align-items:center;justify-content:center"><img src="${getThumbUrl(l.mls)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none';this.parentElement.innerHTML='<span style=&quot;font-size:8px;color:var(--text-4)&quot;>no photo</span>'"></div>
+      <span style="font-size:16px;font-weight:700">${l.address}, ${l.city}, CA ${l.zip}</span>
+      <span style="font-size:16px;font-weight:700;color:var(--accent)">· ${F(l.price)}</span>
+      ${l.changeType?`<span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:10px;background:var(--accent-bg,#fef3c7);color:var(--accent);border:1px solid var(--accent);text-transform:uppercase;letter-spacing:.4px">${escapeHtml(l.changeType)}</span>`:''}
+      <a href="${redfin}" target="_blank"><img src="https://www.redfin.com/favicon.ico" style="width:14px;height:14px;opacity:0.7" onerror="this.style.display='none'"></a>
+      <a href="${zillow}" target="_blank"><img src="https://www.zillow.com/favicon.ico" style="width:14px;height:14px;opacity:0.7" onerror="this.style.display='none'"></a></div>
+    <div style="font-size:11px;color:var(--text-3);margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <span>${l.beds}bd/${l.baths}ba</span><span>·</span><span>${l.sqft.toLocaleString()} sf</span><span>·</span><span><b>$${Math.round(l.ppsf)}</b>/sf</span><span>·</span><span>Lot ${l.lot||'—'}</span><span>·</span><span>Built ${l.built||'—'}</span><span>·</span><span>Pool: ${l.pool||'No'}</span><span>·</span><span>DOM: ${d}</span>${l.mlsAreaName||l.mlsArea?`<span>·</span><span>MLS Area: ${l.mlsAreaName||l.mlsArea}</span>`:''}</div>
+    <div style="margin-top:3px;display:flex;gap:3px;align-items:center;flex-wrap:wrap">
+      ${l.elem?`<span class="sp ${l.elem.r>=7?'sh':l.elem.r>=5?'sm':'sl'}"><span class="lv">E</span>${l.elem.r}</span><span style="font-size:10px;color:var(--text-3);margin-right:4px">${shortName(l.elem.n)}</span>`:''}
+      ${l.mid?`<span class="sp ${l.mid.r>=7?'sh':l.mid.r>=5?'sm':'sl'}"><span class="lv">M</span>${l.mid.r}</span><span style="font-size:10px;color:var(--text-3);margin-right:4px">${shortName(l.mid.n)}</span>`:''}
+      ${l.high?`<span class="sp ${l.high.r>=7?'sh':l.high.r>=5?'sm':'sl'}"><span class="lv">H</span>${l.high.r}</span><span style="font-size:10px;color:var(--text-3)">${shortName(l.high.n)}</span>`:''}
+      <span id="tag-toggles-${id}"></span></div></div></div></div>
+  <div class="det-body">
+    <div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:.5px;margin-bottom:4px">NOTES</div>
+      <textarea id="notes2-${id}" onblur="updateNotes('${l.mls}')" placeholder="Add notes..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;min-height:50px;resize:vertical;background:var(--bg);color:var(--text);box-sizing:border-box">${l.notes||''}</textarea></div>
+    <div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:.5px;margin-bottom:4px">REMARKS</div>
+      <div class="rb"><b>Public:</b> ${l.remarks}</div>
+      ${l.showingRemarks?`<div class="rb"><b>Showing:</b> ${l.showingRemarks}</div>`:''}
+      ${l.agentRemarks?`<div class="rb" style="max-height:80px"><b>Agent:</b> ${l.agentRemarks}</div>`:''}</div>
+    <div id="comp-col" style="margin-bottom:14px"></div>
+    <div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:.5px;margin-bottom:6px">DEAL ANALYSIS</div>${detHTML(l)}</div>
+    <div class="toggle-section" style="margin-bottom:8px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">PROPERTY & SHOWING <span>▸</span></div><div class="toggle-body"><div class="si">
+      <span><b>Sale Type:</b> ${l.saleType||'—'}</span><span><b>Listed:</b> ${l.listDate||'—'}</span><span><b>Occupancy:</b> ${l.occupancy||'—'}</span><span><b>Occupant:</b> ${l.occupantType||'—'}</span><span><b>Contact:</b> ${l.contactName||'—'} ${l.contactPhone||''}</span><span><b>Lockbox:</b> ${l.lockboxType||'—'} ${l.lockboxLocation?'@ '+l.lockboxLocation:''}</span><span><b>Gate Code:</b> ${l.gateCode||'—'}</span></div></div></div>
+    <div class="toggle-section" style="margin-bottom:14px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">AGENT & BROKER <span>▸</span></div><div class="toggle-body"><div class="agb">
+      <span><b>Agent:</b> ${l.agent||'—'}${renderAgentDeBadge(l)}</span><span><b>DRE#:</b> ${l.agentDre||'—'}</span><span><b>Email:</b> ${l.agentEmail||'—'}</span><span><b>Phone:</b> ${l.agentPhone||'—'}</span><span><b>Office:</b> ${l.agentOfficePhone||'—'}</span><span><b>Broker:</b> ${l.broker||'—'}</span><span><b>Broker DRE#:</b> ${l.brokerDre||'—'}</span><span><b>MLS#:</b> ${l.mls}</span>${l.dealId?`<span data-cell="deal-pill" data-mls="${l.mls}"><b>🏗 In project:</b> ${dealPhaseLabel(l.dealPhase)} <a href="project-detail.html?deal=${encodeURIComponent(l.dealId)}">→ view</a>${l.undoable?` <a href="#" onclick="event.stopPropagation();undoOpenOffer('${l.dealId}','${l.mls}');return false;" style="margin-left:8px;font-size:11px;color:var(--text-4);text-decoration:underline;cursor:pointer" title="Delete the pipeline tracking record (the MLS listing stays visible)">↩ undo open offer</a>`:''}</span>`:''}</div></div></div></div>`;
+  document.getElementById('detPage').innerHTML=h;
+  document.getElementById('comp-col').innerHTML=compsPanel(l);
+  renderTagToggles(l.mls,id);
+}
+
+let openCompPoll=null;
+function opn(m,prefetched){
+  // Cancel any in-flight poll from a previous opn() before starting fresh.
+  if(openCompPoll){clearInterval(openCompPoll);openCompPoll=null;}
+  active=m;
+  document.querySelector('.main').classList.add('detail-view');
+  const l=prefetched||listings.find(x=>x.mls===active);
+  if(l){
+    renderDetailPage(l);
+    loadComps(l);
+    const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
+    let polls=0;
+    // Poll every 300ms (max ~6s) until comps land in compCache, then re-render
+    // the comp-col with the loaded comps and seed the ARV input. The active!==m
+    // guard inside the interval handles the case where the user navigates to a
+    // different listing before this poll finishes.
+    openCompPoll=setInterval(()=>{
+      if(active!==m){clearInterval(openCompPoll);openCompPoll=null;return;}
+      polls++;
+      if(compCache[l.mls]||polls>20){
+        clearInterval(openCompPoll);openCompPoll=null;
+        document.getElementById('comp-col').innerHTML=compsPanel(l);
+        const cm=getComps(l);
+        if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}
+        else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}
+      }
+    },300);
+    // calcDeal needs the DOM nodes from renderDetailPage to exist before reading
+    // input values; rAF defers until after the current paint.
+    requestAnimationFrame(()=>calcDeal(id,l.price,l.sqft));
+  }
+}
+function cls(){if(openCompPoll){clearInterval(openCompPoll);openCompPoll=null;}active=null;document.querySelector('.main').classList.remove('detail-view');render();}
+function setFilter(f){if(active){active=null;document.querySelector('.main').classList.remove('detail-view');}currentFilter=f;cityFilters.clear();tagFilters.clear();gradeFilter=null;['gf-all','gf-A','gf-B','gf-C','gf-D','gf-ungraded'].forEach(id=>{const b=document.getElementById(id);if(b)b.className='btn'+(id==='gf-all'?' btn-on':'');});updateCityBtn();updateTagBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
+function toggleCityFilter(city){if(cityFilters.has(city))cityFilters.delete(city);else cityFilters.add(city);updateCityBtn();render();}
+function cfSelectAll(){const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;cityFilters.add(cb.value);});updateCityBtn();render();}
+function cfSelectNone(){cityFilters.clear();const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateCityBtn();render();}
+function updateCityBtn(){const btn=document.getElementById('cf-btn');if(!cityFilters.size)btn.textContent='All Cities ▾';else if(cityFilters.size===1)btn.textContent=[...cityFilters][0]+' ▾';else btn.textContent=cityFilters.size+' Cities ▾';}
+document.addEventListener('click',e=>{const wrap=document.getElementById('cf-wrap');const drop=document.getElementById('cf-drop');if(wrap&&drop&&!wrap.contains(e.target))drop.classList.remove('open');const tw=document.getElementById('tf-wrap');const td=document.getElementById('tf-drop');if(tw&&td&&!tw.contains(e.target))td.classList.remove('open');const mw=document.getElementById('more-filters-wrap');const md=document.getElementById('more-filters-drop');if(mw&&md&&!mw.contains(e.target))md.classList.remove('open');const aw=document.getElementById('addr-search-wrap');const ad=document.getElementById('addr-search-drop');if(aw&&ad&&!aw.contains(e.target))ad.style.display='none';
+  // Tesla-friendly comp-panel dropdowns (tolerance + retag): close any open
+  // popup when the click is outside its .cmp-wrap / .retag-wrap container.
+  document.querySelectorAll('.cmp-wrap,.retag-wrap').forEach(w=>{if(!w.contains(e.target)){const d=w.querySelector('.cmp-drop,.retag-drop');if(d)d.classList.remove('open');}});});
+// Escape closes every open custom dropdown on the page (filter chips + comp panel).
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.querySelectorAll('.cmp-drop.open,.retag-drop.open').forEach(d=>d.classList.remove('open'));const cf=document.getElementById('cf-drop');if(cf)cf.classList.remove('open');const tf=document.getElementById('tf-drop');if(tf)tf.classList.remove('open');const mf=document.getElementById('more-filters-drop');if(mf)mf.classList.remove('open');}});
+function toggleTagFilter(tag){if(tagFilters.has(tag))tagFilters.delete(tag);else tagFilters.add(tag);updateTagBtn();render();}
+function tfSelectAll(){const cbs=document.querySelectorAll('#tf-drop input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;tagFilters.add(cb.value);});updateTagBtn();render();}
+function tfSelectNone(){tagFilters.clear();const cbs=document.querySelectorAll('#tf-drop input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateTagBtn();render();}
+function updateTagBtn(){const btn=document.getElementById('tf-btn');if(!tagFilters.size)btn.textContent='All Tags ▾';else if(tagFilters.size===1)btn.textContent=[...tagFilters][0]+' ▾';else btn.textContent=tagFilters.size+' Tags ▾';}
+// Brief AJ: bulk-archive selection + address search.
+function toggleRowSelect(mls,checked){if(checked)selectedMls.add(mls);else selectedMls.delete(mls);renderBulkActionBar();}
+function renderBulkActionBar(){const bar=document.getElementById('bulk-action-bar');if(!bar)return;const n=selectedMls.size;if(n===0){bar.style.display='none';return;}bar.style.display='flex';const c=document.getElementById('bulk-count');if(c)c.textContent=`${n} selected`;}
+function bulkClear(){selectedMls.clear();document.querySelectorAll('.row-select').forEach(cb=>cb.checked=false);renderBulkActionBar();}
+async function bulkArchive(){const n=selectedMls.size;if(n===0)return;if(!confirm(`Archive ${n} listing${n===1?'':'s'}? They'll move to the Archive stage and disappear from this view (use the ⋮ menu → Archive to view + restore).`))return;const mlsList=[...selectedMls];const{error}=await sb.from('properties').update({stage:'archived',archived_at:new Date().toISOString(),updated_at:new Date().toISOString()}).in('mls',mlsList);if(error){alert(`Bulk archive failed: ${error.message}`);return;}selectedMls.clear();
+  // Defensively uncheck visible checkboxes so they don't stay checked during
+  // the 1.2s flash window before loadListings re-renders. Inlined (rather than
+  // calling bulkClear) because bulkClear also calls renderBulkActionBar, which
+  // would hide the bar before the success-flash text below has a chance to show.
+  document.querySelectorAll('.row-select').forEach(cb=>cb.checked=false);
+  // Brief flash confirming the archive succeeded before the bar hides on reload.
+  const cntEl=document.getElementById('bulk-count');if(cntEl)cntEl.textContent=`Archived ${n} listing${n===1?'':'s'}`;
+  await new Promise(r=>setTimeout(r,1200));
+  renderBulkActionBar();await loadListings(currentFilter);updateStageCounts();}
+// Server-side address search across all non-sold listings (regardless of
+// current filter scope). Hits Supabase on every debounced keystroke;
+// 120ms debounce keeps the round-trip count reasonable. Click handler
+// fetches the full row + maps to the listing shape so opn() can render
+// the detail pane even when the listing isn't in the current visible
+// view (e.g. searching for a Hold listing while viewing Unread).
+let _addrSearchTimer=null;
+let _addrSearchSeq=0;
+function onAddrSearch(q){clearTimeout(_addrSearchTimer);_addrSearchTimer=setTimeout(()=>doAddrSearch(q),120);}
+async function doAddrSearch(q){
+  const drop=document.getElementById('addr-search-drop');if(!drop)return;
+  const query=(q||'').trim();
+  if(!query){drop.style.display='none';drop.innerHTML='';return;}
+  // Sequence guard: stale responses (slower keystroke fires) shouldn't
+  // overwrite the most recent result.
+  const mySeq=++_addrSearchSeq;
+  // ilike does case-insensitive substring match. We need to escape any
+  // % or _ in the user's query so they're treated literally.
+  const escaped=query.replace(/[%_]/g,c=>`\\${c}`);
+  // Brief BO: filter OFFMKT- rows (off-market acquisitions belong in
+  // off-market.html when BM ships, not in mls-deals search).
+  let{data,error}=await sb.from('properties')
+    .select('mls,address,city,list_price,change_type,stage')
+    .not('mls','like','OFFMKT-%')
+    .ilike('address',`%${escaped}%`)
+    .not('change_type','eq','sold')
+    .limit(10);
+  if(mySeq!==_addrSearchSeq)return; // stale
+  if(error){
+    drop.style.display='block';
+    drop.innerHTML=`<div style="padding:8px 12px;font-size:12px;color:var(--red)">Search error: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  // Brief BO: also filter out listings linked to deals past pursuing/lost
+  // (mirrors the loadListings filter for consistency). Listings tied to
+  // an in-flight deal are tracked on pipeline.html / project-detail.html.
+  if(data&&data.length){
+    const list=data.map(r=>'"'+String(r.mls).replace(/"/g,'\\"')+'"').join(',');
+    const{data:blockers}=await sb.from('deals')
+      .select('buy_side_mls,relist_mls,phase')
+      .or('buy_side_mls.in.('+list+'),relist_mls.in.('+list+')');
+    if(mySeq!==_addrSearchSeq)return; // stale
+    if(blockers&&blockers.length){
+      const blocked=new Set();
+      for(const d of blockers){
+        if(d.phase==='pursuing'||d.phase==='lost')continue;
+        if(d.buy_side_mls)blocked.add(d.buy_side_mls);
+        if(d.relist_mls)blocked.add(d.relist_mls);
+      }
+      data=data.filter(r=>!blocked.has(r.mls));
+    }
+  }
+  if(!data||data.length===0){
+    drop.style.display='block';
+    drop.innerHTML=`<div style="padding:8px 12px;font-size:12px;color:var(--text-4)">No matches.</div>`;
+    return;
+  }
+  drop.style.display='block';
+  drop.innerHTML=data.map(r=>{
+    const status=r.change_type?escapeHtml(r.change_type):'';
+    return `<div onclick="onAddrSearchPick('${r.mls}')" style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--row-hover,rgba(0,0,0,0.03))'" onmouseout="this.style.background=''"><div style="font-weight:600">${escapeHtml(r.address||'(no address)')}</div><div style="font-size:11px;color:var(--text-4)">${escapeHtml(r.city||'')} · ${r.mls} · ${FK(r.list_price||0)}${status?` · <span style="color:var(--accent)">${status}</span>`:''}</div></div>`;
+  }).join('');
+}
+async function onAddrSearchPick(mls){
+  const drop=document.getElementById('addr-search-drop');if(drop)drop.style.display='none';
+  const input=document.getElementById('addr-search');if(input)input.value='';
+  // Fast path: listing is already in the current view.
+  const inView=listings.find(x=>x.mls===mls);
+  if(inView){opn(mls);return;}
+  // Slow path: fetch full row + map + open detail without modifying
+  // the visible list.
+  const{data,error}=await sb.from('properties').select('*').eq('mls',mls).single();
+  if(error||!data){
+    alert(`Could not load listing ${mls}: ${error?.message||'not found'}`);
+    return;
+  }
+  const mapped=mapRowToListing(data);
+  if(!listings.find(x=>x.mls===mls))listings.push(mapped);
+  opn(mls,mapped);
+}
+
+
+// Per-MLS generation counter — guards against rapid double-clicks of a tolerance
+// dropdown causing two parallel findComps() calls where the slower (older) one
+// arrives last and overwrites the cache with stale data.
+const refetchGenerations={};
+async function refetchComps(mls){const l=listings.find(x=>x.mls===mls);if(!l)return;const mid=mls.replace(/[^a-zA-Z0-9]/g,'');
+  // Tolerance state lives in dataset.value on the chip-btn (the old <select>
+  // was replaced with a custom dropdown for Tesla browser compatibility).
+  const radius=parseFloat(((document.getElementById('comp-radius-'+mid)||{}).dataset||{}).value||'0.25');
+  const sqftRange=parseInt(((document.getElementById('comp-sqft-'+mid)||{}).dataset||{}).value||'150');
+  const months=parseInt(((document.getElementById('comp-months-'+mid)||{}).dataset||{}).value||'6');
+  const gen=(refetchGenerations[mls]||0)+1;
+  refetchGenerations[mls]=gen;
+  delete compCache[mls];
+  try{const data=await findComps({...l,radius,sqftRange,months});
+    // A newer refetch was started while we were awaiting; discard our stale result.
+    if(refetchGenerations[mls]!==gen)return;
+    compCache[mls]=data;document.getElementById('comp-col').innerHTML=compsPanel(l);
+    // Re-render replaces the buttons; sync each new button's dataset.value
+    // and visible label so the picker reflects the actually-used tolerance.
+    const re=document.getElementById('comp-radius-'+mid);if(re){re.dataset.value=String(radius);re.textContent=COMP_TOL_LABELS.radius(String(radius));}
+    const se=document.getElementById('comp-sqft-'+mid);if(se){se.dataset.value=String(sqftRange);se.textContent=COMP_TOL_LABELS.sqft(String(sqftRange));}
+    const me=document.getElementById('comp-months-'+mid);if(me){me.dataset.value=String(months);me.textContent=COMP_TOL_LABELS.months(String(months));}
+    if(data.hp>0){setNumVal('arv-'+mid,data.hp*l.sqft);calcDeal(mid,l.price,l.sqft);}}catch(e){console.error('Refetch error:',e);}}
+
+// ========== SUPABASE CRUD ==========
+async function updateListingStatus(mls,s){const{data:cur}=await sb.from('properties').select('stage').eq('mls',mls).single();const newStage=(cur?.stage===s)?'unread':s;const d={stage:newStage,updated_at:new Date().toISOString()};if(newStage==='archived')d.archived_at=new Date().toISOString();if(newStage==='unsold_flip')d.comp_type='flips';await sb.from('properties').update(d).eq('mls',mls);cls();await loadListings(currentFilter);updateStageCounts();}
+async function updateNotes(mls){const mid=mls.replace(/[^a-zA-Z0-9]/g,'');const el=document.getElementById('notes2-'+mid);if(!el)return;await sb.from('properties').update({notes:el.value,updated_at:new Date().toISOString()}).eq('mls',mls);const r=document.getElementById('rownotes-'+mid);if(r&&r.value!==el.value)r.value=el.value;const li=listings.find(x=>x.mls===mls);if(li)li.notes=el.value;}
+const _rowNotesTimers={};
+function rowNotesInput(el){const mls=el.dataset.mls;clearTimeout(_rowNotesTimers[mls]);el.style.borderColor='var(--border)';_rowNotesTimers[mls]=setTimeout(()=>saveRowNotes(el),700);}
+function rowNotesBlur(el){const mls=el.dataset.mls;clearTimeout(_rowNotesTimers[mls]);saveRowNotes(el);}
+async function saveRowNotes(el){const mls=el.dataset.mls;const val=el.value;const li=listings.find(x=>x.mls===mls);if(li&&li.notes===val){el.style.borderColor='var(--border)';return;}el.style.borderColor='var(--accent)';const{error}=await sb.from('properties').update({notes:val,updated_at:new Date().toISOString()}).eq('mls',mls);if(error){el.style.borderColor='var(--red)';return;}if(li)li.notes=val;el.style.borderColor='var(--green)';setTimeout(()=>{el.style.borderColor='var(--border)';},1200);const mid=mls.replace(/[^a-zA-Z0-9]/g,'');const det=document.getElementById('notes2-'+mid);if(det&&det.value!==val)det.value=val;}
+
+// Brief BK: open the Pipeline for this listing by inserting a deals row
+// at phase='pursuing' with buy_side_mls = this MLS#. Appends a
+// {from_phase:null, to_phase:'pursuing'} row to deals_phase_history.
+// Disables the button during submit to guard against double-clicks.
+// Re-renders the detail pane on success so the "🏗 In project" link
+// appears and the button disappears.
+async function openOffer(mls){
+  const l=listings.find(x=>x.mls===mls);if(!l)return;
+  if(l.dealId){console.warn('openOffer: listing already linked to deal',mls);return;}
+  const id=mls.replace(/[^a-zA-Z0-9]/g,'');
+  const btn=document.getElementById('open-offer-'+id);
+  if(btn){btn.disabled=true;btn.style.opacity='0.6';btn.style.cursor='wait';btn.textContent='Opening…';}
+  try{
+    const{data:newDeal,error:insErr}=await sb.from('deals')
+      .insert({buy_side_mls: mls, phase: 'pursuing'})
+      .select('id').single();
+    if(insErr)throw insErr;
+    const{error:hErr}=await sb.from('deals_phase_history').insert({
+      deal_id: newDeal.id,
+      from_phase: null,
+      to_phase: 'pursuing',
+      note: 'Pipeline opened from MLS Deals',
+    });
+    if(hErr)throw hErr;
+    l.dealId=newDeal.id;
+    l.dealPhase='pursuing';
+    renderDetailPage(l);
+    refreshRowDealPill(mls);
+  }catch(e){
+    console.warn('openOffer failed',e);
+    alert('Open offer failed: '+(e&&e.message?e.message:String(e)));
+    if(btn){btn.disabled=false;btn.style.opacity='';btn.style.cursor='pointer';btn.textContent='📤 Open offer';}
+  }
+}
+
+// Brief BX: undo an accidental Open Offer click. Only invokable when the
+// freshness gate in decorateListingsWithDeals set l.undoable=true (deal is
+// pursuing + zero downstream work). Hard-deletes the deals row; cascading
+// FKs drop deals_phase_history / deal_milestones / deal_phase_checklist_items
+// / deal_loans / deal_expenses / deal_documents. No history row written —
+// per D8 the misclick is treated as if it never happened.
+async function undoOpenOffer(dealId, mls){
+  const l=listings.find(x=>x.mls===mls);
+  if(!l||!l.dealId||!l.undoable)return;
+  if(!confirm('Undo opening the offer? This deletes the pipeline tracking record for this deal. The MLS listing stays visible. Cannot be undone.'))return;
+  try{
+    const{error}=await sb.from('deals').delete().eq('id',dealId);
+    if(error)throw error;
+    l.dealId=null;
+    l.dealPhase=null;
+    l.undoable=false;
+    renderDetailPage(l);
+    refreshRowDealPill(mls);
+  }catch(e){
+    console.warn('undoOpenOffer failed',e);
+    alert('Undo failed: '+(e&&e.message?e.message:String(e)));
+  }
+}
+
+// Brief BK: batch-fetch deal rows that reference any visible MLS# (either
+// buy_side_mls or relist_mls). Decorate each listing with l.dealId +
+// l.dealPhase so the "🏗 In project" pill renders the deal phase, and the
+// "Open offer" / "Mark as listing" buttons disappear when a deal exists.
+async function decorateListingsWithDeals(){
+  if(!listings.length)return;
+  const listingMls=new Set(listings.map(l=>l.mls).filter(Boolean));
+  if(!listingMls.size)return;
+  // Fetch all deals unfiltered (<50 in production). Avoids the URL
+  // length cap that bit large filter tabs like Unread (~645 listings)
+  // where buy_side_mls.in.(...) + relist_mls.in.(...) exceeded the
+  // edge proxy's ~8KB filter cap → 400 → silent decoration failure.
+  let deals=[];
+  try{
+    const{data,error}=await sb.from('deals')
+      .select('id, phase, buy_side_mls, relist_mls, offer_price, purchase_price, notes');
+    if(error){console.warn('[decorateListingsWithDeals] failed',error);return;}
+    // Keep only deals that touch a currently-visible listing.
+    deals=(data||[]).filter(d=>listingMls.has(d.buy_side_mls)||listingMls.has(d.relist_mls));
+  }catch(e){
+    console.warn('[decorateListingsWithDeals] failed',e);
+    return;
+  }
+  // Build mls -> {dealId, dealPhase, undoableDealRow}. If the same MLS appears
+  // as both buy_side and relist on different deals (uncommon — typically would
+  // be the SAME deal), prefer the most-active phase: prefer non-archived
+  // > non-sold > anything.
+  const byMls={};
+  const dealById={};
+  const phaseRank=p=>{
+    if(p==='archived')return 0;
+    if(p==='sold')return 1;
+    return 2;
+  };
+  const consider=(mls,deal)=>{
+    if(!mls)return;
+    const ex=byMls[mls];
+    if(!ex || phaseRank(deal.phase) > phaseRank(ex.dealPhase)){
+      byMls[mls]={dealId: deal.id, dealPhase: deal.phase};
+    }
+  };
+  for(const d of deals){
+    dealById[d.id]=d;
+    consider(d.buy_side_mls, d);
+    consider(d.relist_mls, d);
+  }
+
+  // Brief BX: freshness gate. For each pursuing deal, fetch six signals in
+  // parallel; mark l.undoable=true iff ALL hold: history rows==1, zero
+  // completed milestones, zero completed checklist items, zero loans, zero
+  // expenses, zero documents, AND offer_price/purchase_price/notes all NULL
+  // on the deal row itself. Non-pursuing deals get l.undoable=false with
+  // no DB roundtrip. Entire gate is fail-soft: if any query errors, all
+  // pursuing deals get undoable=false but dealId/dealPhase decoration
+  // continues — gate failure must never block the deal-pill from rendering.
+  const pursuingIds=deals.filter(d=>d.phase==='pursuing').map(d=>d.id);
+  const undoable=new Set();
+  if(pursuingIds.length){
+    try{
+      // deal_documents table ships in Migration 066 (Brief BW). Until then
+      // the query errors (PostgREST returns 404 + "JSON could not be
+      // generated", not Postgres 42P01) — swallow any error to 0 rows.
+      const docsQuery=sb.from('deal_documents').select('deal_id').in('deal_id',pursuingIds)
+        .then(r=>(r&&!r.error&&r.data)?r.data:[],()=>[]);
+      const[histRes,msRes,ckRes,lnRes,exRes,dcRes]=await Promise.all([
+        sb.from('deals_phase_history').select('deal_id').in('deal_id',pursuingIds),
+        sb.from('deal_milestones').select('deal_id').in('deal_id',pursuingIds).eq('completed',true),
+        sb.from('deal_phase_checklist_items').select('deal_id').in('deal_id',pursuingIds).eq('completed',true),
+        sb.from('deal_loans').select('deal_id').in('deal_id',pursuingIds),
+        sb.from('deal_expenses').select('deal_id').in('deal_id',pursuingIds),
+        docsQuery,
+      ]);
+      for(const r of [histRes,msRes,ckRes,lnRes,exRes]){
+        if(r&&r.error)throw r.error;
+      }
+      const histCount={};for(const r of (histRes.data||[]))histCount[r.deal_id]=(histCount[r.deal_id]||0)+1;
+      const blocked=new Set();
+      for(const r of (msRes.data||[]))blocked.add(r.deal_id);
+      for(const r of (ckRes.data||[]))blocked.add(r.deal_id);
+      for(const r of (lnRes.data||[]))blocked.add(r.deal_id);
+      for(const r of (exRes.data||[]))blocked.add(r.deal_id);
+      for(const r of (dcRes||[]))blocked.add(r.deal_id);
+      for(const id of pursuingIds){
+        const d=dealById[id];
+        if(blocked.has(id))continue;
+        if((histCount[id]||0)!==1)continue;
+        if(d.offer_price!=null||d.purchase_price!=null||d.notes!=null)continue;
+        undoable.add(id);
+      }
+    }catch(e){
+      console.warn('[decorateListingsWithDeals] freshness gate failed; all pursuing deals will be non-undoable',e);
+    }
+  }
+
+  // Decorate + refresh per-row pill.
+  for(const l of listings){
+    const m=byMls[l.mls];
+    if(m){
+      l.dealId=m.dealId;
+      l.dealPhase=m.dealPhase;
+      l.undoable=undoable.has(m.dealId);
+    } else {
+      l.dealId=null;
+      l.dealPhase=null;
+      l.undoable=false;
+    }
+    refreshRowDealPill(l.mls);
+  }
+  // Brief BO: filter out listings linked to deals past pursuing/lost.
+  // Those are tracked on pipeline.html / project-detail.html — not
+  // browsed here. Pursuing + lost stay visible (in the Potential group
+  // per the sync trigger setting stage='potential') so Patty can keep
+  // eyes on them. in_escrow / under_construction / listed / sold /
+  // archived disappear entirely from mls-deals.
+  const before=listings.length;
+  listings=listings.filter(l=>!l.dealPhase||l.dealPhase==='pursuing'||l.dealPhase==='lost');
+  if(listings.length!==before)render();
+  // Re-render detail page if open — the "🏗 In project" pill / Open offer
+  // button visibility may have changed.
+  if(active){const l=listings.find(x=>x.mls===active);if(l)renderDetailPage(l);}
+}
+
+// Brief BK: surgical update of the "🏗 In project" pill for one row,
+// invoked after openOffer/markAsListing or after the bulk decorate pass.
+// Mirrors refreshRowDePill / refreshRowComps; no full re-render.
+function refreshRowDealPill(mls){
+  // Currently rendered inside the detail pane only (next to MLS# in the
+  // Agent & Broker section). The list-card has no deal pill; if/when one
+  // is added it would refresh here too.
+  if(active===mls){
+    const l=listings.find(x=>x.mls===mls);
+    if(l)renderDetailPage(l);
+  }
+}
+
+// Brief BK / D2: address-match an MLS-listed property against the existing
+// under_construction deals to detect the relist-of-our-flip case. On a
+// single match: confirm + link (relist_mls=mls, phase='selling'). On zero
+// or multiple matches: open a picker modal so the user chooses (or creates
+// an orphan listing with buy_side_mls=NULL). Brief BV / D2: phase value
+// renamed from 'listed' → 'selling'.
+async function markAsListing(mls){
+  const l=listings.find(x=>x.mls===mls);if(!l)return;
+  if(l.dealId){alert('This listing is already linked to a deal.');return;}
+
+  // 1. Fetch under_construction candidates.
+  const {data:cands, error:cErr}=await sb.from('deals')
+    .select('id, buy_side_mls, relist_mls, created_at')
+    .eq('phase','under_construction');
+  if(cErr){alert('Failed to load candidates: '+cErr.message);return;}
+  const candidates=cands||[];
+
+  // 2. Resolve each candidate's address via properties (batch fetch).
+  const candMls=candidates.map(c=>c.buy_side_mls).filter(Boolean);
+  const addrByMls={};
+  if(candMls.length){
+    const {data:props}=await sb.from('properties')
+      .select('mls, address, city')
+      .in('mls', candMls);
+    for(const p of (props||[])){addrByMls[p.mls]=p;}
+  }
+
+  // 3. Address-match: case-insensitive substring match on the street
+  // component. Pull the leading numeric+street tokens (strip unit/suite).
+  const streetOf=raw=>{
+    if(!raw)return '';
+    // Strip apt/unit suffix; keep the leading "<#> <street>" chunk.
+    const cleaned=String(raw).replace(/\s*(?:apt|unit|ste|suite|#)\.?\s*[\w\-]+/i,'').trim();
+    return cleaned.toLowerCase();
+  };
+  const myStreet=streetOf(l.address);
+  const matches=[];
+  for(const c of candidates){
+    const candProp=c.buy_side_mls?addrByMls[c.buy_side_mls]:null;
+    const candAddr=candProp?candProp.address:'';
+    const candStreet=streetOf(candAddr);
+    if(myStreet && candStreet && (candStreet.includes(myStreet) || myStreet.includes(candStreet))){
+      matches.push({deal:c, addr:candAddr, city:candProp?candProp.city:''});
+    }
+  }
+
+  // 4. Single match → confirm + link.
+  if(matches.length===1){
+    const m=matches[0];
+    const d=m.deal;
+    const sinceStr=d.created_at?new Date(d.created_at).toISOString().slice(0,10):'?';
+    const ok=confirm('This looks like the relist of '+m.addr+(m.city?', '+m.city:'')+' (under_construction since '+sinceStr+'). Link?');
+    if(!ok)return;
+    await applyMarkAsListing(d.id, mls, l, 'under_construction');
+    return;
+  }
+
+  // 5. Zero or multiple → modal picker.
+  openMarkAsListingPicker(matches, mls, l);
+}
+
+// Modal picker for markAsListing. Shows candidates + "Create new orphan
+// listing" option. On pick: link relist_mls + flip phase to 'selling'.
+function openMarkAsListingPicker(matches, mls, l){
+  // Build a lightweight modal inline. Reuses the same overlay pattern as
+  // openConstEditor / openArchive.
+  const overlayId='mal-modal';
+  const existing=document.getElementById(overlayId);
+  if(existing)existing.remove();
+
+  const matchHtml=matches.length
+    ? matches.map((m,i)=>{
+        const d=m.deal;
+        const sinceStr=d.created_at?new Date(d.created_at).toISOString().slice(0,10):'?';
+        return `<div class="mal-row" data-idx="${i}" style="padding:10px 14px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;cursor:pointer;background:var(--bg)" onmouseover="this.style.background='var(--bg-alt)'" onmouseout="this.style.background='var(--bg)'">
+          <div style="font-weight:600;font-size:13px">${escapeHtml(m.addr||'(no address)')}${m.city?', '+escapeHtml(m.city):''}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:2px;font-family:var(--mono)">Buy MLS# ${escapeHtml(d.buy_side_mls||'(none)')} · Under construction since ${escapeHtml(sinceStr)}</div>
+        </div>`;
+      }).join('')
+    : `<div style="padding:10px 14px;color:var(--text-4);font-size:12px;font-style:italic">No address-matched candidates among under_construction deals.</div>`;
+
+  const html=`<div id="${overlayId}" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center" onclick="if(event.target.id==='${overlayId}')document.getElementById('${overlayId}').remove()">
+    <div style="background:var(--bg);max-width:560px;width:90%;max-height:80vh;overflow-y:auto;border-radius:8px;padding:18px 20px 16px;box-shadow:0 8px 32px rgba(0,0,0,.18)">
+      <div style="font-size:14px;font-weight:700;margin-bottom:6px">Mark as our listing — pick the source deal</div>
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:12px">Listing: <b>${escapeHtml(l.address||'')}${l.city?', '+escapeHtml(l.city):''}</b> · MLS# ${escapeHtml(mls)}</div>
+      <div style="font-size:11px;color:var(--text-4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">${matches.length===0?'No address matches found' : matches.length+' candidate'+(matches.length===1?'':'s')}</div>
+      <div id="mal-list">${matchHtml}</div>
+      <div style="border-top:1px solid var(--border);margin:12px 0 8px"></div>
+      <div class="mal-row" data-idx="orphan" style="padding:10px 14px;border:1px dashed var(--border);border-radius:6px;cursor:pointer;background:var(--bg)" onmouseover="this.style.background='var(--bg-alt)'" onmouseout="this.style.background='var(--bg)'">
+        <div style="font-weight:600;font-size:13px">＋ Create new orphan listing</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px">Insert a deal with relist_mls only (buy_side_mls=NULL). Use when the under_construction source isn't tracked here.</div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px">
+        <button onclick="document.getElementById('${overlayId}').remove()" style="padding:5px 14px;border:1px solid var(--border);background:var(--bg);border-radius:5px;font-family:inherit;font-size:12px;cursor:pointer">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  // Wire up the row clicks.
+  document.querySelectorAll('#'+overlayId+' .mal-row').forEach(row=>{
+    row.addEventListener('click', async ()=>{
+      const idx=row.dataset.idx;
+      document.getElementById(overlayId).remove();
+      if(idx==='orphan'){
+        await applyMarkAsListing(null, mls, l, null);
+      } else {
+        const m=matches[Number(idx)];
+        if(m)await applyMarkAsListing(m.deal.id, mls, l, 'under_construction');
+      }
+    });
+  });
+}
+
+// Apply the mark-as-listing operation. If dealId is set: update existing
+// deal (relist_mls=mls, phase='selling'). If dealId is null: create a new
+// orphan deal with buy_side_mls=NULL, relist_mls=mls.
+// Brief BV / D2: phase value renamed from 'listed' → 'selling'.
+async function applyMarkAsListing(dealId, mls, l, fromPhase){
+  const today=new Date().toISOString().slice(0,10);
+  const listPrice=l.price||null;
+  try{
+    let resolvedDealId=dealId;
+    if(dealId){
+      // Link existing under_construction deal as relist.
+      const {error:uErr}=await sb.from('deals').update({
+        relist_mls: mls,
+        phase: 'selling',
+        list_price: listPrice,
+        list_date: today,
+        updated_at: new Date().toISOString(),
+      }).eq('id', dealId);
+      if(uErr)throw uErr;
+    } else {
+      // Insert new orphan deal — relist only.
+      const {data:newDeal, error:iErr}=await sb.from('deals').insert({
+        buy_side_mls: null,
+        relist_mls: mls,
+        phase: 'selling',
+        list_price: listPrice,
+        list_date: today,
+      }).select('id').single();
+      if(iErr)throw iErr;
+      resolvedDealId=newDeal.id;
+    }
+    // History row.
+    const {error:hErr}=await sb.from('deals_phase_history').insert({
+      deal_id: resolvedDealId,
+      from_phase: fromPhase,  // 'under_construction' for the link path; null for orphan
+      to_phase: 'selling',
+      note: dealId
+        ? 'Linked relist via Mark as our listing (MLS Deals)'
+        : 'Orphan listing via Mark as our listing (MLS Deals)',
+    });
+    if(hErr)throw hErr;
+    // Decorate listing in-place + re-render.
+    l.dealId=resolvedDealId;
+    l.dealPhase='selling';
+    renderDetailPage(l);
+    refreshRowDealPill(mls);
+  }catch(e){
+    console.warn('applyMarkAsListing failed',e);
+    alert('Mark as listing failed: '+(e&&e.message?e.message:String(e)));
+  }
+}
+window.markAsListing=markAsListing;
+
+async function toggleLockArv(mls,id){
+  const l=listings.find(x=>x.mls===mls);if(!l)return;
+  if(l.lockedArv){
+    // Unlock
+    const{error}=await sb.from('properties').update({locked_arv:null,updated_at:new Date().toISOString()}).eq('mls',mls);
+    if(error){console.error('unlock ARV failed',error);alert('Unlock ARV failed: '+error.message);return;}
+    l.lockedArv=null;
+  } else {
+    // Lock current ARV value
+    const arvVal=getNumVal('arv-'+id);
+    if(!arvVal)return;
+    const{error}=await sb.from('properties').update({locked_arv:arvVal,updated_at:new Date().toISOString()}).eq('mls',mls);
+    if(error){console.error('lock ARV failed',error);alert('Lock ARV failed: '+error.message);return;}
+    l.lockedArv=arvVal;
+  }
+  // Re-render detail page to update button state
+  renderDetailPage(l);
+  const cm=getComps(l);
+  document.getElementById('comp-col').innerHTML=compsPanel(l);
+  // Always seed the ARV input + recompute. Pre-cards-row this gate was
+  // cm.hp>0 (no comps → no ARV → no point in calcDeal), but smart-comps
+  // / per-city can populate ARV even with zero user comps loaded.
+  if(l.lockedArv){
+    setNumVal('arv-'+id,l.lockedArv);
+  }else{
+    const pref=preferredArvFor(l,cm);
+    if(pref.arv>0)setNumVal('arv-'+id,pref.arv);
+  }
+  calcDeal(id,l.price,l.sqft);
+  render();
+}
+async function toggleLockConstruction(mls,id){
+  const l=listings.find(x=>x.mls===mls);if(!l)return;
+  if(l.lockedConstruction){
+    // Unlock — snap back to sqft-based construction estimate
+    const{error}=await sb.from('properties').update({locked_construction:null,updated_at:new Date().toISOString()}).eq('mls',mls);
+    if(error){console.error('unlock construction failed',error);alert('Unlock construction failed: '+error.message);return;}
+    l.lockedConstruction=null;
+    constIsCustom[id]=false;
+    setNumVal('const-'+id,estimateConstruction(l.sqft,l.mls));
+  } else {
+    // Lock current construction value
+    const cVal=getNumVal('const-'+id);
+    if(!cVal)return;
+    const{error}=await sb.from('properties').update({locked_construction:cVal,updated_at:new Date().toISOString()}).eq('mls',mls);
+    if(error){console.error('lock construction failed',error);alert('Lock construction failed: '+error.message);return;}
+    l.lockedConstruction=cVal;
+  }
+  // Re-render detail page to update button state
+  renderDetailPage(l);
+  const cm=getComps(l);
+  document.getElementById('comp-col').innerHTML=compsPanel(l);
+  if(cm.hp>0){setNumVal('arv-'+id,l.lockedArv||(cm.hp*l.sqft));calcDeal(id,l.price,l.sqft);}
+}
+async function openArchive(){document.getElementById('arch-modal').classList.add('open');const{data}=await sb.from('properties').select('*').eq('stage','archived').order('updated_at',{ascending:false});const al=document.getElementById('arch-list');if(!data?.length){al.innerHTML='<p style="color:var(--text-4);font-size:12px">No archived deals.</p>';return;}al.innerHTML=data.map(r=>`<div class="arch-item"><span>${r.address}, ${r.city} — ${FK(r.list_price||0)}</span><button class="restore-btn" onclick="restoreDeal('${r.mls}')">Restore</button></div>`).join('');}
+function closeArchive(){document.getElementById('arch-modal').classList.remove('open');}
+async function restoreDeal(m){await sb.from('properties').update({stage:'unread',updated_at:new Date().toISOString()}).eq('mls',m);openArchive();loadListings(currentFilter);}
+
+// ========== LOAD LISTINGS ==========
+// Map a raw properties row to the in-memory listing shape used throughout
+// this page. Extracted so the address-search click handler can hydrate a
+// listing that's outside the current filter scope (e.g. searching for a
+// listing on Hold while viewing Unread).
+function mapRowToListing(r){
+  const rmk=((r.remarks||'')+' '+(r.sale_type||'')).toLowerCase();let tags=[];
+  if(r.custom_tags!==null&&r.custom_tags!==undefined){tags=r.custom_tags||[];}else{
+  const isRenovated=/\bfully remodeled\b|\bcompletely remodeled\b|\btotally remodeled\b|\bnewly remodeled\b|\bfully renovated\b|\bcompletely renovated\b|\bnewly renovated\b|\brecently remodeled\b|\brecently renovated\b|\bbrand new kitchen\b|\bbrand new bath/.test(rmk);
+  if(!isRenovated&&/\bdated\b|\boutdated\b|\boriginal condition\b|\boriginal kitchen\b|\boriginal bath(?:room)?s?\b|\bneeds updating\b|\bneeds update\b|\bneeds updates\b|\bneeds updated\b|\bneeds cosmetic\b|\bneeds modernizing\b|\bneeds remodel\b|\bneeds a remodel\b|\bneeds remodeling\b|\bneeds renovation\b|\bneeds renovating\b|\bbring your (?:contractor|designer|imagination|vision)\b|\bcosmetic (?:work|updates?|fixer)\b|\bupdate to (?:your|taste)\b|\bmake it your own\b|\bgood bones\b|\bwith some (?:tlc|updating|updates|love)\b|\bready for your (?:updates?|touches?|vision)\b|\bopportunity to update\b|\badd your personal touch\b/.test(rmk))tags.push('Dated');
+  if(/\btlc\b|\bfixer\b|\bhandyman\b|\bhandy.?man special\b|\binvestor special\b|\bgreat for investors\b|\bflip\b|\bwholesale\b/.test(rmk))tags.push('Fixer');
+  if(/\btrust sale\b|\bprobate\b|\bestate sale\b|, trust\b/.test(rmk)||/trust/i.test(r.sale_type||''))tags.push('Estate / Trust');
+  if(/\bprice reduced\b|\breduced price\b|\bmotivated seller\b/.test(rmk))tags.push('Price reduced');
+  if(/\bfully remodeled\b|\bcompletely remodeled\b|\btotally remodeled\b|\bnewly remodeled\b|\bfully renovated\b|\bcompletely renovated\b|\bnewly renovated\b/.test(rmk))tags.push('Already flipped');}
+  return{address:r.address||'',city:r.city||'',zip:r.zip||'',price:r.list_price||0,sqft:r.sqft||0,ppsf:r.ppsf||0,beds:r.beds||0,baths:parseFloat(r.baths)||0,lot:r.lot_size||'',built:r.year_built||'',mls:r.mls||'',mlsArea:r.mls_area||'',mlsAreaName:r.mls_area_name||'',listDate:r.list_date||'',pool:r.pool||'',saleType:r.sale_type||'',remarks:r.remarks||'',agentRemarks:r.agent_remarks||'',showingRemarks:r.showing_remarks||'',occupancy:r.occupancy||'',contactName:r.contact_name||'',contactPhone:r.contact_phone||'',occupantType:r.occupant_type||'',lockboxLocation:r.lockbox_location||'',lockboxType:r.lockbox_type||'',gateCode:r.gate_code||'',agent:r.agent_name||'',agentEmail:r.agent_email||'',agentPhone:r.agent_phone||'',agentOfficePhone:r.agent_office_phone||'',broker:r.agent_broker||'',brokerDre:r.broker_dre||'',agentDre:r.agent_dre||'',
+    elem:r.elementary_rating||r.elementary_school?{r:r.elementary_rating||0,n:r.elementary_school||''}:null,
+    mid:(r.middle_rating||r.middle_school)&&(r.middle_school!==r.elementary_school)?{r:r.middle_rating||0,n:r.middle_school||''}:null,
+    high:r.high_rating||r.high_school?{r:r.high_rating||0,n:r.high_school||''}:null,
+    tags,customTags:r.custom_tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null,photoCount:r.photo_count||0,
+    // Brief BK: deal linkage now lives on the deals table (decorated in
+    // decorateListingsWithDeals after loadListings()). Drop the legacy
+    // properties.pipeline_stage column.
+    dealId:null,dealPhase:null};
+}
+
+async function loadListings(status){
+  let query=sb.from('properties').select('*').not('mls','is',null).not('mls','like','OFFMKT-%').neq('change_type','sold').order('imported_at',{ascending:false}).limit(2000);
+  if(status==='unread')query=query.eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
+  else if(status==='archived')query=query.or(`stage.eq.archived,list_price.gt.${MAX_LIST_PRICE}`);
+  else if(status==='off_market_lead')query=query.eq('stage','off_market_lead');
+  else if(status&&status!=='all')query=query.eq('stage',status);
+  else query=query.not('stage','in','("archived","off_market_lead")').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
+  try{
+    let{data,error}=await query;if(error)throw error;
+    // Address-relist filter: if viewing off-market, hide rows whose address has
+    // a newer listing (any non-cancelled/expired/withdrawn status) under a different MLS#.
+    if(status==='off_market_lead'&&data&&data.length){
+      const OFF_LOCK=['cancelled','canceled','expired','withdrawn'];
+      const norm=r=>((r.address||'').replace(/\s+/g,' ').trim().toUpperCase()+'|'+(r.city||'').trim().toUpperCase());
+      const offByAddr=new Map();
+      data.forEach(r=>{const k=norm(r);if(!offByAddr.has(k)||new Date(r.change_date||0)>new Date(offByAddr.get(k).change_date||0))offByAddr.set(k,r);});
+      const addrs=[...new Set(data.map(r=>r.address).filter(Boolean))];
+      const relisted=new Set();
+      // Chunk address lookups to avoid huge IN clauses
+      for(let i=0;i<addrs.length;i+=100){
+        const chunk=addrs.slice(i,i+100);
+        const{data:other}=await sb.from('properties').select('mls,address,city,change_date,change_type').in('address',chunk);
+        (other||[]).forEach(o=>{
+          const k=norm(o);
+          const offRow=offByAddr.get(k);
+          if(!offRow||o.mls===offRow.mls)return;
+          const oct=(o.change_type||'').toLowerCase().trim();
+          if(OFF_LOCK.indexOf(oct)>=0)return; // another off-market row doesn't count as a relist
+          if(new Date(o.change_date||0)>new Date(offRow.change_date||0))relisted.add(k);
+        });
+      }
+      if(relisted.size)data=data.filter(r=>!relisted.has(norm(r)));
+    }
+    listings=(data||[]).map(mapRowToListing);
+    active=null;render();
+    const toTitle=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+    const cities=[...new Set(listings.map(l=>toTitle((l.city||'').trim())).filter(Boolean))].sort();
+    const cfList=document.getElementById('cf-list');
+    // Only rebuild the city checkbox list when the city set actually changes —
+    // otherwise we lose scroll position on every loadListings() call.
+    const newCitiesKey=cities.join('|');
+    if(newCitiesKey!==window._cfListCities){
+      window._cfListCities=newCitiesKey;
+      cfList.innerHTML=cities.map(c=>`<label><input type="checkbox" value="${c}" ${cityFilters.has(c)?'checked':''} onchange="toggleCityFilter('${c.replace(/'/g,"\\'")}')">${c}</label>`).join('');
+    }
+    updateCityBtn();
+    // Bulk-load deal scores once per listings load. Cache-checked, so safe
+    // to call alongside the per-MLS path in ensureDealScore (e.g. detail view).
+    bulkLoadDealScores(listings.map(l=>l.mls));
+    // Brief BK: decorate each listing with its deal id+phase (if any). One
+    // batch query against deals; updates the "🏗 In project" pill per row.
+    decorateListingsWithDeals();
+    batchFetchComps();
+    fetchAgentDeCounts();
+  }catch(e){console.error('Failed to load:',e);}}
+
+// Fetch seller-side DE counts for the current listings pool. Email-primary,
+// name-fallback over DISJOINT listing populations: listings with a non-empty
+// agentEmail contribute to the email-keyed query; listings without an email
+// fall back to the name-keyed query. No row can be counted twice because
+// each listing's lookup only reads one of the two maps.
+async function fetchAgentDeCounts(){
+  const emailSet=new Set(),nameSet=new Set();
+  for(const l of listings){
+    const em=(l.agentEmail||'').trim().toLowerCase();
+    const nm=(l.agent||'').trim().toLowerCase();
+    if(em)emailSet.add(em);
+    else if(nm)nameSet.add(nm);
+  }
+  const emails=[...emailSet],names=[...nameSet];
+  try{
+    const[er,nr]=await Promise.all([
+      emails.length
+        ?sb.from('properties').select('agent_email').eq('double_ended',true).gte('sold_date','2023-01-01').in('agent_email',emails)
+        :Promise.resolve({data:[]}),
+      names.length
+        ?sb.from('properties').select('agent_name').eq('double_ended',true).gte('sold_date','2023-01-01').in('agent_name',names)
+        :Promise.resolve({data:[]}),
+    ]);
+    if(er.error)console.error('[fetchAgentDeCounts email]',er.error);
+    if(nr.error)console.error('[fetchAgentDeCounts name]',nr.error);
+    for(const row of(er.data||[])){
+      const k=(row.agent_email||'').trim().toLowerCase();
+      if(k)deCountByEmail.set(k,(deCountByEmail.get(k)||0)+1);
+    }
+    for(const row of(nr.data||[])){
+      const k=(row.agent_name||'').trim().toLowerCase();
+      if(k)deCountByName.set(k,(deCountByName.get(k)||0)+1);
+    }
+    deCacheReady=true;
+    console.log(`[fetchAgentDeCounts] ${deCountByEmail.size} email-keyed agents, ${deCountByName.size} name-keyed agents flagged as DE since 2023-01-01`);
+    // Re-render DE pills in place (no full render() — avoids load-flash).
+    listings.forEach(l=>refreshRowDePill(l.mls));
+    if(active){const l=listings.find(x=>x.mls===active);if(l)renderDetailPage(l);}
+  }catch(e){console.error('[fetchAgentDeCounts]',e);}
+}
+function agentDeCountFor(l){
+  if(!deCacheReady)return 0;
+  const em=(l.agentEmail||'').trim().toLowerCase();
+  if(em)return deCountByEmail.get(em)||0;
+  const nm=(l.agent||'').trim().toLowerCase();
+  if(nm)return deCountByName.get(nm)||0;
+  return 0;
+}
+function renderAgentDeBadge(l){
+  const n=agentDeCountFor(l);
+  if(!n)return '';
+  const noun=n===1?'past deal':'past deals';
+  return `<span style="background:var(--amber-bg);color:var(--amber);font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:8px;letter-spacing:.3px" title="Listing agent has ${n} double-end ${n===1?'deal':'deals'} since 2023">🔁 double-end agent — ${n} ${noun}</span>`;
+}
+// Brief AD: compact list-card variant. Emoji-only payload; count lives in the tooltip.
+// Reuses the same deCountByEmail / deCountByName caches populated by fetchAgentDeCounts().
+function renderAgentDeCardPill(l){
+  const n=agentDeCountFor(l);
+  if(!n)return '';
+  return `<span style="background:var(--amber-bg);color:var(--amber);font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;letter-spacing:.3px;vertical-align:middle" title="Listing agent has ${n} double-end deal${n===1?'':'s'} since 2023">🔁</span>`;
+}
+async function batchFetchComps(){
+  const BATCH=10;
+  let todo=listings.filter(l=>!compCache[l.mls]&&l.sqft>0);
+  if(!todo.length)return;
+  while(todo.length>0){
+    const batch=todo.slice(0,BATCH);
+    await Promise.all(batch.map(async l=>{try{compCache[l.mls]=await findComps({mls:l.mls,sqft:l.sqft,address:l.address,city:l.city,zip:l.zip,high:l.high,elem:l.elem,mid:l.mid,latitude:l.latitude,longitude:l.longitude});}catch(e){console.error('[batchFetchComps] findComps failed for',l.mls,e);compCache[l.mls]={comps:[],hp:0,error:true};}}));
+    batch.forEach(l=>refreshRowComps(l.mls));
+    console.log(`[Comps] Batch loaded for ${batch.length} listings (${todo.length-batch.length} remaining)`);
+    todo=listings.filter(l=>!compCache[l.mls]&&l.sqft>0);
+  }
+}
+
+// ========== INIT ==========
+// Brief BP: ?mls=<X> deep-link support. After loadListings() resolves the
+// unread pool, if the URL carries ?mls=<X> we open that listing's detail
+// pane — even if BO's deal-phase filter has hidden it from the visible
+// list (in which case we fetch the row separately and add it to `listings`,
+// mirroring the slow path in onAddrSearchPick).
+async function handleDeepLink(){
+  const params=new URLSearchParams(window.location.search);
+  const targetMls=params.get('mls');
+  if(!targetMls)return;
+  let target=listings.find(l=>l.mls===targetMls);
+  if(!target){
+    // BO filter hid it (e.g. listing tied to in_escrow / under_construction
+    // / listed deal, or off-market OFFMKT-... row). Fetch and hydrate so
+    // opn() has the full listing shape to render against.
+    const{data,error}=await sb.from('properties').select('*').eq('mls',targetMls).single();
+    if(error||!data){
+      console.warn('[deep-link] could not load listing',targetMls,error);
+      return;
+    }
+    target=mapRowToListing(data);
+    listings.push(target);
+  }
+  if(target)opn(targetMls,target);
+}
+
+(async()=>{
+  await window.authGate();
+  if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
+  window.renderSidebar('deals');
+  try{const{error}=await sb.from('properties').select('id').limit(1);document.getElementById('db-status').innerHTML=error?'<span style="color:var(--red)">●</span>':'<span style="color:var(--green)">●</span>';}
+  catch(e){document.getElementById('db-status').innerHTML='<span style="color:var(--red)">●</span>';}
+  await loadRehabConfig();
+  await loadListings('unread');
+  render();
+  // Deep-link runs once, after the initial listings + render are in place.
+  handleDeepLink();
+})();
+</script>
+</div><!-- /main-content -->
+</div><!-- /app-shell -->
+</body>
+</html>
