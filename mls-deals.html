@@ -646,7 +646,7 @@ function compsPanel(l){
 // Cities that have BOTH a per-city regression and smart comps — v7.4.1 is
 // suppressed for these (and the deal-analyzer ARV prefills from smart
 // comps → per-city regression → comps avg via preferredArvFor()).
-const HAS_PER_CITY_REGRESSION=new Set(['CERRITOS','LA PALMA','CYPRESS','DIAMOND BAR','LONG BEACH','ANAHEIM','ANAHEIM HILLS','FULLERTON','TEMPLE CITY','SAN GABRIEL','ORANGE','YORBA LINDA','MONTEREY PARK']);
+const HAS_PER_CITY_REGRESSION=new Set(['CERRITOS','LA PALMA','CYPRESS','DIAMOND BAR','LONG BEACH','ANAHEIM','ANAHEIM HILLS','FULLERTON','TEMPLE CITY','SAN GABRIEL','ORANGE','YORBA LINDA','MONTEREY PARK','ARCADIA']);
 
 // ========== ARV ESTIMATOR (v7.4.1) — Layer 2+3+4 nightly batch ==========
 // Reads the latest row from `arv_estimates` (written by
@@ -928,6 +928,12 @@ function renderSmartCompsDetail(l,av){
   const flagsHtml=flags.length?`<div style="font-size:10px;color:var(--text-4);margin-top:2px">flags: ${flags.map(f=>escapeHtml(String(f))).join(', ')}</div>`:'';
   const comps=Array.isArray(data.comps)?data.comps:[];
   const hasHsAdj=comps.some(co=>co.comp_hs_adjustment_pct!=null&&Math.abs(co.comp_hs_adjustment_pct)>0.01);
+  // Arcadia smart-comps emits per-comp comp_elem_adjustment_pct — the HS-adj
+  // analog at the ELEMENTARY grain (the first city to normalize at elementary,
+  // arcadia_smart_comps). Spans ~±4% core↔core up to ~±26-36% across the
+  // out-of-district pocket (Longden/Plymouth/Rio Hondo). Column auto-hides for
+  // cities that pass no elementary adjustment.
+  const hasElemAdj=comps.some(co=>co.comp_elem_adjustment_pct!=null&&Math.abs(co.comp_elem_adjustment_pct)>0.01);
   // Fullerton smart-comps emits per-comp pool_adjustment_pct (the HS-adj
   // analog, swapped HS→pool). Column auto-hides for cities that pass no
   // pool adjustment (Cerritos/Cypress/Diamond Bar/etc).
@@ -951,6 +957,7 @@ function renderSmartCompsDetail(l,av){
       <th style="text-align:right;padding:3px 4px">$/sf today</th>
       <th style="text-align:right;padding:3px 4px">$/sf T6</th>
       ${hasHsAdj?`<th style="text-align:right;padding:3px 4px">HS adj</th>`:''}
+      ${hasElemAdj?`<th style="text-align:right;padding:3px 4px">Elem adj</th>`:''}
       ${hasPoolAdj?`<th style="text-align:right;padding:3px 4px">Pool adj</th>`:''}
       ${hasTotalAdj?`<th style="text-align:right;padding:3px 4px">Total adj</th>`:''}
       <th style="text-align:right;padding:3px 4px">w</th></tr></thead>`;
@@ -962,6 +969,10 @@ function renderSmartCompsDetail(l,av){
       const hsStr=(hsPct==null||Math.abs(hsPct)<0.01)?'—':(hsPct>0?'+':'')+hsPct.toFixed(2)+'%';
       const hsCol=(hsPct==null||Math.abs(hsPct)<0.01)?'var(--text-4)':(hsPct>0?'var(--green)':'var(--red)');
       const hsCell=hasHsAdj?`<td style="padding:3px 4px;text-align:right;color:${hsCol}">${hsStr}</td>`:'';
+      const elemPct=co.comp_elem_adjustment_pct;
+      const elemStr=(elemPct==null||Math.abs(elemPct)<0.01)?'—':(elemPct>0?'+':'')+elemPct.toFixed(2)+'%';
+      const elemCol=(elemPct==null||Math.abs(elemPct)<0.01)?'var(--text-4)':(elemPct>0?'var(--green)':'var(--red)');
+      const elemCell=hasElemAdj?`<td style="padding:3px 4px;text-align:right;color:${elemCol}">${elemStr}</td>`:'';
       const poolPct=co.pool_adjustment_pct;
       const poolStr=(poolPct==null||Math.abs(poolPct)<0.01)?'—':(poolPct>0?'+':'')+poolPct.toFixed(2)+'%';
       const poolCol=(poolPct==null||Math.abs(poolPct)<0.01)?'var(--text-4)':(poolPct>0?'var(--green)':'var(--red)');
@@ -980,6 +991,7 @@ function renderSmartCompsDetail(l,av){
         <td style="padding:3px 4px;text-align:right">$${Math.round(co.ppsf_today||0)}</td>
         <td style="padding:3px 4px;text-align:right;font-weight:600">$${Math.round(co.ppsf_t6_today||0)}</td>
         ${hsCell}
+        ${elemCell}
         ${poolCell}
         ${totalCell}
         <td style="padding:3px 4px;text-align:right;color:var(--text-4)">${((co.weight||0)*100).toFixed(0)}%</td></tr>`;
