@@ -254,7 +254,6 @@ body{overflow:hidden;height:100vh}
         <label><input type="checkbox" value="ungraded" onchange="toggleGradeFilter(this.value)">Ungraded <span id="gcnt-ungraded"></span></label>
       </div>
     </div>
-    <span id="db-status" style="font-size:10px;color:var(--text-4)"></span>
   </div>
 </div>
 
@@ -2637,8 +2636,6 @@ async function handleDeepLink(){
   await window.authGate();
   if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
   window.renderSidebar('deals');
-  try{const{error}=await sb.from('properties').select('id').limit(1);document.getElementById('db-status').innerHTML=error?'<span style="color:var(--red)">●</span>':'<span style="color:var(--green)">●</span>';}
-  catch(e){document.getElementById('db-status').innerHTML='<span style="color:var(--red)">●</span>';}
   await loadRehabConfig();
   await loadListings('unread');
   render();
