@@ -42,6 +42,8 @@ body{overflow:hidden;height:100vh}
 #gf-drop{display:none}
 #gf-drop.open{display:block}
 #gf-drop button:hover{background:var(--bg-alt)}
+#gf-drop label{display:flex;align-items:center;gap:8px;padding:5px 12px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer}
+#gf-drop label:hover{background:var(--bg-alt)}
 #more-filters-drop{display:none}
 #more-filters-drop.open{display:block}
 
@@ -242,13 +244,15 @@ body{overflow:hidden;height:100vh}
     </div>
     <div style="position:relative;display:inline-block;margin-left:6px" id="gf-wrap">
       <button class="btn" id="gf-btn" onclick="document.getElementById('gf-drop').classList.toggle('open')" style="padding:4px 10px;min-width:110px;text-align:left">All Grades ▾</button>
-      <div id="gf-drop" style="position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:150px;padding:4px 0">
-        <button class="btn btn-on" id="gf-all" onclick="setGradeFilter(null)" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">All <span id="gcnt-all"></span></button>
-        <button class="btn" id="gf-A" onclick="setGradeFilter('A')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">A <span id="gcnt-A"></span></button>
-        <button class="btn" id="gf-B" onclick="setGradeFilter('B')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">B <span id="gcnt-B"></span></button>
-        <button class="btn" id="gf-C" onclick="setGradeFilter('C')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">C <span id="gcnt-C"></span></button>
-        <button class="btn" id="gf-D" onclick="setGradeFilter('D')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">D <span id="gcnt-D"></span></button>
-        <button class="btn" id="gf-ungraded" onclick="setGradeFilter('ungraded')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">Ungraded <span id="gcnt-ungraded"></span></button>
+      <div id="gf-drop" style="position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:160px;padding:4px 0">
+        <div style="padding:4px 10px;border-bottom:1px solid var(--border)">
+          <button onclick="gfClear()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">Clear</button>
+        </div>
+        <label><input type="checkbox" value="A" onchange="toggleGradeFilter(this.value)">A <span id="gcnt-A"></span></label>
+        <label><input type="checkbox" value="B" onchange="toggleGradeFilter(this.value)">B <span id="gcnt-B"></span></label>
+        <label><input type="checkbox" value="C" onchange="toggleGradeFilter(this.value)">C <span id="gcnt-C"></span></label>
+        <label><input type="checkbox" value="D" onchange="toggleGradeFilter(this.value)">D <span id="gcnt-D"></span></label>
+        <label><input type="checkbox" value="ungraded" onchange="toggleGradeFilter(this.value)">Ungraded <span id="gcnt-ungraded"></span></label>
       </div>
     </div>
     <span id="db-status" style="font-size:10px;color:var(--text-4)"></span>
@@ -505,10 +509,11 @@ async function findComps(listing){
 const MAX_LIST_PRICE=2500000;
 let listings=[],sort_='priority',active=null,compCache={};
 let currentFilter='unread',cityFilters=new Set(),tagFilters=new Set();
-// Client-side deal-grade filter (the "bucket"). null = all; otherwise one of
-// 'A'|'B'|'C'|'D'|'ungraded'. Mirrors cityFilters/tagFilters; applied in
-// getSorted() against the dealScoreCache.
-let gradeFilter=null;
+// Client-side deal-grade filter (the "bucket"). Multi-select: empty = all;
+// otherwise any of 'A'|'B'|'C'|'D'|'ungraded' (a row matches if its grade is
+// in the set). Mirrors cityFilters/tagFilters; applied in getSorted()
+// against the dealScoreCache.
+const gradeFilters=new Set();
 // Brief AJ: bulk-archive selection set. In-memory only; cleared on bulk-archive
 // completion or Cancel. List-card render preserves checked state via
 // selectedMls.has(l.mls).
@@ -1157,36 +1162,34 @@ function dealGradeOf(mls){
   if(c.state==='error'||c.state==='missing')return 'ungraded';
   return null;
 }
-function setGradeFilter(g){
-  gradeFilter=g;
-  // Toggle btn-on on the selected row (All = the null one), btn on the rest.
-  const ids={'null':'gf-all',A:'gf-A',B:'gf-B',C:'gf-C',D:'gf-D',ungraded:'gf-ungraded'};
-  Object.keys(ids).forEach(k=>{
-    const el=document.getElementById(ids[k]);
-    if(!el)return;
-    const sel=(k==='null'?g===null:k===g);
-    el.className='btn'+(sel?' btn-on':'');
-  });
+function toggleGradeFilter(g){
+  if(gradeFilters.has(g))gradeFilters.delete(g);else gradeFilters.add(g);
   updateGradeBtn();
-  const drop=document.getElementById('gf-drop');if(drop)drop.classList.remove('open');
   render();
 }
-// Sync the grade dropdown button label with the active filter.
+function gfClear(){
+  gradeFilters.clear();
+  document.querySelectorAll('#gf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);
+  updateGradeBtn();
+  render();
+}
+// Sync the grade dropdown button label with the active selection. One grade →
+// its name; multiple → "N Grades"; none → "All Grades".
 function updateGradeBtn(){
   const btn=document.getElementById('gf-btn');if(!btn)return;
-  btn.textContent=(gradeFilter==null?'All Grades':gradeFilter==='ungraded'?'Ungraded':'Grade '+gradeFilter)+' ▾';
+  const lbl=g=>g==='ungraded'?'Ungraded':'Grade '+g;
+  if(!gradeFilters.size)btn.textContent='All Grades ▾';
+  else if(gradeFilters.size===1)btn.textContent=lbl([...gradeFilters][0])+' ▾';
+  else btn.textContent=gradeFilters.size+' Grades ▾';
 }
 function updateGradeCounts(){
   const counts={A:0,B:0,C:0,D:0,ungraded:0};
-  let total=0;
   (listings||[]).forEach(l=>{
     const g=dealGradeOf(l.mls);
     if(g==null)return; // pending/unknown — don't count
     if(counts[g]!=null)counts[g]++;
-    total++;
   });
   const set=(id,n)=>{const el=document.getElementById(id);if(el)el.textContent=n?'('+n+')':'';};
-  set('gcnt-all',total);
   set('gcnt-A',counts.A);set('gcnt-B',counts.B);set('gcnt-C',counts.C);set('gcnt-D',counts.D);
   set('gcnt-ungraded',counts.ungraded);
 }
@@ -1248,7 +1251,7 @@ async function bulkLoadDealScores(mlses){
   // Scores just finished loading: repopulate the bucket counts and, if a
   // grade filter is active, re-apply it now that the cache is complete.
   updateGradeCounts();
-  if(gradeFilter)render();
+  if(gradeFilters.size)render();
 }
 // ========== END DEAL SCORER ==========
 
@@ -1695,7 +1698,7 @@ function getSorted(){
   let d=[...listings];
   if(cityFilters.size)d=d.filter(l=>cityFilters.has(l.city.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())));
   if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));
-  if(gradeFilter)d=d.filter(l=>dealGradeOf(l.mls)===gradeFilter);
+  if(gradeFilters.size)d=d.filter(l=>gradeFilters.has(dealGradeOf(l.mls)));
   if(sort_==='priority'){d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));return d;}
   const idx=sort_.lastIndexOf('-');
   if(idx<0)return d;
@@ -1828,7 +1831,7 @@ function opn(m,prefetched){
   }
 }
 function cls(){if(openCompPoll){clearInterval(openCompPoll);openCompPoll=null;}active=null;document.querySelector('.main').classList.remove('detail-view');render();}
-function setFilter(f){if(active){active=null;document.querySelector('.main').classList.remove('detail-view');}currentFilter=f;cityFilters.clear();tagFilters.clear();gradeFilter=null;['gf-all','gf-A','gf-B','gf-C','gf-D','gf-ungraded'].forEach(id=>{const b=document.getElementById(id);if(b)b.className='btn'+(id==='gf-all'?' btn-on':'');});updateGradeBtn();updateCityBtn();updateTagBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
+function setFilter(f){if(active){active=null;document.querySelector('.main').classList.remove('detail-view');}currentFilter=f;cityFilters.clear();tagFilters.clear();gradeFilters.clear();document.querySelectorAll('#gf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);updateGradeBtn();updateCityBtn();updateTagBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
 function toggleCityFilter(city){if(cityFilters.has(city))cityFilters.delete(city);else cityFilters.add(city);updateCityBtn();render();}
 function cfSelectAll(){const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;cityFilters.add(cb.value);});updateCityBtn();render();}
 function cfSelectNone(){cityFilters.clear();const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateCityBtn();render();}
