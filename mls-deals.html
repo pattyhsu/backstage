@@ -1310,6 +1310,57 @@ function condTierBadge(l){
   const title=isDotty?'Condition tier — DOTTY (our property)':`Condition tier ${tier} — ${TIER_LABELS[tier]||''}`;
   return`<span class="tag" style="background:${bg};color:${col};border:none" title="${title}">${lbl}</span>`;
 }
+// Editable condition-tier control for the subject listing on the detail page.
+// The subject is itself a `properties` row, so this reuses the comp retag
+// chip/dropdown (T1-T6 gradient + DOTTY) and writes the same columns via
+// updateSubjectTier. Shows "?" when no tier is set yet.
+function subjectTierEditor(l){
+  const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
+  const isDotty=l.isDotty===true,tier=l.conditionTier;
+  const currentKey=isDotty?'dotty':(tier||null);
+  const{bg,col}=_tierColors(tier,isDotty);
+  const chip=isDotty?'DOTTY':(tier?'T'+tier:'?');
+  const dropId=`subj-retag-${id}`;
+  const opts=TIER_OPTS.map(([v,_chip,full])=>{
+    const oc=_tierColors(v==='dotty'?null:v,v==='dotty');
+    const isCur=v===currentKey;
+    return`<button onclick="event.stopPropagation();setSubjectTier('${l.mls}','${v}')" style="background:${oc.bg};color:${oc.col};${isCur?'font-weight:800;':''}padding:5px 10px;font-size:10px;text-transform:none;letter-spacing:0">${full}${isCur?' ✓':''}</button>`;
+  }).join('');
+  return`<span id="subj-tier-${id}" style="display:inline-flex;align-items:center;gap:4px"><span>Condition:</span><span class="retag-wrap" style="margin-right:0"><button title="Set condition tier" class="retag-btn" data-value="${currentKey||''}" style="background:${bg};color:${col};font-size:10px;padding:2px 16px 2px 6px" onclick="event.stopPropagation();toggleCompDrop('${dropId}')">${chip}</button><div id="${dropId}" class="retag-drop" style="min-width:230px">${opts}</div></span></span>`;
+}
+// Close any open popup, then persist the picked tier for the subject listing.
+function setSubjectTier(mls,newKey){
+  document.querySelectorAll('.retag-drop.open,.cmp-drop.open').forEach(d=>d.classList.remove('open'));
+  updateSubjectTier(mls,newKey);
+}
+// Mirror updateCompTier's payload (condition_tier + is_dotty +
+// condition_overridden + legacy comp_type) for the subject row, then refresh
+// the inline editor + the list-row chip in place.
+async function updateSubjectTier(mls,newKey){
+  const isDotty=newKey==='dotty';
+  const tier=isDotty?6:Number(newKey);
+  let compType;
+  if(isDotty)compType='dotty';
+  else if(tier===6)compType='flips';
+  else if(tier===5||tier===4)compType='halfflips';
+  else compType='general';  // tiers 1-3
+  const payload={
+    condition_tier:tier,
+    is_dotty:isDotty,
+    condition_overridden:true,
+    comp_type:compType,
+    updated_at:new Date().toISOString(),
+  };
+  const{error}=await sb.from('properties').update(payload).eq('mls',mls);
+  if(error){console.error('set subject tier failed',error);alert('Set tier failed: '+error.message);return;}
+  const l=listings.find(x=>x.mls===mls);
+  if(!l)return;
+  l.conditionTier=tier;l.isDotty=isDotty;
+  const id=mls.replace(/[^a-zA-Z0-9]/g,'');
+  const el=document.getElementById('subj-tier-'+id);
+  if(el)el.outerHTML=subjectTierEditor(l);  // refresh chip + checkmarks
+  render();                                  // repaint the list-row tier chip
+}
 function compTypeSelectHtml(c,subjectMid){
   if(!c.mls||c.type==='unsold_flip'){
     const lbl=c.type==='unsold_flip'?'ASKING':'SOLD';
@@ -1774,7 +1825,7 @@ function renderDetailPage(l){
       <a href="${redfin}" target="_blank"><img src="https://www.redfin.com/favicon.ico" style="width:14px;height:14px;opacity:0.7" onerror="this.style.display='none'"></a>
       <a href="${zillow}" target="_blank"><img src="https://www.zillow.com/favicon.ico" style="width:14px;height:14px;opacity:0.7" onerror="this.style.display='none'"></a></div>
     <div style="font-size:11px;color:var(--text-3);margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      <span>${l.beds}bd/${l.baths}ba</span><span>·</span><span>${l.sqft.toLocaleString()} sf</span><span>·</span><span><b>$${Math.round(l.ppsf)}</b>/sf</span><span>·</span><span>Lot ${l.lot||'—'}</span><span>·</span><span>Built ${l.built||'—'}</span><span>·</span><span>Pool: ${l.pool||'No'}</span><span>·</span><span>DOM: ${d}</span>${l.mlsAreaName||l.mlsArea?`<span>·</span><span>MLS Area: ${l.mlsAreaName||l.mlsArea}</span>`:''}</div>
+      <span>${l.beds}bd/${l.baths}ba</span><span>·</span><span>${l.sqft.toLocaleString()} sf</span><span>·</span><span><b>$${Math.round(l.ppsf)}</b>/sf</span><span>·</span><span>Lot ${l.lot||'—'}</span><span>·</span><span>Built ${l.built||'—'}</span><span>·</span><span>Pool: ${l.pool||'No'}</span><span>·</span><span>DOM: ${d}</span>${l.mlsAreaName||l.mlsArea?`<span>·</span><span>MLS Area: ${l.mlsAreaName||l.mlsArea}</span>`:''}<span>·</span>${subjectTierEditor(l)}</div>
     <div style="margin-top:3px;display:flex;gap:3px;align-items:center;flex-wrap:wrap">
       ${l.elem?`<span class="sp ${l.elem.r>=7?'sh':l.elem.r>=5?'sm':'sl'}"><span class="lv">E</span>${l.elem.r}</span><span style="font-size:10px;color:var(--text-3);margin-right:4px">${shortName(l.elem.n)}</span>`:''}
       ${l.mid?`<span class="sp ${l.mid.r>=7?'sh':l.mid.r>=5?'sm':'sl'}"><span class="lv">M</span>${l.mid.r}</span><span style="font-size:10px;color:var(--text-3);margin-right:4px">${shortName(l.mid.n)}</span>`:''}
