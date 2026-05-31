@@ -543,12 +543,28 @@ async function toggleCustomTag(mls,tag){const l=listings.find(x=>x.mls===mls);if
 async function saveCustomTags(mls,newTags){const l=listings.find(x=>x.mls===mls);if(!l)return;l.tags=newTags;l.customTags=newTags;const{error}=await sb.from('properties').update({custom_tags:newTags,updated_at:new Date().toISOString()}).eq('mls',mls);if(error)console.error('saveCustomTags error',error);const mid=mls.replace(/[^a-zA-Z0-9]/g,'');renderTagToggles(mls,mid);render();}
 function renderTagToggles(mls,mid){const l=listings.find(x=>x.mls===mls);if(!l)return;const el=document.getElementById('tag-toggles-'+mid);if(!el)return;el.innerHTML=ALL_TAGS.map(t=>{const active=l.tags.includes(t);const c=TAG_COLORS[t]||['var(--bg-alt)','var(--text-3)'];const style=active?`background:${c[0]};color:${c[1]};border:none;cursor:pointer`:`background:var(--bg);color:var(--text-4);border:1px solid var(--border);cursor:pointer;opacity:0.5`;return`<span class="tag" style="${style}" onclick="event.stopPropagation();toggleCustomTag('${mls.replace(/'/g,"\'")}','${t.replace(/'/g,"\'")}')">${active?'★':'☆'} ${t}</span>`;}).join('');}
 
+// ARV source resolution shared by the ARV column (getArvLabel) and the
+// GAP column (getArvVal) so they never disagree. Priority:
+//   locked -> Comp ARV (smart_comps_arv) -> Baseline ARV (per_city_arv).
+// Listings with neither resolve to 0 and render as "-" (no comp fallback).
+// smart-comps / per-city ARVs come from arvEstimateCache, batch-prefetched
+// for every listing by loadArvEstimates() at load (not just on row expand),
+// so the list columns can prefer them.
+function arvSourceVal(l){
+  if(l.lockedArv)return{arv:l.lockedArv,src:'locked'};
+  const c=arvEstimateCache[l.mls];
+  const r=(c&&c.state==='ok')?c.row:null;
+  if(r&&r.smart_comps_arv)return{arv:+r.smart_comps_arv,src:'Comp ARV'};
+  if(r&&r.per_city_arv)return{arv:+r.per_city_arv,src:'Baseline ARV'};
+  // No comp-avg fallback: listings with neither Comp ARV nor Baseline ARV
+  // resolve to 0, so the ARV/GAP columns render as "-".
+  return{arv:0,src:''};
+}
 function getArvLabel(l){
-  // If locked ARV exists, show it with lock icon
-  if(l.lockedArv)return`<span title="Locked">🔒 ${FK(l.lockedArv)}</span>`;
-  // Otherwise show live-calculated from comps
-  const cm=compCache[l.mls];if(!cm||!cm.hp)return'<span style="color:var(--text-4)">—</span>';
-  const arv=cm.hp*l.sqft;return FK(arv);
+  const{arv,src}=arvSourceVal(l);
+  if(!arv)return'<span style="color:var(--text-4)">\u2014</span>';
+  if(src==='locked')return`<span title="Locked">\u{1F512} ${FK(arv)}</span>`;
+  return`<span title="${src}">${FK(arv)}</span>`;
 }
 
 function getGapLabel(l){if(!getArvVal(l))return'<span style="color:var(--text-4)">—</span>';const diff=getGapVal(l);if(!diff)return'<span style="color:var(--text-4)">—</span>';const ad=Math.abs(diff);const label=ad>=1e6?'$'+(ad/1e6).toFixed(1)+'M':'$'+Math.ceil(ad/1e3)+'K';return diff>0?`<span style="color:var(--red);font-weight:600">+${label}</span>`:`<span style="color:var(--green);font-weight:600">-${label}</span>`;}
@@ -1032,6 +1048,32 @@ function setArvSource(mls,mid,src){
 }
 window.setArvSource=setArvSource;
 // ========== END ARV/SCORE CARDS ROW ==================================
+// Batch-fetch the latest ARV estimate (smart-comps + per-city) for every
+// loaded listing so the list ARV/GAP columns can prefer Comp ARV ->
+// Baseline ARV over the live comp value. Mirrors ensureArvEstimate's
+// shape (select * ordered by computed_at, status->state); chunks the IN()
+// filter and keeps the newest row per mls. ensureArvEstimate() reuses
+// these cached rows on expand (it skips any non-pending entry), so no
+// refetch. Re-renders when done to repaint the columns.
+async function loadArvEstimates(){
+  const mlsList=listings.map(l=>l.mls).filter(Boolean);
+  if(!mlsList.length)return;
+  const CHUNK=200;
+  try{
+    for(let i=0;i<mlsList.length;i+=CHUNK){
+      const chunk=mlsList.slice(i,i+CHUNK);
+      const{data,error}=await sb.from('arv_estimates').select('*').in('mls',chunk).order('computed_at',{ascending:false});
+      if(error){console.error('loadArvEstimates',error);continue;}
+      (data||[]).forEach(row=>{
+        // Rows arrive newest-first; first occurrence per mls is the latest.
+        // Don't clobber an entry already cached (e.g. from an expand).
+        if(arvEstimateCache[row.mls])return;
+        arvEstimateCache[row.mls]={state:(row.status==='error'?'error':'ok'),row};
+      });
+    }
+  }catch(e){console.error('loadArvEstimates',e);}
+  render();
+}
 async function ensureArvEstimate(mls,mid){
   if(arvEstimateCache[mls]&&arvEstimateCache[mls].state!=='pending')return;
   arvEstimateCache[mls]={state:'pending'};
@@ -1626,7 +1668,7 @@ function calcDeal(id,listPrice,sqft){
 }
 
 // ========== LIST / DETAIL RENDERING ==========
-function getArvVal(l){if(l.lockedArv)return l.lockedArv;const cm=compCache[l.mls];return(cm&&cm.hp)?cm.hp*l.sqft:0;}
+function getArvVal(l){return arvSourceVal(l).arv;}
 function getGapVal(l){const arv=getArvVal(l);if(!arv)return 0;const eConst=l.lockedConstruction||estimateConstruction(l.sqft,l.mls);const target=Math.round((arv*(1-SELL_PCT)-eConst)/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT));return l.price-target;}
 function toggleSort(col){if(sort_===col+'-asc')sort_=col+'-desc';else if(sort_===col+'-desc')sort_='priority';else sort_=col+'-asc';render();}
 // Dispatch table for getSorted(). Each entry returns a (a,b)=>number comparator
@@ -2415,6 +2457,7 @@ async function loadListings(status){
     // Bulk-load deal scores once per listings load. Cache-checked, so safe
     // to call alongside the per-MLS path in ensureDealScore (e.g. detail view).
     bulkLoadDealScores(listings.map(l=>l.mls));
+    loadArvEstimates();
     // Brief BK: decorate each listing with its deal id+phase (if any). One
     // batch query against deals; updates the "🏗 In project" pill per row.
     decorateListingsWithDeals();
