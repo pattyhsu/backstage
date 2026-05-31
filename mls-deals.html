@@ -957,9 +957,9 @@ function renderSmartCompsDetail(l,av){
       <th style="text-align:left;padding:3px 4px">Tier</th>
       <th style="text-align:left;padding:3px 4px">Sold</th>
       <th style="text-align:right;padding:3px 4px">Sale</th>
-      <th style="text-align:right;padding:3px 4px">$/sf</th>
-      <th style="text-align:right;padding:3px 4px">$/sf today</th>
-      <th style="text-align:right;padding:3px 4px">$/sf T6</th>
+      <th style="text-align:right;padding:3px 4px" title="Raw sale price ÷ sqft — unadjusted, the comp's own numbers.">$/sf</th>
+      <th style="text-align:right;padding:3px 4px" title="The comp's $/sf restated as if it had THIS subject's sqft + lot, then drifted to today's market via ZHVI. It's an apples-to-apples-with-the-subject number — NOT a forecast of what the comp itself would resell for. A value below the raw $/sf usually means the comp is bigger / on a bigger lot than the subject, not that the market fell.">$/sf @ subj</th>
+      <th style="text-align:right;padding:3px 4px" title="$/sf @ subj, plus the comp's condition upcast to T6-equivalent. The weighted median of this column is what the ARV is built from.">T6 @ subj</th>
       ${hasHsAdj?`<th style="text-align:right;padding:3px 4px">HS adj</th>`:''}
       ${hasElemAdj?`<th style="text-align:right;padding:3px 4px">Elem adj</th>`:''}
       ${hasPoolAdj?`<th style="text-align:right;padding:3px 4px">Pool adj</th>`:''}
