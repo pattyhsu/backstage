@@ -127,7 +127,7 @@ body{overflow:hidden;height:100vh}
 .det-full{grid-column:1/-1}
 
 /* List header + rows */
-.th-p{display:grid;grid-template-columns:32px 52px minmax(160px,1fr) 85px 100px 220px 70px 110px 100px 70px 70px 70px;min-width:1200px;align-items:center;padding:8px 10px;background:var(--bg-alt);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.4px;gap:4px}
+.th-p{display:grid;grid-template-columns:32px 52px minmax(160px,1fr) 85px 100px 220px 70px 110px 100px 70px 70px;min-width:1130px;align-items:center;padding:8px 10px;background:var(--bg-alt);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.4px;gap:4px}
 #lh{position:sticky;top:0;z-index:20;background:var(--bg-alt)}
 .th-sort{cursor:pointer;user-select:none}
 .th-sort:hover{color:var(--text)}
@@ -135,7 +135,7 @@ body{overflow:hidden;height:100vh}
 .rw:hover{background:var(--bg-alt)}
 .rw.act,.rw.sel{background:var(--accent-dim)}
 .rw.archived{display:none}
-.rm-p{display:grid;grid-template-columns:32px 52px minmax(160px,1fr) 85px 100px 220px 70px 110px 100px 70px 70px 70px;min-width:1200px;align-items:center;padding:8px 10px;font-size:13px;font-weight:500;gap:4px}
+.rm-p{display:grid;grid-template-columns:32px 52px minmax(160px,1fr) 85px 100px 220px 70px 110px 100px 70px 70px;min-width:1130px;align-items:center;padding:8px 10px;font-size:13px;font-weight:500;gap:4px}
 
 /* Address + subtext */
 .at{font-weight:700;color:var(--text);font-size:13px}
@@ -566,8 +566,6 @@ function getArvLabel(l){
   if(src==='locked')return`<span title="Locked">\u{1F512} ${FK(arv)}</span>`;
   return`<span title="${src}">${FK(arv)}</span>`;
 }
-
-function getGapLabel(l){if(!getArvVal(l))return'<span style="color:var(--text-4)">—</span>';const diff=getGapVal(l);if(!diff)return'<span style="color:var(--text-4)">—</span>';const ad=Math.abs(diff);const label=ad>=1e6?'$'+(ad/1e6).toFixed(1)+'M':'$'+Math.ceil(ad/1e3)+'K';return diff>0?`<span style="color:var(--red);font-weight:600">+${label}</span>`:`<span style="color:var(--green);font-weight:600">-${label}</span>`;}
 
 function getComps(l){return compCache[l.mls]||{comps:[],hp:0,loading:true};}
 
@@ -1181,14 +1179,12 @@ function updateGradeCounts(){
   set('gcnt-ungraded',counts.ungraded);
 }
 function refreshRowComps(mls){
-  // Called per-MLS after batchFetchComps loads comps. Updates ARV +
-  // GAP cells in place. No full-row rebuild.
+  // Called per-MLS after batchFetchComps loads comps. Updates the ARV
+  // cell in place. No full-row rebuild.
   const l=listings.find(x=>x.mls===mls);
   if(!l)return;
   const arvEl=document.querySelector(`[data-cell="arv"][data-mls="${CSS.escape(mls)}"]`);
   if(arvEl)arvEl.innerHTML=getArvLabel(l);
-  const gapEl=document.querySelector(`[data-cell="gap"][data-mls="${CSS.escape(mls)}"]`);
-  if(gapEl)gapEl.innerHTML=getGapLabel(l);
 }
 function refreshRowDePill(mls){
   // Called once per row after fetchAgentDeCounts populates the DE
@@ -1669,7 +1665,6 @@ function calcDeal(id,listPrice,sqft){
 
 // ========== LIST / DETAIL RENDERING ==========
 function getArvVal(l){return arvSourceVal(l).arv;}
-function getGapVal(l){const arv=getArvVal(l);if(!arv)return 0;const eConst=l.lockedConstruction||estimateConstruction(l.sqft,l.mls);const target=Math.round((arv*(1-SELL_PCT)-eConst)/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT));return l.price-target;}
 function toggleSort(col){if(sort_===col+'-asc')sort_=col+'-desc';else if(sort_===col+'-desc')sort_='priority';else sort_=col+'-asc';render();}
 // Dispatch table for getSorted(). Each entry returns a (a,b)=>number comparator
 // for ascending order; descending is handled by sign-flip in getSorted(). The
@@ -1680,7 +1675,6 @@ const SORTERS={
   ppsf:    (a,b)=>a.ppsf-b.ppsf,
   dom:     (a,b)=>dom(a.listDate)-dom(b.listDate),
   arv:     (a,b)=>getArvVal(a)-getArvVal(b),
-  gap:     (a,b)=>getGapVal(a)-getGapVal(b),
   address: (a,b)=>_sStr(a.address).localeCompare(_sStr(b.address)),
   city:    (a,b)=>_sStr(a.city).localeCompare(_sStr(b.city)),
   status:  (a,b)=>_sStr(a.changeType).localeCompare(_sStr(b.changeType)),
@@ -1704,7 +1698,7 @@ function getSorted(){
 function render(){
   const data=getSorted();
   const sa=c=>sort_===c+'-asc'?'↑':sort_===c+'-desc'?'↓':'';
-  document.getElementById('lh').innerHTML=`<div class="th-p"><span></span><span></span><span class="th-sort" onclick="toggleSort('address')">ADDRESS ${sa('address')}</span><span class="th-sort" onclick="toggleSort('city')">CITY ${sa('city')}</span><span class="tr th-sort" style="padding-right:14px" onclick="toggleSort('price')">LIST PRICE ${sa('price')}</span><span>NOTES</span><span class="tr th-sort" style="padding-right:10px" onclick="toggleSort('ppsf')">$/SF ${sa('ppsf')}</span><span>SCHOOLS</span><span class="th-sort" onclick="toggleSort('status')">STATUS ${sa('status')}</span><span class="tr th-sort" onclick="toggleSort('dom')">DOM ${sa('dom')}</span><span class="tr th-sort" onclick="toggleSort('arv')">ARV ${sa('arv')}</span><span class="tr th-sort" style="padding-right:10px" onclick="toggleSort('gap')">GAP ${sa('gap')}</span></div>`;
+  document.getElementById('lh').innerHTML=`<div class="th-p"><span></span><span></span><span class="th-sort" onclick="toggleSort('address')">ADDRESS ${sa('address')}</span><span class="th-sort" onclick="toggleSort('city')">CITY ${sa('city')}</span><span class="tr th-sort" style="padding-right:14px" onclick="toggleSort('price')">LIST PRICE ${sa('price')}</span><span>NOTES</span><span class="tr th-sort" style="padding-right:10px" onclick="toggleSort('ppsf')">$/SF ${sa('ppsf')}</span><span>SCHOOLS</span><span class="th-sort" onclick="toggleSort('status')">STATUS ${sa('status')}</span><span class="tr th-sort" onclick="toggleSort('dom')">DOM ${sa('dom')}</span><span class="tr th-sort" style="padding-right:10px" onclick="toggleSort('arv')">ARV ${sa('arv')}</span></div>`;
   let h='';data.forEach(l=>{const d=dom(l.listDate),dc=d<=7?'dn':d>=30?'do':'dm';
     const thumbSrc=getThumbUrl(l.mls);
     const addrFull=l.address+', '+l.city+', CA '+l.zip;
@@ -1719,8 +1713,7 @@ function render(){
       <span style="white-space:nowrap">${l.elem?`<span class="sp ${l.elem.r>=7?'sh':l.elem.r>=5?'sm':'sl'}" data-school="${l.elem.n}"><span class="lv">E</span>${l.elem.r}</span>`:''} ${l.mid?`<span class="sp ${l.mid.r>=7?'sh':l.mid.r>=5?'sm':'sl'}" data-school="${l.mid.n}"><span class="lv">M</span>${l.mid.r}</span>`:''} ${l.high?`<span class="sp ${l.high.r>=7?'sh':l.high.r>=5?'sm':'sl'}" data-school="${l.high.n}"><span class="lv">H</span>${l.high.r}</span>`:''}</span>
       <span style="font-size:10px;font-weight:600;color:${l.changeType==='coming soon'?'var(--purple)':l.changeType==='new'?'var(--green)':'var(--text-4)'}">${(l.changeType||'—').replace(/\b\w/g,c=>c.toUpperCase())}</span>
       <span class="tr ${dc}" style="font-weight:600;font-size:12px">${d}d</span>
-      <span class="tr" data-cell="arv" data-mls="${l.mls}" style="font-weight:600;font-size:12px;color:var(--accent)">${getArvLabel(l)}</span>
-      <span class="tr" data-cell="gap" data-mls="${l.mls}" style="font-weight:600;font-size:12px;padding-right:10px">${getGapLabel(l)}</span>
+      <span class="tr" data-cell="arv" data-mls="${l.mls}" style="font-weight:600;font-size:12px;color:var(--accent);padding-right:10px">${getArvLabel(l)}</span>
     </div></div>`;});
   document.getElementById('lb').innerHTML=h;
   document.getElementById('tc').textContent=data.length;
