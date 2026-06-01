@@ -540,6 +540,12 @@ const selectedMls=new Set();
 // Populated once per page load via fetchAgentDeCounts() after `listings` loads. Email-primary,
 // name-fallback over disjoint listing populations (no double-counting).
 const deCountByEmail=new Map(),deCountByName=new Map();
+// Agents already resolved this session. fetchAgentDeCounts queries only agents
+// NOT in these sets, then records them — so each agent is counted exactly once.
+// Without this, switching tabs/filters re-ran the count query and re-incremented
+// the maps (an agent's DE count inflated 3 -> 6 -> 9 ...), and re-queried agents
+// already known. A session-lifetime cache: DE counts don't change mid-session.
+const deQueriedEmail=new Set(),deQueriedName=new Set();
 let deCacheReady=false;
 const td_=new Date();
 const F=n=>'$'+Math.round(n).toLocaleString();
@@ -2667,10 +2673,16 @@ async function fetchAgentDeCounts(){
   for(const l of listings){
     const em=(l.agentEmail||'').trim().toLowerCase();
     const nm=(l.agent||'').trim().toLowerCase();
-    if(em)emailSet.add(em);
-    else if(nm)nameSet.add(nm);
+    // Only collect agents we haven't already resolved this session.
+    if(em){if(!deQueriedEmail.has(em))emailSet.add(em);}
+    else if(nm){if(!deQueriedName.has(nm))nameSet.add(nm);}
   }
   const emails=[...emailSet],names=[...nameSet];
+  // Nothing new to resolve — just repaint pills from the cached counts.
+  if(!emails.length&&!names.length){
+    if(deCacheReady){listings.forEach(l=>refreshRowDePill(l.mls));if(active){const l=listings.find(x=>x.mls===active);if(l)renderDetailPage(l);}}
+    return;
+  }
   try{
     const[er,nr]=await Promise.all([
       emails.length
@@ -2690,6 +2702,10 @@ async function fetchAgentDeCounts(){
       const k=(row.agent_name||'').trim().toLowerCase();
       if(k)deCountByName.set(k,(deCountByName.get(k)||0)+1);
     }
+    // Record every agent we just queried (including zero-DE agents, whose count
+    // stays absent → agentDeCountFor returns 0) so we never re-query/re-count them.
+    emails.forEach(e=>deQueriedEmail.add(e));
+    names.forEach(n=>deQueriedName.add(n));
     deCacheReady=true;
     console.log(`[fetchAgentDeCounts] ${deCountByEmail.size} email-keyed agents, ${deCountByName.size} name-keyed agents flagged as DE since 2023-01-01`);
     // Re-render DE pills in place (no full render() — avoids load-flash).
