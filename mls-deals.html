@@ -431,6 +431,10 @@ function haversine(lat1,lon1,lat2,lon2){
 }
 
 // ========== COMP MATCHING (ported from Python) ==========
+// Columns findComps actually reads off each comp row — excludes the big text
+// blobs (remarks/agent_remarks/showing_remarks) and agent/contact fields that
+// select('*') would drag in. Cuts per-comp-query IO substantially.
+const COMP_COLS='mls,address,city,zip,sqft,beds,baths,lot_size,year_built,latitude,longitude,sale_price,list_price,sold_date,list_date,change_type,stage,comp_type,condition_tier,is_dotty,double_ended,photo_count,elementary_rating,elementary_school,middle_rating,middle_school,high_rating,high_school';
 async function findComps(listing){
   const sqft=listing.sqft||0;
   if(!sqft)return{comps:[],hp:0,arv:0,listingLat:null,listingLng:null};
@@ -450,11 +454,11 @@ async function findComps(listing){
   }
 
   // Query 1: Sold comps (matches Comp DB query pattern exactly)
-  let q1=sb.from('properties').select('*').eq('change_type','sold').gte('sold_date',cutoffStr).gte('sqft',sqftMin).lte('sqft',sqftMax).order('sold_date',{ascending:false}).limit(500);
+  let q1=sb.from('properties').select(COMP_COLS).eq('change_type','sold').gte('sold_date',cutoffStr).gte('sqft',sqftMin).lte('sqft',sqftMax).order('sold_date',{ascending:false}).limit(500);
   if(boxFilter)q1=q1.gte('latitude',boxFilter.latMin).lte('latitude',boxFilter.latMax).gte('longitude',boxFilter.lngMin).lte('longitude',boxFilter.lngMax);
 
   // Query 2: Unsold flips (separate query, no date filter)
-  let q2=sb.from('properties').select('*').eq('stage','unsold_flip').gte('sqft',sqftMin).lte('sqft',sqftMax).limit(100);
+  let q2=sb.from('properties').select(COMP_COLS).eq('stage','unsold_flip').gte('sqft',sqftMin).lte('sqft',sqftMax).limit(100);
   if(boxFilter)q2=q2.gte('latitude',boxFilter.latMin).lte('latitude',boxFilter.latMax).gte('longitude',boxFilter.lngMin).lte('longitude',boxFilter.lngMax);
 
   const[r1,r2]=await Promise.all([q1,q2]);
@@ -2640,7 +2644,11 @@ async function loadListings(status){
     // Brief BK: decorate each listing with its deal id+phase (if any). One
     // batch query against deals; updates the "🏗 In project" pill per row.
     decorateListingsWithDeals();
-    batchFetchComps();
+    // NOTE: batchFetchComps() intentionally NOT called here. It fired ~2 comp
+    // queries PER listing (~1,600+/load) to warm compCache, but the list view's
+    // ARV column reads arvEstimateCache (loadArvEstimates), not compCache — so
+    // the pre-warm was pure Disk-IO cost. Comps load on demand when a detail
+    // opens (opn() -> loadComps()). This was the dominant IO consumer.
     fetchAgentDeCounts();
   }catch(e){console.error('Failed to load:',e);}}
 
