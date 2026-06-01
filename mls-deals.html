@@ -341,18 +341,6 @@ function getThumbUrl(mls){return `${PHOTO_BASE}/${mls}/${mls}_01.jpg`;}
 // Lightbox state
 let lbMls='';
 
-// Look up photo_count for any MLS — main listings first, then walk
-// compCache so comp-click lightboxes also get an upfront count.
-function findPhotoCount(mls){
-  const l=listings.find(x=>x.mls===mls);
-  if(l)return l.photoCount||0;
-  for(const k in compCache){
-    const found=compCache[k]?.comps?.find(c=>c.mls===mls);
-    if(found)return found.photoCount||0;
-  }
-  return 0;
-}
-
 function openLightbox(mls,addr){
   lbMls=mls;
   const myMls=mls;
@@ -362,12 +350,13 @@ function openLightbox(mls,addr){
   document.getElementById('photoLightbox').classList.add('open');
   document.addEventListener('keydown',lbKeyHandler);
 
-  // Header: set once from photo_count (CSV-derived). No tickup.
-  // Look in `listings` first (main rows), then walk compCache for comp clicks.
-  const count=findPhotoCount(mls);
-  addrEl.textContent=count>0
-    ?`${addr} (${count}${count===1?' photo':' photos'})`
-    :addr;
+  // Header: tick the count up as the grid probe actually finds photos in
+  // R2. photo_count (CSV-derived) is unreliable — it can lag the real R2
+  // contents (e.g. reads "1" when R2 has the full set) — so we count what
+  // loads rather than trusting it.
+  let loaded=0;
+  const setHeader=()=>{addrEl.textContent=loaded>0?`${addr} (${loaded}${loaded===1?' photo':' photos'})`:addr;};
+  setHeader();
 
   // Grid: sequential probe, stop on first 404. Same as the original
   // pre-AM behavior — finds however many photos R2 actually has,
@@ -387,6 +376,8 @@ function openLightbox(mls,addr){
         else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
       };
       grid.appendChild(el);
+      loaded++;
+      setHeader();
       i++;
       loadNext();
     };
