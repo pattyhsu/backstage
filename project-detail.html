@@ -374,6 +374,72 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .loan-edit-pop button { padding:5px 12px; font-size:12px; font-weight:600; border-radius:4px; cursor:pointer; border:1px solid var(--border); background:#fff; color:var(--text-2); font-family:inherit; }
 .loan-edit-pop button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
 .loan-edit-pop button.danger { color:var(--red); border-color:var(--red); }
+
+/* ============================================================
+   DESIGN-SYSTEM REFRESH — Phase A (additive override layer)
+   Restyles existing classes to the unified token system.
+   No markup / no JS changes. Safe to revert by deleting this block.
+   ============================================================ */
+:root{ --blue-line:#CCDDF0; --accent-bg:#F6F1E6; }
+
+/* 1 — Numbers: one typeface with tabular figures (drop the code-mono).
+       Mono stays only for true machine identifiers (e.g. doc extensions). */
+.uw-val, .et-val, .et-aux,
+.cash-cell .val, .cash-cell .sub,
+.lp-input-group input, .lp-input-group select, .lp-input-group .static,
+.lp-out-cell .val, .lp-out-cell .sub,
+.cn-hero-cell .val, .cn-hero-cell .sub, .cn-bar .pct,
+.kv .val, .wn-date, .wn-aux, .sp-tree td:last-child,
+.hist .when, .fin-loan, .prep-area {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: -.01em;
+}
+
+/* 2 — Cards: flatter, roomier, softer corners */
+.sect { border-radius:12px; padding:20px 22px; margin-bottom:12px; }
+.sect-h h2 { letter-spacing:.08em; color:var(--text-3); }
+
+/* 3 — Underwriting bar → light inline summary (not a heavy slab) */
+.uw-bar { background:transparent; border:none; border-bottom:1px solid var(--border);
+  border-radius:0; padding:2px 2px 16px; margin-top:14px; gap:34px; }
+.uw-val { font-size:17px; letter-spacing:-.015em; }
+.uw-val.large { font-size:19px; }
+
+/* 4 — Stat strips: hairline-divided cells, value-forward */
+.cash-grid { gap:1px; background:var(--border); border:1px solid var(--border);
+  border-radius:10px; overflow:hidden; }
+.cash-cell { background:#fff; border:none; border-radius:0; padding:13px 16px;
+  display:flex; flex-direction:column; justify-content:center; }
+.cash-cell .val { font-size:21px; font-weight:600; letter-spacing:-.018em; }
+.cash-cell.accent { background:var(--accent-bg); }
+.lp-output { gap:1px; padding:0; background:var(--border); border:1px solid var(--border);
+  border-radius:10px; overflow:hidden; }
+.lp-out-cell { background:#fff; padding:13px 16px; gap:6px;
+  display:flex; flex-direction:column; justify-content:center; }
+.lp-out-cell .val { font-size:21px; letter-spacing:-.018em; }
+.lp-out-cell.accent { background:var(--accent-bg); }
+
+/* 5 — Escrow timeline cells → divided strip (markup unchanged) */
+.et-grid { gap:1px; background:var(--border); border:1px solid var(--border);
+  border-radius:10px; overflow:hidden; }
+.et-cell { background:#fff; padding:13px 16px; gap:6px; }
+.et-val { font-size:17px; letter-spacing:-.015em; }
+
+/* 6 — Construction: tokenize the hardcoded blues, flatten gradients */
+.cn-hero-cell { background:var(--blue-bg); border-color:var(--blue-line); }
+.cn-hero-cell .lbl { color:var(--blue); }
+.cn-hero-cell .val { color:var(--blue); }
+.cn-hero-cell .sub { color:var(--blue); }
+.cn-bar .track { background:var(--bg-inset); height:8px; border-radius:999px; }
+.cn-bar .fill { background:var(--blue); }
+.cn-bar .fill.over { background:var(--red); }
+.phase-pill-under_construction { background:var(--blue-bg); color:var(--blue); }
+
+/* 7 — Calculator inputs: softer, on-brand focus */
+.lp-input-group input, .lp-input-group select { border-radius:8px; padding:8px 11px; font-weight:600; font-size:13px; }
+.lp-input-group input:focus, .lp-input-group select:focus { box-shadow:0 0 0 3px var(--accent-dim); }
 </style>
 </head>
 <body>
