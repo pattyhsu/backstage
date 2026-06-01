@@ -341,7 +341,7 @@ function getThumbUrl(mls){return `${PHOTO_BASE}/${mls}/${mls}_01.jpg`;}
 // Lightbox state
 let lbMls='';
 
-function openLightbox(mls,addr){
+function openLightbox(mls,addr,photoCount){
   lbMls=mls;
   const myMls=mls;
   const addrEl=document.getElementById('lbAddr');
@@ -350,12 +350,14 @@ function openLightbox(mls,addr){
   document.getElementById('photoLightbox').classList.add('open');
   document.addEventListener('keydown',lbKeyHandler);
 
-  // Header: tick the count up as the grid probe actually finds photos in
-  // R2. photo_count (CSV-derived) is unreliable — it can lag the real R2
-  // contents (e.g. reads "1" when R2 has the full set) — so we count what
-  // loads rather than trusting it.
+  // Header: show the DB photo_count as a fixed total so the count is known
+  // up front (whether to wait for the grid to finish loading), rather than
+  // ticking up as photos probe in. photo_count is now reconciled to R2 in
+  // post_import, so it's trustworthy. Fall back to the live loaded-count
+  // only when photo_count is absent (0/null).
+  const total=parseInt(photoCount,10)||0;
   let loaded=0;
-  const setHeader=()=>{addrEl.textContent=loaded>0?`${addr} (${loaded}${loaded===1?' photo':' photos'})`:addr;};
+  const setHeader=()=>{const n=total>0?total:loaded;addrEl.textContent=n>0?`${addr} (${n}${n===1?' photo':' photos'})`:addr;};
   setHeader();
 
   // Grid: sequential probe, stop on first 404. Same as the original
@@ -1481,7 +1483,7 @@ function compH(c,idx,mls){
       <span style="font-size:10px;font-weight:700;color:var(--accent);min-width:14px">${idx+1}</span>
       ${compTypeSelectHtml(c,mid)}
       ${c.doubleEnded?`<span title="Double-end — listing agent also represented the buyer" style="background:var(--amber-bg);color:var(--amber);font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:4px;letter-spacing:.3px;flex-shrink:0">🔁 DE</span>`:''}
-      ${c.mls?`<span onclick="event.stopPropagation();openLightbox('${c.mls}','${c.addr.replace(/'/g,"\\'")}')" title="View photos" style="color:var(--text-3);font-size:11px;cursor:pointer;text-decoration:underline;text-decoration-color:var(--text-4);text-decoration-style:dotted;text-underline-offset:2px">${c.addr}</span>`:`<span style="color:var(--text-3);font-size:11px">${c.addr}</span>`}
+      ${c.mls?`<span onclick="event.stopPropagation();openLightbox('${c.mls}','${c.addr.replace(/'/g,"\\'")}',${c.photoCount||0})" title="View photos" style="color:var(--text-3);font-size:11px;cursor:pointer;text-decoration:underline;text-decoration-color:var(--text-4);text-decoration-style:dotted;text-underline-offset:2px">${c.addr}</span>`:`<span style="color:var(--text-3);font-size:11px">${c.addr}</span>`}
       <a href="https://www.zillow.com/homes/${encodeURIComponent(c.addr.replace(/\s+/g,' ').trim()+', CA')}_rb/" target="_blank" onclick="event.stopPropagation()" style="flex-shrink:0"><img src="https://www.zillow.com/favicon.ico" style="width:11px;height:11px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div>
     <div class="cri"><span style="color:var(--text-4);font-size:10px">${c.dist!=null?c.dist+'mi':''}</span><span style="color:var(--text-4);font-size:10px">${c.beds}/${c.baths}</span><span style="color:var(--text-4);font-size:10px">${c.sqft}sf</span><span style="color:var(--text-4);font-size:10px">${c.lot?c.lot+' lot':''}</span><span style="font-weight:600;${c.isAsking?'color:var(--blue)':''}">${F(c.price)}${c.isAsking?' <span style="font-size:9px;font-weight:400">(asking)</span>':''}</span><span style="color:var(--text-4);font-size:10px">$${c.psf}/sf</span><span style="color:var(--text-4);font-size:10px">${c.date||'—'}</span></div>
     ${compSchools(c)?'<div style="width:100%;padding:2px 0 0 24px;display:flex;gap:2px;align-items:center">'+compSchools(c)+'</div>':''}</div>`;
@@ -1809,7 +1811,7 @@ function render(){
     h+=`<div class="rw ${active===l.mls?'act':''}" onclick="opn('${l.mls}')"><div class="rm-p">
       <input type="checkbox" class="row-select" data-mls="${l.mls}" ${selectedMls.has(l.mls)?'checked':''} onclick="event.stopPropagation();toggleRowSelect('${l.mls}',this.checked)" style="margin:0;width:18px;height:18px;cursor:pointer;justify-self:center">
       <span style="text-align:center">${condTierBadge(l)}</span>
-      <div style="width:48px;height:36px;flex-shrink:0"><img class="rw-thumb" src="${thumbSrc}" alt="" data-mls="${l.mls}" data-addr="${addrFull.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();openLightbox(this.dataset.mls,this.dataset.addr)" onerror="this.style.display='none'"></div>
+      <div style="width:48px;height:36px;flex-shrink:0"><img class="rw-thumb" src="${thumbSrc}" alt="" data-mls="${l.mls}" data-addr="${addrFull.replace(/"/g,'&quot;')}" data-count="${l.photoCount||0}" onclick="event.stopPropagation();openLightbox(this.dataset.mls,this.dataset.addr,this.dataset.count)" onerror="this.style.display='none'"></div>
       <div><div class="at">${l.address} <a href="https://www.google.com/search?q=redfin+${encodeURIComponent(l.address+' '+l.city+' CA')}&btnI=1" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;vertical-align:middle"><img src="https://www.redfin.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a> <a href="https://www.zillow.com/homes/${encodeURIComponent(l.address+', '+l.city+', CA '+l.zip)}_rb/" target="_blank" onclick="event.stopPropagation()" style="vertical-align:middle"><img src="https://www.zillow.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div><div class="as">${l.beds}bd/${l.baths}ba · ${l.sqft.toLocaleString()} sf</div>${l.tags.map(tg).join('')}</div>
       <span style="color:var(--text-3);font-weight:600;font-size:12px">${(l.city||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}</span>
       <span class="tr" style="font-weight:600;font-size:12px;padding-right:14px">${FK(l.price)}${currentFilter==='archived'&&l.price>MAX_LIST_PRICE&&l.status!=='archived'?' <span class="tag" style="background:var(--bg-alt);color:var(--text-3);border:none;font-size:9px;letter-spacing:.4px" title="Auto-hidden because list_price exceeds the $2.5M cap; not user-archived">OVER CAP</span>':''}${renderDealGradePill(l.mls)}<span data-cell="de-pill" data-mls="${l.mls}">${renderAgentDeCardPill(l)}</span></span>
@@ -1866,7 +1868,7 @@ function renderDetailPage(l){
         <button title="Click again to clear status" onclick="updateListingStatus('${l.mls}','unsold_flip')" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='unsold_flip'?'var(--blue)':'var(--bg)'};color:${l.status==='unsold_flip'?'#fff':'var(--blue)'};cursor:pointer">Unsold Flip</button>
         <button title="Click again to clear status" onclick="updateListingStatus('${l.mls}','archived');cls()" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${(l.status==='archived'||l.price>MAX_LIST_PRICE)?'var(--red)':'var(--bg)'};color:${(l.status==='archived'||l.price>MAX_LIST_PRICE)?'#fff':'var(--red)'};cursor:pointer">Archive</button></div></div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <div data-mls="${l.mls}" data-addr="${detAddrFull}" onclick="openLightbox(this.dataset.mls,this.dataset.addr)" style="width:48px;height:36px;flex-shrink:0;border-radius:4px;overflow:hidden;border:1px solid var(--border);cursor:pointer;background:var(--bg-alt);display:flex;align-items:center;justify-content:center"><img src="${getThumbUrl(l.mls)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none';this.parentElement.innerHTML='<span style=&quot;font-size:8px;color:var(--text-4)&quot;>no photo</span>'"></div>
+      <div data-mls="${l.mls}" data-addr="${detAddrFull}" data-count="${l.photoCount||0}" onclick="openLightbox(this.dataset.mls,this.dataset.addr,this.dataset.count)" style="width:48px;height:36px;flex-shrink:0;border-radius:4px;overflow:hidden;border:1px solid var(--border);cursor:pointer;background:var(--bg-alt);display:flex;align-items:center;justify-content:center"><img src="${getThumbUrl(l.mls)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none';this.parentElement.innerHTML='<span style=&quot;font-size:8px;color:var(--text-4)&quot;>no photo</span>'"></div>
       <span style="font-size:16px;font-weight:800">${l.address}, ${l.city}, CA ${l.zip}</span>
       <span style="font-size:16px;font-weight:800;color:var(--accent)">· ${F(l.price)}</span>
       ${l.changeType?`<span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:10px;background:var(--accent-bg,#fef3c7);color:var(--accent);border:1px solid var(--accent);text-transform:uppercase;letter-spacing:.4px">${escapeHtml(l.changeType)}</span>`:''}
