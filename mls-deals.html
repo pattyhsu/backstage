@@ -1889,8 +1889,7 @@ function renderDetailPage(l){
       <textarea id="notes2-${id}" onblur="updateNotes('${l.mls}')" placeholder="Add notes..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;min-height:50px;resize:vertical;background:var(--bg);color:var(--text);box-sizing:border-box">${l.notes||''}</textarea></div>
     <div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:.5px;margin-bottom:4px">REMARKS</div>
       <div class="rb"><b>Public:</b> ${l.remarks}</div>
-      ${l.showingRemarks?`<div class="rb"><b>Showing:</b> ${l.showingRemarks}</div>`:''}
-      ${l.agentRemarks?`<div class="rb" style="max-height:80px"><b>Agent:</b> ${l.agentRemarks}</div>`:''}</div>
+      <div id="remarks-extra-${id}">${l.showingRemarks?`<div class="rb"><b>Showing:</b> ${l.showingRemarks}</div>`:''}${l.agentRemarks?`<div class="rb" style="max-height:80px"><b>Agent:</b> ${l.agentRemarks}</div>`:''}</div></div>
     <div id="comp-col" style="margin-bottom:14px"></div>
     <div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:.5px;margin-bottom:6px">DEAL ANALYSIS</div>${detHTML(l)}</div>
     <div class="toggle-section" style="margin-bottom:8px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">PROPERTY & SHOWING <span>▸</span></div><div class="toggle-body"><div class="si">
@@ -1902,6 +1901,22 @@ function renderDetailPage(l){
   renderTagToggles(l.mls,id);
 }
 
+// Lazy-load the two big free-text remarks blobs excluded from the list query
+// (see LIST_COLS). Fires once per listing the first time its detail opens, then
+// injects them into the REMARKS block without disturbing the comps panel.
+async function ensureDetailRemarks(l){
+  if(l._remarksLoaded)return;
+  try{
+    const{data}=await sb.from('properties').select('agent_remarks,showing_remarks').eq('mls',l.mls).single();
+    if(data){l.agentRemarks=data.agent_remarks||'';l.showingRemarks=data.showing_remarks||'';}
+    l._remarksLoaded=true;
+    if(active===l.mls){
+      const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
+      const ex=document.getElementById('remarks-extra-'+id);
+      if(ex)ex.innerHTML=`${l.showingRemarks?`<div class="rb"><b>Showing:</b> ${l.showingRemarks}</div>`:''}${l.agentRemarks?`<div class="rb" style="max-height:80px"><b>Agent:</b> ${l.agentRemarks}</div>`:''}`;
+    }
+  }catch(e){console.error('ensureDetailRemarks',e);}
+}
 let openCompPoll=null;
 function opn(m,prefetched){
   // Cancel any in-flight poll from a previous opn() before starting fresh.
@@ -1912,6 +1927,7 @@ function opn(m,prefetched){
   if(l){
     renderDetailPage(l);
     loadComps(l);
+    ensureDetailRemarks(l);
     const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
     let polls=0;
     // Poll every 300ms (max ~6s) until comps land in compCache, then re-render
@@ -1954,16 +1970,20 @@ function updateTagBtn(){const btn=document.getElementById('tf-btn');if(!tagFilte
 function toggleRowSelect(mls,checked){if(checked)selectedMls.add(mls);else selectedMls.delete(mls);renderBulkActionBar();}
 function renderBulkActionBar(){const bar=document.getElementById('bulk-action-bar');if(!bar)return;const n=selectedMls.size;if(n===0){bar.style.display='none';return;}bar.style.display='flex';const c=document.getElementById('bulk-count');if(c)c.textContent=`${n} selected`;}
 function bulkClear(){selectedMls.clear();document.querySelectorAll('.row-select').forEach(cb=>cb.checked=false);renderBulkActionBar();}
-async function bulkArchive(){const n=selectedMls.size;if(n===0)return;if(!confirm(`Archive ${n} listing${n===1?'':'s'}? They'll move to the Archive stage and disappear from this view (use the ⋮ menu → Archive to view + restore).`))return;const mlsList=[...selectedMls];const{error}=await sb.from('properties').update({stage:'archived',archived_at:new Date().toISOString(),updated_at:new Date().toISOString()}).in('mls',mlsList);if(error){alert(`Bulk archive failed: ${error.message}`);return;}selectedMls.clear();
-  // Defensively uncheck visible checkboxes so they don't stay checked during
-  // the 1.2s flash window before loadListings re-renders. Inlined (rather than
-  // calling bulkClear) because bulkClear also calls renderBulkActionBar, which
-  // would hide the bar before the success-flash text below has a chance to show.
+async function bulkArchive(){const n=selectedMls.size;if(n===0)return;if(!confirm(`Archive ${n} listing${n===1?'':'s'}? They'll move to the Archive stage and disappear from this view (use the ⋮ menu → Archive to view + restore).`))return;const mlsList=[...selectedMls];
+  // Optimistic UI: drop the archived rows from the current view immediately and
+  // clear the selection, rather than waiting on a full loadListings() re-fetch
+  // (~6-24s for select=*). Mark each as archived so listingMatchesFilter prunes
+  // it from any view except Archive itself.
+  const archivedSet=new Set(mlsList);
+  listings.forEach(l=>{if(archivedSet.has(l.mls))l.status='archived';});
+  listings=listings.filter(l=>listingMatchesFilter(l,currentFilter));
+  selectedMls.clear();
   document.querySelectorAll('.row-select').forEach(cb=>cb.checked=false);
-  // Brief flash confirming the archive succeeded before the bar hides on reload.
-  const cntEl=document.getElementById('bulk-count');if(cntEl)cntEl.textContent=`Archived ${n} listing${n===1?'':'s'}`;
-  await new Promise(r=>setTimeout(r,1200));
-  renderBulkActionBar();await loadListings(currentFilter);updateStageCounts();}
+  renderBulkActionBar();render();
+  const{error}=await sb.from('properties').update({stage:'archived',archived_at:new Date().toISOString(),updated_at:new Date().toISOString()}).in('mls',mlsList);
+  if(error){alert(`Bulk archive failed: ${error.message}`);await loadListings(currentFilter);return;}
+  updateStageCounts();}
 // Server-side address search across all non-sold listings (regardless of
 // current filter scope). Hits Supabase on every debounced keystroke;
 // 120ms debounce keeps the round-trip count reasonable. Click handler
@@ -2545,11 +2565,21 @@ function mapRowToListing(r){
     // Brief BK: deal linkage now lives on the deals table (decorated in
     // decorateListingsWithDeals after loadListings()). Drop the legacy
     // properties.pipeline_stage column.
-    dealId:null,dealPhase:null};
+    dealId:null,dealPhase:null,
+    // True when this row came from a select('*') fetch (single-row/search path),
+    // so agent_remarks/showing_remarks are present. List-query rows omit those
+    // columns → false → ensureDetailRemarks() lazy-loads them on detail open.
+    _remarksLoaded:(r.agent_remarks!==undefined||r.showing_remarks!==undefined)};
 }
 
+// Explicit column list for the list view — everything mapRowToListing reads
+// EXCEPT the two big free-text blobs (agent_remarks, showing_remarks), which
+// are ~half the payload and only shown in the detail view. They're lazy-loaded
+// on detail open via ensureDetailRemarks(). select('*') here pulled ~3.9MB /
+// 6-24s for ~800 unread rows; this list is ~2MB.
+const LIST_COLS='address,agent_broker,agent_dre,agent_email,agent_name,agent_office_phone,agent_phone,baths,beds,broker_dre,change_date,change_type,city,condition_tier,contact_name,contact_phone,custom_tags,elementary_rating,elementary_school,gate_code,high_rating,high_school,is_dotty,latitude,list_date,list_price,lockbox_location,lockbox_type,locked_arv,locked_construction,longitude,lot_size,middle_rating,middle_school,mls,mls_area,mls_area_name,notes,occupancy,occupant_type,photo_count,pool,ppsf,remarks,sale_type,sqft,stage,year_built,zip,imported_at';
 async function loadListings(status){
-  let query=sb.from('properties').select('*').not('mls','is',null).not('mls','like','OFFMKT-%').neq('change_type','sold').order('imported_at',{ascending:false}).limit(2000);
+  let query=sb.from('properties').select(LIST_COLS).not('mls','is',null).not('mls','like','OFFMKT-%').neq('change_type','sold').order('imported_at',{ascending:false}).limit(2000);
   if(status==='unread')query=query.eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
   else if(status==='archived')query=query.or(`stage.eq.archived,list_price.gt.${MAX_LIST_PRICE}`);
   else if(status==='off_market_lead')query=query.eq('stage','off_market_lead');
