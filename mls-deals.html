@@ -1390,15 +1390,18 @@ async function updateSubjectTier(mls,newKey){
     comp_type:compType,
     updated_at:new Date().toISOString(),
   };
-  const{error}=await sb.from('properties').update(payload).eq('mls',mls);
-  if(error){console.error('set subject tier failed',error);alert('Set tier failed: '+error.message);return;}
   const l=listings.find(x=>x.mls===mls);
-  if(!l)return;
-  l.conditionTier=tier;l.isDotty=isDotty;
+  // Optimistic UI: repaint the chip immediately, then write in the background —
+  // the UPDATE can be slow (server-side recompute on condition_tier change).
+  const prevTier=l?l.conditionTier:null,prevDotty=l?l.isDotty:false;
   const id=mls.replace(/[^a-zA-Z0-9]/g,'');
-  const el=document.getElementById('subj-tier-'+id);
-  if(el)el.outerHTML=subjectTierEditor(l);  // refresh chip + checkmarks
-  render();                                  // repaint the list-row tier chip
+  const repaint=()=>{const el=document.getElementById('subj-tier-'+id);if(l&&el)el.outerHTML=subjectTierEditor(l);render();};
+  if(l){l.conditionTier=tier;l.isDotty=isDotty;repaint();}
+  const{error}=await sb.from('properties').update(payload).eq('mls',mls);
+  if(error){
+    console.error('set subject tier failed',error);alert('Set tier failed: '+error.message);
+    if(l){l.conditionTier=prevTier;l.isDotty=prevDotty;repaint();}  // revert
+  }
 }
 function compTypeSelectHtml(c,subjectMid){
   if(!c.mls||c.type==='unsold_flip'){
