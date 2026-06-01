@@ -1839,7 +1839,11 @@ function render(){
       <span class="tr" data-cell="arv" data-mls="${l.mls}" style="font-weight:600;font-size:12px;color:var(--accent);padding-right:10px">${getArvLabel(l)}</span>
     </div></div>`;});
   document.getElementById('lb').innerHTML=h;
-  updateStageCounts();
+  // updateStageCounts() is NOT called here: it fires 6 count queries and render()
+  // runs on every sort/filter/tag toggle, where the stage counts can't have
+  // changed. It's called explicitly from the data-changing paths instead
+  // (loadListings, updateListingStatus, bulkArchive). Grade/tier counts stay —
+  // they're pure in-memory loops over `listings`, no queries.
   updateGradeCounts();
   updateTierCounts();
   renderBulkActionBar();
@@ -2626,6 +2630,7 @@ async function loadListings(status){
     }
     listings=(data||[]).map(mapRowToListing);
     active=null;render();
+    updateStageCounts();  // refresh tab counts once per data load (moved out of render())
     const toTitle=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
     const cities=[...new Set(listings.map(l=>toTitle((l.city||'').trim())).filter(Boolean))].sort();
     const cfList=document.getElementById('cf-list');
