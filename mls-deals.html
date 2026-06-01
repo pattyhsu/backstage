@@ -2068,7 +2068,34 @@ async function refetchComps(mls){const l=listings.find(x=>x.mls===mls);if(!l)ret
     if(data.hp>0){setNumVal('arv-'+mid,data.hp*l.sqft);calcDeal(mid,l.price,l.sqft);}}catch(e){console.error('Refetch error:',e);}}
 
 // ========== SUPABASE CRUD ==========
-async function updateListingStatus(mls,s){const{data:cur}=await sb.from('properties').select('stage').eq('mls',mls).single();const newStage=(cur?.stage===s)?'unread':s;const d={stage:newStage,updated_at:new Date().toISOString()};if(newStage==='archived')d.archived_at=new Date().toISOString();if(newStage==='unsold_flip')d.comp_type='flips';await sb.from('properties').update(d).eq('mls',mls);cls();await loadListings(currentFilter);updateStageCounts();}
+// Mirrors the per-filter query in loadListings() for a single in-memory row,
+// so we can decide client-side whether a status change should drop it from view.
+function listingMatchesFilter(l,f){
+  const overCap=l.price>MAX_LIST_PRICE;
+  if(f==='unread')return l.status==='unread'&&!overCap;
+  if(f==='archived')return l.status==='archived'||overCap;
+  if(f==='off_market_lead')return l.status==='off_market_lead';
+  if(f==='potential')return l.status==='potential';
+  if(f==='unsold_flip')return l.status==='unsold_flip';
+  if(!f||f==='all')return l.status!=='archived'&&l.status!=='off_market_lead'&&!overCap;
+  return l.status===f;
+}
+async function updateListingStatus(mls,s){
+  const li=listings.find(x=>x.mls===mls);
+  // Use the already-loaded stage for toggle behavior instead of a SELECT round-trip.
+  const curStage=li?li.status:undefined;
+  const newStage=(curStage===s)?'unread':s;
+  // Optimistic UI: reflect the new stage and drop the row from the current view
+  // immediately, so it disappears on click rather than after a full reload.
+  if(li){li.status=newStage;if(!listingMatchesFilter(li,currentFilter))listings=listings.filter(x=>x.mls!==mls);}
+  cls();
+  const d={stage:newStage,updated_at:new Date().toISOString()};
+  if(newStage==='archived')d.archived_at=new Date().toISOString();
+  if(newStage==='unsold_flip')d.comp_type='flips';
+  const{error}=await sb.from('properties').update(d).eq('mls',mls);
+  if(error){alert('Status update failed: '+error.message);await loadListings(currentFilter);return;}
+  updateStageCounts();
+}
 async function updateNotes(mls){const mid=mls.replace(/[^a-zA-Z0-9]/g,'');const el=document.getElementById('notes2-'+mid);if(!el)return;await sb.from('properties').update({notes:el.value,updated_at:new Date().toISOString()}).eq('mls',mls);const r=document.getElementById('rownotes-'+mid);if(r&&r.value!==el.value)r.value=el.value;const li=listings.find(x=>x.mls===mls);if(li)li.notes=el.value;}
 const _rowNotesTimers={};
 function rowNotesInput(el){const mls=el.dataset.mls;clearTimeout(_rowNotesTimers[mls]);el.style.borderColor='var(--border)';_rowNotesTimers[mls]=setTimeout(()=>saveRowNotes(el),700);}
