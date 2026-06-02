@@ -690,6 +690,11 @@ async function loadData() {
   for (const c of window.MC_DATA.costBreakdown) costByDeal[c.deal_id] = c;
   window.MC_DATA.costByDeal = costByDeal;
 
+  // Brief MI — deal-id → deal_pnl_v1 row (revenue split for the sold drill-down).
+  const pnlById = {};
+  for (const p of window.MC_DATA.dealPnl) pnlById[p.deal_id] = p;
+  window.MC_DATA.pnlById = pnlById;
+
   // Brief MH — qbo_account_name → bucket (acquisition / rehab_* / holding /
   // financing / disposition / overhead / exclude).
   const bucketByAccount = {};
@@ -1041,10 +1046,11 @@ function renderPnL() {
     const annRoiTxt = annRoi != null ? (annRoi * 100).toFixed(1) + '%' + (isSold ? '' : '*') : '—';
 
     // Brief MH — in-flight deals are expandable into a cost-breakdown
-    // drill-down. Sold deals stay non-expandable (no live spend to steer);
-    // the address still deep-links to project-detail. The twist caret only
-    // shows on expandable rows.
-    const expandable = !isSold && window.MC_DATA && window.MC_DATA.costByDeal
+    // drill-down. Brief MI — sold deals are now expandable too (final realized
+    // cost breakdown + revenue split); the address still deep-links to
+    // project-detail. The twist caret only shows on expandable rows — a deal
+    // with no costByDeal row stays non-expandable regardless of phase.
+    const expandable = window.MC_DATA && window.MC_DATA.costByDeal
       && window.MC_DATA.costByDeal[r.deal_id];
     const twist = expandable ? '<span class="twist">▸</span>' : '';
     const addrHtml = twist
@@ -1416,8 +1422,10 @@ function renderDrillDown(dealId) {
     acqMode = rehabMode = carryMode = dispMode = 'estimated';
   } else if (phase === 'under_construction') {
     acqMode = 'actual'; rehabMode = 'spent'; carryMode = 'accrued'; dispMode = 'estimated';
-  } else {  // selling / sold
+  } else if (phase === 'selling') {
     acqMode = 'actual'; rehabMode = 'actual'; carryMode = 'accrued'; dispMode = 'disp-partial';
+  } else {  // sold — disposition is final (commission + closing + 593 booked)
+    acqMode = 'actual'; rehabMode = 'actual'; carryMode = 'accrued'; dispMode = 'actual';
   }
 
   const phaseBadge = {
@@ -1461,6 +1469,32 @@ function renderDrillDown(dealId) {
     + '<br><span class="sub2">Left bars use accrued cost-to-date for CARRY. '
     + 'This panel shows what QBO has actually booked.</span></div>';
 
+  // --- Revenue split (Brief MI) — sold deals only ---
+  // Surfaces the realized revenue (sale proceeds + self-rep commission) from
+  // deal_pnl_v1, so the buyer-side commission (QBO 4400) is visible where it
+  // was earned. Strictly revenue-side — never netted into ACQ or the cost tree.
+  let revenueBlock = '';
+  const pnl = D.pnlById && D.pnlById[dealId];
+  if (phase === 'sold' && pnl && (pnl.actual_revenue_total || 0) > 0) {
+    const commission = pnl.actual_revenue_commission || 0;
+    revenueBlock =
+        '<div class="qbo-list">'
+      + '<div class="qbo-line section"><span class="cat">Revenue</span>'
+      +   '<span class="amt"></span><span class="pct"></span></div>'
+      + '<div class="qbo-line l0"><span class="cat">Sale proceeds</span>'
+      +   '<span class="amt">' + fmtDollar(pnl.actual_revenue_sales) + '</span>'
+      +   '<span class="pct"></span></div>'
+      + (commission
+          ? '<div class="qbo-line l0"><span class="cat">Self-rep commission</span>'
+            + '<span class="amt">' + fmtDollar(commission) + '</span>'
+            + '<span class="pct"></span></div>'
+          : '')
+      + '<div class="qbo-line total"><span class="cat">Total revenue</span>'
+      +   '<span class="amt">' + fmtDollar(pnl.actual_revenue_total) + '</span>'
+      +   '<span class="pct"></span></div>'
+      + '</div>';
+  }
+
   const qboTree = renderQboTree(dealId, phase);
 
   // --- Footer links ---
@@ -1484,7 +1518,7 @@ function renderDrillDown(dealId) {
     + '<div class="drill-col">'
     +   '<h4>QBO categories <span class="badge">' + txnCount + ' txn'
     +     (txnCount === 1 ? '' : 's') + ' · matches QBO tree</span></h4>'
-    +   banner + qboTree
+    +   revenueBlock + banner + qboTree
     + '</div>'
     + footer
     + '</div>';
