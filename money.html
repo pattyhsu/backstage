@@ -1424,8 +1424,11 @@ function renderDrillDown(dealId) {
     acqMode = 'actual'; rehabMode = 'spent'; carryMode = 'accrued'; dispMode = 'estimated';
   } else if (phase === 'selling') {
     acqMode = 'actual'; rehabMode = 'actual'; carryMode = 'accrued'; dispMode = 'disp-partial';
-  } else {  // sold — disposition is final (commission + closing + 593 booked)
-    acqMode = 'actual'; rehabMode = 'actual'; carryMode = 'accrued'; dispMode = 'actual';
+  } else {  // sold — disposition is final (commission + closing + 593 booked).
+    // CARRY is 'actual' (booked) here: the deal is fully closed so there is
+    // nothing left to accrue, and the accrued estimate collapses once the HML
+    // loan is paid off and leaves 'funded'. Use true budget-vs-actual variance.
+    acqMode = 'actual'; rehabMode = 'actual'; carryMode = 'actual'; dispMode = 'actual';
   }
 
   const phaseBadge = {
@@ -1435,10 +1438,14 @@ function renderDrillDown(dealId) {
     sold: 'sold · final actuals',
   }[phase] || phase;
 
+  // Sold deals are fully booked — use QBO-booked carry (holding+financing),
+  // not the accrued estimate, which collapses once the HML loan leaves 'funded'.
+  const carryActual = (phase === 'sold') ? (c.carry_booked || 0) : c.carry_actual;
+
   const bars =
       bvaRow('ACQ',   c.acq_actual,   c.acq_budget,   acqMode,   dealId, 'acq')
     + bvaRow('REHAB', c.rehab_actual, c.rehab_budget, rehabMode, dealId, 'rehab')
-    + bvaRow('CARRY', c.carry_actual, c.carry_budget, carryMode, dealId, 'carry')
+    + bvaRow('CARRY', carryActual,    c.carry_budget, carryMode, dealId, 'carry')
     + bvaRow('DISP',  c.disp_actual,  c.disp_budget,  dispMode,  dealId, 'disp');
 
   // --- Booked-vs-accrued banner ---
@@ -1448,7 +1455,7 @@ function renderDrillDown(dealId) {
   let bookedTotal = 0;
   for (const e of lines) {
     const bucket = D.bucketByAccount[e.qbo_account_name];
-    if (bucket === 'exclude' || !bucket) continue;
+    if (bucket === 'exclude' || !bucket || bucket === 'revenue_sales' || bucket === 'revenue_commission') continue;
     bookedTotal += e.amount || 0;
   }
   const carryBooked = c.carry_booked || 0;
@@ -1458,7 +1465,10 @@ function renderDrillDown(dealId) {
   const txnCount = lines.length;
   const projId = deal.qbo_project_id || null;
 
-  const banner =
+  // Sold deals are fully booked — the booked-vs-accrued banner is meaningless
+  // (nothing left to accrue) and its bookedTotal would be contaminated by
+  // revenue lines. Render no banner for sold; keep it for in-flight phases.
+  const banner = (phase === 'sold') ? '' : (
       '<div class="qbo-banner">'
     + '<strong class="amt-a">Booked ' + fmtDollar(bookedTotal) + '</strong> · '
     + '<strong class="amt-b">accrued ' + fmtDollar(accruedTotal) + '</strong>'
@@ -1467,7 +1477,7 @@ function renderDrillDown(dealId) {
           + ' = carry accrued but not yet billed (CA property tax + HML interest lag).'
         : ' · booked ≈ accrued.')
     + '<br><span class="sub2">Left bars use accrued cost-to-date for CARRY. '
-    + 'This panel shows what QBO has actually booked.</span></div>';
+    + 'This panel shows what QBO has actually booked.</span></div>');
 
   // --- Revenue split (Brief MI) — sold deals only ---
   // Surfaces the realized revenue (sale proceeds + self-rep commission) from
