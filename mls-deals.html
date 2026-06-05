@@ -139,6 +139,10 @@ body{overflow:hidden;height:100vh}
 .det-sticky{position:sticky;top:0;z-index:10;background:var(--bg-alt);border-bottom:1px solid var(--border)}
 .det-sticky-inner{max-width:900px;margin:0 auto;padding:12px 24px}
 .det-body{max-width:900px;margin:0 auto;padding:20px 24px 40px}
+/* backstage.css makes every <thead> sticky (for the main list table). The small
+   inline tables in the detail body — comps anchors, deal-score breakdown — must
+   NOT stick, or their header pins to the top and collides with .det-sticky. */
+.det-body thead{position:static;z-index:auto}
 .det-full{grid-column:1/-1}
 
 /* List header + rows */
