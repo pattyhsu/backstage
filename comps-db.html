@@ -90,11 +90,12 @@
   .cdb-rail .sr-actions{display:flex;gap:8px;margin-top:3px}
   .cdb-rail .sr-actions .btn{flex:1;justify-content:center;height:38px}
   .cdb-main{flex:1;min-width:0}
-  #search-summary.summary-cards{display:flex}
-  #search-summary .summary-card{min-width:150px;flex:0 0 auto}
   /* comps toolbar */
   .comps-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:12px}
   .comps-bar .ch{font-size:11px;font-weight:700;color:var(--text-4);letter-spacing:.5px;text-transform:uppercase}
+  .comps-bar .cb-right{display:flex;align-items:center;gap:16px}
+  .comps-bar .cb-stat{font-size:11px;font-weight:700;color:var(--text-4);letter-spacing:.4px;text-transform:uppercase}
+  .comps-bar .cb-stat b{color:var(--accent);font-weight:700}
   .comps-bar label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--text-3);cursor:pointer}
   /* single-line comp rows */
   .cr-wrap{overflow-x:auto}
@@ -102,20 +103,20 @@
   .crhead{padding:0 8px 5px;border-bottom:1px solid var(--border)}
   .crhead span{font-size:11px;font-weight:700;color:var(--text-4);text-transform:uppercase;letter-spacing:.4px}
   .crhead .r{text-align:right}
-  .cr{padding:6px 8px;border-radius:var(--radius-sm);margin-top:2px;font-size:12px}
+  .cr{padding:6px 8px;border-radius:var(--radius-sm);margin-top:2px;font-size:12px;font-variant-numeric:tabular-nums}
   .cr:hover{background:var(--accent-dim)}
   .cr input[type=checkbox]{accent-color:var(--accent);margin:0}
   .cr .idx{font-size:12px;font-weight:700;color:var(--accent);text-align:center}
   .cr .addrcell{display:flex;align-items:center;gap:5px;min-width:0}
   .cr .caddr{color:var(--text);font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;border-bottom:1px dashed var(--text-4)}
   .cr .zi{width:11px;height:11px;opacity:.55;flex-shrink:0}
-  .cr .d{font-family:var(--mono);font-size:12px;color:var(--text-3);text-align:right;white-space:nowrap}
-  .cr .pr{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--green);text-align:right}
+  .cr .d{font-size:12px;color:var(--text-3);text-align:right;white-space:nowrap}
+  .cr .pr{font-size:13px;font-weight:600;color:var(--green);text-align:right}
   .cr .schools{display:flex;gap:3px;justify-content:flex-end}
   .cr .act{display:flex;gap:2px;justify-content:flex-end}
   .cr .act button{border:none;background:none;cursor:pointer;font-size:12px;padding:2px 3px;color:var(--text-4);font-family:inherit}
   .cr .act button:hover{color:var(--text)}
-  .sp{display:inline-flex;align-items:center;gap:1px;font-size:11px;font-weight:600;padding:1px 4px;border-radius:4px;font-family:var(--mono)}
+  .sp{display:inline-flex;align-items:center;gap:1px;font-size:11px;font-weight:600;padding:1px 4px;border-radius:4px}
   .sp .lv{font-size:8px;font-weight:700;opacity:.65;font-family:var(--sans,inherit)}
   .sp.sh{background:var(--green-bg);color:var(--green)}.sp.sm{background:var(--amber-bg);color:var(--amber)}.sp.sl{background:var(--red-bg);color:var(--red)}
   /* tier badges — T1 red -> T6 green gradient (matches mls-deals) */
@@ -180,9 +181,8 @@
       </div>
     </div>
     <div class="cdb-main">
-      <div id="search-summary" class="summary-cards" style="display:none"></div>
       <div id="search-mapband" style="display:none;margin-bottom:14px"><div id="search-map" style="height:300px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)"></div></div>
-      <div id="search-comps-bar" class="comps-bar" style="display:none"><div class="ch" id="search-comps-count"></div><label><input type="checkbox" id="search-selectall" checked onchange="toggleAllComps(this,'search-summary')"> Select all</label></div>
+      <div id="search-comps-bar" class="comps-bar" style="display:none"><div class="ch" id="search-comps-count"></div><div class="cb-right"><span id="search-summary" class="cb-stat"></span><label><input type="checkbox" id="search-selectall" checked onchange="toggleAllComps(this,'search-summary')"> Select all</label></div></div>
       <div id="search-results"></div>
     </div>
   </div>
@@ -545,11 +545,10 @@ function renderResults(rows,cid,sid,showDist=false){
   c.innerHTML=h+'</div>';
 }
 function updateSummary(rows,sid){
-  const s=document.getElementById(sid);
+  const s=document.getElementById(sid);if(!s)return;
   const ppsfs=rows.map(r=>r.ppsf).filter(Boolean);
   const avg=a=>a.length?a.reduce((x,v)=>x+v,0)/a.length:0;
-  s.style.display='flex';
-  s.innerHTML=`<div class="summary-card"><div class="label">Avg $/SF</div><div class="value">$${Math.round(avg(ppsfs))}</div></div>`;
+  s.innerHTML=`Avg $/SF <b>$${Math.round(avg(ppsfs))}</b>`;
 }
 function recalcSummary(sid){
   const checks=document.querySelectorAll('.comp-check');
