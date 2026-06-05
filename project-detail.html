@@ -453,8 +453,13 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .om-ig input { width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:5px; font:13px var(--sans); font-weight:700; background:#fff; color:var(--text); font-variant-numeric:tabular-nums; }
 .om-ig input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim); }
 .om-arv-row { display:flex; gap:8px; align-items:center; }
-.om-arv-row input { flex:1; min-width:0; padding:7px 9px; border:1px solid var(--border); border-radius:5px; font:14px var(--sans); font-weight:700; background:var(--bg-alt); color:var(--text-2); font-variant-numeric:tabular-nums; }
-.om-lock { font-size:10.5px; font-weight:600; color:var(--green); background:var(--green-bg); border:1px solid var(--green); border-radius:5px; padding:6px 9px; white-space:nowrap; }
+.om-arv-row input { flex:1; min-width:0; padding:7px 9px; border:1px solid var(--border); border-radius:5px; font:14px var(--sans); font-weight:700; background:#fff; color:var(--accent); font-variant-numeric:tabular-nums; }
+.om-arv-row input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim); }
+.om-arv-row input[readonly] { background:var(--bg-alt); color:var(--text-2); }
+.om-lockbtn { font-size:10.5px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap; border:1px solid var(--border); background:#fff; color:var(--text-3); border-radius:5px; padding:6px 10px; transition:all .12s; }
+.om-lockbtn:hover { border-color:var(--border-hover); color:var(--text); }
+.om-lockbtn.on { border-color:var(--green); background:var(--green-bg); color:var(--green); }
+.om-lockbtn:disabled { opacity:.6; cursor:wait; }
 .om-help { font-size:10.5px; color:var(--text-4); margin-top:6px; line-height:1.5; }
 .om-help b { color:var(--text-3); }
 .om-bd { margin-top:2px; }
@@ -1756,7 +1761,8 @@ function computeCashCells(){
 function renderOfferCalc(){
   const d=currentDeal;
   const p=primaryProperty();
-  const arv=(p && p.locked_arv!=null)?p.locked_arv:(lastArvRow?lastArvRow.headline_arv:1200000);
+  const arvLocked=!!(p && p.locked_arv!=null);
+  const arv=arvLocked?p.locked_arv:(lastArvRow?lastArvRow.headline_arv:1200000);
   const offer=d.offer_price||Math.round(arv*0.68);
   return `
     <div class="lp-calc phase-hide" id="offerCalc">
@@ -1765,8 +1771,11 @@ function renderOfferCalc(){
         <div class="om-col-l">
           <div>
             <div class="om-grp">Sell price (ARV)</div>
-            <div class="om-arv-row"><input value="${FK(arv)}" readonly><span class="om-lock">🔒 locked</span></div>
-            <div class="om-help">edit via the underwriting bar above</div>
+            <div class="om-arv-row">
+              <input id="ocArv" value="$${Math.round(arv).toLocaleString()}" ${arvLocked?'readonly':''}>
+              <button type="button" id="ocArvLock" class="om-lockbtn${arvLocked?' on':''}">${arvLocked?'🔒 Locked':'Lock ARV'}</button>
+            </div>
+            <div class="om-help" id="ocArvHelp">${arvLocked?'pinned value · unlock to edit':'edit, then lock to pin this ARV'}</div>
           </div>
           <div>
             <div class="om-grp">Offer</div>
@@ -1799,14 +1808,18 @@ function wireOfferCalc(){
   const offerEl=document.getElementById('ocOffer');
   if(!offerEl)return;
   const p=primaryProperty();
-  const arv=(p && p.locked_arv!=null)?p.locked_arv:(lastArvRow?lastArvRow.headline_arv:1200000);
+  const arvLocked=!!(p && p.locked_arv!=null);
   const construction=(p && p.locked_construction!=null)?p.locked_construction:(lastGradeRow?lastGradeRow.rehab_estimate:132000);
   // Full-dollar formatting (precise, comma-grouped) for the waterfall breakdown.
   const F  = n => (n<0?'-$':'$') + Math.abs(Math.round(n)).toLocaleString();
   const FS = n => (n>=0?'+$':'-$') + Math.abs(Math.round(n)).toLocaleString();
   const PURCH_EXP=0.01, HOLD_PCT=0.003, DISP_PCT=0.04;
+  // ARV is read live from the (editable) input so the breakdown recomputes as
+  // you type. Only "Lock ARV" persists it to properties.locked_arv.
+  const arvEl=document.getElementById('ocArv');
+  const curArv=()=>Number((arvEl.value||'').replace(/[^\d.-]/g,''))||0;
   // Unified 6-bucket waterfall. purchase = effective acquisition cost.
-  function compute(purchase, months, rate, ltv){
+  function compute(arv, purchase, months, rate, ltv){
     const loan=purchase*(ltv/100);
     const cashDown=Math.max(0, purchase-loan);
     const financing=loan*(rate/100)*(months/12);
@@ -1824,25 +1837,26 @@ function wireOfferCalc(){
     const allIn=rows.reduce((s,r)=>s+r.amt,0);
     return {rows, allIn, net:arv-allIn, loan, cashDown};
   }
-  function renderBreakdown(c){
+  function renderBreakdown(arv, c){
     const segs=c.rows.map(r=>`<div class="om-bd-seg om-seg-${r.key}" style="flex:${Math.max(r.amt,1)}"></div>`).join('');
     const netSeg=`<div class="om-bd-seg om-seg-${c.net>=0?'profit':'loss'}" style="flex:${Math.max(Math.abs(c.net),1)};border-radius:0 7px 7px 0"></div>`;
     const rowsHtml=c.rows.map(r=>`
       <div class="om-bd-row">
         <span class="om-bd-sw om-seg-${r.key}"></span>
         <span class="om-bd-name">${r.name} ${r.det?`<span class="det">· ${r.det}</span>`:''}</span>
-        <span class="om-bd-pct">${(r.amt/arv*100).toFixed(1)}%</span>
+        <span class="om-bd-pct">${arv>0?(r.amt/arv*100).toFixed(1):'0.0'}%</span>
         <span class="om-bd-amt">${F(r.amt)}</span>
       </div>`).join('');
     document.getElementById('ocBd').innerHTML=`
-      <div class="om-bd-top"><span class="lbl">Sell price<span class="sub">🔒 locked ARV</span></span><span class="val">${F(arv)}</span></div>
+      <div class="om-bd-top"><span class="lbl">Sell price<span class="sub">${arvLocked?'🔒 locked ARV':'unlocked · not pinned'}</span></span><span class="val">${F(arv)}</span></div>
       <div class="om-bd-bar">${segs}${netSeg}</div>
       ${rowsHtml}
-      <div class="om-bd-total"><span class="om-bd-name">All-in cost</span><span class="om-bd-pct">${(c.allIn/arv*100).toFixed(1)}%</span><span class="om-bd-amt">${F(c.allIn)}</span></div>
-      <div class="om-bd-net ${c.net>=0?'pos':'neg'}"><span class="om-bd-name">Net profit <span class="det" style="font-weight:400">· margin on buy</span></span><span class="om-bd-pct">${(c.net/c.rows[0].amt*100).toFixed(1)}%</span><span class="om-bd-amt">${FS(c.net)}</span></div>
+      <div class="om-bd-total"><span class="om-bd-name">All-in cost</span><span class="om-bd-pct">${arv>0?(c.allIn/arv*100).toFixed(1):'0.0'}%</span><span class="om-bd-amt">${F(c.allIn)}</span></div>
+      <div class="om-bd-net ${c.net>=0?'pos':'neg'}"><span class="om-bd-name">Net profit <span class="det" style="font-weight:400">· margin on buy</span></span><span class="om-bd-pct">${c.rows[0].amt>0?(c.net/c.rows[0].amt*100).toFixed(1):'0.0'}%</span><span class="om-bd-amt">${FS(c.net)}</span></div>
     `;
   }
   function recalc(){
+    const arv=curArv();
     const offer=Number(offerEl.value)||0;
     const reduct=Number(document.getElementById('ocReduction').value)||0;
     const commPct=Number(document.getElementById('ocCommission').value)||0;
@@ -1853,8 +1867,8 @@ function wireOfferCalc(){
     const contract=Math.max(0, offer-reduct);
     const rebate=contract*commPct/100;
     const purchase=contract-rebate;
-    const c=compute(purchase, months, rate, ltv);
-    renderBreakdown(c);
+    const c=compute(arv, purchase, months, rate, ltv);
+    renderBreakdown(arv, c);
     const margin=purchase>0?(c.net/purchase*100):0;
     const carry=c.rows[3].amt;
     document.getElementById('ocFinHelp').innerHTML=
@@ -1864,7 +1878,33 @@ function wireOfferCalc(){
       `<span><b>Cash needed</b> ${F(c.cashDown+construction+carry)} <span class="dim">· ${F(c.cashDown)} down + ${F(construction)} rehab + ${F(carry)} carry</span></span>`+
       `<span style="margin-left:auto;font-weight:600;color:${meets?'var(--green)':'var(--red)'}">${meets?`✓ meets ${target}% target margin`:`▼ below ${target}% target margin`}</span>`;
   }
-  ['ocOffer','ocReduction','ocCommission','ocTargetSpread','ocMonths','ocRate','ocLtv']
+  // Lock / unlock ARV → persists to properties.locked_arv (same column the
+  // underwriting bar and MLS Deals write). loadProject() re-renders with the
+  // fresh lock state.
+  const lockBtn=document.getElementById('ocArvLock');
+  if(lockBtn){
+    lockBtn.addEventListener('click', async ()=>{
+      const mls=(p && p.mls) || (uwCtx && uwCtx.activeMls);
+      if(!mls){alert('No property is linked to this deal yet — ARV can’t be saved.');return;}
+      let val=null;
+      if(!arvLocked){
+        val=curArv();
+        if(!val){alert('Enter an ARV value before locking.');return;}
+      }
+      lockBtn.disabled=true;
+      try{
+        const {error}=await sb.from('properties')
+          .update({locked_arv:val, updated_at:new Date().toISOString()}).eq('mls', mls);
+        if(error)throw error;
+        await loadProject();
+      }catch(e){
+        console.warn('ARV lock toggle failed',e);
+        alert('ARV '+(arvLocked?'unlock':'lock')+' failed: '+(e&&e.message?e.message:String(e)));
+        lockBtn.disabled=false;
+      }
+    });
+  }
+  ['ocArv','ocOffer','ocReduction','ocCommission','ocTargetSpread','ocMonths','ocRate','ocLtv']
     .forEach(id=>document.getElementById(id).addEventListener('input', recalc));
   recalc();
 }

@@ -2448,32 +2448,54 @@ async function saveRowNotes(el){const mls=el.dataset.mls;const val=el.value;cons
 // Disables the button during submit to guard against double-clicks.
 // Re-renders the detail pane on success so the "🏗 In project" link
 // appears and the button disappears.
+// MLS#s with an Open-offer insert currently in flight. The in-memory l.dealId
+// guard isn't enough on its own: any re-render during the await (e.g. toggling
+// ARV lock, which calls renderDetailPage) rebuilds the Open-offer button with
+// disabled=false while l.dealId is still null, so a second click could fire a
+// second insert → duplicate pipeline deal. This Set blocks re-entry per MLS,
+// and the SELECT below makes the create idempotent across tabs/sessions.
+const _openOfferInFlight=new Set();
 async function openOffer(mls){
   const l=listings.find(x=>x.mls===mls);if(!l)return;
   if(l.dealId){console.warn('openOffer: listing already linked to deal',mls);return;}
+  if(_openOfferInFlight.has(mls)){console.warn('openOffer: already in flight',mls);return;}
+  _openOfferInFlight.add(mls);
   const id=mls.replace(/[^a-zA-Z0-9]/g,'');
   const btn=document.getElementById('open-offer-'+id);
   if(btn){btn.disabled=true;btn.style.opacity='0.6';btn.style.cursor='wait';btn.textContent='Opening…';}
   try{
-    const{data:newDeal,error:insErr}=await sb.from('deals')
-      .insert({buy_side_mls: mls, phase: 'pursuing'})
-      .select('id').single();
-    if(insErr)throw insErr;
-    const{error:hErr}=await sb.from('deals_phase_history').insert({
-      deal_id: newDeal.id,
-      from_phase: null,
-      to_phase: 'pursuing',
-      note: 'Pipeline opened from MLS Deals',
-    });
-    if(hErr)throw hErr;
-    l.dealId=newDeal.id;
-    l.dealPhase='pursuing';
+    // Never create a second deal for an MLS that already has one (another tab,
+    // a prior attempt, or a concurrent open). Link to the existing row instead.
+    const{data:existing,error:selErr}=await sb.from('deals')
+      .select('id, phase').eq('buy_side_mls', mls).limit(1);
+    if(selErr)throw selErr;
+    let dealId, dealPhase;
+    if(existing && existing.length){
+      dealId=existing[0].id; dealPhase=existing[0].phase;
+    }else{
+      const{data:newDeal,error:insErr}=await sb.from('deals')
+        .insert({buy_side_mls: mls, phase: 'pursuing'})
+        .select('id').single();
+      if(insErr)throw insErr;
+      dealId=newDeal.id; dealPhase='pursuing';
+      const{error:hErr}=await sb.from('deals_phase_history').insert({
+        deal_id: dealId,
+        from_phase: null,
+        to_phase: 'pursuing',
+        note: 'Pipeline opened from MLS Deals',
+      });
+      if(hErr)throw hErr;
+    }
+    l.dealId=dealId;
+    l.dealPhase=dealPhase;
     renderDetailPage(l);
     refreshRowDealPill(mls);
   }catch(e){
     console.warn('openOffer failed',e);
     alert('Open offer failed: '+(e&&e.message?e.message:String(e)));
     if(btn){btn.disabled=false;btn.style.opacity='';btn.style.cursor='pointer';btn.textContent='📤 Open offer';}
+  }finally{
+    _openOfferInFlight.delete(mls);
   }
 }
 
