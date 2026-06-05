@@ -4,7 +4,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Comps DB — Backstage</title>
+<title>Comp Check — Backstage</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBtxBe0q6i46rUomZzVE3BKmJ4EQNYGvvU&libraries=places&loading=async&v=weekly&callback=onMapsReady"></script>
 <script src="auth.js"></script>
@@ -76,7 +76,7 @@
 
   .main-content { flex:1; overflow-y:auto; min-width:0; }
 
-  /* === Comps DB — left-rail search redesign === */
+  /* === Comp Check — left-rail search redesign === */
   .cdb-layout{display:flex;gap:18px;align-items:flex-start}
   .cdb-rail{width:280px;flex-shrink:0;position:sticky;top:16px}
   .cdb-rail .sr-card{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-page);overflow:hidden}
@@ -150,18 +150,6 @@
 
 <!-- Main content -->
 <div class="main-content">
-
-<div class="header">
-  <div class="header-left">
-    <h1>Comps DB</h1>
-  </div>
-  <div class="db-stats">
-    <span><strong id="totalComps">0</strong> comps</span>
-    <span><strong id="totalCities">0</strong> cities</span>
-    <span><strong id="geocodedCount">0</strong> geocoded</span>
-    <span class="conn-dot on" style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-left:8px"></span>
-  </div>
-</div>
 
 <div class="tabs">
   <button class="tab active" data-panel="search">Search Comps</button>
@@ -335,15 +323,8 @@ async function viewCompPhotos(id){
 let _mapsReady=false;
 window.onMapsReady=function(){_mapsReady=true;try{initAutocomplete();}catch(e){console.error('[onMapsReady] initAutocomplete failed:',e);}};
 
-async function updateStats(){
-  const{count:total}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold');
-  const{data:cd}=await sb.from('properties').select('city').eq('change_type','sold');
-  const cities=new Set(cd?.map(r=>r.city)).size;
-  const{count:geo}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold').not('latitude','is',null);
-  document.getElementById('totalComps').textContent=(total||0).toLocaleString();
-  document.getElementById('totalCities').textContent=cities||0;
-  document.getElementById('geocodedCount').textContent=(geo||0).toLocaleString();
-}
+// Header stats row was removed — no-op kept so existing callers stay valid.
+async function updateStats(){}
 
 async function populateDropdowns(){
   try {
