@@ -35,10 +35,6 @@ body{overflow:hidden;height:100vh}
 #cf-drop.open{display:block}
 #cf-drop label{display:flex;align-items:center;gap:8px;padding:5px 12px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer}
 #cf-drop label:hover{background:var(--bg-alt)}
-#tf-drop{display:none}
-#tf-drop.open{display:block}
-#tf-drop label{display:flex;align-items:center;gap:8px;padding:5px 12px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer}
-#tf-drop label:hover{background:var(--bg-alt)}
 #gf-drop{display:none}
 #gf-drop.open{display:block}
 #gf-drop button:hover{background:var(--bg-alt)}
@@ -315,20 +311,6 @@ body{overflow:hidden;height:100vh}
         <label style="padding-left:30px;font-size:11px;color:var(--text-3)" title="T5-C — both original (flip opportunity)"><input type="checkbox" value="C" onchange="toggleSubtierFilter(this.value)">T5-C <span id="stcnt-C"></span></label>
         <label><input type="checkbox" value="6" onchange="toggleTierFilter(this.value)">T6 <span id="tcnt-6"></span></label>
         <label><input type="checkbox" value="untiered" onchange="toggleTierFilter(this.value)">Untiered <span id="tcnt-untiered"></span></label>
-      </div>
-    </div>
-    <div style="position:relative;display:inline-block" id="tf-wrap">
-      <button class="btn" id="tf-btn" onclick="document.getElementById('tf-drop').classList.toggle('open')" style="min-width:120px;text-align:left">All Tags ▾</button>
-      <div id="tf-drop" style="position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:220px;padding:4px 0">
-        <div style="padding:4px 10px;border-bottom:1px solid var(--border);display:flex;gap:6px">
-          <button onclick="tfSelectAll()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">All</button>
-          <button onclick="tfSelectNone()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">None</button>
-        </div>
-        <label><input type="checkbox" value="Fixer" onchange="toggleTagFilter(this.value)">Fixer</label>
-        <label><input type="checkbox" value="Dated" onchange="toggleTagFilter(this.value)">Dated</label>
-        <label><input type="checkbox" value="Estate / Trust" onchange="toggleTagFilter(this.value)">Estate / Trust</label>
-        <label><input type="checkbox" value="Price reduced" onchange="toggleTagFilter(this.value)">Price reduced</label>
-        <label><input type="checkbox" value="Already flipped" onchange="toggleTagFilter(this.value)">Already flipped</label>
       </div>
     </div>
     <div style="position:relative;display:inline-block" id="addr-search-wrap">
@@ -635,10 +617,10 @@ async function findComps(listing){
 // a price drop below the cap will bring them back into Unread on the next page load).
 const MAX_LIST_PRICE=2500000;
 let listings=[],sort_='priority',active=null,compCache={};
-let currentFilter='unread',cityFilters=new Set(),tagFilters=new Set();
+let currentFilter='unread',cityFilters=new Set();
 // Client-side deal-grade filter (the "bucket"). Multi-select: empty = all;
 // otherwise any of 'A'|'B'|'C'|'D'|'ungraded' (a row matches if its grade is
-// in the set). Mirrors cityFilters/tagFilters; applied in getSorted()
+// in the set). Mirrors cityFilters; applied in getSorted()
 // against the dealScoreCache.
 const gradeFilters=new Set();
 const tierFilters=new Set();
@@ -683,12 +665,6 @@ const dom=d=>{
     return Math.max(1,Math.round((td_-dt)/864e5));
   }catch(e){return 0;}
 };
-const ALL_TAGS=['Fixer','Dated','Estate / Trust','Price reduced','Already flipped'];
-const TAG_COLORS={'Already flipped':['var(--accent-dim)','var(--accent)'],'Estate / Trust':['var(--purple-bg)','var(--purple)'],'Fixer':['var(--amber-bg)','var(--amber)'],'Dated':['var(--green-bg)','var(--green)'],'Price reduced':['var(--red-bg)','var(--red)']};
-function tg(t){const c=TAG_COLORS[t]||['var(--bg-alt)','var(--text-3)'];return`<span class="tag" style="background:${c[0]};color:${c[1]};border:none">★ ${t}</span>`;}
-async function toggleCustomTag(mls,tag){const l=listings.find(x=>x.mls===mls);if(!l)return;const cur=l.tags.includes(tag)?l.tags.filter(t=>t!==tag):[...l.tags,tag];await saveCustomTags(mls,cur);}
-async function saveCustomTags(mls,newTags){const l=listings.find(x=>x.mls===mls);if(!l)return;l.tags=newTags;l.customTags=newTags;const{error}=await sb.from('properties').update({custom_tags:newTags,updated_at:new Date().toISOString()}).eq('mls',mls);if(error)console.error('saveCustomTags error',error);const mid=mls.replace(/[^a-zA-Z0-9]/g,'');renderTagToggles(mls,mid);render();}
-function renderTagToggles(mls,mid){const l=listings.find(x=>x.mls===mls);if(!l)return;const el=document.getElementById('tag-toggles-'+mid);if(!el)return;el.innerHTML=ALL_TAGS.map(t=>{const active=l.tags.includes(t);const c=TAG_COLORS[t]||['var(--bg-alt)','var(--text-3)'];const style=active?`background:${c[0]};color:${c[1]};border:none;cursor:pointer`:`background:var(--bg);color:var(--text-4);border:1px solid var(--border);cursor:pointer;opacity:0.5`;return`<span class="tag" style="${style}" onclick="event.stopPropagation();toggleCustomTag('${mls.replace(/'/g,"\'")}','${t.replace(/'/g,"\'")}')">${active?'★':'☆'} ${t}</span>`;}).join('');}
 
 // ARV source resolution shared by the ARV column (getArvLabel) and the
 // GAP column (getArvVal) so they never disagree. Priority:
@@ -2107,11 +2083,10 @@ const SORTERS={
 function getSorted(){
   let d=[...listings];
   if(cityFilters.size)d=d.filter(l=>cityFilters.has(l.city.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())));
-  if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));
   if(gradeFilters.size)d=d.filter(l=>gradeFilters.has(dealGradeOf(l.mls)));
   if(tierFilters.size)d=d.filter(l=>tierFilters.has(tierKeyOf(l)));
   if(subtierFilters.size)d=d.filter(l=>{const k=subTier5KeyOf(l);return k!=null&&subtierFilters.has(k);});
-  if(sort_==='priority'){d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));return d;}
+  if(sort_==='priority')return d;
   const idx=sort_.lastIndexOf('-');
   if(idx<0)return d;
   const key=sort_.slice(0,idx),dir=sort_.slice(idx+1);
@@ -2139,7 +2114,7 @@ function render(){
       <input type="checkbox" class="row-select" data-mls="${l.mls}" ${selectedMls.has(l.mls)?'checked':''} onclick="event.stopPropagation();toggleRowSelect('${l.mls}',this.checked)" style="margin:0;width:18px;height:18px;cursor:pointer;justify-self:center">
       <span style="text-align:center">${condTierBadge(l)}</span>
       <div style="width:48px;height:36px;flex-shrink:0"><img class="rw-thumb" src="${thumbSrc}" alt="" data-mls="${l.mls}" data-addr="${addrFull.replace(/"/g,'&quot;')}" data-count="${l.photoCount||0}" onclick="event.stopPropagation();openLightbox(this.dataset.mls,this.dataset.addr,this.dataset.count)" onerror="this.style.display='none'"></div>
-      <div><div class="at">${l.address} <a href="https://www.google.com/search?q=redfin+${encodeURIComponent(l.address+' '+l.city+' CA')}&btnI=1" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;vertical-align:middle"><img src="https://www.redfin.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a> <a href="https://www.zillow.com/homes/${encodeURIComponent(l.address+', '+l.city+', CA '+l.zip)}_rb/" target="_blank" onclick="event.stopPropagation()" style="vertical-align:middle"><img src="https://www.zillow.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div><div class="as">${l.beds}bd/${l.baths}ba · ${l.sqft.toLocaleString()} sf</div>${l.tags.map(tg).join('')}</div>
+      <div><div class="at">${l.address} <a href="https://www.google.com/search?q=redfin+${encodeURIComponent(l.address+' '+l.city+' CA')}&btnI=1" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;vertical-align:middle"><img src="https://www.redfin.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a> <a href="https://www.zillow.com/homes/${encodeURIComponent(l.address+', '+l.city+', CA '+l.zip)}_rb/" target="_blank" onclick="event.stopPropagation()" style="vertical-align:middle"><img src="https://www.zillow.com/favicon.ico" style="width:13px;height:13px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div><div class="as">${l.beds}bd/${l.baths}ba · ${l.sqft.toLocaleString()} sf</div></div>
       <span style="color:var(--text-3);font-weight:600;font-size:12px">${(l.city||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}</span>
       <span class="tr" style="font-weight:600;font-size:12px;padding-right:14px">${FK(l.price)}${currentFilter==='archived'&&l.price>MAX_LIST_PRICE&&l.status!=='archived'?' <span class="tag" style="background:var(--bg-alt);color:var(--text-3);border:none;font-size:9px;letter-spacing:.4px" title="Auto-hidden because list_price exceeds the $2.5M cap; not user-archived">OVER CAP</span>':''}${renderDealGradePill(l.mls)}<span data-cell="de-pill" data-mls="${l.mls}">${renderAgentDeCardPill(l)}</span></span>
       ${showNotes?`<input type="text" id="rownotes-${l.mls.replace(/[^a-zA-Z0-9]/g,'')}" data-mls="${l.mls}" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onkeydown="event.stopPropagation()" oninput="rowNotesInput(this)" onblur="rowNotesBlur(this)" value="${(l.notes||'').replace(/"/g,'&quot;')}" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box;height:28px">`:''}
@@ -2208,8 +2183,7 @@ function renderDetailPage(l){
       <a href="${zillow}" target="_blank"><img src="https://www.zillow.com/favicon.ico" style="width:14px;height:14px;opacity:0.7" onerror="this.style.display='none'"></a></div>
     <div style="font-size:11px;color:var(--text-3);margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       <span>${l.beds}bd/${l.baths}ba</span><span>·</span><span>${l.sqft.toLocaleString()} sf</span><span>·</span><span><b>$${Math.round(l.ppsf)}</b>/sf</span><span>·</span><span>Lot ${l.lot||'—'}</span><span>·</span><span>Pool: ${l.pool||'No'}</span><span>·</span><span>DOM: ${d}</span><span>·</span>${subjectTierEditor(l)}${(l.elem||l.mid||l.high)?'<span>·</span>':''}${l.elem?`<span class="sp ${l.elem.r>=7?'sh':l.elem.r>=5?'sm':'sl'}"><span class="lv">E</span>${l.elem.r}</span><span style="font-size:10px;color:var(--text-3);margin-right:4px">${shortName(l.elem.n)}</span>`:''}${l.mid?`<span class="sp ${l.mid.r>=7?'sh':l.mid.r>=5?'sm':'sl'}"><span class="lv">M</span>${l.mid.r}</span><span style="font-size:10px;color:var(--text-3);margin-right:4px">${shortName(l.mid.n)}</span>`:''}${l.high?`<span class="sp ${l.high.r>=7?'sh':l.high.r>=5?'sm':'sl'}"><span class="lv">H</span>${l.high.r}</span><span style="font-size:10px;color:var(--text-3)">${shortName(l.high.n)}</span>`:''}</div>
-    <div style="margin-top:3px;display:flex;gap:3px;align-items:center;flex-wrap:wrap">
-      <span id="tag-toggles-${id}"></span></div></div></div></div>
+    </div></div></div>
   <div class="det-body">
     <div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:.5px;margin-bottom:4px">NOTES</div>
       <textarea id="notes2-${id}" onblur="updateNotes('${l.mls}')" placeholder="Add notes..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;min-height:50px;resize:vertical;background:var(--bg);color:var(--text);box-sizing:border-box">${l.notes||''}</textarea></div>
@@ -2224,7 +2198,6 @@ function renderDetailPage(l){
       <span><b>Agent:</b> ${l.agent||'—'}${renderAgentDeBadge(l)}</span><span><b>DRE#:</b> ${l.agentDre||'—'}</span><span><b>Email:</b> ${l.agentEmail||'—'}</span><span><b>Phone:</b> ${l.agentPhone||'—'}</span><span><b>Office:</b> ${l.agentOfficePhone||'—'}</span><span><b>Broker:</b> ${l.broker||'—'}</span><span><b>Broker DRE#:</b> ${l.brokerDre||'—'}</span><span><b>MLS#:</b> ${l.mls}</span>${l.dealId?`<span data-cell="deal-pill" data-mls="${l.mls}"><b>🏗 In project:</b> ${dealPhaseLabel(l.dealPhase)} <a href="project-detail.html?deal=${encodeURIComponent(l.dealId)}">→ view</a>${l.undoable?` <a href="#" onclick="event.stopPropagation();undoOpenOffer('${l.dealId}','${l.mls}');return false;" style="margin-left:8px;font-size:11px;color:var(--text-4);text-decoration:underline;cursor:pointer" title="Delete the pipeline tracking record (the MLS listing stays visible)">↩ undo open offer</a>`:''}</span>`:''}</div></div></div></div>`;
   document.getElementById('detPage').innerHTML=h;
   document.getElementById('comp-col').innerHTML=compsPanel(l);
-  renderTagToggles(l.mls,id);
   // Always populate the deal-analysis breakdown after a (re)render. detHTML only
   // lays out the structure with "—" placeholders + empty waterfall/footer; calcDeal
   // fills them. Many async callers re-render the whole detail page without their own
@@ -2283,21 +2256,17 @@ function opn(m,prefetched){
   }
 }
 function cls(){if(openCompPoll){clearInterval(openCompPoll);openCompPoll=null;}active=null;document.querySelector('.main').classList.remove('detail-view');render();}
-function setFilter(f){if(active){active=null;document.querySelector('.main').classList.remove('detail-view');}currentFilter=f;cityFilters.clear();tagFilters.clear();gradeFilters.clear();tierFilters.clear();subtierFilters.clear();document.querySelectorAll('#gf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);document.querySelectorAll('#ctf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);document.querySelectorAll('#stf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);updateGradeBtn();updateTierBtn();updateSubtierBtn();updateCityBtn();updateTagBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
+function setFilter(f){if(active){active=null;document.querySelector('.main').classList.remove('detail-view');}currentFilter=f;cityFilters.clear();gradeFilters.clear();tierFilters.clear();subtierFilters.clear();document.querySelectorAll('#gf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);document.querySelectorAll('#ctf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);document.querySelectorAll('#stf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);updateGradeBtn();updateTierBtn();updateSubtierBtn();updateCityBtn();['unread','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
 function toggleCityFilter(city){if(cityFilters.has(city))cityFilters.delete(city);else cityFilters.add(city);updateCityBtn();render();}
 function cfSelectAll(){const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;cityFilters.add(cb.value);});updateCityBtn();render();}
 function cfSelectNone(){cityFilters.clear();const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateCityBtn();render();}
 function updateCityBtn(){const btn=document.getElementById('cf-btn');if(!cityFilters.size)btn.textContent='All Cities ▾';else if(cityFilters.size===1)btn.textContent=[...cityFilters][0]+' ▾';else btn.textContent=cityFilters.size+' Cities ▾';}
-document.addEventListener('click',e=>{const wrap=document.getElementById('cf-wrap');const drop=document.getElementById('cf-drop');if(wrap&&drop&&!wrap.contains(e.target))drop.classList.remove('open');const tw=document.getElementById('tf-wrap');const td=document.getElementById('tf-drop');if(tw&&td&&!tw.contains(e.target))td.classList.remove('open');const mw=document.getElementById('more-filters-wrap');const md=document.getElementById('more-filters-drop');if(mw&&md&&!mw.contains(e.target))md.classList.remove('open');const gw=document.getElementById('gf-wrap');const gd=document.getElementById('gf-drop');if(gw&&gd&&!gw.contains(e.target))gd.classList.remove('open');const cw=document.getElementById('ctf-wrap');const cd=document.getElementById('ctf-drop');if(cw&&cd&&!cw.contains(e.target))cd.classList.remove('open');const sw=document.getElementById('stf-wrap');const sd=document.getElementById('stf-drop');if(sw&&sd&&!sw.contains(e.target))sd.classList.remove('open');const aw=document.getElementById('addr-search-wrap');const ad=document.getElementById('addr-search-drop');if(aw&&ad&&!aw.contains(e.target))ad.style.display='none';
+document.addEventListener('click',e=>{const wrap=document.getElementById('cf-wrap');const drop=document.getElementById('cf-drop');if(wrap&&drop&&!wrap.contains(e.target))drop.classList.remove('open');const mw=document.getElementById('more-filters-wrap');const md=document.getElementById('more-filters-drop');if(mw&&md&&!mw.contains(e.target))md.classList.remove('open');const gw=document.getElementById('gf-wrap');const gd=document.getElementById('gf-drop');if(gw&&gd&&!gw.contains(e.target))gd.classList.remove('open');const cw=document.getElementById('ctf-wrap');const cd=document.getElementById('ctf-drop');if(cw&&cd&&!cw.contains(e.target))cd.classList.remove('open');const sw=document.getElementById('stf-wrap');const sd=document.getElementById('stf-drop');if(sw&&sd&&!sw.contains(e.target))sd.classList.remove('open');const aw=document.getElementById('addr-search-wrap');const ad=document.getElementById('addr-search-drop');if(aw&&ad&&!aw.contains(e.target))ad.style.display='none';
   // Tesla-friendly comp-panel dropdowns (tolerance + retag): close any open
   // popup when the click is outside its .cmp-wrap / .retag-wrap container.
   document.querySelectorAll('.cmp-wrap,.retag-wrap').forEach(w=>{if(!w.contains(e.target)){const d=w.querySelector('.cmp-drop,.retag-drop');if(d)d.classList.remove('open');}});});
 // Escape closes every open custom dropdown on the page (filter chips + comp panel).
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.querySelectorAll('.cmp-drop.open,.retag-drop.open').forEach(d=>d.classList.remove('open'));const cf=document.getElementById('cf-drop');if(cf)cf.classList.remove('open');const tf=document.getElementById('tf-drop');if(tf)tf.classList.remove('open');const mf=document.getElementById('more-filters-drop');if(mf)mf.classList.remove('open');const gf=document.getElementById('gf-drop');if(gf)gf.classList.remove('open');const ctf=document.getElementById('ctf-drop');if(ctf)ctf.classList.remove('open');const stf=document.getElementById('stf-drop');if(stf)stf.classList.remove('open');}});
-function toggleTagFilter(tag){if(tagFilters.has(tag))tagFilters.delete(tag);else tagFilters.add(tag);updateTagBtn();render();}
-function tfSelectAll(){const cbs=document.querySelectorAll('#tf-drop input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;tagFilters.add(cb.value);});updateTagBtn();render();}
-function tfSelectNone(){tagFilters.clear();const cbs=document.querySelectorAll('#tf-drop input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateTagBtn();render();}
-function updateTagBtn(){const btn=document.getElementById('tf-btn');if(!tagFilters.size)btn.textContent='All Tags ▾';else if(tagFilters.size===1)btn.textContent=[...tagFilters][0]+' ▾';else btn.textContent=tagFilters.size+' Tags ▾';}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.querySelectorAll('.cmp-drop.open,.retag-drop.open').forEach(d=>d.classList.remove('open'));const cf=document.getElementById('cf-drop');if(cf)cf.classList.remove('open');const mf=document.getElementById('more-filters-drop');if(mf)mf.classList.remove('open');const gf=document.getElementById('gf-drop');if(gf)gf.classList.remove('open');const ctf=document.getElementById('ctf-drop');if(ctf)ctf.classList.remove('open');const stf=document.getElementById('stf-drop');if(stf)stf.classList.remove('open');}});
 // Brief AJ: bulk-archive selection + address search.
 function toggleRowSelect(mls,checked){if(checked)selectedMls.add(mls);else selectedMls.delete(mls);renderBulkActionBar();const sa=document.getElementById('select-all-cb');if(sa){const sel=getSorted().filter(l=>l.mls);sa.checked=sel.length>0&&sel.every(l=>selectedMls.has(l.mls));}}
 function toggleSelectAll(checked){getSorted().forEach(l=>{if(!l.mls)return;if(checked)selectedMls.add(l.mls);else selectedMls.delete(l.mls);});document.querySelectorAll('.row-select').forEach(cb=>cb.checked=checked);renderBulkActionBar();}
@@ -2904,19 +2873,11 @@ async function restoreDeal(m){await sb.from('properties').update({stage:'unread'
 // listing that's outside the current filter scope (e.g. searching for a
 // listing on Hold while viewing Unread).
 function mapRowToListing(r){
-  const rmk=((r.remarks||'')+' '+(r.sale_type||'')).toLowerCase();let tags=[];
-  if(r.custom_tags!==null&&r.custom_tags!==undefined){tags=r.custom_tags||[];}else{
-  const isRenovated=/\bfully remodeled\b|\bcompletely remodeled\b|\btotally remodeled\b|\bnewly remodeled\b|\bfully renovated\b|\bcompletely renovated\b|\bnewly renovated\b|\brecently remodeled\b|\brecently renovated\b|\bbrand new kitchen\b|\bbrand new bath/.test(rmk);
-  if(!isRenovated&&/\bdated\b|\boutdated\b|\boriginal condition\b|\boriginal kitchen\b|\boriginal bath(?:room)?s?\b|\bneeds updating\b|\bneeds update\b|\bneeds updates\b|\bneeds updated\b|\bneeds cosmetic\b|\bneeds modernizing\b|\bneeds remodel\b|\bneeds a remodel\b|\bneeds remodeling\b|\bneeds renovation\b|\bneeds renovating\b|\bbring your (?:contractor|designer|imagination|vision)\b|\bcosmetic (?:work|updates?|fixer)\b|\bupdate to (?:your|taste)\b|\bmake it your own\b|\bgood bones\b|\bwith some (?:tlc|updating|updates|love)\b|\bready for your (?:updates?|touches?|vision)\b|\bopportunity to update\b|\badd your personal touch\b/.test(rmk))tags.push('Dated');
-  if(/\btlc\b|\bfixer\b|\bhandyman\b|\bhandy.?man special\b|\binvestor special\b|\bgreat for investors\b|\bflip\b|\bwholesale\b/.test(rmk))tags.push('Fixer');
-  if(/\btrust sale\b|\bprobate\b|\bestate sale\b|, trust\b/.test(rmk)||/trust/i.test(r.sale_type||''))tags.push('Estate / Trust');
-  if(/\bprice reduced\b|\breduced price\b|\bmotivated seller\b/.test(rmk))tags.push('Price reduced');
-  if(/\bfully remodeled\b|\bcompletely remodeled\b|\btotally remodeled\b|\bnewly remodeled\b|\bfully renovated\b|\bcompletely renovated\b|\bnewly renovated\b/.test(rmk))tags.push('Already flipped');}
   return{address:r.address||'',city:r.city||'',zip:r.zip||'',price:r.list_price||0,sqft:r.sqft||0,ppsf:r.ppsf||0,beds:r.beds||0,baths:parseFloat(r.baths)||0,lot:r.lot_size||'',built:r.year_built||'',mls:r.mls||'',mlsArea:r.mls_area||'',mlsAreaName:r.mls_area_name||'',listDate:r.list_date||'',pool:r.pool||'',saleType:r.sale_type||'',remarks:r.remarks||'',agentRemarks:r.agent_remarks||'',showingRemarks:r.showing_remarks||'',occupancy:r.occupancy||'',contactName:r.contact_name||'',contactPhone:r.contact_phone||'',occupantType:r.occupant_type||'',lockboxLocation:r.lockbox_location||'',lockboxType:r.lockbox_type||'',gateCode:r.gate_code||'',agent:r.agent_name||'',agentEmail:r.agent_email||'',agentPhone:r.agent_phone||'',agentOfficePhone:r.agent_office_phone||'',broker:r.agent_broker||'',brokerDre:r.broker_dre||'',agentDre:r.agent_dre||'',
     elem:r.elementary_rating||r.elementary_school?{r:r.elementary_rating||0,n:r.elementary_school||''}:null,
     mid:(r.middle_rating||r.middle_school)&&(r.middle_school!==r.elementary_school)?{r:r.middle_rating||0,n:r.middle_school||''}:null,
     high:r.high_rating||r.high_school?{r:r.high_rating||0,n:r.high_school||''}:null,
-    tags,customTags:r.custom_tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null,photoCount:r.photo_count||0,conditionTier:r.condition_tier||null,valueDriverRooms:(r.value_driver_rooms_updated==null?null:r.value_driver_rooms_updated),conditionOverridden:r.condition_overridden===true,isDotty:r.is_dotty===true,
+    status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null,photoCount:r.photo_count||0,conditionTier:r.condition_tier||null,valueDriverRooms:(r.value_driver_rooms_updated==null?null:r.value_driver_rooms_updated),conditionOverridden:r.condition_overridden===true,isDotty:r.is_dotty===true,
     // Brief BK: deal linkage now lives on the deals table (decorated in
     // decorateListingsWithDeals after loadListings()). Drop the legacy
     // properties.pipeline_stage column.
@@ -2932,7 +2893,7 @@ function mapRowToListing(r){
 // are ~half the payload and only shown in the detail view. They're lazy-loaded
 // on detail open via ensureDetailRemarks(). select('*') here pulled ~3.9MB /
 // 6-24s for ~800 unread rows; this list is ~2MB.
-const LIST_COLS='address,agent_broker,agent_dre,agent_email,agent_name,agent_office_phone,agent_phone,baths,beds,broker_dre,change_date,change_type,city,condition_tier,value_driver_rooms_updated,condition_overridden,contact_name,contact_phone,custom_tags,elementary_rating,elementary_school,gate_code,high_rating,high_school,is_dotty,latitude,list_date,list_price,lockbox_location,lockbox_type,locked_arv,locked_construction,longitude,lot_size,middle_rating,middle_school,mls,mls_area,mls_area_name,notes,occupancy,occupant_type,photo_count,pool,ppsf,remarks,sale_type,sqft,stage,year_built,zip,imported_at';
+const LIST_COLS='address,agent_broker,agent_dre,agent_email,agent_name,agent_office_phone,agent_phone,baths,beds,broker_dre,change_date,change_type,city,condition_tier,value_driver_rooms_updated,condition_overridden,contact_name,contact_phone,elementary_rating,elementary_school,gate_code,high_rating,high_school,is_dotty,latitude,list_date,list_price,lockbox_location,lockbox_type,locked_arv,locked_construction,longitude,lot_size,middle_rating,middle_school,mls,mls_area,mls_area_name,notes,occupancy,occupant_type,photo_count,pool,ppsf,remarks,sale_type,sqft,stage,year_built,zip,imported_at';
 async function loadListings(status){
   let query=sb.from('properties').select(LIST_COLS).not('mls','is',null).not('mls','like','OFFMKT-%').neq('change_type','sold').order('imported_at',{ascending:false}).limit(2000);
   if(status==='unread')query=query.eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
