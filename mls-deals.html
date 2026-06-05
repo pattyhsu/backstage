@@ -451,7 +451,7 @@ function haversine(lat1,lon1,lat2,lon2){
 // Columns findComps actually reads off each comp row — excludes the big text
 // blobs (remarks/agent_remarks/showing_remarks) and agent/contact fields that
 // select('*') would drag in. Cuts per-comp-query IO substantially.
-const COMP_COLS='mls,address,city,zip,sqft,beds,baths,lot_size,year_built,latitude,longitude,sale_price,list_price,sold_date,list_date,change_type,stage,comp_type,condition_tier,is_dotty,double_ended,photo_count,elementary_rating,elementary_school,middle_rating,middle_school,high_rating,high_school';
+const COMP_COLS='mls,address,city,zip,sqft,beds,baths,lot_size,year_built,latitude,longitude,sale_price,list_price,sold_date,list_date,change_type,stage,comp_type,condition_tier,value_driver_rooms_updated,condition_overridden,is_dotty,double_ended,photo_count,elementary_rating,elementary_school,middle_rating,middle_school,high_rating,high_school';
 async function findComps(listing){
   const sqft=listing.sqft||0;
   if(!sqft)return{comps:[],hp:0,arv:0,listingLat:null,listingLng:null};
@@ -520,6 +520,8 @@ async function findComps(listing){
       doubleEnded:comp.double_ended===true,
       photoCount:comp.photo_count||0,
       conditionTier:comp.condition_tier||null,
+      valueDriverRooms:(comp.value_driver_rooms_updated==null?null:comp.value_driver_rooms_updated),
+      conditionOverridden:comp.condition_overridden===true,
       isDotty:comp.is_dotty===true,
     });
   }
@@ -1011,7 +1013,16 @@ function renderSmartCompsDetail(l,av){
       <th style="text-align:right;padding:3px 4px">w</th></tr></thead>`;
     const body=comps.map(co=>{
       const t=co.condition_tier;
-      const tierStr=t===6?'T6':t===5?'T5*':t===4?'T4*':`T${t}`;
+      // T5 anchors show their sub-tier (T5-A/B/C) off condition_subtier ("5A"…)
+      // or value_driver_rooms_updated; the * still marks a tier-upcast comp.
+      let tierStr;
+      if(t===6)tierStr='T6';
+      else if(t===5){
+        const sub=(typeof co.condition_subtier==='string'&&co.condition_subtier.length===2)?co.condition_subtier[1]:(SUBTIER5_LABEL[co.value_driver_rooms_updated]||null);
+        tierStr=sub?('T5-'+sub+'*'):'T5*';
+      }
+      else if(t===4)tierStr='T4*';
+      else tierStr=`T${t}`;
       const tCol=t===6?'var(--green)':t===5?'var(--amber)':'var(--text-3)';
       const hsPct=co.comp_hs_adjustment_pct;
       const hsStr=(hsPct==null||Math.abs(hsPct)<0.01)?'—':(hsPct>0?'+':'')+hsPct.toFixed(2)+'%';
@@ -1372,18 +1383,57 @@ function renderCompMap(l,cm,mid){
 // See updateCompTier() for the write path.
 //
 // Menu shows full labels (option b from BS spec); chip on the row shows
-// just the tier number (option a). Order: T6 at top → T1 at bottom →
-// DOTTY at the end, with the parenthetical hints clarifying the
-// non-monotonicity to sale price.
+// just the tier number (option a). Order: T6 at top → T1 at bottom.
+// T5 is split on the value-driver-rooms sub-tier (5A/5B/5C); the key encodes
+// both condition_tier=5 and value_driver_rooms_updated (2/1/0). 'null' lets
+// Patty hand-mark "not enough data to judge". DOTTY removed from the menu
+// (existing dotty rows still render their chip; is_dotty is set elsewhere).
 const TIER_OPTS=[
   [6,'T6','Tier 6 — Full flip (highest sale)'],
-  [5,'T5','Tier 5 — Half-flip'],
+  ['5A','T5-A','Tier 5-A — Half-flip, kitchen + bath both updated'],
+  ['5B','T5-B','Tier 5-B — Half-flip, one of kitchen/bath updated'],
+  ['5C','T5-C','Tier 5-C — Half-flip, both original (flip opportunity)'],
   [4,'T4','Tier 4 — Lived-in flip'],
   [3,'T3','Tier 3 — Modern owner-grade'],
   [2,'T2','Tier 2 — Dated (livable)'],
   [1,'T1','Tier 1 — Distressed (lowest sale)'],
-  ['dotty','DOTTY','DOTTY — Our property'],
+  ['null','NULL','Null — not enough data to judge condition'],
 ];
+// Map a TIER_OPTS key → numeric condition_tier for coloring (5A/5B/5C → 5;
+// 'null'/'dotty' → none).
+function _keyTier(k){
+  if(k==='5A'||k==='5B'||k==='5C')return 5;
+  if(k==='null'||k==='dotty')return null;
+  return Number(k);
+}
+// Map a TIER_OPTS key → the DB columns to write. value_driver_rooms_updated
+// is set for T5 sub-tiers and cleared (null) otherwise; 'null' clears the
+// tier entirely (condition_overridden marks it a deliberate "no data" call).
+function _keyToPayload(newKey){
+  const map={'5A':2,'5B':1,'5C':0};
+  if(newKey==='null')return{condition_tier:null,value_driver_rooms_updated:null,is_dotty:false,comp_type:null};
+  if(newKey==='dotty')return{condition_tier:6,value_driver_rooms_updated:null,is_dotty:true,comp_type:'dotty'};
+  if(newKey in map)return{condition_tier:5,value_driver_rooms_updated:map[newKey],is_dotty:false,comp_type:'halfflips'};
+  const tier=Number(newKey);
+  const comp_type=tier===6?'flips':(tier===4?'halfflips':'general');
+  return{condition_tier:tier,value_driver_rooms_updated:null,is_dotty:false,comp_type};
+}
+// (tier, vdru, isDotty, overridden) → the chip label shown on the row.
+// T5 → T5-A/B/C off vdru; deliberate null (overridden) → "null"; unscored → "?".
+function _tierChipLabel(tier,vdru,isDotty,overridden){
+  if(isDotty)return'DOTTY';
+  if(tier===5){const k=SUBTIER5_LABEL[vdru];return k?('T5-'+k):'T5';}
+  if(tier)return'T'+tier;
+  return overridden?'null':'?';
+}
+// (tier, vdru, isDotty, overridden) → the TIER_OPTS key that is "current"
+// (for the ✓ marker in the dropdown).
+function _tierCurrentKey(tier,vdru,isDotty,overridden){
+  if(isDotty)return'dotty';
+  if(tier===5){const k=SUBTIER5_LABEL[vdru];return k?('5'+k):null;}
+  if(tier)return tier;
+  return overridden?'null':null;
+}
 // Gradient red→green across tiers 1-6. DOTTY gets purple.
 function _tierColors(tier,isDotty){
   if(isDotty)return{bg:'var(--purple-bg)',col:'var(--purple)'};
@@ -1401,7 +1451,12 @@ function _tierColors(tier,isDotty){
 const TIER_LABELS={1:'Distressed',2:'Dated (livable)',3:'Modern owner-grade',4:'Lived-in flip',5:'Half-flip',6:'Full flip'};
 function condTierBadge(l){
   const tier=l.conditionTier,isDotty=l.isDotty===true;
-  if(!tier&&!isDotty)return'';
+  // Deliberate "null" call (Patty marked no-data) shows a "null" chip;
+  // a never-scored listing still renders nothing.
+  if(!tier&&!isDotty){
+    if(l.conditionOverridden===true)return`<span class="tag" style="background:var(--bg-alt);color:var(--text-4);border:none" title="Condition — marked null (not enough data to judge)">null</span>`;
+    return'';
+  }
   const{bg,col}=_tierColors(tier,isDotty);
   const lbl=isDotty?'DOTTY':'T'+tier;
   const title=isDotty?'Condition tier — DOTTY (our property)':`Condition tier ${tier} — ${TIER_LABELS[tier]||''}`;
@@ -1431,13 +1486,13 @@ function subTier5Badge(l){
 // updateSubjectTier. Shows "?" when no tier is set yet.
 function subjectTierEditor(l){
   const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
-  const isDotty=l.isDotty===true,tier=l.conditionTier;
-  const currentKey=isDotty?'dotty':(tier||null);
+  const isDotty=l.isDotty===true,tier=l.conditionTier,vdru=l.valueDriverRooms,ov=l.conditionOverridden===true;
+  const currentKey=_tierCurrentKey(tier,vdru,isDotty,ov);
   const{bg,col}=_tierColors(tier,isDotty);
-  const chip=isDotty?'DOTTY':(tier?'T'+tier:'?');
+  const chip=_tierChipLabel(tier,vdru,isDotty,ov);
   const dropId=`subj-retag-${id}`;
   const opts=TIER_OPTS.map(([v,_chip,full])=>{
-    const oc=_tierColors(v==='dotty'?null:v,v==='dotty');
+    const oc=_tierColors(_keyTier(v),v==='dotty');
     const isCur=v===currentKey;
     return`<button onclick="event.stopPropagation();setSubjectTier('${l.mls}','${v}')" style="background:${oc.bg};color:${oc.col};${isCur?'font-weight:800;':''}padding:5px 10px;font-size:10px;text-transform:none;letter-spacing:0">${full}${isCur?' ✓':''}</button>`;
   }).join('');
@@ -1452,31 +1507,19 @@ function setSubjectTier(mls,newKey){
 // condition_overridden + legacy comp_type) for the subject row, then refresh
 // the inline editor + the list-row chip in place.
 async function updateSubjectTier(mls,newKey){
-  const isDotty=newKey==='dotty';
-  const tier=isDotty?6:Number(newKey);
-  let compType;
-  if(isDotty)compType='dotty';
-  else if(tier===6)compType='flips';
-  else if(tier===5||tier===4)compType='halfflips';
-  else compType='general';  // tiers 1-3
-  const payload={
-    condition_tier:tier,
-    is_dotty:isDotty,
-    condition_overridden:true,
-    comp_type:compType,
-    updated_at:new Date().toISOString(),
-  };
+  const cols=_keyToPayload(newKey);  // condition_tier, value_driver_rooms_updated, is_dotty, comp_type
+  const payload={...cols,condition_overridden:true,updated_at:new Date().toISOString()};
   const l=listings.find(x=>x.mls===mls);
   // Optimistic UI: repaint the chip immediately, then write in the background —
   // the UPDATE can be slow (server-side recompute on condition_tier change).
-  const prevTier=l?l.conditionTier:null,prevDotty=l?l.isDotty:false;
+  const prev=l?{tier:l.conditionTier,dotty:l.isDotty,vdru:l.valueDriverRooms,ov:l.conditionOverridden}:null;
   const id=mls.replace(/[^a-zA-Z0-9]/g,'');
   const repaint=()=>{const el=document.getElementById('subj-tier-'+id);if(l&&el)el.outerHTML=subjectTierEditor(l);render();};
-  if(l){l.conditionTier=tier;l.isDotty=isDotty;repaint();}
+  if(l){l.conditionTier=cols.condition_tier;l.isDotty=cols.is_dotty;l.valueDriverRooms=cols.value_driver_rooms_updated;l.conditionOverridden=true;repaint();}
   const{error}=await sb.from('properties').update(payload).eq('mls',mls);
   if(error){
     console.error('set subject tier failed',error);alert('Set tier failed: '+error.message);
-    if(l){l.conditionTier=prevTier;l.isDotty=prevDotty;repaint();}  // revert
+    if(l&&prev){l.conditionTier=prev.tier;l.isDotty=prev.dotty;l.valueDriverRooms=prev.vdru;l.conditionOverridden=prev.ov;repaint();}  // revert
   }
 }
 function compTypeSelectHtml(c,subjectMid){
@@ -1485,14 +1528,14 @@ function compTypeSelectHtml(c,subjectMid){
     return`<span style="font-size:8px;font-weight:700;color:var(--text-4);margin-right:3px">${lbl}</span>`;
   }
   const isDotty=c.isDotty===true;
-  const tier=c.conditionTier;
-  const currentKey=isDotty?'dotty':(tier||null);
+  const tier=c.conditionTier,vdru=c.valueDriverRooms,ov=c.conditionOverridden===true;
+  const currentKey=_tierCurrentKey(tier,vdru,isDotty,ov);
   const{bg,col}=_tierColors(tier,isDotty);
-  const currentChipLbl=isDotty?'DOTTY':(tier?'T'+tier:'?');
+  const currentChipLbl=_tierChipLabel(tier,vdru,isDotty,ov);
   const compIdSafe=String(c.mls).replace(/[^a-zA-Z0-9]/g,'');
   const dropId=`retag-drop-${subjectMid}-${compIdSafe}`;
   const optsHtml=TIER_OPTS.map(([v,_chip,full])=>{
-    const oc=_tierColors(v==='dotty'?null:v, v==='dotty');
+    const oc=_tierColors(_keyTier(v), v==='dotty');
     const isCur=v===currentKey;
     return`<button onclick="event.stopPropagation();setTierFromDrop('${c.mls}','${subjectMid}','${v}')" style="background:${oc.bg};color:${oc.col};${isCur?'font-weight:800;':''}padding:5px 10px;font-size:10px;text-transform:none;letter-spacing:0">${full}${isCur?' ✓':''}</button>`;
   }).join('');
@@ -1505,26 +1548,12 @@ function setTierFromDrop(compMls,subjectMid,newKey){
   updateCompTier(compMls,subjectMid,newKey);
 }
 async function updateCompTier(compMls,subjectMid,newKey){
-  // newKey is one of: 1, 2, 3, 4, 5, 6, 'dotty'
-  // Compute the 4 columns to write per BS locked decisions:
-  //   - condition_tier (1-6)
-  //   - is_dotty (true only for 'dotty')
-  //   - condition_overridden = true (this is a manual override)
-  //   - comp_type (backward-compat α mapping per migration 025 + AX Phase 2.4)
-  const isDotty=newKey==='dotty';
-  const tier=isDotty?6:Number(newKey);
-  let compType;
-  if(isDotty)compType='dotty';
-  else if(tier===6)compType='flips';
-  else if(tier===5||tier===4)compType='halfflips';
-  else compType='general';  // tiers 1-3
-  const payload={
-    condition_tier:tier,
-    is_dotty:isDotty,
-    condition_overridden:true,
-    comp_type:compType,
-    updated_at:new Date().toISOString(),
-  };
+  // newKey is one of: 6, '5A', '5B', '5C', 4, 3, 2, 1, 'null' (+ legacy 'dotty').
+  // _keyToPayload computes condition_tier + value_driver_rooms_updated + is_dotty
+  // + comp_type (backward-compat α mapping per migration 025 + AX Phase 2.4);
+  // condition_overridden=true marks the manual override.
+  const cols=_keyToPayload(newKey);
+  const payload={...cols,condition_overridden:true,updated_at:new Date().toISOString()};
   const{error}=await sb.from('properties').update(payload).eq('mls',compMls);
   if(error){console.error('retag comp failed',error);alert('Retag failed: '+error.message);return;}
   // Update in-memory cache for the active subject + re-render the panel
@@ -1533,9 +1562,11 @@ async function updateCompTier(compMls,subjectMid,newKey){
   if(subjectMls&&compCache[subjectMls]){
     const comp=compCache[subjectMls].comps.find(c=>c.mls===compMls);
     if(comp){
-      comp.conditionTier=tier;
-      comp.isDotty=isDotty;
-      comp.type=compType==='general'?'sold':compType;  // keep legacy `type` in sync for any code still reading it
+      comp.conditionTier=cols.condition_tier;
+      comp.valueDriverRooms=cols.value_driver_rooms_updated;
+      comp.conditionOverridden=true;
+      comp.isDotty=cols.is_dotty;
+      comp.type=cols.comp_type==='general'?'sold':(cols.comp_type||'sold');  // keep legacy `type` in sync
     }
     const l=listings.find(x=>x.mls===subjectMls);
     if(l){const el=document.getElementById('comp-col');if(el)el.innerHTML=compsPanel(l);}
@@ -2653,7 +2684,7 @@ function mapRowToListing(r){
     elem:r.elementary_rating||r.elementary_school?{r:r.elementary_rating||0,n:r.elementary_school||''}:null,
     mid:(r.middle_rating||r.middle_school)&&(r.middle_school!==r.elementary_school)?{r:r.middle_rating||0,n:r.middle_school||''}:null,
     high:r.high_rating||r.high_school?{r:r.high_rating||0,n:r.high_school||''}:null,
-    tags,customTags:r.custom_tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null,photoCount:r.photo_count||0,conditionTier:r.condition_tier||null,valueDriverRooms:(r.value_driver_rooms_updated==null?null:r.value_driver_rooms_updated),isDotty:r.is_dotty===true,
+    tags,customTags:r.custom_tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null,photoCount:r.photo_count||0,conditionTier:r.condition_tier||null,valueDriverRooms:(r.value_driver_rooms_updated==null?null:r.value_driver_rooms_updated),conditionOverridden:r.condition_overridden===true,isDotty:r.is_dotty===true,
     // Brief BK: deal linkage now lives on the deals table (decorated in
     // decorateListingsWithDeals after loadListings()). Drop the legacy
     // properties.pipeline_stage column.
@@ -2669,7 +2700,7 @@ function mapRowToListing(r){
 // are ~half the payload and only shown in the detail view. They're lazy-loaded
 // on detail open via ensureDetailRemarks(). select('*') here pulled ~3.9MB /
 // 6-24s for ~800 unread rows; this list is ~2MB.
-const LIST_COLS='address,agent_broker,agent_dre,agent_email,agent_name,agent_office_phone,agent_phone,baths,beds,broker_dre,change_date,change_type,city,condition_tier,value_driver_rooms_updated,contact_name,contact_phone,custom_tags,elementary_rating,elementary_school,gate_code,high_rating,high_school,is_dotty,latitude,list_date,list_price,lockbox_location,lockbox_type,locked_arv,locked_construction,longitude,lot_size,middle_rating,middle_school,mls,mls_area,mls_area_name,notes,occupancy,occupant_type,photo_count,pool,ppsf,remarks,sale_type,sqft,stage,year_built,zip,imported_at';
+const LIST_COLS='address,agent_broker,agent_dre,agent_email,agent_name,agent_office_phone,agent_phone,baths,beds,broker_dre,change_date,change_type,city,condition_tier,value_driver_rooms_updated,condition_overridden,contact_name,contact_phone,custom_tags,elementary_rating,elementary_school,gate_code,high_rating,high_school,is_dotty,latitude,list_date,list_price,lockbox_location,lockbox_type,locked_arv,locked_construction,longitude,lot_size,middle_rating,middle_school,mls,mls_area,mls_area_name,notes,occupancy,occupant_type,photo_count,pool,ppsf,remarks,sale_type,sqft,stage,year_built,zip,imported_at';
 async function loadListings(status){
   let query=sb.from('properties').select(LIST_COLS).not('mls','is',null).not('mls','like','OFFMKT-%').neq('change_type','sold').order('imported_at',{ascending:false}).limit(2000);
   if(status==='unread')query=query.eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
