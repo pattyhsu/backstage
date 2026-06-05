@@ -1,2 +1,6 @@
-.DS_Store
-.obsidian/
+# Local-only secrets — never commit
+*.env
+.env*
+secrets/
+# Scratch/preview artifacts
+_tmp_*

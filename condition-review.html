@@ -194,7 +194,7 @@
     <span><strong id="statTotal">0</strong> scored</span>
     <span><strong id="statOverridden">0</strong> overridden</span>
     <span style="color:var(--red)"><strong id="statLow">0</strong> low confidence</span>
-    <span style="color:var(--text-4)"><strong id="statUncat">0</strong> no tier</span>
+    <span style="color:var(--text-4)"><strong id="statUncat">0</strong> uncategorized</span>
   </div>
 </div>
 
@@ -467,8 +467,9 @@ async function updateStats(){
   const{count:total}=await sb.from('properties').select('*',{count:'exact',head:true}).not('condition_tier','is',null);
   const{count:overridden}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('condition_overridden',true);
   const{count:low}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('condition_confidence','low');
-  // "no tier" = scored-but-ungradeable or de-selected (condition_tier IS NULL).
-  const{count:uncat}=await sb.from('properties').select('*',{count:'exact',head:true}).is('condition_tier',null);
+  // "uncategorized" = rows a reviewer explicitly cleared (null tier + overridden).
+  // NOT all null-tier rows — most of those are simply never-scored, not ungradeable.
+  const{count:uncat}=await sb.from('properties').select('*',{count:'exact',head:true}).is('condition_tier',null).eq('condition_overridden',true);
   document.getElementById('statTotal').textContent=total||0;
   document.getElementById('statOverridden').textContent=overridden||0;
   document.getElementById('statLow').textContent=low||0;
@@ -489,11 +490,12 @@ async function loadCards(){
   const conf=filters.confidence;
   const unreviewed=document.getElementById('fUnreviewed').checked;
 
-  // Base tier scope. The "Uncategorized" filter shows the no-tier rows
-  // (condition_tier IS NULL) — both ones a reviewer de-selected and ones the
-  // scorer couldn't grade; every other view excludes them.
+  // Base tier scope. "Uncategorized" = rows a reviewer explicitly cleared
+  // (condition_tier IS NULL AND condition_overridden=true). We require the
+  // overridden flag so the ~6k never-scored rows (also null tier, but never
+  // touched) stay out of this view. Every other tier view excludes nulls.
   if(tier==='uncat'){
-    query=query.is('condition_tier',null);
+    query=query.is('condition_tier',null).eq('condition_overridden',true);
   } else {
     query=query.not('condition_tier','is',null);
     if(tier) query=query.eq('condition_tier',parseInt(tier));
