@@ -103,7 +103,6 @@
 <div class="tabs">
   <button class="tab active" data-panel="search">Search Comps</button>
   <button class="tab" data-panel="browse">Browse All</button>
-  <button class="tab" data-panel="map">Map View</button>
 </div>
 
 <!-- SEARCH -->
@@ -140,23 +139,6 @@
   <div id="browseResults"></div>
 </div>
 
-<!-- MAP VIEW -->
-<div class="panel" id="panel-map">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:12px">
-    <h3 style="font-size:15px;font-weight:600">Map View <span id="mapCount" style="color:var(--text-3);font-weight:400"></span></h3>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <select id="m-city-filter" onchange="renderMapView()" style="padding:8px 12px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)"><option value="">All Cities</option></select>
-      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-3);cursor:pointer"><input type="checkbox" id="m-outliers-only" onchange="renderMapView()"> Outliers only</label>
-    </div>
-  </div>
-  <div style="display:flex;gap:16px;align-items:flex-start">
-    <div id="map-canvas" style="flex:2;height:700px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);background:var(--bg-alt);display:flex;align-items:center;justify-content:center;color:var(--text-4);font-size:13px">Loading map…</div>
-    <div style="flex:1;min-width:280px;max-width:380px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap"><div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">⚠ Likely Geocoding Errors <span id="outlierCount" style="color:var(--text-4);font-weight:400;text-transform:none;letter-spacing:0"></span></div><div style="display:flex;gap:6px"><button id="dismissAllBtn" onclick="dismissAllOutliers()" style="background:var(--bg-alt);border:1px solid var(--border);border-radius:6px;color:var(--text-3);cursor:pointer;font-size:11px;padding:5px 10px;font-family:inherit;font-weight:600;display:none" title="Mark all visible as not outliers">Dismiss all</button><button id="clearOutlierBtn" onclick="clearOutlierCoords()" style="background:var(--red);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;padding:5px 10px;font-family:inherit;font-weight:600;display:none">Clear coords</button></div></div>
-      <div id="outlierList" style="max-height:660px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-page)"></div>
-    </div>
-  </div>
-</div>
 
 <!-- MISSING SCHOOLS -->
 
@@ -710,178 +692,6 @@ async function fetchBrowsePage() {
   document.getElementById('search-summary').style.display = 'none';
 }
 
-// === MAP VIEW ===
-let mapViewMap=null,mapViewMarkers=[],mapViewData=[],mapViewOutliers=new Set(),mapViewLoaded=false;
-
-async function loadMapView(){
-  if(mapViewLoaded)return;
-  const canvas=document.getElementById('map-canvas');
-  canvas.innerHTML='<div style="text-align:center"><div>Loading all comps…</div><div id="mapLoadProgress" style="font-size:11px;color:var(--text-4);margin-top:6px"></div></div>';
-  const prog=()=>document.getElementById('mapLoadProgress');
-  let all=[];
-  for(let p=0;p<25;p++){
-    const{data,error}=await sb.from('properties').select('id,address,city,latitude,longitude,sale_price,sold_date,mls,outlier_reviewed').not('latitude','is',null).not('longitude','is',null).range(p*1000,(p+1)*1000-1);
-    if(error){
-      // Graceful degradation: if outlier_reviewed column doesn't exist yet, fall back to query without it
-      if(error.message&&error.message.indexOf('outlier_reviewed')>=0){
-        canvas.innerHTML='<div style="color:var(--amber);padding:20px;text-align:center"><b>Setup needed:</b> add the <code>outlier_reviewed</code> column to your <code>properties</code> table:<br><br><code style="display:inline-block;background:var(--bg-alt);padding:8px 12px;border-radius:6px;margin-top:6px">ALTER TABLE properties ADD COLUMN outlier_reviewed boolean DEFAULT false;</code><br><br>Then reload this page.</div>';
-        return;
-      }
-      canvas.innerHTML='<div style="color:var(--red)">Error: '+error.message+'</div>';return;
-    }
-    if(!data||!data.length)break;
-    all=all.concat(data);
-    if(prog())prog().textContent='Loaded '+all.length+' comps…';
-    if(data.length<1000)break;
-  }
-  mapViewData=all;
-  mapViewLoaded=true;
-  // Compute outliers per city using IQR on lat/lng
-  const byCity={};
-  all.forEach(r=>{const c=(r.city||'').toUpperCase().trim();if(!c)return;(byCity[c]=byCity[c]||[]).push(r);});
-  mapViewOutliers=new Set();
-  Object.entries(byCity).forEach(([city,rows])=>{
-    if(rows.length<4)return;
-    const lats=rows.map(r=>r.latitude).sort((a,b)=>a-b);
-    const lngs=rows.map(r=>r.longitude).sort((a,b)=>a-b);
-    const q=(arr,p)=>arr[Math.floor(arr.length*p)];
-    const latQ1=q(lats,0.25),latQ3=q(lats,0.75),latIQR=latQ3-latQ1;
-    const lngQ1=q(lngs,0.25),lngQ3=q(lngs,0.75),lngIQR=lngQ3-lngQ1;
-    // 1.5x IQR is the textbook strict threshold — for flip comps even a few blocks of geocoding error matter
-    const latLo=latQ1-1.5*latIQR,latHi=latQ3+1.5*latIQR;
-    const lngLo=lngQ1-1.5*lngIQR,lngHi=lngQ3+1.5*lngIQR;
-    rows.forEach(r=>{
-      if(r.outlier_reviewed)return; // user already confirmed this is fine
-      if(r.latitude<latLo||r.latitude>latHi||r.longitude<lngLo||r.longitude>lngHi)mapViewOutliers.add(r.id);
-    });
-  });
-  // Populate city filter
-  const sel=document.getElementById('m-city-filter');
-  const cities=Object.keys(byCity).sort();
-  sel.innerHTML='<option value="">All Cities ('+all.length+')</option>'+cities.map(c=>'<option value="'+c+'">'+c+' ('+byCity[c].length+')</option>').join('');
-  // Initialize map
-  canvas.innerHTML='';
-  if(!window.google||!window.google.maps){canvas.innerHTML='<div style="color:var(--red)">Google Maps not loaded</div>';return;}
-  mapViewMap=new google.maps.Map(canvas,{zoom:10,center:{lat:34.05,lng:-118.0},mapTypeControl:true,streetViewControl:false});
-  renderMapView();
-}
-
-function renderMapView(){
-  if(!mapViewMap)return;
-  // Clear existing markers
-  mapViewMarkers.forEach(m=>m.setMap(null));
-  mapViewMarkers=[];
-  const cityFilter=document.getElementById('m-city-filter').value;
-  const outliersOnly=document.getElementById('m-outliers-only').checked;
-  const filtered=mapViewData.filter(r=>{
-    if(cityFilter&&(r.city||'').toUpperCase().trim()!==cityFilter)return false;
-    if(outliersOnly&&!mapViewOutliers.has(r.id))return false;
-    return true;
-  });
-  document.getElementById('mapCount').textContent='('+filtered.length+' shown'+(mapViewOutliers.size?', '+mapViewOutliers.size+' outliers total':'')+')';
-  const colorFor=r=>{
-    if(mapViewOutliers.has(r.id))return '#dc2626';
-    return '#2563eb';
-  };
-  const bounds=new google.maps.LatLngBounds();
-  filtered.forEach(r=>{
-    const isOutlier=mapViewOutliers.has(r.id);
-    const m=new google.maps.Marker({
-      position:{lat:r.latitude,lng:r.longitude},
-      map:mapViewMap,
-      title:(r.address||'')+', '+(r.city||''),
-      icon:{path:google.maps.SymbolPath.CIRCLE,scale:isOutlier?9:5,fillColor:colorFor(r),fillOpacity:isOutlier?1:0.7,strokeColor:'#fff',strokeWeight:isOutlier?2:1},
-      zIndex:isOutlier?1000:1
-    });
-    m.addListener('click',()=>{
-      const iw=new google.maps.InfoWindow({content:'<div style="font-size:12px;font-family:system-ui"><b>'+(r.address||'')+'</b><br>'+(r.city||'')+'<br>'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+' · '+(r.sold_date||'—')+(isOutlier?'<br><span style=\"color:#dc2626;font-weight:600\">⚠ outlier</span>':'')+'<br><a href="#" onclick="event.preventDefault();editComp('+r.id+')">edit</a></div>'});
-      iw.open(mapViewMap,m);
-    });
-    mapViewMarkers.push(m);
-    bounds.extend({lat:r.latitude,lng:r.longitude});
-  });
-  if(filtered.length>0&&filtered.length<mapViewData.length)mapViewMap.fitBounds(bounds);
-  // Render outlier sidebar list (always shows all outliers, regardless of filter, but city filter narrows it)
-  const outlierRows=mapViewData.filter(r=>mapViewOutliers.has(r.id)&&(!cityFilter||(r.city||'').toUpperCase().trim()===cityFilter));
-  document.getElementById('outlierCount').textContent='('+outlierRows.length+')';
-  document.getElementById('clearOutlierBtn').style.display=outlierRows.length>0?'':'none';
-  document.getElementById('dismissAllBtn').style.display=outlierRows.length>0?'':'none';
-  const list=document.getElementById('outlierList');
-  if(!outlierRows.length){list.innerHTML='<div style="padding:16px;font-size:12px;color:var(--text-4);text-align:center">No outliers detected '+(cityFilter?'in '+cityFilter:'')+'</div>';return;}
-  list.innerHTML=outlierRows.slice(0,200).map(r=>'<div id="outlier-row-'+r.id+'" style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;display:flex;align-items:flex-start;gap:8px"><div style="flex:1;cursor:pointer" onclick="mapViewFlyTo('+r.latitude+','+r.longitude+','+r.id+')"><div style="font-weight:600">'+(r.address||'(no address)')+'</div><div style="color:var(--text-3);font-size:11px;margin-top:2px">'+(r.city||'')+' · '+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</div><div style="color:var(--text-4);font-size:10px;font-family:var(--mono),monospace;margin-top:2px">'+r.latitude.toFixed(5)+', '+r.longitude.toFixed(5)+'</div></div><button onclick="dismissOutlier('+r.id+')" title="Not an outlier" style="background:none;border:1px solid var(--border);border-radius:4px;color:var(--green);cursor:pointer;font-size:12px;padding:2px 8px;font-family:inherit;flex-shrink:0">✓</button></div>').join('')+(outlierRows.length>200?'<div style="padding:8px 12px;font-size:11px;color:var(--text-4);text-align:center">+'+(outlierRows.length-200)+' more</div>':'');
-}
-
-function mapViewFlyTo(lat,lng,id){
-  if(!mapViewMap)return;
-  mapViewMap.panTo({lat,lng});
-  mapViewMap.setZoom(16);
-  // Pop the matching marker's info window
-  const marker=mapViewMarkers.find(m=>{const p=m.getPosition();return Math.abs(p.lat()-lat)<1e-6&&Math.abs(p.lng()-lng)<1e-6;});
-  if(marker)google.maps.event.trigger(marker,'click');
-}
-
-async function clearOutlierCoords(){
-  // Use whatever the sidebar is currently showing (respects city filter)
-  const cityFilter=document.getElementById('m-city-filter').value;
-  const targets=mapViewData.filter(r=>mapViewOutliers.has(r.id)&&(!cityFilter||(r.city||'').toUpperCase().trim()===cityFilter));
-  if(!targets.length){alert('No outliers to clear.');return;}
-  if(!confirm('Clear lat/lon on '+targets.length+' outlier'+(targets.length===1?'':'s')+(cityFilter?' in '+cityFilter:'')+'?\n\nAfter clearing, run the Geocode tab in import.html to re-geocode them.'))return;
-  const btn=document.getElementById('clearOutlierBtn');
-  btn.disabled=true;btn.textContent='Clearing…';
-  const ids=targets.map(r=>r.id);
-  let cleared=0;
-  for(let i=0;i<ids.length;i+=100){
-    const chunk=ids.slice(i,i+100);
-    const{error}=await sb.from('properties').update({latitude:null,longitude:null}).in('id',chunk);
-    if(error){alert('Error: '+error.message);btn.disabled=false;btn.textContent='Clear coords';return;}
-    cleared+=chunk.length;
-    btn.textContent='Clearing… '+cleared+'/'+ids.length;
-  }
-  // Drop them from local state so the map updates without a reload
-  const clearedSet=new Set(ids);
-  mapViewData=mapViewData.filter(r=>!clearedSet.has(r.id));
-  ids.forEach(id=>mapViewOutliers.delete(id));
-  btn.disabled=false;btn.textContent='Clear coords';
-  renderMapView();
-  alert('Cleared '+cleared+' coords. Now go to import.html → Geocode tab to re-geocode them.');
-}
-
-async function dismissOutlier(id){
-  const{error}=await sb.from('properties').update({outlier_reviewed:true}).eq('id',id);
-  if(error){alert('Error: '+error.message);return;}
-  // Update local state and animate the row out
-  mapViewOutliers.delete(id);
-  const row=mapViewData.find(r=>r.id===id);
-  if(row)row.outlier_reviewed=true;
-  const el=document.getElementById('outlier-row-'+id);
-  if(el){el.style.transition='opacity .3s';el.style.opacity='0';setTimeout(()=>renderMapView(),300);}
-  else renderMapView();
-}
-
-async function dismissAllOutliers(){
-  const cityFilter=document.getElementById('m-city-filter').value;
-  const targets=mapViewData.filter(r=>mapViewOutliers.has(r.id)&&(!cityFilter||(r.city||'').toUpperCase().trim()===cityFilter));
-  if(!targets.length){alert('Nothing to dismiss.');return;}
-  if(!confirm('Mark '+targets.length+' outlier'+(targets.length===1?'':'s')+(cityFilter?' in '+cityFilter:'')+' as reviewed?\n\nThey will be hidden from outlier detection going forward. You can undo this later by clearing the outlier_reviewed column in Supabase.'))return;
-  const btn=document.getElementById('dismissAllBtn');
-  btn.disabled=true;btn.textContent='Dismissing…';
-  const ids=targets.map(r=>r.id);
-  let dismissed=0;
-  for(let i=0;i<ids.length;i+=100){
-    const chunk=ids.slice(i,i+100);
-    const{error}=await sb.from('properties').update({outlier_reviewed:true}).in('id',chunk);
-    if(error){alert('Error: '+error.message);btn.disabled=false;btn.textContent='Dismiss all';return;}
-    dismissed+=chunk.length;
-    btn.textContent='Dismissing… '+dismissed+'/'+ids.length;
-  }
-  // Update local state
-  const dismissedSet=new Set(ids);
-  mapViewData.forEach(r=>{if(dismissedSet.has(r.id))r.outlier_reviewed=true;});
-  ids.forEach(id=>mapViewOutliers.delete(id));
-  btn.disabled=false;btn.textContent='Dismiss all';
-  renderMapView();
-}
-
 // Auto-load browse when tab is clicked
 const origSetupTabs = setupTabs;
 setupTabs = function() {
@@ -893,9 +703,6 @@ setupTabs = function() {
       }
       if (tab.dataset.panel === 'schools') {
         loadMissingSchools();
-      }
-      if (tab.dataset.panel === 'map') {
-        loadMapView();
       }
     });
   });
