@@ -81,11 +81,10 @@
   .tier-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
   .tier-btn.active { border-color:var(--accent); background:var(--accent); color:#fff; }
   .tier-btn.overridden { border-color:var(--blue); background:var(--blue); color:#fff; }
-  .subtier-badge{ margin-left:8px; padding:2px 8px; border-radius:var(--radius-sm); background:var(--accent-dim); color:var(--accent); font-family:var(--mono); font-size:12px; font-weight:600; }
-  .subtier-buttons{ display:flex; gap:3px; margin-left:6px; }
-  .subtier-btn{ width:26px; height:26px; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); font-family:var(--sans); font-size:12px; font-weight:600; color:var(--text-3); cursor:pointer; }
-  .subtier-btn:hover{ border-color:var(--accent); color:var(--accent); }
-  .subtier-btn.active{ border-color:var(--accent); background:var(--accent); color:#fff; }
+  /* T5 sub-tier cluster — tinted segmented group so it reads as one unit, not 4 loose buttons */
+  .t5-group{ display:inline-flex; align-items:center; gap:3px; padding:3px 5px 3px 7px; background:var(--accent-dim2); border:1px solid var(--accent-dim2); border-radius:7px; }
+  .t5-tag{ font-family:var(--mono); font-size:10px; font-weight:700; color:var(--accent); letter-spacing:.3px; margin-right:1px; }
+  .tier-btn.sub{ height:26px; min-width:26px; padding:0 6px; font-size:12px; }
   .tier-divider { width:1px; height:24px; background:var(--border); margin:0 4px; }
   .reviewed-btn { padding:0 10px; height:32px; border:1.5px solid var(--green); border-radius:var(--radius-sm); background:var(--bg); font-family:inherit; font-size:12.5px; font-weight:600; color:var(--green); cursor:pointer; transition:all .12s; display:inline-flex; align-items:center; gap:4px; }
   .reviewed-btn:hover { background:var(--green-bg); }
@@ -151,6 +150,25 @@
   .collapse-btn:hover { color:var(--text); }
 
   .main-content { flex:1; overflow-y:auto; min-width:0; }
+
+  /* ===== PERSISTENT DEFINITION PANEL (right) ===== */
+  .def-panel{ width:340px; flex-shrink:0; background:var(--bg); border-left:1px solid var(--border); overflow-y:auto; height:100vh; }
+  .def-head{ position:sticky; top:0; background:var(--bg); border-bottom:1px solid var(--border); padding:16px 20px; z-index:2; }
+  .def-head h2{ font-size:13px; font-weight:700; color:var(--text); letter-spacing:-.2px; margin:0; }
+  .def-head p{ font-size:11.5px; color:var(--text-4); margin-top:3px; line-height:1.4; }
+  .def-body{ padding:8px 16px 40px; }
+  .def-item{ padding:12px; border-radius:var(--radius); margin-bottom:4px; border:1px solid transparent; }
+  .def-item:hover{ background:var(--bg-page); border-color:var(--border); }
+  .def-row{ display:flex; align-items:center; gap:9px; margin-bottom:5px; }
+  .def-chip{ font-family:var(--mono); font-size:11.5px; font-weight:600; color:#fff; padding:2px 7px; border-radius:5px; flex-shrink:0; min-width:28px; text-align:center; }
+  .def-name{ font-size:13px; font-weight:600; color:var(--text); }
+  .def-desc{ font-size:12px; color:var(--text-3); line-height:1.5; }
+  .def-sub{ margin:8px 0 0 10px; padding-left:12px; border-left:2px solid var(--border); }
+  .def-srow{ display:flex; gap:8px; align-items:baseline; margin-bottom:6px; }
+  .def-schip{ font-family:var(--mono); font-size:10.5px; font-weight:600; padding:1px 6px; border-radius:4px; background:var(--accent-dim2); color:var(--accent); flex-shrink:0; }
+  .def-stext{ font-size:11.5px; color:var(--text-3); line-height:1.45; }
+  .def-divider{ height:1px; background:var(--border); margin:6px 12px; }
+  @media(max-width:1100px){ .def-panel{ width:280px; } }
 </style>
 </head>
 <body>
@@ -185,16 +203,16 @@
     <button class="chip-btn" id="fTier-btn" onclick="event.stopPropagation();toggleChipDrop('fTier-drop')"><span id="fTier-label">All Conditions</span></button>
     <div class="chip-drop" id="fTier-drop">
       <button onclick="setTierFilter('')" class="selected">All Conditions</button>
-      <button onclick="setTierFilter('1')">Distressed</button>
-      <button onclick="setTierFilter('2')">Dated (livable)</button>
-      <button onclick="setTierFilter('3')">Modern (owner)</button>
-      <button onclick="setTierFilter('4')">Lived-in flip-quality</button>
-      <button onclick="setTierFilter('5')">Half-flip</button>
+      <button onclick="setTierFilter('1')">T1 · Distressed</button>
+      <button onclick="setTierFilter('2')">T2 · Dated (livable)</button>
+      <button onclick="setTierFilter('3')">T3 · Modern (owner-grade)</button>
+      <button onclick="setTierFilter('4')">T4 · Lived-in flip-quality</button>
+      <button onclick="setTierFilter('5')">T5 · Half-flip</button>
       <button onclick="setTierFilter('5A')" style="padding-left:26px">└ T5-A · both updated</button>
       <button onclick="setTierFilter('5B')" style="padding-left:26px">└ T5-B · half-flip</button>
       <button onclick="setTierFilter('5C')" style="padding-left:26px">└ T5-C · opportunity</button>
-      <button onclick="setTierFilter('5U')" style="padding-left:26px">└ T5-unclassified</button>
-      <button onclick="setTierFilter('6')">Full flip</button>
+      <button onclick="setTierFilter('5U')" style="padding-left:26px">└ T5-U · unclassified</button>
+      <button onclick="setTierFilter('6')">T6 · Full flip</button>
     </div>
   </div>
   <div class="chip-wrap" id="fConfidence-wrap">
@@ -225,6 +243,58 @@
 <div id="pagination" class="pagination"></div>
 
 </div><!-- /main-content -->
+
+<!-- Persistent condition-tier definition panel -->
+<aside class="def-panel">
+  <div class="def-head">
+    <h2>Condition Tiers — T1 → T6</h2>
+    <p>Worst → best. T5 splits into sub-tiers by how many of kitchen / bath are updated.</p>
+  </div>
+  <div class="def-body">
+
+    <div class="def-item">
+      <div class="def-row"><span class="def-chip" style="background:#C0392B">T1</span><span class="def-name">Distressed</span></div>
+      <div class="def-desc">Heavily deteriorated or barely habitable. Deferred maintenance throughout, failing systems, original everything. Sells at the bottom of the market.</div>
+    </div>
+
+    <div class="def-item">
+      <div class="def-row"><span class="def-chip" style="background:#C56A2E">T2</span><span class="def-name">Dated (livable)</span></div>
+      <div class="def-desc">Fully livable but visibly old. Original kitchen, baths, and flooring show their age — needs cosmetic updating, not structural work.</div>
+    </div>
+
+    <div class="def-item">
+      <div class="def-row"><span class="def-chip" style="background:#A8893A">T3</span><span class="def-name">Modern (owner-grade)</span></div>
+      <div class="def-desc">Modern to an <b>owner's everyday taste</b> — builder / big-box finishes (mid-tier counters, stock cabinets, laminate or basic tile). Current and move-in fine, but <b>not</b> staged-to-sell designer quality.</div>
+    </div>
+
+    <div class="def-item">
+      <div class="def-row"><span class="def-chip" style="background:#7E9140">T4</span><span class="def-name">Lived-in flip-quality</span></div>
+      <div class="def-desc"><b>Designer / flip-grade</b> finishes (quartz, custom cabinetry, cohesive styling) — a step above T3 — but showing <b>lived-in wear</b>. A prior flip that's since been occupied, or an owner who renovated to flip standards.</div>
+    </div>
+
+    <div class="def-divider"></div>
+
+    <div class="def-item">
+      <div class="def-row"><span class="def-chip" style="background:#4F8F50">T5</span><span class="def-name">Half-flip <span style="font-weight:400;color:var(--text-4);font-size:11px">— partial reno</span></span></div>
+      <div class="def-desc">Partially renovated. Sub-tier records how much of the value-driving rooms (kitchen + bath) are done:</div>
+      <div class="def-sub">
+        <div class="def-srow"><span class="def-schip">T5-A</span><span class="def-stext">Kitchen <b>and</b> bath both updated — nicest of the half-flips.</span></div>
+        <div class="def-srow"><span class="def-schip">T5-B</span><span class="def-stext">One of kitchen / bath updated — the true half-flip.</span></div>
+        <div class="def-srow"><span class="def-schip">T5-C</span><span class="def-stext">Both kitchen and bath original — flip opportunity.</span></div>
+        <div class="def-srow"><span class="def-schip">T5-U</span><span class="def-stext">Unclassified — sub-tier not yet set.</span></div>
+      </div>
+    </div>
+
+    <div class="def-divider"></div>
+
+    <div class="def-item">
+      <div class="def-row"><span class="def-chip" style="background:#2D8A4E">T6</span><span class="def-name">Full flip</span></div>
+      <div class="def-desc">Renovated top-to-bottom with designer / flip-quality finishes. Move-in turnkey; commands the top of the market.</div>
+    </div>
+
+  </div>
+</aside>
+
 </div><!-- /app-shell -->
 
 <!-- Photo lightbox — grid gallery (all photos at once; click to zoom) -->
@@ -240,8 +310,24 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;  // expose for auth.js
 
-const TIER_LABELS={1:'Distressed',2:'Dated (livable)',3:'Modern (owner)',4:'Lived-in flip-quality',5:'Half-flip',6:'Full flip'};
+const TIER_LABELS={1:'Distressed',2:'Dated (livable)',3:'Modern (owner-grade)',4:'Lived-in flip-quality',5:'Half-flip',6:'Full flip'};
 const SUBTIER={2:{l:'A',t:'Kitchen + bath both updated (nicest)'},1:{l:'B',t:'One of kitchen/bath updated (half-flip)'},0:{l:'C',t:'Both original — flip opportunity'}};
+const SUBTIER_U={l:'U',t:'Unclassified — sub-tier not yet set'};
+
+// Display string for the score-label: "T2 · Dated (livable)" or "T5-B · Half-flip".
+function tierDisplay(p){
+  const t=p.condition_tier;
+  if(t===5){
+    const s=p.value_driver_rooms_updated;
+    const l=(s in SUBTIER)?SUBTIER[s].l:'U';
+    return `T5-${l} · Half-flip`;
+  }
+  return `T${t} · ${TIER_LABELS[t]||'—'}`;
+}
+
+// Last loaded page of rows, keyed by id — lets override handlers re-render a
+// single card in place without a full reload.
+let cardData={};
 const PHOTO_BASE='https://photos.dottyhomes.com';
 const PAGE_SIZE=20;
 let currentPage=0;
@@ -302,7 +388,7 @@ function setTierFilter(value){
   const SUB={'5A':'2','5B':'1','5C':'0','5U':'null'};
   if(value in SUB){ filters.tier='5'; filters.subtier=SUB[value]; }
   else { filters.tier=value; filters.subtier=''; }
-  const labels={'':'All Conditions','1':'Distressed','2':'Dated (livable)','3':'Modern (owner)','4':'Lived-in flip-quality','5':'Half-flip','6':'Full flip','5A':'T5-A · both updated','5B':'T5-B · half-flip','5C':'T5-C · opportunity','5U':'T5-unclassified'};
+  const labels={'':'All Conditions','1':'T1 · Distressed','2':'T2 · Dated (livable)','3':'T3 · Modern (owner-grade)','4':'T4 · Lived-in flip-quality','5':'T5 · Half-flip','6':'T6 · Full flip','5A':'T5-A · both updated','5B':'T5-B · half-flip','5C':'T5-C · opportunity','5U':'T5-U · unclassified'};
   document.getElementById('fTier-label').textContent=labels[value]||'All Conditions';
   const drop=document.getElementById('fTier-drop');
   drop.querySelectorAll('button').forEach(b=>b.classList.remove('selected'));
@@ -425,6 +511,8 @@ async function loadCards(){
     return;
   }
 
+  cardData={};
+  data.forEach(p=>{cardData[p.id]=p;});
   container.innerHTML=data.map(renderCard).join('');
   renderPagination();
 }
@@ -438,7 +526,7 @@ function renderCard(p){
   const previewNums=[1,5,10,15].filter(n=>n<=totalPhotos);
   const price=p.sale_price||p.list_price;
   const priceStr=price?'$'+Number(price).toLocaleString():'—';
-  const tierLabel=TIER_LABELS[p.condition_tier]||'—';
+  const tierLabel=tierDisplay(p);
   const isOverridden=p.condition_overridden===true;
 
   // Escape single quotes for inline onclick. esc() only handles & < > for textContent;
@@ -451,21 +539,26 @@ function renderCard(p){
       }).join('')
     : `<div style="padding:20px;color:var(--text-4);font-size:13px">No photos available (photo_count=${totalPhotos})</div>`;
 
-  const tierBtns=[1,2,3,4,5,6].map(t=>{
-    const cls=t===p.condition_tier?(isOverridden?'tier-btn overridden':'tier-btn active'):'tier-btn';
-    return `<button class="${cls}" onclick="overrideTier('${p.id}',${t},this)">${esc(TIER_LABELS[t])}</button>`;
-  }).join('');
-  // Confirm-as-reviewed button — calls overrideTier with the current tier so
-  // condition_overridden flips to true without changing the tier number.
-  // Disabled if already overridden (no point clicking again).
-  const reviewedBtn = `<span class="tier-divider"></span><button class="reviewed-btn" ${isOverridden?'disabled title="Already reviewed"':`onclick="overrideTier('${p.id}',${p.condition_tier},event.currentTarget.parentElement.querySelectorAll('.tier-btn')[${p.condition_tier-1}])" title="Confirm AI tier (mark reviewed)"`}>✓ Reviewed</button>`;
-
-  const subHtml = p.condition_tier===5 ? (function(){
-    const cur=p.value_driver_rooms_updated;
-    const lbl = (cur in SUBTIER) ? 'T5-'+SUBTIER[cur].l : 'T5-?';
-    const btns=[2,1,0].map(v=>`<button class="subtier-btn${v===cur?' active':''}" title="${esc(SUBTIER[v].t)}" onclick="setSubtier('${p.id}',${v},this)">${SUBTIER[v].l}</button>`).join('');
-    return `<span class="subtier-badge" title="T5 sub-tier: A nicest → C opportunity">${lbl}</span><div class="subtier-buttons">${btns}</div>`;
-  })() : '';
+  // Tier buttons: T1–T4 and T6 are single-action; T5's four sub-tiers (A/B/C/U)
+  // are clustered into one tinted group. Clicking a sub-tier sets condition_tier=5
+  // AND value_driver_rooms_updated in a single override.
+  const t=p.condition_tier, sub=p.value_driver_rooms_updated;
+  const mainBtn=(n)=>{
+    const cls=t===n?(isOverridden?'tier-btn overridden':'tier-btn active'):'tier-btn';
+    return `<button class="${cls}" onclick="overrideTier('${p.id}',${n})">T${n}</button>`;
+  };
+  const subBtn=(v,label)=>{
+    const on=t===5 && (v===null ? (sub===null||sub===undefined) : sub===v);
+    const cls=on?(isOverridden?'tier-btn sub overridden':'tier-btn sub active'):'tier-btn sub';
+    const title=v===null?SUBTIER_U.t:SUBTIER[v].t;
+    return `<button class="${cls}" title="${esc(title)}" onclick="setT5('${p.id}',${v===null?'null':v})">${label}</button>`;
+  };
+  const tierBtns=`${mainBtn(1)}${mainBtn(2)}${mainBtn(3)}${mainBtn(4)}`
+    +`<span class="t5-group"><span class="t5-tag">T5</span>${subBtn(2,'A')}${subBtn(1,'B')}${subBtn(0,'C')}${subBtn(null,'U')}</span>`
+    +`${mainBtn(6)}`;
+  // Confirm-as-reviewed — flips condition_overridden to true without changing the
+  // tier. Disabled if already overridden (no point clicking again).
+  const reviewedBtn = `<span class="tier-divider"></span><button class="reviewed-btn" ${isOverridden?'disabled title="Already reviewed"':`onclick="markReviewed('${p.id}')" title="Confirm AI tier (mark reviewed)"`}>✓ Reviewed</button>`;
 
   return `
     <div class="prop-card" data-id="${p.id}">
@@ -488,60 +581,51 @@ function renderCard(p){
         <span class="score-label"><strong>${esc(tierLabel)}</strong></span>
         <span class="confidence-tag ${p.condition_confidence||''}">${p.condition_confidence||'—'}</span>
         ${isOverridden?'<span class="overridden-badge">Reviewed</span>':''}
-        <div class="tier-buttons">${tierBtns}${reviewedBtn}</div>${subHtml}
+        <div class="tier-buttons">${tierBtns}${reviewedBtn}</div>
       </div>
     </div>`;
 }
 
 // ========== OVERRIDE ==========
-async function overrideTier(id,newTier,btnEl){
+// Re-render a single card in place from the (already-updated) cardData row.
+function refreshCard(id){
+  const p=cardData[id];
+  const el=document.querySelector(`.prop-card[data-id="${id}"]`);
+  if(p&&el) el.outerHTML=renderCard(p);
+}
+
+// T1–T4, T6: set the tier and mark reviewed.
+async function overrideTier(id,newTier){
   const{error}=await sb.from('properties').update({
     condition_tier:newTier,
     condition_overridden:true
   }).eq('id',id);
-
-  if(error){
-    console.error('Override failed:',error);
-    return;
-  }
-
-  // Update UI in place
-  const card=btnEl.closest('.prop-card');
-  const btns=card.querySelectorAll('.tier-btn');
-  btns.forEach(b=>{b.className='tier-btn';});
-  btnEl.className='tier-btn overridden';
-
-  // Update score label
-  const label=card.querySelector('.score-label');
-  label.innerHTML=`<strong>${TIER_LABELS[newTier]}</strong>`;
-
-  // Add reviewed badge if not present
-  const scoreRow=card.querySelector('.score-row');
-  if(!scoreRow.querySelector('.overridden-badge')){
-    const badge=document.createElement('span');
-    badge.className='overridden-badge';
-    badge.textContent='Reviewed';
-    scoreRow.querySelector('.confidence-tag').after(badge);
-  }
-
-  // Disable the ✓ Reviewed button so it doesn't look clickable post-action
-  const reviewedBtn=card.querySelector('.reviewed-btn');
-  if(reviewedBtn){
-    reviewedBtn.disabled=true;
-    reviewedBtn.title='Already reviewed';
-  }
-
+  if(error){console.error('Override failed:',error);return;}
+  if(cardData[id]){cardData[id].condition_tier=newTier;cardData[id].condition_overridden=true;}
+  refreshCard(id);
   await updateStats();
 }
 
-async function setSubtier(id,val,btn){
-  const{error}=await sb.from('properties').update({value_driver_rooms_updated:val}).eq('id',id);
-  if(error){console.error('Subtier failed:',error);return;}
-  const card=btn.closest('.prop-card');
-  card.querySelectorAll('.subtier-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  const badge=card.querySelector('.subtier-badge');
-  if(badge) badge.textContent='T5-'+({2:'A',1:'B',0:'C'}[val]);
+// T5 sub-tier: set tier=5 and value_driver_rooms_updated (2/1/0, or null for U).
+async function setT5(id,val){
+  const{error}=await sb.from('properties').update({
+    condition_tier:5,
+    value_driver_rooms_updated:val,
+    condition_overridden:true
+  }).eq('id',id);
+  if(error){console.error('T5 override failed:',error);return;}
+  if(cardData[id]){cardData[id].condition_tier=5;cardData[id].value_driver_rooms_updated=val;cardData[id].condition_overridden=true;}
+  refreshCard(id);
+  await updateStats();
+}
+
+// Confirm AI tier as-is — flip condition_overridden without changing the tier.
+async function markReviewed(id){
+  const{error}=await sb.from('properties').update({condition_overridden:true}).eq('id',id);
+  if(error){console.error('Mark reviewed failed:',error);return;}
+  if(cardData[id]) cardData[id].condition_overridden=true;
+  refreshCard(id);
+  await updateStats();
 }
 
 // ========== PAGINATION ==========
