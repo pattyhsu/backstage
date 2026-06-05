@@ -85,6 +85,10 @@
   .t5-group{ display:inline-flex; align-items:center; gap:3px; padding:3px 5px 3px 7px; background:var(--accent-dim2); border:1px solid var(--accent-dim2); border-radius:7px; }
   .t5-tag{ font-family:var(--mono); font-size:10px; font-weight:700; color:var(--accent); letter-spacing:.3px; margin-right:1px; }
   .tier-btn.sub{ height:26px; min-width:26px; padding:0 6px; font-size:12px; }
+  /* Uncategorized button — slate/muted so it reads as "no grade", not a tier */
+  .tier-btn.uncat{ color:var(--text-4); }
+  .tier-btn.uncat:hover{ border-color:var(--text-3); color:var(--text-2); background:var(--bg-alt); }
+  .tier-btn.uncat.active{ border-color:var(--text-3); background:var(--text-3); color:#fff; }
   .tier-divider { width:1px; height:24px; background:var(--border); margin:0 4px; }
   .reviewed-btn { padding:0 10px; height:32px; border:1.5px solid var(--green); border-radius:var(--radius-sm); background:var(--bg); font-family:inherit; font-size:12.5px; font-weight:600; color:var(--green); cursor:pointer; transition:all .12s; display:inline-flex; align-items:center; gap:4px; }
   .reviewed-btn:hover { background:var(--green-bg); }
@@ -190,6 +194,7 @@
     <span><strong id="statTotal">0</strong> scored</span>
     <span><strong id="statOverridden">0</strong> overridden</span>
     <span style="color:var(--red)"><strong id="statLow">0</strong> low confidence</span>
+    <span style="color:var(--text-4)"><strong id="statUncat">0</strong> no tier</span>
   </div>
 </div>
 
@@ -213,6 +218,7 @@
       <button onclick="setTierFilter('5C')" style="padding-left:26px">└ T5-C · opportunity</button>
       <button onclick="setTierFilter('5U')" style="padding-left:26px">└ T5-U · unclassified</button>
       <button onclick="setTierFilter('6')">T6 · Full flip</button>
+      <button onclick="setTierFilter('uncat')" style="border-top:1px solid var(--border);margin-top:4px;padding-top:9px">⊘ Uncategorized · no tier</button>
     </div>
   </div>
   <div class="chip-wrap" id="fConfidence-wrap">
@@ -292,6 +298,13 @@
       <div class="def-desc">Renovated top-to-bottom with designer / flip-quality finishes. Move-in turnkey; commands the top of the market.</div>
     </div>
 
+    <div class="def-divider"></div>
+
+    <div class="def-item">
+      <div class="def-row"><span class="def-chip" style="background:#85857E">⊘</span><span class="def-name">Uncategorized</span></div>
+      <div class="def-desc">Can't be fairly graded — exterior-only or too few interior photos. Click the active tier again (or the <b>⊘ Uncat</b> button) to clear it; these land under the <b>Uncategorized</b> filter rather than being forced into a tier.</div>
+    </div>
+
   </div>
 </aside>
 
@@ -317,6 +330,7 @@ const SUBTIER_U={l:'U',t:'Unclassified — sub-tier not yet set'};
 // Display string for the score-label: "T2 · Dated (livable)" or "T5-B · Half-flip".
 function tierDisplay(p){
   const t=p.condition_tier;
+  if(t==null) return 'Uncategorized · no tier';
   if(t===5){
     const s=p.value_driver_rooms_updated;
     const l=(s in SUBTIER)?SUBTIER[s].l:'U';
@@ -388,7 +402,7 @@ function setTierFilter(value){
   const SUB={'5A':'2','5B':'1','5C':'0','5U':'null'};
   if(value in SUB){ filters.tier='5'; filters.subtier=SUB[value]; }
   else { filters.tier=value; filters.subtier=''; }
-  const labels={'':'All Conditions','1':'T1 · Distressed','2':'T2 · Dated (livable)','3':'T3 · Modern (owner-grade)','4':'T4 · Lived-in flip-quality','5':'T5 · Half-flip','6':'T6 · Full flip','5A':'T5-A · both updated','5B':'T5-B · half-flip','5C':'T5-C · opportunity','5U':'T5-U · unclassified'};
+  const labels={'':'All Conditions','1':'T1 · Distressed','2':'T2 · Dated (livable)','3':'T3 · Modern (owner-grade)','4':'T4 · Lived-in flip-quality','5':'T5 · Half-flip','6':'T6 · Full flip','5A':'T5-A · both updated','5B':'T5-B · half-flip','5C':'T5-C · opportunity','5U':'T5-U · unclassified','uncat':'Uncategorized · no tier'};
   document.getElementById('fTier-label').textContent=labels[value]||'All Conditions';
   const drop=document.getElementById('fTier-drop');
   drop.querySelectorAll('button').forEach(b=>b.classList.remove('selected'));
@@ -453,9 +467,12 @@ async function updateStats(){
   const{count:total}=await sb.from('properties').select('*',{count:'exact',head:true}).not('condition_tier','is',null);
   const{count:overridden}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('condition_overridden',true);
   const{count:low}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('condition_confidence','low');
+  // "no tier" = scored-but-ungradeable or de-selected (condition_tier IS NULL).
+  const{count:uncat}=await sb.from('properties').select('*',{count:'exact',head:true}).is('condition_tier',null);
   document.getElementById('statTotal').textContent=total||0;
   document.getElementById('statOverridden').textContent=overridden||0;
   document.getElementById('statLow').textContent=low||0;
+  document.getElementById('statUncat').textContent=uncat||0;
 }
 
 // ========== LOAD CARDS ==========
@@ -464,7 +481,6 @@ function resetAndLoad(){currentPage=0;loadCards();}
 async function loadCards(){
   let query=sb.from('properties')
     .select('id,mls,address,city,sqft,beds,baths,sale_price,list_price,remarks,photo_count,condition_tier,condition_confidence,condition_reasoning,condition_sample_photos,condition_overridden,value_driver_rooms_updated',{count:'exact'})
-    .not('condition_tier','is',null)
     .order('condition_scored_at',{ascending:false});
 
   // Filters (filter state lives in the module-level `filters` object)
@@ -473,10 +489,19 @@ async function loadCards(){
   const conf=filters.confidence;
   const unreviewed=document.getElementById('fUnreviewed').checked;
 
+  // Base tier scope. The "Uncategorized" filter shows the no-tier rows
+  // (condition_tier IS NULL) — both ones a reviewer de-selected and ones the
+  // scorer couldn't grade; every other view excludes them.
+  if(tier==='uncat'){
+    query=query.is('condition_tier',null);
+  } else {
+    query=query.not('condition_tier','is',null);
+    if(tier) query=query.eq('condition_tier',parseInt(tier));
+    if(filters.subtier==='null') query=query.is('value_driver_rooms_updated',null);
+    else if(filters.subtier!=='') query=query.eq('value_driver_rooms_updated',parseInt(filters.subtier));
+  }
+
   if(city) query=query.eq('city',city);
-  if(tier) query=query.eq('condition_tier',parseInt(tier));
-  if(filters.subtier==='null') query=query.is('value_driver_rooms_updated',null);
-  else if(filters.subtier!=='') query=query.eq('value_driver_rooms_updated',parseInt(filters.subtier));
   if(conf) query=query.eq('condition_confidence',conf);
   if(unreviewed) query=query.or('condition_overridden.is.null,condition_overridden.eq.false');
   if(filters.search){
@@ -541,24 +566,34 @@ function renderCard(p){
 
   // Tier buttons: T1–T4 and T6 are single-action; T5's four sub-tiers (A/B/C/U)
   // are clustered into one tinted group. Clicking a sub-tier sets condition_tier=5
-  // AND value_driver_rooms_updated in a single override.
+  // AND value_driver_rooms_updated in a single override. Clicking the ALREADY-active
+  // button de-selects it → condition_tier=null (uncategorized).
   const t=p.condition_tier, sub=p.value_driver_rooms_updated;
   const mainBtn=(n)=>{
-    const cls=t===n?(isOverridden?'tier-btn overridden':'tier-btn active'):'tier-btn';
-    return `<button class="${cls}" onclick="overrideTier('${p.id}',${n})">T${n}</button>`;
+    const on=t===n;
+    const cls=on?(isOverridden?'tier-btn overridden':'tier-btn active'):'tier-btn';
+    const click=on?`clearTier('${p.id}')`:`overrideTier('${p.id}',${n})`;
+    const title=on?'Click again to de-select (uncategorize)':'';
+    return `<button class="${cls}" title="${title}" onclick="${click}">T${n}</button>`;
   };
   const subBtn=(v,label)=>{
     const on=t===5 && (v===null ? (sub===null||sub===undefined) : sub===v);
     const cls=on?(isOverridden?'tier-btn sub overridden':'tier-btn sub active'):'tier-btn sub';
-    const title=v===null?SUBTIER_U.t:SUBTIER[v].t;
-    return `<button class="${cls}" title="${esc(title)}" onclick="setT5('${p.id}',${v===null?'null':v})">${label}</button>`;
+    const baseTitle=v===null?SUBTIER_U.t:SUBTIER[v].t;
+    const title=on?'Click again to de-select (uncategorize)':baseTitle;
+    const click=on?`clearTier('${p.id}')`:`setT5('${p.id}',${v===null?'null':v})`;
+    return `<button class="${cls}" title="${esc(title)}" onclick="${click}">${label}</button>`;
   };
   const tierBtns=`${mainBtn(1)}${mainBtn(2)}${mainBtn(3)}${mainBtn(4)}`
     +`<span class="t5-group"><span class="t5-tag">T5</span>${subBtn(2,'A')}${subBtn(1,'B')}${subBtn(0,'C')}${subBtn(null,'U')}</span>`
     +`${mainBtn(6)}`;
+  // Uncategorized — explicit "no gradeable tier" control (e.g. exterior-only or too
+  // few photos). Sets condition_tier=null and marks reviewed. Active when t is null.
+  const uncatActive=(t==null);
+  const uncatBtn=`<button class="tier-btn uncat${uncatActive?' active':''}" title="Not gradeable — too few / exterior-only photos" onclick="clearTier('${p.id}')">⊘ Uncat</button>`;
   // Confirm-as-reviewed — flips condition_overridden to true without changing the
   // tier. Disabled if already overridden (no point clicking again).
-  const reviewedBtn = `<span class="tier-divider"></span><button class="reviewed-btn" ${isOverridden?'disabled title="Already reviewed"':`onclick="markReviewed('${p.id}')" title="Confirm AI tier (mark reviewed)"`}>✓ Reviewed</button>`;
+  const reviewedBtn = `<button class="reviewed-btn" ${isOverridden?'disabled title="Already reviewed"':`onclick="markReviewed('${p.id}')" title="Confirm AI tier (mark reviewed)"`}>✓ Reviewed</button>`;
 
   return `
     <div class="prop-card" data-id="${p.id}">
@@ -581,7 +616,7 @@ function renderCard(p){
         <span class="score-label"><strong>${esc(tierLabel)}</strong></span>
         <span class="confidence-tag ${p.condition_confidence||''}">${p.condition_confidence||'—'}</span>
         ${isOverridden?'<span class="overridden-badge">Reviewed</span>':''}
-        <div class="tier-buttons">${tierBtns}${reviewedBtn}</div>
+        <div class="tier-buttons">${tierBtns}<span class="tier-divider"></span>${uncatBtn}<span class="tier-divider"></span>${reviewedBtn}</div>
       </div>
     </div>`;
 }
@@ -624,6 +659,22 @@ async function markReviewed(id){
   const{error}=await sb.from('properties').update({condition_overridden:true}).eq('id',id);
   if(error){console.error('Mark reviewed failed:',error);return;}
   if(cardData[id]) cardData[id].condition_overridden=true;
+  refreshCard(id);
+  await updateStats();
+}
+
+// Uncategorize / de-select — clear the tier (no gradeable condition) and mark
+// reviewed. value_driver_rooms_updated is cleared too so a stale T5 sub-tier
+// doesn't linger. Leaves the row visible until reload; afterwards it's found
+// under the "Uncategorized" filter.
+async function clearTier(id){
+  const{error}=await sb.from('properties').update({
+    condition_tier:null,
+    value_driver_rooms_updated:null,
+    condition_overridden:true
+  }).eq('id',id);
+  if(error){console.error('Clear tier failed:',error);return;}
+  if(cardData[id]){cardData[id].condition_tier=null;cardData[id].value_driver_rooms_updated=null;cardData[id].condition_overridden=true;}
   refreshCard(id);
   await updateStats();
 }
