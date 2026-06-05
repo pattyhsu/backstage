@@ -1710,7 +1710,7 @@ function recalcCompSummary(mid){
 //   purchase expenses = 1% of purchase, holding = 0.3% of ARV, disposition = 4% of ARV,
 //   financing = (LTV%·purchase) × rate × months/12. Target margin = net profit / purchase.
 const CONST_PCT=0.16,PURCH_EXP_PCT=0.01,HOLD_PCT=0.003,DISP_PCT=0.04,PROFIT_TARGET_PCT=0.10;
-const FIN_DEFAULTS={months:6,rate:10,ltv:90};
+const FIN_DEFAULTS={months:3,rate:9,ltv:90};
 // Money formatters that put the sign before the $ (mockup style): -$3,058 / +$110,205.
 const FMoney=n=>(n<0?'-$':'$')+Math.abs(Math.round(n)).toLocaleString();
 const FSigned=n=>(n>=0?'+$':'-$')+Math.abs(Math.round(n)).toLocaleString();
@@ -1980,7 +1980,6 @@ function detHTML(l){
             <input type="text" id="arv-${id}" value="${F(arv)}" oninput="calcDeal('${id}',${l.price},${l.sqft})">
             <button id="lock-arv-${id}" class="da-lock${l.lockedArv?' on':''}" onclick="event.stopPropagation();toggleLockArv('${l.mls}','${id}')">${l.lockedArv?'🔒 Locked':'Lock ARV'}</button>
           </div>
-          <div class="da-help"><span id="arv-source-${id}">${arvSourceLabel(l,pref.source,arv)}</span></div>
         </div>
         <div>
           <div class="da-grp">Construction</div>
@@ -1989,7 +1988,6 @@ function detHTML(l){
             <button class="da-lock" onclick="event.stopPropagation();openConstEditor('${l.mls}','${id}',${l.sqft||0})">Edit</button>
             <button id="lock-const-${id}" class="da-lock${l.lockedConstruction?' on':''}" onclick="event.stopPropagation();toggleLockConstruction('${l.mls}','${id}')">🔒 Const</button>
           </div>
-          <div class="da-help" id="consthelp-${id}"></div>
         </div>
         <div>
           <div class="da-grp">Target margin %</div>
@@ -2050,9 +2048,6 @@ function calcDeal(id,listPrice,sqft){
   // Financing help line under the assumptions box.
   const fh=document.getElementById('finhelp-'+id);
   if(fh)fh.innerHTML=`Loan <b>${F(c.loan)}</b> (${ltv}% of ${F(purchase)}) · cash down <b>${F(c.cashDown)}</b> · interest <b>${F(c.rows[3].amt)}</b> over ${months}mo`;
-  // Construction help line.
-  const ch=document.getElementById('consthelp-'+id);
-  if(ch)ch.innerHTML=constLocked?`🔒 Locked at ${F(effConst)} · unlock to edit`:`16% of ARV = ${F(Math.round(arv*0.16))} · <b>Edit</b> to itemize`;
   // Cash-needed footer.
   const ft=document.getElementById('foot-'+id);
   if(ft)ft.innerHTML=`<span><b>Cash needed</b> ${F(c.cashDown+effConst+c.rows[3].amt)} <span class="dim">· ${F(c.cashDown)} down + ${F(effConst)} rehab + ${F(c.rows[3].amt)} carry</span></span>`;
