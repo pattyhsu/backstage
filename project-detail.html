@@ -440,6 +440,56 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 /* 7 — Calculator inputs: softer, on-brand focus */
 .lp-input-group input, .lp-input-group select { border-radius:8px; padding:8px 11px; font-weight:600; font-size:13px; }
 .lp-input-group input:focus, .lp-input-group select:focus { box-shadow:0 0 0 3px var(--accent-dim); }
+
+/* ── Offer math: two-column inputs + waterfall breakdown (mirrors breakdown mockup / mls-deals deal analysis) ── */
+#offerCalc .om-grid { display:grid; grid-template-columns:300px 1fr; gap:26px; align-items:start; margin-top:4px; font-variant-numeric:tabular-nums; }
+@media(max-width:860px){ #offerCalc .om-grid { grid-template-columns:1fr; } }
+.om-col-l { display:flex; flex-direction:column; gap:14px; }
+.om-grp { font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-4); margin-bottom:6px; }
+.om-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.om-grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
+.om-fin { background:var(--bg-alt); border:1px solid var(--border); border-radius:6px; padding:10px 11px; }
+.om-ig label { display:block; font-size:9px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4); margin-bottom:4px; }
+.om-ig input { width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:5px; font:13px var(--sans); font-weight:700; background:#fff; color:var(--text); font-variant-numeric:tabular-nums; }
+.om-ig input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim); }
+.om-arv-row { display:flex; gap:8px; align-items:center; }
+.om-arv-row input { flex:1; min-width:0; padding:7px 9px; border:1px solid var(--border); border-radius:5px; font:14px var(--sans); font-weight:700; background:var(--bg-alt); color:var(--text-2); font-variant-numeric:tabular-nums; }
+.om-lock { font-size:10.5px; font-weight:600; color:var(--green); background:var(--green-bg); border:1px solid var(--green); border-radius:5px; padding:6px 9px; white-space:nowrap; }
+.om-help { font-size:10.5px; color:var(--text-4); margin-top:6px; line-height:1.5; }
+.om-help b { color:var(--text-3); }
+.om-bd { margin-top:2px; }
+.om-bd-top { display:flex; align-items:baseline; justify-content:space-between; padding-bottom:10px; }
+.om-bd-top .lbl { font-size:13px; font-weight:700; color:var(--text); }
+.om-bd-top .lbl .sub { font-weight:500; color:var(--text-4); font-size:11px; margin-left:4px; }
+.om-bd-top .val { font-size:20px; font-weight:800; color:var(--text); letter-spacing:-.01em; }
+.om-bd-bar { display:flex; height:12px; border-radius:7px; overflow:hidden; background:var(--bg-inset); margin-bottom:14px; gap:1.5px; }
+.om-bd-seg { height:100%; }
+.om-seg-purchase { background:#6B6B63; }
+.om-seg-purchexp { background:#85857B; }
+.om-seg-rehab { background:#9E9E93; }
+.om-seg-financing { background:#B5B5AA; }
+.om-seg-holding { background:#CACAC0; }
+.om-seg-disposition { background:#DCDCD3; }
+.om-seg-profit { background:var(--green); }
+.om-seg-loss { background:var(--red); }
+.om-bd-row { display:grid; grid-template-columns:14px 1fr auto auto; align-items:center; gap:10px; padding:7px 0; font-size:13px; }
+.om-bd-row + .om-bd-row { border-top:1px solid var(--border); }
+.om-bd-sw { width:11px; height:11px; border-radius:3px; }
+.om-bd-name { color:var(--text-2); font-weight:500; }
+.om-bd-name .det { color:var(--text-4); font-size:11px; font-weight:400; }
+.om-bd-pct { color:var(--text-4); font-size:11px; justify-self:end; min-width:46px; text-align:right; }
+.om-bd-amt { font-weight:600; color:var(--text); justify-self:end; min-width:104px; text-align:right; }
+.om-bd-total { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:10px; padding:9px 0; margin-top:2px; border-top:1.5px solid var(--border-strong); font-size:13px; }
+.om-bd-total .om-bd-name { font-weight:700; color:var(--text); }
+.om-bd-net { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--border); font-size:14px; }
+.om-bd-net .om-bd-name { font-weight:800; }
+.om-bd-net .om-bd-pct { font-weight:700; font-size:12px; }
+.om-bd-net .om-bd-amt { font-weight:800; font-size:16px; min-width:104px; }
+.om-bd-net.pos .om-bd-name, .om-bd-net.pos .om-bd-pct, .om-bd-net.pos .om-bd-amt { color:var(--green); }
+.om-bd-net.neg .om-bd-name, .om-bd-net.neg .om-bd-pct, .om-bd-net.neg .om-bd-amt { color:var(--red); }
+.om-foot { display:flex; gap:18px; margin-top:14px; padding-top:12px; border-top:1px dashed var(--border-hover); font-size:11px; color:var(--text-3); flex-wrap:wrap; align-items:baseline; }
+.om-foot b { color:var(--text); }
+.om-foot .dim { color:var(--text-4); }
 </style>
 </head>
 <body>
@@ -631,52 +681,52 @@ function scopeTierLabel(t){
 // ============================================================
 const PHASE_CONFIG = {
   pursuing: {
-    show: ['cashSect','offerCalc','whatsNextSect','historySect'],
+    show: ['cashSect','offerCalc'],
     hide: ['uwBar','escrowSect','prepSect','constructionSect','listingSect','handoffSect','lpCalc','cashGrid','finRow','docsSect'],
     cashTitle: 'Offer math',
     cashSub: 'model headline offer + reduction strategy',
     loanStatus: 'none',
   },
   in_escrow: {
-    show: ['uwBar','escrowSect','prepSect','cashSect','cashGrid','finRow','whatsNextSect','docsSect','historySect'],
+    show: ['uwBar','escrowSect','prepSect','cashSect','cashGrid','finRow','docsSect'],
     hide: ['offerCalc','lpCalc','constructionSect','listingSect','handoffSect'],
     cashTitle: 'Cash position',
     cashSub: 'owner only · live from money.html data',
     loanStatus: 'pending',
   },
   under_construction: {
-    show: ['uwBar','cashSect','cashGrid','finRow','constructionSect','whatsNextSect','docsSect','historySect'],
+    show: ['uwBar','cashSect','cashGrid','finRow','constructionSect','docsSect'],
     hide: ['offerCalc','lpCalc','escrowSect','prepSect','listingSect','handoffSect'],
     cashTitle: 'Cash position',
     cashSub: 'owner only · live from money.html data',
     loanStatus: 'funded',
   },
   selling: {
-    show: ['uwBar','cashSect','cashGrid','finRow','lpCalc','listingSect','handoffSect','docsSect','historySect'],
-    hide: ['offerCalc','escrowSect','prepSect','constructionSect','whatsNextSect'],
+    show: ['uwBar','cashSect','cashGrid','finRow','lpCalc','listingSect','handoffSect','docsSect'],
+    hide: ['offerCalc','escrowSect','prepSect','constructionSect'],
     cashTitle: 'Cash position',
     cashSub: 'offer-decision oriented · cost of waiting + breakeven',
     loanStatus: 'funded',
   },
   sold: {
-    show: ['uwBar','cashSect','cashGrid','listingSect','historySect','docsSect'],
-    hide: ['offerCalc','lpCalc','escrowSect','prepSect','constructionSect','handoffSect','whatsNextSect','finRow'],
+    show: ['uwBar','cashSect','cashGrid','listingSect','docsSect'],
+    hide: ['offerCalc','lpCalc','escrowSect','prepSect','constructionSect','handoffSect','finRow'],
     cashTitle: 'Final P&L',
     cashSub: 'closed deal — read only',
     loanStatus: 'paid_off',
     readOnly: true,
   },
   lost: {
-    show: ['cashSect','offerCalc','historySect'],
-    hide: ['uwBar','escrowSect','prepSect','constructionSect','listingSect','handoffSect','lpCalc','cashGrid','finRow','whatsNextSect','docsSect'],
+    show: ['cashSect','offerCalc'],
+    hide: ['uwBar','escrowSect','prepSect','constructionSect','listingSect','handoffSect','lpCalc','cashGrid','finRow','docsSect'],
     cashTitle: 'Offer math (lost)',
     cashSub: 'deal lost — read only · kept for reference',
     loanStatus: 'none',
     readOnly: true,
   },
   archived: {
-    show: ['historySect'],
-    hide: ['uwBar','escrowSect','prepSect','constructionSect','listingSect','handoffSect','offerCalc','lpCalc','cashGrid','finRow','whatsNextSect','docsSect','cashSect'],
+    show: [],
+    hide: ['uwBar','escrowSect','prepSect','constructionSect','listingSect','handoffSect','offerCalc','lpCalc','cashGrid','finRow','docsSect','cashSect'],
     readOnly: true,
   },
 };
@@ -1217,9 +1267,6 @@ function renderPage(){
     <!-- CASH POSITION / OFFER MATH / LIST PRICE -->
     ${renderCashSection(role, cfg)}
 
-    <!-- WHAT'S NEXT -->
-    ${renderWhatsNextSection()}
-
     <!-- LISTING -->
     ${renderListingSection()}
 
@@ -1228,9 +1275,6 @@ function renderPage(){
 
     <!-- DOCS -->
     ${renderDocsSection()}
-
-    <!-- HISTORY -->
-    ${renderHistorySection()}
   `;
 
   document.getElementById('page').innerHTML=pageHtml;
@@ -1240,14 +1284,12 @@ function renderPage(){
   wireUwEdits();
   wireOfferCalc();
   wireListPriceCalc();
-  wireWhatsNext();
   wireChecklists();
   wirePrepNotes();
   wireEscrowEdits();
   wireListingEdits();
   wireFinancing();
   wireSpendingTree();
-  wireHistoryToggle();
 }
 
 function computePhaseAux(d, phase){
@@ -1285,7 +1327,7 @@ function applyPhase(phase){
   const cfg=PHASE_CONFIG[phase] || PHASE_CONFIG.pursuing;
   // Show / hide.
   Object.keys(PHASE_CONFIG).forEach(()=>{});
-  const allIds=['uwBar','escrowSect','prepSect','cashSect','offerCalc','lpCalc','cashGrid','finRow','constructionSect','listingSect','handoffSect','whatsNextSect','docsSect','historySect'];
+  const allIds=['uwBar','escrowSect','prepSect','cashSect','offerCalc','lpCalc','cashGrid','finRow','constructionSect','listingSect','handoffSect','docsSect'];
   for(const id of allIds){
     const el=document.getElementById(id);
     if(!el)continue;
@@ -1715,25 +1757,40 @@ function renderOfferCalc(){
   const d=currentDeal;
   const p=primaryProperty();
   const arv=(p && p.locked_arv!=null)?p.locked_arv:(lastArvRow?lastArvRow.headline_arv:1200000);
-  const construction=(p && p.locked_construction!=null)?p.locked_construction:(lastGradeRow?lastGradeRow.rehab_estimate:132000);
   const offer=d.offer_price||Math.round(arv*0.68);
   return `
     <div class="lp-calc phase-hide" id="offerCalc">
       <div class="lp-calc-head">Offer calculator · model headline offer + reduction strategy</div>
-      <div class="lp-inputs">
-        <div class="lp-input-group"><label>Headline offer ($)</label><input type="number" id="ocOffer" value="${offer}" step="10000"></div>
-        <div class="lp-input-group"><label>Strategy</label><select id="ocStrategy"><option value="self" selected>Self-represented</option><option value="de">Double-end (DE)</option></select></div>
-        <div class="lp-input-group"><label>Reduction ($)</label><input type="number" id="ocReduction" value="25000" step="1000"></div>
-        <div class="lp-input-group"><label>Commission %</label><input type="number" id="ocCommission" value="2" step="0.25" min="0" max="5"></div>
-        <div class="lp-input-group"><label>Target spread %</label><input type="number" id="ocTargetSpread" value="10" step="1" min="0" max="50"></div>
-      </div>
-      <div class="lp-output six">
-        <div class="lp-out-cell accent"><div class="lbl">Effective purchase</div><div class="val" id="ocEffective">—</div><div class="sub" id="ocEffectiveSub">offer − reduction − comm rebate</div></div>
-        <div class="lp-out-cell"><div class="lbl">Sell price 🔒</div><div class="val">${FK(arv)}</div><div class="sub">click UW bar to edit · locked</div></div>
-        <div class="lp-out-cell"><div class="lbl">Construction 🔒</div><div class="val">${FK(construction)}</div><div class="sub">click UW bar to edit · locked</div></div>
-        <div class="lp-out-cell profit"><div class="lbl">Profit</div><div class="val" id="ocProfit">—</div><div class="sub" id="ocSpreadSub">spread</div></div>
-        <div class="lp-out-cell"><div class="lbl">Cash if won</div><div class="val" id="ocCash">—</div><div class="sub" id="ocCashSub">down + rehab + carry</div></div>
-        <div class="lp-out-cell"><div class="lbl">Bid ceiling</div><div class="val" id="ocWalkAway">—</div><div class="sub" id="ocWalkAwaySub">above this, spread drops below target</div></div>
+      <div class="om-grid">
+        <div class="om-col-l">
+          <div>
+            <div class="om-grp">Sell price (ARV)</div>
+            <div class="om-arv-row"><input value="${FK(arv)}" readonly><span class="om-lock">🔒 locked</span></div>
+            <div class="om-help">edit via the underwriting bar above</div>
+          </div>
+          <div>
+            <div class="om-grp">Offer</div>
+            <div class="om-grid2">
+              <div class="om-ig"><label>Headline offer</label><input type="number" id="ocOffer" value="${offer}" step="10000"></div>
+              <div class="om-ig"><label>Reduction</label><input type="number" id="ocReduction" value="25000" step="1000"></div>
+              <div class="om-ig"><label>Commission %</label><input type="number" id="ocCommission" value="2" step="0.25" min="0" max="5"></div>
+              <div class="om-ig"><label>Target margin %</label><input type="number" id="ocTargetSpread" value="10" step="0.5" min="0" max="50"></div>
+            </div>
+          </div>
+          <div class="om-fin">
+            <div class="om-grp">Financing assumptions</div>
+            <div class="om-grid3">
+              <div class="om-ig"><label>Months</label><input type="number" id="ocMonths" value="3" step="1" min="0"></div>
+              <div class="om-ig"><label>Rate %</label><input type="number" id="ocRate" value="9" step="0.5" min="0"></div>
+              <div class="om-ig"><label>LTV %</label><input type="number" id="ocLtv" value="90" step="5" min="0" max="100"></div>
+            </div>
+            <div class="om-help" id="ocFinHelp" style="margin-top:7px"></div>
+          </div>
+        </div>
+        <div class="om-col-r">
+          <div class="om-bd" id="ocBd"></div>
+          <div class="om-foot" id="ocFoot"></div>
+        </div>
       </div>
     </div>
   `;
@@ -1744,56 +1801,71 @@ function wireOfferCalc(){
   const p=primaryProperty();
   const arv=(p && p.locked_arv!=null)?p.locked_arv:(lastArvRow?lastArvRow.headline_arv:1200000);
   const construction=(p && p.locked_construction!=null)?p.locked_construction:(lastGradeRow?lastGradeRow.rehab_estimate:132000);
+  // Full-dollar formatting (precise, comma-grouped) for the waterfall breakdown.
+  const F  = n => (n<0?'-$':'$') + Math.abs(Math.round(n)).toLocaleString();
+  const FS = n => (n>=0?'+$':'-$') + Math.abs(Math.round(n)).toLocaleString();
+  const PURCH_EXP=0.01, HOLD_PCT=0.003, DISP_PCT=0.04;
+  // Unified 6-bucket waterfall. purchase = effective acquisition cost.
+  function compute(purchase, months, rate, ltv){
+    const loan=purchase*(ltv/100);
+    const cashDown=Math.max(0, purchase-loan);
+    const financing=loan*(rate/100)*(months/12);
+    const purchexp=purchase*PURCH_EXP;
+    const holding=arv*HOLD_PCT;
+    const disposition=arv*DISP_PCT;
+    const rows=[
+      {key:'purchase',    name:'Purchase price',       det:'',                                      amt:purchase},
+      {key:'purchexp',    name:'Purchase expenses',    det:'1% of purchase',                        amt:purchexp},
+      {key:'rehab',       name:'Construction / rehab', det:'',                                      amt:construction},
+      {key:'financing',   name:'Financing',            det:rate+'% · '+ltv+'% LTV · '+months+'mo',  amt:financing},
+      {key:'holding',     name:'Holding',              det:'0.3% of ARV',                           amt:holding},
+      {key:'disposition', name:'Disposition',          det:'4% sell',                               amt:disposition},
+    ];
+    const allIn=rows.reduce((s,r)=>s+r.amt,0);
+    return {rows, allIn, net:arv-allIn, loan, cashDown};
+  }
+  function renderBreakdown(c){
+    const segs=c.rows.map(r=>`<div class="om-bd-seg om-seg-${r.key}" style="flex:${Math.max(r.amt,1)}"></div>`).join('');
+    const netSeg=`<div class="om-bd-seg om-seg-${c.net>=0?'profit':'loss'}" style="flex:${Math.max(Math.abs(c.net),1)};border-radius:0 7px 7px 0"></div>`;
+    const rowsHtml=c.rows.map(r=>`
+      <div class="om-bd-row">
+        <span class="om-bd-sw om-seg-${r.key}"></span>
+        <span class="om-bd-name">${r.name} ${r.det?`<span class="det">· ${r.det}</span>`:''}</span>
+        <span class="om-bd-pct">${(r.amt/arv*100).toFixed(1)}%</span>
+        <span class="om-bd-amt">${F(r.amt)}</span>
+      </div>`).join('');
+    document.getElementById('ocBd').innerHTML=`
+      <div class="om-bd-top"><span class="lbl">Sell price<span class="sub">🔒 locked ARV</span></span><span class="val">${F(arv)}</span></div>
+      <div class="om-bd-bar">${segs}${netSeg}</div>
+      ${rowsHtml}
+      <div class="om-bd-total"><span class="om-bd-name">All-in cost</span><span class="om-bd-pct">${(c.allIn/arv*100).toFixed(1)}%</span><span class="om-bd-amt">${F(c.allIn)}</span></div>
+      <div class="om-bd-net ${c.net>=0?'pos':'neg'}"><span class="om-bd-name">Net profit <span class="det" style="font-weight:400">· margin on buy</span></span><span class="om-bd-pct">${(c.net/c.rows[0].amt*100).toFixed(1)}%</span><span class="om-bd-amt">${FS(c.net)}</span></div>
+    `;
+  }
   function recalc(){
     const offer=Number(offerEl.value)||0;
-    const strategy=document.getElementById('ocStrategy').value;
     const reduct=Number(document.getElementById('ocReduction').value)||0;
     const commPct=Number(document.getElementById('ocCommission').value)||0;
-    const targetSp=Number(document.getElementById('ocTargetSpread').value)||0;
+    const target=Number(document.getElementById('ocTargetSpread').value)||0;
+    const months=Number(document.getElementById('ocMonths').value)||0;
+    const rate=Number(document.getElementById('ocRate').value)||0;
+    const ltv=Number(document.getElementById('ocLtv').value)||0;
     const contract=Math.max(0, offer-reduct);
-    const commRebate=(strategy==='self')?contract*commPct/100:0;
-    const effective=contract-commRebate;
-    const LTC=0.90, CARRY=0.09, HOLD=240, SELL=0.04;
-    const loan=contract*LTC;
-    const carry=loan*CARRY*(HOLD/365);
-    const sellCost=arv*SELL;
-    const totalCost=effective+construction+carry+sellCost;
-    const profit=arv-totalCost;
-    const spread=totalCost>0?(profit/totalCost)*100:0;
-    const downCash=Math.max(0, effective-loan);
-    const cashIfWon=downCash+construction+carry;
-    let walkAway=offer;
-    for(let test=offer; test<=offer*1.5; test+=1000){
-      const cT=test-reduct;
-      const eT=cT-((strategy==='self')?cT*commPct/100:0);
-      const loanT=cT*LTC;
-      const carryT=loanT*CARRY*(HOLD/365);
-      const totalT=eT+construction+carryT+sellCost;
-      const sT=totalT>0?((arv-totalT)/totalT)*100:0;
-      if(sT<targetSp){walkAway=test-1000;break;}
-      walkAway=test;
-    }
-    document.getElementById('ocEffective').textContent=FK(effective);
-    document.getElementById('ocEffectiveSub').textContent=FK(offer)+' − '+FK(reduct)+(commRebate>0?' − '+FK(commRebate)+' rebate':' (DE)');
-    document.getElementById('ocProfit').textContent=FKsigned(profit);
-    document.getElementById('ocSpreadSub').textContent='spread '+spread.toFixed(1)+'% · '+(spread>=targetSp?'meets '+targetSp+'%':'below '+targetSp+'%');
-    document.getElementById('ocCash').textContent=FK(cashIfWon);
-    document.getElementById('ocCashSub').textContent=FK(downCash)+' down + '+FK(construction)+' rehab + '+FK(carry)+' carry';
-    document.getElementById('ocWalkAway').textContent=FK(walkAway);
-    document.getElementById('ocWalkAwaySub').textContent='above this, spread drops below '+targetSp+'%';
-    const profitCell=document.querySelector('#offerCalc .lp-out-cell.profit');
-    if(profitCell)profitCell.classList.toggle('neg', spread<targetSp);
+    const rebate=contract*commPct/100;
+    const purchase=contract-rebate;
+    const c=compute(purchase, months, rate, ltv);
+    renderBreakdown(c);
+    const margin=purchase>0?(c.net/purchase*100):0;
+    const carry=c.rows[3].amt;
+    document.getElementById('ocFinHelp').innerHTML=
+      `Loan <b>${F(c.loan)}</b> (${ltv}% of ${F(purchase)}) · cash down <b>${F(c.cashDown)}</b> · interest <b>${F(carry)}</b> over ${months}mo`;
+    const meets=Math.round(margin*10)/10>=target;
+    document.getElementById('ocFoot').innerHTML=
+      `<span><b>Cash needed</b> ${F(c.cashDown+construction+carry)} <span class="dim">· ${F(c.cashDown)} down + ${F(construction)} rehab + ${F(carry)} carry</span></span>`+
+      `<span style="margin-left:auto;font-weight:600;color:${meets?'var(--green)':'var(--red)'}">${meets?`✓ meets ${target}% target margin`:`▼ below ${target}% target margin`}</span>`;
   }
-  document.getElementById('ocOffer').addEventListener('input', recalc);
-  document.getElementById('ocStrategy').addEventListener('change', ()=>{
-    const strat=document.getElementById('ocStrategy').value;
-    document.getElementById('ocReduction').value=(strat==='self')?25000:40000;
-    document.getElementById('ocCommission').value=(strat==='self')?2:0;
-    recalc();
-  });
-  document.getElementById('ocReduction').addEventListener('input', recalc);
-  document.getElementById('ocCommission').addEventListener('input', recalc);
-  document.getElementById('ocTargetSpread').addEventListener('input', recalc);
+  ['ocOffer','ocReduction','ocCommission','ocTargetSpread','ocMonths','ocRate','ocLtv']
+    .forEach(id=>document.getElementById(id).addEventListener('input', recalc));
   recalc();
 }
 
@@ -1966,82 +2038,6 @@ function openLoanEditPopover(loanId, anchor){
 }
 
 // ============================================================
-// WHAT'S NEXT SECTION
-// ============================================================
-function renderWhatsNextSection(){
-  const today=todayStr();
-  const open=dealMilestones.filter(m=>!m.completed);
-  const overdue=open.filter(m=>m.due_date && m.due_date<today).sort((a,b)=>a.due_date.localeCompare(b.due_date));
-  const upcoming=open.filter(m=>!m.due_date || m.due_date>=today).sort((a,b)=>(a.due_date||'').localeCompare(b.due_date||'')).slice(0, Math.max(0, 5-overdue.length));
-  const rows=[...overdue, ...upcoming];
-  let listHtml='';
-  if(!rows.length){
-    listHtml=`<div class="wn-empty">Nothing on deck. Add a custom task below to track.</div>`;
-  } else {
-    listHtml='<ul class="wn-list">'+rows.map(m=>{
-      const isOverdue=m.due_date && m.due_date<today;
-      const diff=m.due_date?daysBetween(today, m.due_date):null;
-      const auxText=isOverdue?Math.abs(diff)+'d overdue':(diff===0?'today':'in '+diff+'d');
-      const icon=isOverdue?'⚠':'○';
-      const cls=isOverdue?'overdue':'upcoming';
-      return `<li class="wn-row ${cls}">
-        <input type="checkbox" class="wn-cb" data-ms-id="${escapeHtml(m.id)}">
-        <div class="wn-date">${escapeHtml(fmtMD(m.due_date))}</div>
-        <div class="wn-icon">${icon}</div>
-        <div class="wn-text">${escapeHtml(m.display_name||m.milestone_key||'(no name)')}</div>
-        <div class="wn-aux">${escapeHtml(auxText)}</div>
-      </li>`;
-    }).join('')+'</ul>';
-  }
-  return `
-    <div class="sect" id="whatsNextSect">
-      <div class="sect-h">
-        <h2>What's next</h2>
-        <span class="sub">overdue + next 5 milestones · custom tasks log to calendar</span>
-        <span class="right"><a href="calendar.html">Open Calendar →</a></span>
-      </div>
-      ${listHtml}
-      <div class="wn-add">
-        <input type="text" id="wnAddText" placeholder="+ Add task (e.g. 'Cabinet install', 'Counter $1.05M')">
-        <input type="date" id="wnAddDate" value="${todayStr()}">
-        <button id="wnAddBtn">Add</button>
-      </div>
-      <div style="margin-top:4px;font-size:11px;color:var(--text-4);font-style:italic">Custom tasks insert into deal_milestones with template_id=NULL · appears in Calendar</div>
-    </div>
-  `;
-}
-function wireWhatsNext(){
-  document.querySelectorAll('.wn-cb[data-ms-id]').forEach(cb=>{
-    cb.addEventListener('change', async ()=>{
-      const id=cb.dataset.msId;
-      const completed=cb.checked;
-      const {error}=await sb.from('deal_milestones').update({
-        completed, completed_at:completed?new Date().toISOString():null,
-        updated_at:new Date().toISOString(),
-      }).eq('id', id);
-      if(error){alert('Save failed: '+error.message);cb.checked=!completed;return;}
-      await loadProject();
-    });
-  });
-  const btn=document.getElementById('wnAddBtn');
-  if(btn){
-    btn.addEventListener('click', async ()=>{
-      const text=document.getElementById('wnAddText').value.trim();
-      const date=document.getElementById('wnAddDate').value;
-      if(!text){alert('Task text required.');return;}
-      if(!date){alert('Due date required.');return;}
-      const key='custom_'+Date.now();
-      const {error}=await sb.from('deal_milestones').insert({
-        deal_id: currentDeal.id, template_id:null, milestone_key:key,
-        display_name:text, due_date:date,
-      });
-      if(error){alert('Add failed: '+error.message);return;}
-      await loadProject();
-    });
-  }
-}
-
-// ============================================================
 // LISTING SECTION (selling/sold)
 // ============================================================
 function renderListingSection(){
@@ -2171,53 +2167,6 @@ function renderDocsSection(){
       <div class="docs-empty">No docs uploaded yet. Brief BW ships the upload mechanic.</div>
     </div>
   `;
-}
-
-// ============================================================
-// HISTORY SECTION (collapsible, summary line)
-// ============================================================
-function renderHistorySection(){
-  let summary='No transitions recorded yet.';
-  if(phaseHistory.length){
-    const latest=phaseHistory[0];
-    const who=resolvedUserName(latest.transitioned_by);
-    const fromLbl=latest.from_phase?phaseLabel(latest.from_phase):'(opened)';
-    const toLbl=latest.to_phase?phaseLabel(latest.to_phase):'(closed)';
-    summary=`${phaseHistory.length} event${phaseHistory.length===1?'':'s'} · last by ${who} ${relTime(latest.transitioned_at)} — ${fromLbl} → ${toLbl}`;
-  }
-  let listHtml='';
-  if(!phaseHistory.length){
-    listHtml='<div class="docs-empty">No transitions recorded yet.</div>';
-  } else {
-    listHtml='<ul class="hist">'+phaseHistory.map(h=>{
-      const fromLbl=h.from_phase?phaseLabel(h.from_phase):'(opened)';
-      const toLbl=h.to_phase?phaseLabel(h.to_phase):'(closed)';
-      const who=resolvedUserName(h.transitioned_by);
-      return `<li>
-        <span class="when">${escapeHtml(fmtDate(h.transitioned_at))} · ${escapeHtml(relTime(h.transitioned_at))}</span>
-        <span class="who" title="${escapeHtml(h.transitioned_by||'')}">by ${escapeHtml(who)}</span>
-        <span class="arrow"><span class="from">${escapeHtml(fromLbl)}</span><span class="sep">→</span><span class="to">${escapeHtml(toLbl)}</span></span>
-        ${h.note?`<span class="note">— ${escapeHtml(h.note)}</span>`:''}
-      </li>`;
-    }).join('')+'</ul>';
-  }
-  return `
-    <div class="sect collapsible" id="historySect">
-      <div class="sect-h">
-        <h2>History</h2>
-        <span class="sect-summary">${escapeHtml(summary)}</span>
-      </div>
-      <div class="sect-body">${listHtml}</div>
-    </div>
-  `;
-}
-function wireHistoryToggle(){
-  const sect=document.getElementById('historySect');
-  if(!sect)return;
-  const head=sect.querySelector('.sect-h');
-  if(head){
-    head.addEventListener('click', ()=>sect.classList.toggle('open'));
-  }
 }
 
 // ============================================================
