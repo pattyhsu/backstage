@@ -75,6 +75,59 @@
   .collapse-btn:hover { color:var(--text); }
 
   .main-content { flex:1; overflow-y:auto; min-width:0; }
+
+  /* === Comps DB — left-rail search redesign === */
+  .cdb-layout{display:flex;gap:18px;align-items:flex-start}
+  .cdb-rail{width:280px;flex-shrink:0;position:sticky;top:16px}
+  .cdb-rail .sr-card{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-page);overflow:hidden}
+  .cdb-rail .sr-head{padding:11px 14px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3)}
+  .cdb-rail .sr-body{padding:14px;display:flex;flex-direction:column;gap:12px}
+  .cdb-rail .field{margin:0}
+  .cdb-rail .field label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-4);margin-bottom:5px}
+  .cdb-rail .field input,.cdb-rail .field select{width:100%;height:34px;padding:0 10px;font-size:13px;font-family:inherit;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);outline:none}
+  .cdb-rail .field input:focus,.cdb-rail .field select:focus{border-color:var(--accent)}
+  .cdb-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .cdb-rail .sr-actions{display:flex;gap:8px;margin-top:3px}
+  .cdb-rail .sr-actions .btn{flex:1;justify-content:center;height:38px}
+  .cdb-main{flex:1;min-width:0}
+  #search-summary.summary-cards{display:flex}
+  #search-summary .summary-card{min-width:150px;flex:0 0 auto}
+  /* comps toolbar */
+  .comps-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:12px}
+  .comps-bar .ch{font-size:11px;font-weight:700;color:var(--text-4);letter-spacing:.5px;text-transform:uppercase}
+  .comps-bar label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--text-3);cursor:pointer}
+  /* single-line comp rows */
+  .cr-wrap{overflow-x:auto}
+  .crhead,.cr{display:grid;grid-template-columns:22px 16px 56px minmax(150px,1fr) 50px 44px 58px 58px 92px 50px 80px 76px 40px;align-items:center;gap:8px;min-width:760px}
+  .crhead{padding:0 8px 5px;border-bottom:1px solid var(--border)}
+  .crhead span{font-size:11px;font-weight:700;color:var(--text-4);text-transform:uppercase;letter-spacing:.4px}
+  .crhead .r{text-align:right}
+  .cr{padding:6px 8px;border-radius:var(--radius-sm);margin-top:2px;font-size:12px}
+  .cr:hover{background:var(--accent-dim)}
+  .cr input[type=checkbox]{accent-color:var(--accent);margin:0}
+  .cr .idx{font-size:12px;font-weight:700;color:var(--accent);text-align:center}
+  .cr .addrcell{display:flex;align-items:center;gap:5px;min-width:0}
+  .cr .caddr{color:var(--text);font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;border-bottom:1px dashed var(--text-4)}
+  .cr .zi{width:11px;height:11px;opacity:.55;flex-shrink:0}
+  .cr .d{font-family:var(--mono);font-size:12px;color:var(--text-3);text-align:right;white-space:nowrap}
+  .cr .pr{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--green);text-align:right}
+  .cr .schools{display:flex;gap:3px;justify-content:flex-end}
+  .cr .act{display:flex;gap:2px;justify-content:flex-end}
+  .cr .act button{border:none;background:none;cursor:pointer;font-size:12px;padding:2px 3px;color:var(--text-4);font-family:inherit}
+  .cr .act button:hover{color:var(--text)}
+  .sp{display:inline-flex;align-items:center;gap:1px;font-size:11px;font-weight:600;padding:1px 4px;border-radius:4px;font-family:var(--mono)}
+  .sp .lv{font-size:8px;font-weight:700;opacity:.65;font-family:var(--sans,inherit)}
+  .sp.sh{background:var(--green-bg);color:var(--green)}.sp.sm{background:var(--amber-bg);color:var(--amber)}.sp.sl{background:var(--red-bg);color:var(--red)}
+  /* tier badges — T1 red -> T6 green gradient (matches mls-deals) */
+  .tbadge{justify-self:start;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;line-height:1.2;white-space:nowrap}
+  .tbadge.t1{background:rgba(192,57,43,.13);color:rgb(192,57,43)}
+  .tbadge.t2{background:rgba(163,73,50,.13);color:rgb(163,73,50)}
+  .tbadge.t3{background:rgba(133,89,57,.13);color:rgb(133,89,57)}
+  .tbadge.t4{background:rgba(104,106,64,.13);color:rgb(104,106,64)}
+  .tbadge.t5{background:rgba(74,122,71,.13);color:rgb(74,122,71)}
+  .tbadge.t6{background:rgba(45,138,78,.13);color:rgb(45,138,78)}
+  .tbadge.tq{background:var(--bg-alt);color:var(--text-4)}
+  .tbadge.tdot{background:var(--purple-bg,#F3EFFF);color:var(--purple,#6D28D9)}
 </style>
 </head>
 <body>
@@ -107,18 +160,32 @@
 
 <!-- SEARCH -->
 <div class="panel active" id="panel-search">
-  <div class="search-grid" style="grid-template-columns:1fr auto;"><div class="field" style="grid-column:1/-1;display:grid;grid-template-columns:1fr 160px 130px 130px;gap:12px;"><div><label>Property Address</label><input type="text" id="f-address" placeholder="e.g. 13353 Beach St, Cerritos CA"></div><div><label>Property SqFt</label><input type="number" id="f-sqft" placeholder="e.g. 2242"></div><div><label>SqFt ±</label><select id="f-sqft-tol"><option value="150" selected>± 150 sf</option><option value="200">± 200 sf</option><option value="250">± 250 sf</option><option value="300">± 300 sf</option><option value="400">± 400 sf</option><option value="500">± 500 sf</option></select></div><div><label>Radius</label><select id="f-radius"><option value="0.15">0.15 mi</option><option value="0.25" selected>0.25 mi</option><option value="0.5">0.5 mi</option><option value="0.75">0.75 mi</option><option value="1">1 mi</option></select></div></div></div>
-  <div class="search-grid">
-    <div class="field"><label>City</label><select id="f-city"><option value="">All Cities</option></select></div>
-    <div class="field"><label>Sold Within</label><select id="f-date-after"><option value="">Any</option><option value="1">1 month</option><option value="3">3 months</option><option value="6">6 months</option><option value="9">9 months</option><option value="12" selected>12 months</option><option value="18">18 months</option><option value="24">24 months</option><option value="36">36 months</option></select></div>
+  <div class="cdb-layout">
+    <div class="cdb-rail">
+      <div class="sr-card">
+        <div class="sr-head">Find comps</div>
+        <div class="sr-body">
+          <div class="field"><label>Property Address</label><input type="text" id="f-address" placeholder="e.g. 13353 Beach St, Cerritos CA"></div>
+          <div class="cdb-two">
+            <div class="field"><label>Property SqFt</label><input type="number" id="f-sqft" placeholder="e.g. 2242"></div>
+            <div class="field"><label>SqFt ±</label><select id="f-sqft-tol"><option value="150" selected>± 150 sf</option><option value="200">± 200 sf</option><option value="250">± 250 sf</option><option value="300">± 300 sf</option><option value="400">± 400 sf</option><option value="500">± 500 sf</option></select></div>
+          </div>
+          <div class="cdb-two">
+            <div class="field"><label>Radius</label><select id="f-radius"><option value="0.15">0.15 mi</option><option value="0.25" selected>0.25 mi</option><option value="0.5">0.5 mi</option><option value="0.75">0.75 mi</option><option value="1">1 mi</option></select></div>
+            <div class="field"><label>Sold Within</label><select id="f-date-after"><option value="">Any</option><option value="1">1 month</option><option value="3">3 months</option><option value="6">6 months</option><option value="9">9 months</option><option value="12" selected>12 months</option><option value="18">18 months</option><option value="24">24 months</option><option value="36">36 months</option></select></div>
+          </div>
+          <div class="field"><label>City</label><select id="f-city"><option value="">All Cities</option></select></div>
+          <div class="sr-actions"><button class="btn btn-primary" onclick="runSearch()">Search</button><button class="btn btn-secondary" onclick="clearSearch()">Clear</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="cdb-main">
+      <div id="search-summary" class="summary-cards" style="display:none"></div>
+      <div id="search-mapband" style="display:none;margin-bottom:14px"><div id="search-map" style="height:300px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)"></div></div>
+      <div id="search-comps-bar" class="comps-bar" style="display:none"><div class="ch" id="search-comps-count"></div><label><input type="checkbox" id="search-selectall" checked onchange="toggleAllComps(this,'search-summary')"> Select all</label></div>
+      <div id="search-results"></div>
+    </div>
   </div>
-  <div class="btn-row"><button class="btn btn-primary" onclick="runSearch()">Search</button><button class="btn btn-secondary" onclick="clearSearch()">Clear</button></div>
-  <div id="search-summary" class="summary-cards" style="display:none"></div>
-  <div id="search-split" style="display:none;margin-top:16px;gap:16px">
-    <div id="search-results" style="flex:2;overflow-y:auto;max-height:700px"></div>
-    <div id="search-map" style="flex:1;min-width:300px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);position:sticky;top:0;align-self:flex-start;min-height:400px"></div>
-  </div>
-  <div id="search-results-nomap"></div>
 </div>
 
 <!-- BROWSE ALL -->
@@ -362,21 +429,21 @@ async function runSearch(){
   // Sort by newest first
   filtered.sort((a,b)=>(b.sold_date||'').localeCompare(a.sold_date||''));
   
-  const splitDiv=document.getElementById('search-split');
-  const nomapDiv=document.getElementById('search-results-nomap');
-  
+  const mapband=document.getElementById('search-mapband');
+  const bar=document.getElementById('search-comps-bar');
+  renderResults(filtered,'search-results','search-summary',showDist);
+  document.getElementById('search-comps-count').textContent='Comps ('+filtered.length+')'+(showDist?' · within '+miles+' mi':'');
+  bar.style.display=filtered.length?'flex':'none';
+  const sa=document.getElementById('search-selectall');if(sa)sa.checked=true;
+
   if(sLat&&filtered.length){
-    // Split layout: table left, map right
-    splitDiv.style.display='flex';
-    nomapDiv.innerHTML='';
-    renderResults(filtered,'search-results','search-summary',showDist);
-    
-    // Interactive Google Map
-    mapDiv.innerHTML='';mapDiv.style.minHeight='500px';
+    // Interactive Google Map band above the comp rows
+    mapband.style.display='';
+    mapDiv.innerHTML='';
     const map=new google.maps.Map(mapDiv,{zoom:14,center:{lat:sLat,lng:sLng},mapTypeControl:false,streetViewControl:false});
     const bounds=new google.maps.LatLngBounds();
     // Subject marker (red)
-    const sMarker=new google.maps.Marker({position:{lat:sLat,lng:sLng},map,label:{text:'S',color:'#fff',fontWeight:'bold'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:14,fillColor:'#c44040',fillOpacity:1,strokeColor:'#fff',strokeWeight:2},title:'Subject Property',zIndex:1000});
+    new google.maps.Marker({position:{lat:sLat,lng:sLng},map,label:{text:'S',color:'#fff',fontWeight:'bold'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:14,fillColor:'#c44040',fillOpacity:1,strokeColor:'#fff',strokeWeight:2},title:'Subject Property',zIndex:1000});
     bounds.extend({lat:sLat,lng:sLng});
     // Comp markers (blue numbered)
     filtered.slice(0,20).forEach((r,i)=>{if(!r.latitude)return;
@@ -386,12 +453,10 @@ async function runSearch(){
     map.fitBounds(bounds);
     if(filtered.length<=2)map.setZoom(15);
   } else {
-    // No map — full width results
-    splitDiv.style.display='none';
-    renderResults(filtered,'search-results-nomap','search-summary',showDist);
+    mapband.style.display='none';
   }
 }
-function clearSearch(){['f-address','f-city','f-sqft','f-date-after'].forEach(id=>document.getElementById(id).value='');document.getElementById('f-radius').value='0.25';document.getElementById('f-sqft-tol').value='150';document.getElementById('search-results').innerHTML='';document.getElementById('search-results-nomap').innerHTML='';document.getElementById('search-summary').style.display='none';document.getElementById('search-split').style.display='none';}
+function clearSearch(){['f-address','f-city','f-sqft','f-date-after'].forEach(id=>document.getElementById(id).value='');document.getElementById('f-radius').value='0.25';document.getElementById('f-sqft-tol').value='150';document.getElementById('search-results').innerHTML='';document.getElementById('search-summary').style.display='none';document.getElementById('search-mapband').style.display='none';document.getElementById('search-comps-bar').style.display='none';}
 
 // =========================================================
 // MISSING SCHOOLS
@@ -455,25 +520,36 @@ function renderResults(rows,cid,sid,showDist=false){
   if(!rows.length){c.innerHTML='<div class="empty-state"><h3>No comps found</h3></div>';s.style.display='none';return;}
   _lastRenderedRows=rows;
   updateSummary(rows,sid);
-  const rc=r=>r>=8?'rating-high':r>=6?'rating-mid':'rating-low',dc=d=>d<=14?'dom-low':d<=45?'dom-mid':'dom-high';
-  const fs=(n,r,type)=>{if(!n)return'—';let s=n.replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s*Mag(net)?\s*(of\s+)?(\w+\s*)*(Studies|Science|Arts|Technology|Studi\w*)?\s*/i,' ').replace(/\s*Elementary\s*School\s*/i,' ').replace(/\s*Middle\s*School\s*/i,' ').replace(/\s*High\s*School\s*/i,' ').replace(/\s+/g,' ').trim();
-  const words=s.split(/\s+/).filter(w=>w.length>0);const lastName=words.filter(w=>!w.match(/^[A-Z]\.?$/)&&w.length>2).pop()||words[words.length-1]||s;
-  const suffix=type||'';return`<span class="school-rating ${rc(r||0)}">${r||'?'}</span>${lastName} ${suffix}`.trim();};
   const zUrl=a=>`https://www.zillow.com/homes/${encodeURIComponent(a)}`;
   const rUrl=a=>`https://www.google.com/search?q=${encodeURIComponent('redfin '+a)}&btnI=1`;
-  let h='<div class="results-wrap"><table><thead><tr><th style="text-align:center"><input type="checkbox" checked onchange="toggleAllComps(this,\''+sid+'\')"></th><th>#</th><th>Address</th><th>City</th><th>BR/BA</th><th>SqFt</th><th>Sale Price</th><th>$/SqFt</th><th>Lot</th><th>Pool</th><th>Sold</th><th>DOM</th><th>Elementary</th><th>Middle</th><th>High School</th>';
-  if(showDist)h+='<th>Dist</th>';h+='<th style="text-align:center">Actions</th></tr></thead><tbody>';
+  // Condition-tier badge: T1 red -> T6 green gradient, Dotty purple, ? for unscored.
+  const tier=r=>{if(r.is_dotty)return'<span class="tbadge tdot">Dotty</span>';const t=r.condition_tier;return(t&&t>=1&&t<=6)?`<span class="tbadge t${t}">T${t}</span>`:'<span class="tbadge tq">?</span>';};
+  const sp=(rt,lv)=>{if(rt==null||rt==='')return'';const cl=rt>=7?'sh':rt>=5?'sm':'sl';return`<span class="sp ${cl}"><span class="lv">${lv}</span>${rt}</span>`;};
+  let h='<div class="cr-wrap"><div class="crhead"><span></span><span></span><span>Tier</span><span>Address</span><span class="r">Dist</span><span class="r">Bd/Ba</span><span class="r">SqFt</span><span class="r">Lot</span><span class="r">Price</span><span class="r">$/SF</span><span class="r">Sold</span><span class="r">E·M·H</span><span></span></div>';
   rows.forEach((r,i)=>{const fullAddr=(r.address||'')+', '+(r.city||'')+', CA';
-    h+=`<tr id="row-${r.id}" data-idx="${i}"><td style="text-align:center"><input type="checkbox" checked class="comp-check" data-idx="${i}" onchange="recalcSummary('${sid}')"></td><td style="font-weight:600;color:var(--accent);text-align:center">${i+1}</td><td style="white-space:nowrap;cursor:pointer" onclick="viewCompPhotos(${r.id})" title="View photos"><span style="border-bottom:1px dashed var(--text-4)">${r.address||''}</span> <a href="${zUrl(fullAddr)}" target="_blank" style="opacity:0.5;margin-left:2px" title="Zillow" onclick="event.stopPropagation()"><img src="https://www.zillow.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a><a href="${rUrl(fullAddr)}" target="_blank" style="opacity:0.5;margin-left:2px" title="Redfin" onclick="event.stopPropagation()"><img src="https://www.redfin.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a></td><td>${r.city||''}</td><td>${r.beds||''}/${r.baths||''}</td><td>${r.sqft?r.sqft.toLocaleString():'—'}</td><td class="price">${r.sale_price?'$'+r.sale_price.toLocaleString():'—'}</td><td class="ppsf">${r.ppsf?'$'+r.ppsf.toFixed(0):'—'}</td><td>${r.lot_size?r.lot_size.toLocaleString():'—'}</td><td class="${r.pool==='Yes'?'pool-yes':'pool-no'}">${r.pool||'No'}</td><td>${r.sold_date||'—'}</td><td><span class="dom-badge ${dc(r.dom||0)}">${r.dom!=null?r.dom:'—'}</span></td><td>${fs(r.elementary_school,r.elementary_rating,'ES')}</td><td>${fs(r.middle_school,r.middle_rating,'MS')}</td><td>${fs(r.high_school,r.high_rating,'HS')}</td>`;
-    if(showDist)h+=`<td class="ppsf">${r.distance?r.distance.toFixed(2):'—'}</td>`;
-    h+=`<td style="text-align:center;white-space:nowrap"><button onclick="editComp(${r.id})" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:13px;padding:2px 6px;font-family:inherit">✎</button><button onclick="deleteComp(${r.id})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;padding:2px 6px;font-family:inherit;opacity:0.6">✕</button></td></tr>`;});
-  c.innerHTML=h+'</tbody></table></div>';
+    h+=`<div class="cr" id="row-${r.id}">`
+      +`<input type="checkbox" checked class="comp-check" data-idx="${i}" onchange="recalcSummary('${sid}')">`
+      +`<span class="idx">${i+1}</span>`
+      +tier(r)
+      +`<span class="addrcell"><span class="caddr" onclick="viewCompPhotos(${r.id})" title="View photos">${r.address||''}</span><a href="${zUrl(fullAddr)}" target="_blank" title="Zillow" onclick="event.stopPropagation()"><img class="zi" src="https://www.zillow.com/favicon.ico" onerror="this.style.display='none'"></a><a href="${rUrl(fullAddr)}" target="_blank" title="Redfin" onclick="event.stopPropagation()"><img class="zi" src="https://www.redfin.com/favicon.ico" onerror="this.style.display='none'"></a></span>`
+      +`<span class="d">${showDist&&r.distance!=null?r.distance.toFixed(2)+'mi':'—'}</span>`
+      +`<span class="d">${r.beds||'—'}/${r.baths||'—'}</span>`
+      +`<span class="d">${r.sqft?r.sqft.toLocaleString():'—'}</span>`
+      +`<span class="d">${r.lot_size?r.lot_size.toLocaleString():'—'}</span>`
+      +`<span class="pr">${r.sale_price?'$'+r.sale_price.toLocaleString():'—'}</span>`
+      +`<span class="d">${r.ppsf?'$'+r.ppsf.toFixed(0):'—'}</span>`
+      +`<span class="d">${r.sold_date||'—'}</span>`
+      +`<span class="schools">${sp(r.elementary_rating,'E')}${sp(r.middle_rating,'M')}${sp(r.high_rating,'H')}</span>`
+      +`<span class="act"><button onclick="editComp(${r.id})" title="Edit">✎</button><button onclick="deleteComp(${r.id})" title="Delete">✕</button></span>`
+      +`</div>`;});
+  c.innerHTML=h+'</div>';
 }
 function updateSummary(rows,sid){
   const s=document.getElementById(sid);
-  const prices=rows.map(r=>r.sale_price).filter(Boolean),ppsfs=rows.map(r=>r.ppsf).filter(Boolean),sqfts=rows.map(r=>r.sqft).filter(Boolean),doms=rows.map(r=>r.dom).filter(d=>d!=null);
-  const avg=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:0,med=a=>{if(!a.length)return 0;const s=[...a].sort((x,y)=>x-y),m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;};
-  s.style.display='grid';s.innerHTML=`<div class="summary-card"><div class="label">Comps</div><div class="value">${rows.length}</div></div><div class="summary-card"><div class="label">Avg Price</div><div class="value">$${Math.round(avg(prices)).toLocaleString()}</div></div><div class="summary-card"><div class="label">Med Price</div><div class="value">$${Math.round(med(prices)).toLocaleString()}</div></div><div class="summary-card"><div class="label">Avg $/SF</div><div class="value">$${Math.round(avg(ppsfs))}</div></div><div class="summary-card"><div class="label">Avg SqFt</div><div class="value">${Math.round(avg(sqfts)).toLocaleString()}</div></div><div class="summary-card"><div class="label">Avg DOM</div><div class="value">${Math.round(avg(doms))}</div><div class="sub">Med: ${Math.round(med(doms))}</div></div>`;
+  const ppsfs=rows.map(r=>r.ppsf).filter(Boolean);
+  const avg=a=>a.length?a.reduce((x,v)=>x+v,0)/a.length:0;
+  s.style.display='flex';
+  s.innerHTML=`<div class="summary-card"><div class="label">Avg $/SF</div><div class="value">$${Math.round(avg(ppsfs))}</div></div>`;
 }
 function recalcSummary(sid){
   const checks=document.querySelectorAll('.comp-check');
