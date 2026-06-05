@@ -49,6 +49,11 @@ body{overflow:hidden;height:100vh}
 #ctf-drop button:hover{background:var(--bg-alt)}
 #ctf-drop label{display:flex;align-items:center;gap:8px;padding:5px 12px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer}
 #ctf-drop label:hover{background:var(--bg-alt)}
+#stf-drop{display:none}
+#stf-drop.open{display:block}
+#stf-drop button:hover{background:var(--bg-alt)}
+#stf-drop label{display:flex;align-items:center;gap:8px;padding:5px 12px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer}
+#stf-drop label:hover{background:var(--bg-alt)}
 #more-filters-drop{display:none}
 #more-filters-drop.open{display:block}
 
@@ -226,6 +231,18 @@ body{overflow:hidden;height:100vh}
         <label><input type="checkbox" value="5" onchange="toggleTierFilter(this.value)">T5 <span id="tcnt-5"></span></label>
         <label><input type="checkbox" value="6" onchange="toggleTierFilter(this.value)">T6 <span id="tcnt-6"></span></label>
         <label><input type="checkbox" value="untiered" onchange="toggleTierFilter(this.value)">Untiered <span id="tcnt-untiered"></span></label>
+      </div>
+    </div>
+    <div style="position:relative;display:inline-block" id="stf-wrap">
+      <button class="btn" id="stf-btn" onclick="document.getElementById('stf-drop').classList.toggle('open')" style="min-width:110px;text-align:left" title="T5 (Half-flip) sub-tier — A: kitchen+bath updated, B: half, C: both original (flip opportunity)">All T5 ▾</button>
+      <div id="stf-drop" style="position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:200px;padding:4px 0">
+        <div style="padding:4px 10px;border-bottom:1px solid var(--border)">
+          <button onclick="stfClear()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">Clear</button>
+        </div>
+        <label><input type="checkbox" value="A" onchange="toggleSubtierFilter(this.value)">T5-A — kitchen+bath updated <span id="stcnt-A"></span></label>
+        <label><input type="checkbox" value="B" onchange="toggleSubtierFilter(this.value)">T5-B — half updated <span id="stcnt-B"></span></label>
+        <label><input type="checkbox" value="C" onchange="toggleSubtierFilter(this.value)">T5-C — both original (opportunity) <span id="stcnt-C"></span></label>
+        <label><input type="checkbox" value="?" onchange="toggleSubtierFilter(this.value)">T5-unclassified <span id="stcnt-q"></span></label>
       </div>
     </div>
     <div style="position:relative;display:inline-block" id="tf-wrap">
@@ -532,6 +549,9 @@ let currentFilter='unread',cityFilters=new Set(),tagFilters=new Set();
 // against the dealScoreCache.
 const gradeFilters=new Set();
 const tierFilters=new Set();
+// T5 sub-tier filter (A/B/C/? off value_driver_rooms_updated). Mirrors
+// tierFilters: multi-select Set, applied in getSorted() via subTier5KeyOf.
+const subtierFilters=new Set();
 // Brief AJ: bulk-archive selection set. In-memory only; cleared on bulk-archive
 // completion or Cancel. List-card render preserves checked state via
 // selectedMls.has(l.mls).
@@ -1244,6 +1264,32 @@ function updateTierCounts(){
   const set=(id,n)=>{const el=document.getElementById(id);if(el)el.textContent=n?'('+n+')':'';};
   Object.keys(counts).forEach(k=>set('tcnt-'+k,counts[k]));
 }
+// T5 sub-tier filter — mirrors the condition-tier filter exactly (multi-select
+// Set, counts off the loaded `listings`, applied in getSorted()).
+function toggleSubtierFilter(s){
+  if(subtierFilters.has(s))subtierFilters.delete(s);else subtierFilters.add(s);
+  updateSubtierBtn();
+  render();
+}
+function stfClear(){
+  subtierFilters.clear();
+  document.querySelectorAll('#stf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);
+  updateSubtierBtn();
+  render();
+}
+function updateSubtierBtn(){
+  const btn=document.getElementById('stf-btn');if(!btn)return;
+  const lbl=s=>s==='?'?'T5-unclassified':'T5-'+s;
+  if(!subtierFilters.size)btn.textContent='All T5 ▾';
+  else if(subtierFilters.size===1)btn.textContent=lbl([...subtierFilters][0])+' ▾';
+  else btn.textContent=subtierFilters.size+' T5 sub-tiers ▾';
+}
+function updateSubtierCounts(){
+  const counts={A:0,B:0,C:0,'?':0};
+  (listings||[]).forEach(l=>{const k=subTier5KeyOf(l);if(k&&counts[k]!=null)counts[k]++;});
+  const set=(id,n)=>{const el=document.getElementById(id);if(el)el.textContent=n?'('+n+')':'';};
+  set('stcnt-A',counts.A);set('stcnt-B',counts.B);set('stcnt-C',counts.C);set('stcnt-q',counts['?']);
+}
 function refreshRowComps(mls){
   // Called per-MLS after batchFetchComps loads comps. Updates the ARV
   // cell in place. No full-row rebuild.
@@ -1359,7 +1405,25 @@ function condTierBadge(l){
   const{bg,col}=_tierColors(tier,isDotty);
   const lbl=isDotty?'DOTTY':'T'+tier;
   const title=isDotty?'Condition tier — DOTTY (our property)':`Condition tier ${tier} — ${TIER_LABELS[tier]||''}`;
-  return`<span class="tag" style="background:${bg};color:${col};border:none" title="${title}">${lbl}</span>`;
+  return`<span class="tag" style="background:${bg};color:${col};border:none" title="${title}">${lbl}</span>${subTier5Badge(l)}`;
+}
+// T5 ("Half-flip") sub-tier chip, keyed on value_driver_rooms_updated:
+// 2→A (kitchen+bath both updated), 1→B (half), 0→C (both original — the flip
+// OPPORTUNITY), null→? (unclassified). Renders nothing for non-T5 listings.
+const SUBTIER5_LABEL={2:'A',1:'B',0:'C'};
+const SUBTIER5_TITLE={A:'T5-A — kitchen & bath both updated (nicest)',B:'T5-B — one of kitchen/bath updated',C:'T5-C — kitchen & bath both original (flip opportunity)','?':'T5 — sub-tier not yet classified'};
+function subTier5KeyOf(l){
+  if(l.conditionTier!==5)return null;
+  const v=l.valueDriverRooms;
+  return v==null?'?':(SUBTIER5_LABEL[v]||'?');
+}
+function subTier5Badge(l){
+  const k=subTier5KeyOf(l);
+  if(!k)return'';
+  // C (opportunity) highlighted green; A/B/? neutral.
+  const bg=k==='C'?'rgba(45,138,78,0.15)':'var(--bg-alt)';
+  const col=k==='C'?'var(--green)':'var(--text-3)';
+  return` <span class="tag" style="background:${bg};color:${col};border:none" title="${SUBTIER5_TITLE[k]}">T5-${k}</span>`;
 }
 // Editable condition-tier control for the subject listing on the detail page.
 // The subject is itself a `properties` row, so this reuses the comp retag
@@ -1808,6 +1872,7 @@ function getSorted(){
   if(tagFilters.size)d=d.filter(l=>l.tags.some(t=>tagFilters.has(t)));
   if(gradeFilters.size)d=d.filter(l=>gradeFilters.has(dealGradeOf(l.mls)));
   if(tierFilters.size)d=d.filter(l=>tierFilters.has(tierKeyOf(l)));
+  if(subtierFilters.size)d=d.filter(l=>{const k=subTier5KeyOf(l);return k!=null&&subtierFilters.has(k);});
   if(sort_==='priority'){d.sort((a,b)=>(b.tags.length>0?1:0)-(a.tags.length>0?1:0));return d;}
   const idx=sort_.lastIndexOf('-');
   if(idx<0)return d;
@@ -1854,6 +1919,7 @@ function render(){
   // they're pure in-memory loops over `listings`, no queries.
   updateGradeCounts();
   updateTierCounts();
+  updateSubtierCounts();
   renderBulkActionBar();
 }
 async function updateStageCounts(){
@@ -1976,17 +2042,17 @@ function opn(m,prefetched){
   }
 }
 function cls(){if(openCompPoll){clearInterval(openCompPoll);openCompPoll=null;}active=null;document.querySelector('.main').classList.remove('detail-view');render();}
-function setFilter(f){if(active){active=null;document.querySelector('.main').classList.remove('detail-view');}currentFilter=f;cityFilters.clear();tagFilters.clear();gradeFilters.clear();tierFilters.clear();document.querySelectorAll('#gf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);document.querySelectorAll('#ctf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);updateGradeBtn();updateTierBtn();updateCityBtn();updateTagBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
+function setFilter(f){if(active){active=null;document.querySelector('.main').classList.remove('detail-view');}currentFilter=f;cityFilters.clear();tagFilters.clear();gradeFilters.clear();tierFilters.clear();subtierFilters.clear();document.querySelectorAll('#gf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);document.querySelectorAll('#ctf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);document.querySelectorAll('#stf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);updateGradeBtn();updateTierBtn();updateSubtierBtn();updateCityBtn();updateTagBtn();document.querySelectorAll('#tf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);['unread','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
 function toggleCityFilter(city){if(cityFilters.has(city))cityFilters.delete(city);else cityFilters.add(city);updateCityBtn();render();}
 function cfSelectAll(){const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;cityFilters.add(cb.value);});updateCityBtn();render();}
 function cfSelectNone(){cityFilters.clear();const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateCityBtn();render();}
 function updateCityBtn(){const btn=document.getElementById('cf-btn');if(!cityFilters.size)btn.textContent='All Cities ▾';else if(cityFilters.size===1)btn.textContent=[...cityFilters][0]+' ▾';else btn.textContent=cityFilters.size+' Cities ▾';}
-document.addEventListener('click',e=>{const wrap=document.getElementById('cf-wrap');const drop=document.getElementById('cf-drop');if(wrap&&drop&&!wrap.contains(e.target))drop.classList.remove('open');const tw=document.getElementById('tf-wrap');const td=document.getElementById('tf-drop');if(tw&&td&&!tw.contains(e.target))td.classList.remove('open');const mw=document.getElementById('more-filters-wrap');const md=document.getElementById('more-filters-drop');if(mw&&md&&!mw.contains(e.target))md.classList.remove('open');const gw=document.getElementById('gf-wrap');const gd=document.getElementById('gf-drop');if(gw&&gd&&!gw.contains(e.target))gd.classList.remove('open');const cw=document.getElementById('ctf-wrap');const cd=document.getElementById('ctf-drop');if(cw&&cd&&!cw.contains(e.target))cd.classList.remove('open');const aw=document.getElementById('addr-search-wrap');const ad=document.getElementById('addr-search-drop');if(aw&&ad&&!aw.contains(e.target))ad.style.display='none';
+document.addEventListener('click',e=>{const wrap=document.getElementById('cf-wrap');const drop=document.getElementById('cf-drop');if(wrap&&drop&&!wrap.contains(e.target))drop.classList.remove('open');const tw=document.getElementById('tf-wrap');const td=document.getElementById('tf-drop');if(tw&&td&&!tw.contains(e.target))td.classList.remove('open');const mw=document.getElementById('more-filters-wrap');const md=document.getElementById('more-filters-drop');if(mw&&md&&!mw.contains(e.target))md.classList.remove('open');const gw=document.getElementById('gf-wrap');const gd=document.getElementById('gf-drop');if(gw&&gd&&!gw.contains(e.target))gd.classList.remove('open');const cw=document.getElementById('ctf-wrap');const cd=document.getElementById('ctf-drop');if(cw&&cd&&!cw.contains(e.target))cd.classList.remove('open');const sw=document.getElementById('stf-wrap');const sd=document.getElementById('stf-drop');if(sw&&sd&&!sw.contains(e.target))sd.classList.remove('open');const aw=document.getElementById('addr-search-wrap');const ad=document.getElementById('addr-search-drop');if(aw&&ad&&!aw.contains(e.target))ad.style.display='none';
   // Tesla-friendly comp-panel dropdowns (tolerance + retag): close any open
   // popup when the click is outside its .cmp-wrap / .retag-wrap container.
   document.querySelectorAll('.cmp-wrap,.retag-wrap').forEach(w=>{if(!w.contains(e.target)){const d=w.querySelector('.cmp-drop,.retag-drop');if(d)d.classList.remove('open');}});});
 // Escape closes every open custom dropdown on the page (filter chips + comp panel).
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.querySelectorAll('.cmp-drop.open,.retag-drop.open').forEach(d=>d.classList.remove('open'));const cf=document.getElementById('cf-drop');if(cf)cf.classList.remove('open');const tf=document.getElementById('tf-drop');if(tf)tf.classList.remove('open');const mf=document.getElementById('more-filters-drop');if(mf)mf.classList.remove('open');const gf=document.getElementById('gf-drop');if(gf)gf.classList.remove('open');const ctf=document.getElementById('ctf-drop');if(ctf)ctf.classList.remove('open');}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.querySelectorAll('.cmp-drop.open,.retag-drop.open').forEach(d=>d.classList.remove('open'));const cf=document.getElementById('cf-drop');if(cf)cf.classList.remove('open');const tf=document.getElementById('tf-drop');if(tf)tf.classList.remove('open');const mf=document.getElementById('more-filters-drop');if(mf)mf.classList.remove('open');const gf=document.getElementById('gf-drop');if(gf)gf.classList.remove('open');const ctf=document.getElementById('ctf-drop');if(ctf)ctf.classList.remove('open');const stf=document.getElementById('stf-drop');if(stf)stf.classList.remove('open');}});
 function toggleTagFilter(tag){if(tagFilters.has(tag))tagFilters.delete(tag);else tagFilters.add(tag);updateTagBtn();render();}
 function tfSelectAll(){const cbs=document.querySelectorAll('#tf-drop input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;tagFilters.add(cb.value);});updateTagBtn();render();}
 function tfSelectNone(){tagFilters.clear();const cbs=document.querySelectorAll('#tf-drop input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateTagBtn();render();}
@@ -2587,7 +2653,7 @@ function mapRowToListing(r){
     elem:r.elementary_rating||r.elementary_school?{r:r.elementary_rating||0,n:r.elementary_school||''}:null,
     mid:(r.middle_rating||r.middle_school)&&(r.middle_school!==r.elementary_school)?{r:r.middle_rating||0,n:r.middle_school||''}:null,
     high:r.high_rating||r.high_school?{r:r.high_rating||0,n:r.high_school||''}:null,
-    tags,customTags:r.custom_tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null,photoCount:r.photo_count||0,conditionTier:r.condition_tier||null,isDotty:r.is_dotty===true,
+    tags,customTags:r.custom_tags,status:r.stage||'unread',changeType:r.change_type||'',notes:r.notes||'',latitude:r.latitude,longitude:r.longitude,lockedArv:r.locked_arv||null,lockedConstruction:r.locked_construction||null,photoCount:r.photo_count||0,conditionTier:r.condition_tier||null,valueDriverRooms:(r.value_driver_rooms_updated==null?null:r.value_driver_rooms_updated),isDotty:r.is_dotty===true,
     // Brief BK: deal linkage now lives on the deals table (decorated in
     // decorateListingsWithDeals after loadListings()). Drop the legacy
     // properties.pipeline_stage column.
@@ -2603,7 +2669,7 @@ function mapRowToListing(r){
 // are ~half the payload and only shown in the detail view. They're lazy-loaded
 // on detail open via ensureDetailRemarks(). select('*') here pulled ~3.9MB /
 // 6-24s for ~800 unread rows; this list is ~2MB.
-const LIST_COLS='address,agent_broker,agent_dre,agent_email,agent_name,agent_office_phone,agent_phone,baths,beds,broker_dre,change_date,change_type,city,condition_tier,contact_name,contact_phone,custom_tags,elementary_rating,elementary_school,gate_code,high_rating,high_school,is_dotty,latitude,list_date,list_price,lockbox_location,lockbox_type,locked_arv,locked_construction,longitude,lot_size,middle_rating,middle_school,mls,mls_area,mls_area_name,notes,occupancy,occupant_type,photo_count,pool,ppsf,remarks,sale_type,sqft,stage,year_built,zip,imported_at';
+const LIST_COLS='address,agent_broker,agent_dre,agent_email,agent_name,agent_office_phone,agent_phone,baths,beds,broker_dre,change_date,change_type,city,condition_tier,value_driver_rooms_updated,contact_name,contact_phone,custom_tags,elementary_rating,elementary_school,gate_code,high_rating,high_school,is_dotty,latitude,list_date,list_price,lockbox_location,lockbox_type,locked_arv,locked_construction,longitude,lot_size,middle_rating,middle_school,mls,mls_area,mls_area_name,notes,occupancy,occupant_type,photo_count,pool,ppsf,remarks,sale_type,sqft,stage,year_built,zip,imported_at';
 async function loadListings(status){
   let query=sb.from('properties').select(LIST_COLS).not('mls','is',null).not('mls','like','OFFMKT-%').neq('change_type','sold').order('imported_at',{ascending:false}).limit(2000);
   if(status==='unread')query=query.eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
