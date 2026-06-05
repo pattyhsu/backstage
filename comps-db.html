@@ -96,9 +96,6 @@
     <span><strong id="totalComps">0</strong> comps</span>
     <span><strong id="totalCities">0</strong> cities</span>
     <span><strong id="geocodedCount">0</strong> geocoded</span>
-    <span style="color:var(--green)"><strong id="dottyCount">0</strong> dotty</span>
-    <span style="color:var(--blue)"><strong id="flipsCount">0</strong> flips</span>
-    <span style="color:var(--amber)"><strong id="halfflipsCount">0</strong> half</span>
     <span class="conn-dot on" style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-left:8px"></span>
   </div>
 </div>
@@ -111,12 +108,10 @@
 
 <!-- SEARCH -->
 <div class="panel active" id="panel-search">
-  <div class="search-grid" style="grid-template-columns:1fr auto;"><div class="field" style="grid-column:1/-1;display:grid;grid-template-columns:1fr 160px 130px 130px;gap:12px;"><div><label>Property Address <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-4)">(optional — enables radius filter)</span></label><input type="text" id="f-address" placeholder="e.g. 13353 Beach St, Cerritos CA"></div><div><label>Property SqFt</label><input type="number" id="f-sqft" placeholder="e.g. 2242"></div><div><label>SqFt ±</label><select id="f-sqft-tol"><option value="150" selected>± 150 sf</option><option value="200">± 200 sf</option><option value="250">± 250 sf</option><option value="300">± 300 sf</option><option value="400">± 400 sf</option><option value="500">± 500 sf</option></select></div><div><label>Radius</label><select id="f-radius"><option value="0.15">0.15 mi</option><option value="0.25" selected>0.25 mi</option><option value="0.5">0.5 mi</option><option value="0.75">0.75 mi</option><option value="1">1 mi</option></select></div></div></div>
+  <div class="search-grid" style="grid-template-columns:1fr auto;"><div class="field" style="grid-column:1/-1;display:grid;grid-template-columns:1fr 160px 130px 130px;gap:12px;"><div><label>Property Address</label><input type="text" id="f-address" placeholder="e.g. 13353 Beach St, Cerritos CA"></div><div><label>Property SqFt</label><input type="number" id="f-sqft" placeholder="e.g. 2242"></div><div><label>SqFt ±</label><select id="f-sqft-tol"><option value="150" selected>± 150 sf</option><option value="200">± 200 sf</option><option value="250">± 250 sf</option><option value="300">± 300 sf</option><option value="400">± 400 sf</option><option value="500">± 500 sf</option></select></div><div><label>Radius</label><select id="f-radius"><option value="0.15">0.15 mi</option><option value="0.25" selected>0.25 mi</option><option value="0.5">0.5 mi</option><option value="0.75">0.75 mi</option><option value="1">1 mi</option></select></div></div></div>
   <div class="search-grid">
     <div class="field"><label>City</label><select id="f-city"><option value="">All Cities</option></select></div>
-    <div class="field"><label>Bedrooms</label><select id="f-beds"><option value="">Any</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5+</option></select></div>
     <div class="field"><label>Sold Within</label><select id="f-date-after"><option value="">Any</option><option value="1">1 month</option><option value="3">3 months</option><option value="6">6 months</option><option value="9">9 months</option><option value="12" selected>12 months</option><option value="18">18 months</option><option value="24">24 months</option><option value="36">36 months</option></select></div>
-    <div class="field"><label>Comp Type</label><select id="f-comp-type"><option value="">All Types</option><option value="general">General</option><option value="dotty">Dotty</option><option value="flips">Flips</option><option value="halfflips">Half-Ass Flips</option></select></div>
   </div>
   <div class="btn-row"><button class="btn btn-primary" onclick="runSearch()">Search</button><button class="btn btn-secondary" onclick="clearSearch()">Clear</button></div>
   <div id="search-summary" class="summary-cards" style="display:none"></div>
@@ -134,7 +129,6 @@
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <input type="text" id="b-search" placeholder="Search address..." oninput="clearTimeout(window._bsTimer);window._bsTimer=setTimeout(loadBrowse,400)" style="padding:8px 12px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);outline:none;width:220px">
       <div class="field" style="margin:0"><select id="b-city" onchange="loadBrowse()" style="padding:8px 12px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)"><option value="">All Cities</option></select></div>
-      <div class="field" style="margin:0"><select id="b-type" onchange="loadBrowse()" style="padding:8px 12px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)"><option value="">All Types</option><option value="general">General</option><option value="dotty">Dotty</option><option value="flips">Flips</option><option value="halfflips">Half-Ass Flips</option></select></div>
       <div class="field" style="margin:0"><select id="b-missing" onchange="loadBrowse()" style="padding:8px 12px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)"><option value="">All Data</option><option value="no-school">Missing Schools</option><option value="no-geo">Missing Geocode</option></select></div>
     </div>
   </div>
@@ -152,7 +146,6 @@
     <h3 style="font-size:15px;font-weight:600">Map View <span id="mapCount" style="color:var(--text-3);font-weight:400"></span></h3>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <select id="m-city-filter" onchange="renderMapView()" style="padding:8px 12px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)"><option value="">All Cities</option></select>
-      <select id="m-type-filter" onchange="renderMapView()" style="padding:8px 12px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)"><option value="">All Types</option><option value="general">General</option><option value="dotty">Dotty</option><option value="flips">Flips</option><option value="halfflips">Half-Ass Flips</option></select>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-3);cursor:pointer"><input type="checkbox" id="m-outliers-only" onchange="renderMapView()"> Outliers only</label>
     </div>
   </div>
@@ -289,15 +282,9 @@ async function updateStats(){
   const{data:cd}=await sb.from('properties').select('city').eq('change_type','sold');
   const cities=new Set(cd?.map(r=>r.city)).size;
   const{count:geo}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold').not('latitude','is',null);
-  const{count:d}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold').eq('comp_type','dotty');
-  const{count:f}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold').eq('comp_type','flips');
-  const{count:hf}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold').eq('comp_type','halfflips');
   document.getElementById('totalComps').textContent=(total||0).toLocaleString();
   document.getElementById('totalCities').textContent=cities||0;
   document.getElementById('geocodedCount').textContent=(geo||0).toLocaleString();
-  document.getElementById('dottyCount').textContent=d||0;
-  document.getElementById('flipsCount').textContent=f||0;
-  document.getElementById('halfflipsCount').textContent=hf||0;
 }
 
 async function populateDropdowns(){
@@ -383,10 +370,8 @@ async function runSearch(){
   }
   
   if(v('f-city'))q=q.eq('city',v('f-city'));
-  if(v('f-beds')){if(v('f-beds')==='5')q=q.gte('beds',5);else q=q.eq('beds',parseInt(v('f-beds')));}
   if(v('f-sqft')){const s=parseInt(v('f-sqft'));const tol=parseInt(v('f-sqft-tol'))||150;q=q.gte('sqft',s-tol).lte('sqft',s+tol);}
   if(v('f-date-after')){const months=parseInt(v('f-date-after'));const d=new Date();d.setMonth(d.getMonth()-months);q=q.gte('sold_date',d.toISOString().split('T')[0]);}
-  if(v('f-comp-type'))q=q.eq('comp_type',v('f-comp-type'));
   q=q.order('sold_date',{ascending:false}).limit(1000);
   const{data:rows,error}=await q;
   if(error){el.innerHTML=`<div class="empty-state"><p>${error.message}</p>`;return;}
@@ -424,7 +409,7 @@ async function runSearch(){
     renderResults(filtered,'search-results-nomap','search-summary',showDist);
   }
 }
-function clearSearch(){['f-address','f-city','f-beds','f-sqft','f-date-after','f-comp-type'].forEach(id=>document.getElementById(id).value='');document.getElementById('f-radius').value='0.25';document.getElementById('f-sqft-tol').value='150';document.getElementById('search-results').innerHTML='';document.getElementById('search-results-nomap').innerHTML='';document.getElementById('search-summary').style.display='none';document.getElementById('search-split').style.display='none';}
+function clearSearch(){['f-address','f-city','f-sqft','f-date-after'].forEach(id=>document.getElementById(id).value='');document.getElementById('f-radius').value='0.25';document.getElementById('f-sqft-tol').value='150';document.getElementById('search-results').innerHTML='';document.getElementById('search-results-nomap').innerHTML='';document.getElementById('search-summary').style.display='none';document.getElementById('search-split').style.display='none';}
 
 // =========================================================
 // MISSING SCHOOLS
@@ -492,13 +477,12 @@ function renderResults(rows,cid,sid,showDist=false){
   const fs=(n,r,type)=>{if(!n)return'—';let s=n.replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s*Mag(net)?\s*(of\s+)?(\w+\s*)*(Studies|Science|Arts|Technology|Studi\w*)?\s*/i,' ').replace(/\s*Elementary\s*School\s*/i,' ').replace(/\s*Middle\s*School\s*/i,' ').replace(/\s*High\s*School\s*/i,' ').replace(/\s+/g,' ').trim();
   const words=s.split(/\s+/).filter(w=>w.length>0);const lastName=words.filter(w=>!w.match(/^[A-Z]\.?$/)&&w.length>2).pop()||words[words.length-1]||s;
   const suffix=type||'';return`<span class="school-rating ${rc(r||0)}">${r||'?'}</span>${lastName} ${suffix}`.trim();};
-  const tb=t=>t==='dotty'?'<span class="type-badge type-dotty">D</span>':t==='flips'?'<span class="type-badge type-flips">F</span>':t==='halfflips'?'<span class="type-badge" style="background:var(--amber);color:#fff">½</span>':'';
   const zUrl=a=>`https://www.zillow.com/homes/${encodeURIComponent(a)}`;
   const rUrl=a=>`https://www.google.com/search?q=${encodeURIComponent('redfin '+a)}&btnI=1`;
   let h='<div class="results-wrap"><table><thead><tr><th style="text-align:center"><input type="checkbox" checked onchange="toggleAllComps(this,\''+sid+'\')"></th><th>#</th><th>Address</th><th>City</th><th>BR/BA</th><th>SqFt</th><th>Sale Price</th><th>$/SqFt</th><th>Lot</th><th>Pool</th><th>Sold</th><th>DOM</th><th>Elementary</th><th>Middle</th><th>High School</th>';
   if(showDist)h+='<th>Dist</th>';h+='<th style="text-align:center">Actions</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{const fullAddr=(r.address||'')+', '+(r.city||'')+', CA';
-    h+=`<tr id="row-${r.id}" data-idx="${i}"><td style="text-align:center"><input type="checkbox" checked class="comp-check" data-idx="${i}" onchange="recalcSummary('${sid}')"></td><td style="font-weight:600;color:var(--accent);text-align:center">${i+1}</td><td style="white-space:nowrap;cursor:pointer" onclick="viewCompPhotos(${r.id})" title="View photos">${tb(r.comp_type)}<span style="border-bottom:1px dashed var(--text-4)">${r.address||''}</span> <a href="${zUrl(fullAddr)}" target="_blank" style="opacity:0.5;margin-left:2px" title="Zillow" onclick="event.stopPropagation()"><img src="https://www.zillow.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a><a href="${rUrl(fullAddr)}" target="_blank" style="opacity:0.5;margin-left:2px" title="Redfin" onclick="event.stopPropagation()"><img src="https://www.redfin.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a></td><td>${r.city||''}</td><td>${r.beds||''}/${r.baths||''}</td><td>${r.sqft?r.sqft.toLocaleString():'—'}</td><td class="price">${r.sale_price?'$'+r.sale_price.toLocaleString():'—'}</td><td class="ppsf">${r.ppsf?'$'+r.ppsf.toFixed(0):'—'}</td><td>${r.lot_size?r.lot_size.toLocaleString():'—'}</td><td class="${r.pool==='Yes'?'pool-yes':'pool-no'}">${r.pool||'No'}</td><td>${r.sold_date||'—'}</td><td><span class="dom-badge ${dc(r.dom||0)}">${r.dom!=null?r.dom:'—'}</span></td><td>${fs(r.elementary_school,r.elementary_rating,'ES')}</td><td>${fs(r.middle_school,r.middle_rating,'MS')}</td><td>${fs(r.high_school,r.high_rating,'HS')}</td>`;
+    h+=`<tr id="row-${r.id}" data-idx="${i}"><td style="text-align:center"><input type="checkbox" checked class="comp-check" data-idx="${i}" onchange="recalcSummary('${sid}')"></td><td style="font-weight:600;color:var(--accent);text-align:center">${i+1}</td><td style="white-space:nowrap;cursor:pointer" onclick="viewCompPhotos(${r.id})" title="View photos"><span style="border-bottom:1px dashed var(--text-4)">${r.address||''}</span> <a href="${zUrl(fullAddr)}" target="_blank" style="opacity:0.5;margin-left:2px" title="Zillow" onclick="event.stopPropagation()"><img src="https://www.zillow.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a><a href="${rUrl(fullAddr)}" target="_blank" style="opacity:0.5;margin-left:2px" title="Redfin" onclick="event.stopPropagation()"><img src="https://www.redfin.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a></td><td>${r.city||''}</td><td>${r.beds||''}/${r.baths||''}</td><td>${r.sqft?r.sqft.toLocaleString():'—'}</td><td class="price">${r.sale_price?'$'+r.sale_price.toLocaleString():'—'}</td><td class="ppsf">${r.ppsf?'$'+r.ppsf.toFixed(0):'—'}</td><td>${r.lot_size?r.lot_size.toLocaleString():'—'}</td><td class="${r.pool==='Yes'?'pool-yes':'pool-no'}">${r.pool||'No'}</td><td>${r.sold_date||'—'}</td><td><span class="dom-badge ${dc(r.dom||0)}">${r.dom!=null?r.dom:'—'}</span></td><td>${fs(r.elementary_school,r.elementary_rating,'ES')}</td><td>${fs(r.middle_school,r.middle_rating,'MS')}</td><td>${fs(r.high_school,r.high_rating,'HS')}</td>`;
     if(showDist)h+=`<td class="ppsf">${r.distance?r.distance.toFixed(2):'—'}</td>`;
     h+=`<td style="text-align:center;white-space:nowrap"><button onclick="editComp(${r.id})" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:13px;padding:2px 6px;font-family:inherit">✎</button><button onclick="deleteComp(${r.id})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;padding:2px 6px;font-family:inherit;opacity:0.6">✕</button></td></tr>`;});
   c.innerHTML=h+'</tbody></table></div>';
@@ -625,7 +609,7 @@ async function viewComp(id){
   
   // Property details
   h+=section('Property Details',
-    kv('MLS #',r.mls)+kv('APN',r.apn)+kv('Beds / Baths',(r.beds||'—')+'bd / '+(r.baths||'—')+'ba')+kv('SqFt',r.sqft?r.sqft.toLocaleString():null)+kv('Lot Size',r.lot_size?r.lot_size.toLocaleString()+' sf':null)+kv('Year Built',r.year_built)+kv('Pool',r.pool)+kv('Comp Type',r.comp_type)+kv('Sale Type',r.sale_type)+kv('Occupant Type',r.occupant_type)
+    kv('MLS #',r.mls)+kv('APN',r.apn)+kv('Beds / Baths',(r.beds||'—')+'bd / '+(r.baths||'—')+'ba')+kv('SqFt',r.sqft?r.sqft.toLocaleString():null)+kv('Lot Size',r.lot_size?r.lot_size.toLocaleString()+' sf':null)+kv('Year Built',r.year_built)+kv('Pool',r.pool)+kv('Sale Type',r.sale_type)+kv('Occupant Type',r.occupant_type)
   );
   
   // Dates
@@ -666,12 +650,12 @@ async function viewComp(id){
 }
 
 async function editComp(id){const{data:r}=await sb.from('properties').select('*').eq('id',id).single();if(!r)return;
-const fields=[{key:'mls',label:'MLS #',type:'text',readonly:true},{key:'address',label:'Address',type:'text'},{key:'city',label:'City',type:'text'},{key:'beds',label:'Bedrooms',type:'number'},{key:'baths',label:'Bathrooms',type:'number',step:'0.5'},{key:'sqft',label:'SqFt',type:'number'},{key:'sale_price',label:'Sale Price',type:'number'},{key:'ppsf',label:'$/SqFt',type:'number',step:'0.01'},{key:'lot_size',label:'Lot Size',type:'number'},{key:'pool',label:'Pool',type:'select',options:[['No','No'],['Yes','Yes']]},{key:'sold_date',label:'Sold Date',type:'date'},{key:'dom',label:'DOM',type:'number'},{key:'apn',label:'APN',type:'text'},{key:'elementary_school',label:'Elementary',type:'text'},{key:'elementary_rating',label:'Elem Rating',type:'number'},{key:'middle_school',label:'Middle School',type:'text'},{key:'middle_rating',label:'Mid Rating',type:'number'},{key:'high_school',label:'High School',type:'text'},{key:'high_rating',label:'High Rating',type:'number'},{key:'latitude',label:'Latitude',type:'number',step:'any'},{key:'longitude',label:'Longitude',type:'number',step:'any'},{key:'comp_type',label:'Comp Type',type:'select',options:[['general','General'],['dotty','Dotty'],['flips','Flips'],['halfflips','Half-Ass Flip']]}];
+const fields=[{key:'mls',label:'MLS #',type:'text',readonly:true},{key:'address',label:'Address',type:'text'},{key:'city',label:'City',type:'text'},{key:'beds',label:'Bedrooms',type:'number'},{key:'baths',label:'Bathrooms',type:'number',step:'0.5'},{key:'sqft',label:'SqFt',type:'number'},{key:'sale_price',label:'Sale Price',type:'number'},{key:'ppsf',label:'$/SqFt',type:'number',step:'0.01'},{key:'lot_size',label:'Lot Size',type:'number'},{key:'pool',label:'Pool',type:'select',options:[['No','No'],['Yes','Yes']]},{key:'sold_date',label:'Sold Date',type:'date'},{key:'dom',label:'DOM',type:'number'},{key:'apn',label:'APN',type:'text'},{key:'elementary_school',label:'Elementary',type:'text'},{key:'elementary_rating',label:'Elem Rating',type:'number'},{key:'middle_school',label:'Middle School',type:'text'},{key:'middle_rating',label:'Mid Rating',type:'number'},{key:'high_school',label:'High School',type:'text'},{key:'high_rating',label:'High Rating',type:'number'},{key:'latitude',label:'Latitude',type:'number',step:'any'},{key:'longitude',label:'Longitude',type:'number',step:'any'}];
 let fh=fields.map(f=>{const val=r[f.key]!=null?r[f.key]:'';let inp;if(f.type==='select')inp=`<select id="edit-${f.key}" style="width:100%;padding:8px 10px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">${f.options.map(([v,l])=>`<option value="${v}" ${String(val)==v?'selected':''}>${l}</option>`).join('')}</select>`;else inp=`<input type="${f.type}" id="edit-${f.key}" value="${val}" ${f.step?'step="'+f.step+'"':''} ${f.readonly?'readonly':''} style="width:100%;padding:8px 10px;font-size:13px;font-family:inherit;background:${f.readonly?'var(--bg-alt)':'var(--bg-page)'};border:1px solid var(--border);border-radius:var(--radius);color:${f.readonly?'var(--text-3)':'var(--text)'};outline:none">`;return`<div><label style="display:block;font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${f.label}</label>${inp}</div>`;}).join('');
 const m=document.getElementById('editModal');m.innerHTML=`<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:600px;width:95%;max-height:85vh;overflow-y:auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:16px;font-weight:600">Edit Comp</h3><button onclick="closeEditModal()" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:20px;padding:4px 8px">✕</button></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${fh}</div><div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeEditModal()">Cancel</button><button class="btn btn-primary" onclick="saveEdit(${id})">Save</button></div></div>`;m.style.display='flex';}
 
 async function saveEdit(id){const g=k=>{const e=document.getElementById('edit-'+k);return e?e.value:null;},num=k=>{const v=g(k);return v!==''&&v!==null?Number(v):null;};
-const{error}=await sb.from('properties').update({address:g('address'),city:g('city'),beds:num('beds'),baths:num('baths'),sqft:num('sqft'),sale_price:num('sale_price'),ppsf:num('ppsf'),lot_size:num('lot_size'),pool:g('pool'),sold_date:g('sold_date')||null,dom:num('dom'),apn:g('apn')||null,elementary_school:g('elementary_school')||null,elementary_rating:num('elementary_rating'),middle_school:g('middle_school')||null,middle_rating:num('middle_rating'),high_school:g('high_school')||null,high_rating:num('high_rating'),latitude:num('latitude'),longitude:num('longitude'),comp_type:g('comp_type')||'general'}).eq('id',id);
+const{error}=await sb.from('properties').update({address:g('address'),city:g('city'),beds:num('beds'),baths:num('baths'),sqft:num('sqft'),sale_price:num('sale_price'),ppsf:num('ppsf'),lot_size:num('lot_size'),pool:g('pool'),sold_date:g('sold_date')||null,dom:num('dom'),apn:g('apn')||null,elementary_school:g('elementary_school')||null,elementary_rating:num('elementary_rating'),middle_school:g('middle_school')||null,middle_rating:num('middle_rating'),high_school:g('high_school')||null,high_rating:num('high_rating'),latitude:num('latitude'),longitude:num('longitude')}).eq('id',id);
 if(error)alert(error.message);else{closeEditModal();await updateStats();if(document.getElementById('panel-search').classList.contains('active'))runSearch();else if(document.getElementById('panel-schools').classList.contains('active'))loadMissingSchools();else if(document.getElementById('panel-browse').classList.contains('active'))fetchBrowsePage();}}
 function closeEditModal(){document.getElementById('editModal').style.display='none';}
 
@@ -696,14 +680,12 @@ async function fetchBrowsePage() {
   el.innerHTML = '<div class="loading">Loading...</div>';
 
   const city = document.getElementById('b-city').value;
-  const type = document.getElementById('b-type').value;
   const missing = document.getElementById('b-missing').value;
   const search = document.getElementById('b-search').value.trim();
 
   let query = sb.from('properties').select('*', { count: 'exact' }).eq('change_type','sold');
   if (search) query = query.ilike('address', `%${search}%`);
   if (city) query = query.eq('city', city);
-  if (type) query = query.eq('comp_type', type);
   if (missing === 'no-school') query = query.is('elementary_school', null);
   if (missing === 'no-geo') query = query.is('latitude', null);
 
@@ -738,7 +720,7 @@ async function loadMapView(){
   const prog=()=>document.getElementById('mapLoadProgress');
   let all=[];
   for(let p=0;p<25;p++){
-    const{data,error}=await sb.from('properties').select('id,address,city,latitude,longitude,comp_type,sale_price,sold_date,mls,outlier_reviewed').not('latitude','is',null).not('longitude','is',null).range(p*1000,(p+1)*1000-1);
+    const{data,error}=await sb.from('properties').select('id,address,city,latitude,longitude,sale_price,sold_date,mls,outlier_reviewed').not('latitude','is',null).not('longitude','is',null).range(p*1000,(p+1)*1000-1);
     if(error){
       // Graceful degradation: if outlier_reviewed column doesn't exist yet, fall back to query without it
       if(error.message&&error.message.indexOf('outlier_reviewed')>=0){
@@ -790,21 +772,15 @@ function renderMapView(){
   mapViewMarkers.forEach(m=>m.setMap(null));
   mapViewMarkers=[];
   const cityFilter=document.getElementById('m-city-filter').value;
-  const typeFilter=document.getElementById('m-type-filter').value;
   const outliersOnly=document.getElementById('m-outliers-only').checked;
   const filtered=mapViewData.filter(r=>{
     if(cityFilter&&(r.city||'').toUpperCase().trim()!==cityFilter)return false;
-    if(typeFilter&&(r.comp_type||'general')!==typeFilter)return false;
     if(outliersOnly&&!mapViewOutliers.has(r.id))return false;
     return true;
   });
   document.getElementById('mapCount').textContent='('+filtered.length+' shown'+(mapViewOutliers.size?', '+mapViewOutliers.size+' outliers total':'')+')';
   const colorFor=r=>{
     if(mapViewOutliers.has(r.id))return '#dc2626';
-    const t=r.comp_type||'general';
-    if(t==='dotty')return '#9333ea';
-    if(t==='flips')return '#059669';
-    if(t==='halfflips')return '#d97706';
     return '#2563eb';
   };
   const bounds=new google.maps.LatLngBounds();
@@ -818,7 +794,7 @@ function renderMapView(){
       zIndex:isOutlier?1000:1
     });
     m.addListener('click',()=>{
-      const iw=new google.maps.InfoWindow({content:'<div style="font-size:12px;font-family:system-ui"><b>'+(r.address||'')+'</b><br>'+(r.city||'')+'<br>'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+' · '+(r.sold_date||'—')+'<br>'+(r.comp_type||'general')+(isOutlier?' <span style=\"color:#dc2626;font-weight:600\">⚠ outlier</span>':'')+'<br><a href="#" onclick="event.preventDefault();editComp('+r.id+')">edit</a></div>'});
+      const iw=new google.maps.InfoWindow({content:'<div style="font-size:12px;font-family:system-ui"><b>'+(r.address||'')+'</b><br>'+(r.city||'')+'<br>'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+' · '+(r.sold_date||'—')+(isOutlier?'<br><span style=\"color:#dc2626;font-weight:600\">⚠ outlier</span>':'')+'<br><a href="#" onclick="event.preventDefault();editComp('+r.id+')">edit</a></div>'});
       iw.open(mapViewMap,m);
     });
     mapViewMarkers.push(m);
@@ -832,7 +808,7 @@ function renderMapView(){
   document.getElementById('dismissAllBtn').style.display=outlierRows.length>0?'':'none';
   const list=document.getElementById('outlierList');
   if(!outlierRows.length){list.innerHTML='<div style="padding:16px;font-size:12px;color:var(--text-4);text-align:center">No outliers detected '+(cityFilter?'in '+cityFilter:'')+'</div>';return;}
-  list.innerHTML=outlierRows.slice(0,200).map(r=>'<div id="outlier-row-'+r.id+'" style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;display:flex;align-items:flex-start;gap:8px"><div style="flex:1;cursor:pointer" onclick="mapViewFlyTo('+r.latitude+','+r.longitude+','+r.id+')"><div style="font-weight:600">'+(r.address||'(no address)')+'</div><div style="color:var(--text-3);font-size:11px;margin-top:2px">'+(r.city||'')+' · '+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+' · '+(r.comp_type||'general')+'</div><div style="color:var(--text-4);font-size:10px;font-family:var(--mono),monospace;margin-top:2px">'+r.latitude.toFixed(5)+', '+r.longitude.toFixed(5)+'</div></div><button onclick="dismissOutlier('+r.id+')" title="Not an outlier" style="background:none;border:1px solid var(--border);border-radius:4px;color:var(--green);cursor:pointer;font-size:12px;padding:2px 8px;font-family:inherit;flex-shrink:0">✓</button></div>').join('')+(outlierRows.length>200?'<div style="padding:8px 12px;font-size:11px;color:var(--text-4);text-align:center">+'+(outlierRows.length-200)+' more</div>':'');
+  list.innerHTML=outlierRows.slice(0,200).map(r=>'<div id="outlier-row-'+r.id+'" style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;display:flex;align-items:flex-start;gap:8px"><div style="flex:1;cursor:pointer" onclick="mapViewFlyTo('+r.latitude+','+r.longitude+','+r.id+')"><div style="font-weight:600">'+(r.address||'(no address)')+'</div><div style="color:var(--text-3);font-size:11px;margin-top:2px">'+(r.city||'')+' · '+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</div><div style="color:var(--text-4);font-size:10px;font-family:var(--mono),monospace;margin-top:2px">'+r.latitude.toFixed(5)+', '+r.longitude.toFixed(5)+'</div></div><button onclick="dismissOutlier('+r.id+')" title="Not an outlier" style="background:none;border:1px solid var(--border);border-radius:4px;color:var(--green);cursor:pointer;font-size:12px;padding:2px 8px;font-family:inherit;flex-shrink:0">✓</button></div>').join('')+(outlierRows.length>200?'<div style="padding:8px 12px;font-size:11px;color:var(--text-4);text-align:center">+'+(outlierRows.length-200)+' more</div>':'');
 }
 
 function mapViewFlyTo(lat,lng,id){
