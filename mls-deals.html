@@ -1972,7 +1972,6 @@ function detHTML(l){
   const kFin=(fin.ltv/100)*(fin.rate/100)*(fin.months/12);
   const initBuy=ppIsCustom[id]?getNumVal('pp-'+id)||suggestedBuy(arv,initConst,kFin,margin):suggestedBuy(arv,initConst,kFin,margin);
   return`<div class="cb" style="position:relative">
-    ${!l.dealId?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap"><button id="open-offer-${id}" onclick="event.stopPropagation();openOffer('${l.mls}')" style="padding:6px 12px;border-radius:5px;border:1px solid var(--accent);font-size:12px;font-weight:700;font-family:inherit;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap" title="Open Pipeline tracking at the Pursuing phase (acquisition lead)">📤 Open offer</button><span style="font-size:11px;color:var(--text-4)">Start Pipeline tracking for this deal.</span><a id="mark-as-listing-${id}" onclick="event.stopPropagation();markAsListing('${l.mls}');return false;" href="#" style="font-size:11px;color:var(--text-4);text-decoration:underline;margin-left:auto;cursor:pointer" title="Rare — link this MLS row as the relist of one of our under_construction deals">or: mark as relist of an existing deal →</a></div>`:''}
     <div class="da-grid">
       <div class="da-col-l">
         <div>
@@ -2021,7 +2020,8 @@ function detHTML(l){
         <div class="da-bd" id="breakdown-${id}"></div>
         <div class="da-foot" id="foot-${id}"></div>
       </div>
-    </div></div>`;
+    </div>
+    ${!l.dealId?`<div style="margin-top:16px"><button id="open-offer-${id}" onclick="event.stopPropagation();openOffer('${l.mls}')" style="padding:6px 12px;border-radius:5px;border:1px solid var(--accent);font-size:12px;font-weight:700;font-family:inherit;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap" title="Open Pipeline tracking at the Pursuing phase (acquisition lead)">📤 Open offer</button></div>`:''}</div>`;
 }
 
 function calcDeal(id,listPrice,sqft){
@@ -2204,7 +2204,7 @@ function renderDetailPage(l){
     <div id="comp-col" style="margin-bottom:14px"></div>
     <div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:.5px;margin-bottom:6px">DEAL ANALYSIS</div>${detHTML(l)}</div>
     <div class="toggle-section" style="margin-bottom:8px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">PROPERTY & SHOWING <span>▸</span></div><div class="toggle-body"><div class="si">
-      <span><b>Sale Type:</b> ${l.saleType||'—'}</span><span><b>Listed:</b> ${l.listDate||'—'}</span><span><b>Occupancy:</b> ${l.occupancy||'—'}</span><span><b>Occupant:</b> ${l.occupantType||'—'}</span><span><b>Contact:</b> ${l.contactName||'—'} ${l.contactPhone||''}</span><span><b>Lockbox:</b> ${l.lockboxType||'—'} ${l.lockboxLocation?'@ '+l.lockboxLocation:''}</span><span><b>Gate Code:</b> ${l.gateCode||'—'}</span></div></div></div>
+      <span><b>Sale Type:</b> ${l.saleType||'—'}</span><span><b>Listed:</b> ${l.listDate||'—'}</span><span><b>Occupancy:</b> ${l.occupancy||'—'}</span><span><b>Occupant:</b> ${l.occupantType||'—'}</span><span><b>Contact:</b> ${l.contactName||'—'} ${l.contactPhone||''}</span><span><b>Lockbox:</b> ${l.lockboxType||'—'} ${l.lockboxLocation?'@ '+l.lockboxLocation:''}</span><span><b>Gate Code:</b> ${l.gateCode||'—'}</span></div>${!l.dealId?`<a id="mark-as-listing-${id}" onclick="event.stopPropagation();markAsListing('${l.mls}');return false;" href="#" style="display:inline-block;margin-top:10px;font-size:11px;color:var(--text-4);text-decoration:underline;cursor:pointer" title="Rare — link this MLS row as the relist of one of our under_construction deals">mark as relist of an existing deal →</a>`:''}</div></div>
     <div class="toggle-section" style="margin-bottom:14px"><div class="toggle-hdr" onclick="this.parentElement.classList.toggle('open')">AGENT & BROKER <span>▸</span></div><div class="toggle-body"><div class="agb">
       <span><b>Agent:</b> ${l.agent||'—'}${renderAgentDeBadge(l)}</span><span><b>DRE#:</b> ${l.agentDre||'—'}</span><span><b>Email:</b> ${l.agentEmail||'—'}</span><span><b>Phone:</b> ${l.agentPhone||'—'}</span><span><b>Office:</b> ${l.agentOfficePhone||'—'}</span><span><b>Broker:</b> ${l.broker||'—'}</span><span><b>Broker DRE#:</b> ${l.brokerDre||'—'}</span><span><b>MLS#:</b> ${l.mls}</span>${l.dealId?`<span data-cell="deal-pill" data-mls="${l.mls}"><b>🏗 In project:</b> ${dealPhaseLabel(l.dealPhase)} <a href="project-detail.html?deal=${encodeURIComponent(l.dealId)}">→ view</a>${l.undoable?` <a href="#" onclick="event.stopPropagation();undoOpenOffer('${l.dealId}','${l.mls}');return false;" style="margin-left:8px;font-size:11px;color:var(--text-4);text-decoration:underline;cursor:pointer" title="Delete the pipeline tracking record (the MLS listing stays visible)">↩ undo open offer</a>`:''}</span>`:''}</div></div></div></div>`;
   document.getElementById('detPage').innerHTML=h;
