@@ -98,8 +98,8 @@
   .comps-bar .cb-stat b{color:var(--accent);font-weight:700}
   .comps-bar label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--text-3);cursor:pointer}
   /* single-line comp rows */
-  .cr-wrap{overflow-x:auto}
-  .crhead,.cr{display:grid;grid-template-columns:22px 16px 56px minmax(150px,1fr) 50px 44px 58px 58px 92px 50px 80px 76px 40px;align-items:center;gap:8px;min-width:760px}
+  .cr-wrap{overflow:visible}
+  .crhead,.cr{display:grid;grid-template-columns:22px 16px 64px minmax(150px,1fr) 50px 44px 58px 58px 92px 50px 80px 76px;align-items:center;gap:8px;min-width:740px}
   .crhead{padding:0 8px 5px;border-bottom:1px solid var(--border)}
   .crhead span{font-size:11px;font-weight:700;color:var(--text-4);text-transform:uppercase;letter-spacing:.4px}
   .crhead .r{text-align:right}
@@ -129,6 +129,15 @@
   .tbadge.t6{background:rgba(45,138,78,.13);color:rgb(45,138,78)}
   .tbadge.tq{background:var(--bg-alt);color:var(--text-4)}
   .tbadge.tdot{background:var(--purple-bg,#F3EFFF);color:var(--purple,#6D28D9)}
+  /* editable tier chip (retag) */
+  .cr .retag-wrap{justify-self:start}
+  .retag-wrap{position:relative;display:inline-block}
+  .retag-btn{padding:2px 16px 2px 6px;border:1px solid transparent;border-radius:4px;font-family:inherit;font-size:10px;font-weight:700;cursor:pointer;text-transform:uppercase;line-height:1.2;position:relative;white-space:nowrap}
+  .retag-btn::after{content:'';position:absolute;right:5px;top:50%;transform:translateY(-30%);width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-top:3px solid currentColor;opacity:.55}
+  .retag-drop{display:none;position:absolute;top:100%;left:0;margin-top:2px;background:var(--bg);border:1px solid var(--border);border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,.12);z-index:999;min-width:230px;padding:4px 0}
+  .retag-drop.open{display:block}
+  .retag-drop button{display:block;width:100%;text-align:left;padding:5px 10px;border:none;background:none;font-family:inherit;font-size:10px;font-weight:700;cursor:pointer;line-height:1.4}
+  .retag-drop button:hover{filter:brightness(0.95)}
 </style>
 </head>
 <body>
@@ -514,6 +523,72 @@ async function saveSchool(id){
   setTimeout(()=>row.remove(),500);
 }
 
+// ===== Condition-tier retag (ported from mls-deals.html) =====
+// Click the tier chip on a comp row -> dropdown -> writes condition_tier
+// (+ value_driver_rooms_updated, is_dotty, condition_overridden) to the
+// properties row by id. comp_type is intentionally NOT written (retired).
+const TIER_OPTS=[
+  [6,'T6','Tier 6 — Full flip (highest sale)'],
+  ['5A','T5-A','Tier 5-A — Half-flip, kitchen + bath both updated'],
+  ['5B','T5-B','Tier 5-B — Half-flip, one of kitchen/bath updated'],
+  ['5C','T5-C','Tier 5-C — Half-flip, both original (flip opportunity)'],
+  [4,'T4','Tier 4 — Lived-in flip'],
+  [3,'T3','Tier 3 — Modern owner-grade'],
+  [2,'T2','Tier 2 — Dated (livable)'],
+  [1,'T1','Tier 1 — Distressed (lowest sale)'],
+  ['null','NULL','Null — not enough data to judge condition'],
+];
+const SUBTIER5_LABEL={2:'A',1:'B',0:'C'};
+function _keyTier(k){if(k==='5A'||k==='5B'||k==='5C')return 5;if(k==='null'||k==='dotty')return null;return Number(k);}
+function _keyToPayload(newKey){
+  const map={'5A':2,'5B':1,'5C':0};
+  if(newKey==='null')return{condition_tier:null,value_driver_rooms_updated:null,is_dotty:false};
+  if(newKey==='dotty')return{condition_tier:6,value_driver_rooms_updated:null,is_dotty:true};
+  if(newKey in map)return{condition_tier:5,value_driver_rooms_updated:map[newKey],is_dotty:false};
+  return{condition_tier:Number(newKey),value_driver_rooms_updated:null,is_dotty:false};
+}
+function _tierColors(tier,isDotty){
+  if(isDotty)return{bg:'var(--purple-bg)',col:'var(--purple)'};
+  if(!tier||tier<1||tier>6)return{bg:'var(--bg-alt)',col:'var(--text-4)'};
+  const t=(tier-1)/5,r=Math.round(192+(45-192)*t),g=Math.round(57+(138-57)*t),b=Math.round(43+(78-43)*t);
+  return{bg:`rgba(${r},${g},${b},0.13)`,col:`rgb(${r},${g},${b})`};
+}
+function _tierChipLabel(tier,vdru,isDotty,ov){
+  if(isDotty)return'DOTTY';
+  if(tier===5){const k=SUBTIER5_LABEL[vdru];return k?('T5-'+k):'T5';}
+  if(tier)return'T'+tier;
+  return ov?'null':'?';
+}
+function _tierCurrentKey(tier,vdru,isDotty,ov){
+  if(isDotty)return'dotty';
+  if(tier===5){const k=SUBTIER5_LABEL[vdru];return k?('5'+k):null;}
+  if(tier)return tier;
+  return ov?'null':null;
+}
+function cdbTierEditor(r){
+  const isDotty=r.is_dotty===true,tier=r.condition_tier,vdru=r.value_driver_rooms_updated,ov=r.condition_overridden===true;
+  const currentKey=_tierCurrentKey(tier,vdru,isDotty,ov);
+  const{bg,col}=_tierColors(tier,isDotty);
+  const chip=_tierChipLabel(tier,vdru,isDotty,ov);
+  const dropId='cdb-retag-'+r.id;
+  const opts=TIER_OPTS.map(([v,_c,full])=>{const oc=_tierColors(_keyTier(v),v==='dotty');const cur=v===currentKey;return`<button onclick="event.stopPropagation();cdbSetTier(${r.id},'${v}')" style="background:${oc.bg};color:${oc.col};${cur?'font-weight:800;':''}">${full}${cur?' ✓':''}</button>`;}).join('');
+  return`<span class="retag-wrap" id="cdb-tier-${r.id}"><button class="retag-btn" title="Set condition tier" style="background:${bg};color:${col}" onclick="event.stopPropagation();toggleCompDrop('${dropId}')">${chip}</button><div id="${dropId}" class="retag-drop">${opts}</div></span>`;
+}
+function toggleCompDrop(dropId){const d=document.getElementById(dropId);if(!d)return;const open=d.classList.contains('open');document.querySelectorAll('.retag-drop.open').forEach(x=>x.classList.remove('open'));if(!open)d.classList.add('open');}
+function cdbSetTier(id,newKey){document.querySelectorAll('.retag-drop.open').forEach(d=>d.classList.remove('open'));cdbUpdateTier(id,newKey);}
+async function cdbUpdateTier(id,newKey){
+  const cols=_keyToPayload(newKey);
+  const payload={...cols,condition_overridden:true,updated_at:new Date().toISOString()};
+  const r=_lastRenderedRows.find(x=>x&&x.id===id);
+  const prev=r?{t:r.condition_tier,v:r.value_driver_rooms_updated,d:r.is_dotty,o:r.condition_overridden}:null;
+  const repaint=()=>{const cell=document.getElementById('cdb-tier-'+id);if(r&&cell)cell.outerHTML=cdbTierEditor(r);};
+  if(r){r.condition_tier=cols.condition_tier;r.value_driver_rooms_updated=cols.value_driver_rooms_updated;r.is_dotty=cols.is_dotty;r.condition_overridden=true;repaint();}
+  const{error}=await sb.from('properties').update(payload).eq('id',id);
+  if(error){alert('Set tier failed: '+error.message);if(r&&prev){r.condition_tier=prev.t;r.value_driver_rooms_updated=prev.v;r.is_dotty=prev.d;r.condition_overridden=prev.o;repaint();}}
+}
+document.addEventListener('click',e=>{document.querySelectorAll('.retag-drop.open').forEach(d=>{const w=d.closest('.retag-wrap');if(!w||!w.contains(e.target))d.classList.remove('open');});});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.retag-drop.open').forEach(d=>d.classList.remove('open'));});
+
 let _lastRenderedRows=[];
 function renderResults(rows,cid,sid,showDist=false){
   const c=document.getElementById(cid),s=document.getElementById(sid);
@@ -522,15 +597,13 @@ function renderResults(rows,cid,sid,showDist=false){
   updateSummary(rows,sid);
   const zUrl=a=>`https://www.zillow.com/homes/${encodeURIComponent(a)}`;
   const rUrl=a=>`https://www.google.com/search?q=${encodeURIComponent('redfin '+a)}&btnI=1`;
-  // Condition-tier badge: T1 red -> T6 green gradient, Dotty purple, ? for unscored.
-  const tier=r=>{if(r.is_dotty)return'<span class="tbadge tdot">Dotty</span>';const t=r.condition_tier;return(t&&t>=1&&t<=6)?`<span class="tbadge t${t}">T${t}</span>`:'<span class="tbadge tq">?</span>';};
   const sp=(rt,lv)=>{if(rt==null||rt==='')return'';const cl=rt>=7?'sh':rt>=5?'sm':'sl';return`<span class="sp ${cl}"><span class="lv">${lv}</span>${rt}</span>`;};
-  let h='<div class="cr-wrap"><div class="crhead"><span></span><span></span><span>Tier</span><span>Address</span><span class="r">Dist</span><span class="r">Bd/Ba</span><span class="r">SqFt</span><span class="r">Lot</span><span class="r">Price</span><span class="r">$/SF</span><span class="r">Sold</span><span class="r">E·M·H</span><span></span></div>';
+  let h='<div class="cr-wrap"><div class="crhead"><span></span><span></span><span>Tier</span><span>Address</span><span class="r">Dist</span><span class="r">Bd/Ba</span><span class="r">SqFt</span><span class="r">Lot</span><span class="r">Price</span><span class="r">$/SF</span><span class="r">Sold</span><span class="r">E·M·H</span></div>';
   rows.forEach((r,i)=>{const fullAddr=(r.address||'')+', '+(r.city||'')+', CA';
     h+=`<div class="cr" id="row-${r.id}">`
       +`<input type="checkbox" checked class="comp-check" data-idx="${i}" onchange="recalcSummary('${sid}')">`
       +`<span class="idx">${i+1}</span>`
-      +tier(r)
+      +cdbTierEditor(r)
       +`<span class="addrcell"><span class="caddr" onclick="viewCompPhotos(${r.id})" title="View photos">${r.address||''}</span><a href="${zUrl(fullAddr)}" target="_blank" title="Zillow" onclick="event.stopPropagation()"><img class="zi" src="https://www.zillow.com/favicon.ico" onerror="this.style.display='none'"></a><a href="${rUrl(fullAddr)}" target="_blank" title="Redfin" onclick="event.stopPropagation()"><img class="zi" src="https://www.redfin.com/favicon.ico" onerror="this.style.display='none'"></a></span>`
       +`<span class="d">${showDist&&r.distance!=null?r.distance.toFixed(2)+'mi':'—'}</span>`
       +`<span class="d">${r.beds||'—'}/${r.baths||'—'}</span>`
@@ -540,7 +613,6 @@ function renderResults(rows,cid,sid,showDist=false){
       +`<span class="d">${r.ppsf?'$'+r.ppsf.toFixed(0):'—'}</span>`
       +`<span class="d">${r.sold_date||'—'}</span>`
       +`<span class="schools">${sp(r.elementary_rating,'E')}${sp(r.middle_rating,'M')}${sp(r.high_rating,'H')}</span>`
-      +`<span class="act"><button onclick="editComp(${r.id})" title="Edit">✎</button><button onclick="deleteComp(${r.id})" title="Delete">✕</button></span>`
       +`</div>`;});
   c.innerHTML=h+'</div>';
 }
