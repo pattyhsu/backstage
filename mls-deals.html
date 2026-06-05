@@ -451,33 +451,52 @@ function openLightbox(mls,addr,photoCount){
   const setHeader=()=>{const n=total>0?total:loaded;addrEl.textContent=n>0?`${addr} (${n}${n===1?' photo':' photos'})`:addr;};
   setHeader();
 
-  // Grid: sequential probe, stop on first 404. Same as the original
-  // pre-AM behavior — finds however many photos R2 actually has,
-  // independent of photo_count.
-  let i=1;
-  function loadNext(){
-    if(lbMls!==myMls)return;
-    const num=String(i).padStart(2,'0');
-    const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
-    const img=new Image();
-    img.onload=function(){
-      if(lbMls!==myMls)return;
-      const el=document.createElement('img');
-      el.src=url;
-      el.onclick=function(){
-        if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
-        else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
-      };
-      grid.appendChild(el);
-      loaded++;
-      setHeader();
-      i++;
-      loadNext();
+  const makeImg=()=>{
+    const el=document.createElement('img');
+    el.onclick=function(){
+      if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
+      else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
     };
-    img.onerror=function(){/* stop probing */};
-    img.src=url;
+    return el;
+  };
+
+  if(total>0){
+    // photo_count is known and reconciled to R2 in post_import, so load all
+    // slots in order in parallel and tolerate gaps: a missing or undecodable
+    // image (e.g. a file with corrupt/wrong-format bytes) drops just itself
+    // instead of truncating every photo after it.
+    for(let n=1;n<=total;n++){
+      const num=String(n).padStart(2,'0');
+      const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
+      const el=makeImg();
+      el.onload=function(){if(lbMls!==myMls)return;loaded++;};
+      el.onerror=function(){this.remove();};
+      grid.appendChild(el);
+      el.src=url;
+    }
+  }else{
+    // Unknown count — sequential probe, stop on first 404. Same as the
+    // original pre-AM behavior — finds however many photos R2 actually has.
+    let i=1;
+    (function loadNext(){
+      if(lbMls!==myMls)return;
+      const num=String(i).padStart(2,'0');
+      const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
+      const img=new Image();
+      img.onload=function(){
+        if(lbMls!==myMls)return;
+        const el=makeImg();
+        el.src=url;
+        grid.appendChild(el);
+        loaded++;
+        setHeader();
+        i++;
+        loadNext();
+      };
+      img.onerror=function(){/* stop probing */};
+      img.src=url;
+    })();
   }
-  loadNext();
 }
 function closeLightbox(){
   document.getElementById('photoLightbox').classList.remove('open');
@@ -2188,11 +2207,8 @@ function renderDetailPage(l){
       <a href="${redfin}" target="_blank"><img src="https://www.redfin.com/favicon.ico" style="width:14px;height:14px;opacity:0.7" onerror="this.style.display='none'"></a>
       <a href="${zillow}" target="_blank"><img src="https://www.zillow.com/favicon.ico" style="width:14px;height:14px;opacity:0.7" onerror="this.style.display='none'"></a></div>
     <div style="font-size:11px;color:var(--text-3);margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      <span>${l.beds}bd/${l.baths}ba</span><span>·</span><span>${l.sqft.toLocaleString()} sf</span><span>·</span><span><b>$${Math.round(l.ppsf)}</b>/sf</span><span>·</span><span>Lot ${l.lot||'—'}</span><span>·</span><span>Pool: ${l.pool||'No'}</span><span>·</span><span>DOM: ${d}</span><span>·</span>${subjectTierEditor(l)}</div>
+      <span>${l.beds}bd/${l.baths}ba</span><span>·</span><span>${l.sqft.toLocaleString()} sf</span><span>·</span><span><b>$${Math.round(l.ppsf)}</b>/sf</span><span>·</span><span>Lot ${l.lot||'—'}</span><span>·</span><span>Pool: ${l.pool||'No'}</span><span>·</span><span>DOM: ${d}</span><span>·</span>${subjectTierEditor(l)}${(l.elem||l.mid||l.high)?'<span>·</span>':''}${l.elem?`<span class="sp ${l.elem.r>=7?'sh':l.elem.r>=5?'sm':'sl'}"><span class="lv">E</span>${l.elem.r}</span><span style="font-size:10px;color:var(--text-3);margin-right:4px">${shortName(l.elem.n)}</span>`:''}${l.mid?`<span class="sp ${l.mid.r>=7?'sh':l.mid.r>=5?'sm':'sl'}"><span class="lv">M</span>${l.mid.r}</span><span style="font-size:10px;color:var(--text-3);margin-right:4px">${shortName(l.mid.n)}</span>`:''}${l.high?`<span class="sp ${l.high.r>=7?'sh':l.high.r>=5?'sm':'sl'}"><span class="lv">H</span>${l.high.r}</span><span style="font-size:10px;color:var(--text-3)">${shortName(l.high.n)}</span>`:''}</div>
     <div style="margin-top:3px;display:flex;gap:3px;align-items:center;flex-wrap:wrap">
-      ${l.elem?`<span class="sp ${l.elem.r>=7?'sh':l.elem.r>=5?'sm':'sl'}"><span class="lv">E</span>${l.elem.r}</span><span style="font-size:10px;color:var(--text-3);margin-right:4px">${shortName(l.elem.n)}</span>`:''}
-      ${l.mid?`<span class="sp ${l.mid.r>=7?'sh':l.mid.r>=5?'sm':'sl'}"><span class="lv">M</span>${l.mid.r}</span><span style="font-size:10px;color:var(--text-3);margin-right:4px">${shortName(l.mid.n)}</span>`:''}
-      ${l.high?`<span class="sp ${l.high.r>=7?'sh':l.high.r>=5?'sm':'sl'}"><span class="lv">H</span>${l.high.r}</span><span style="font-size:10px;color:var(--text-3)">${shortName(l.high.n)}</span>`:''}
       <span id="tag-toggles-${id}"></span></div></div></div></div>
   <div class="det-body">
     <div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:.5px;margin-bottom:4px">NOTES</div>
