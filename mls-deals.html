@@ -229,20 +229,11 @@ body{overflow:hidden;height:100vh}
         <label><input type="checkbox" value="3" onchange="toggleTierFilter(this.value)">T3 <span id="tcnt-3"></span></label>
         <label><input type="checkbox" value="4" onchange="toggleTierFilter(this.value)">T4 <span id="tcnt-4"></span></label>
         <label><input type="checkbox" value="5" onchange="toggleTierFilter(this.value)">T5 <span id="tcnt-5"></span></label>
+        <label style="padding-left:30px;font-size:11px;color:var(--text-3)" title="T5-A — kitchen+bath both updated"><input type="checkbox" value="A" onchange="toggleSubtierFilter(this.value)">T5-A — kitchen+bath updated <span id="stcnt-A"></span></label>
+        <label style="padding-left:30px;font-size:11px;color:var(--text-3)" title="T5-B — one of kitchen/bath updated"><input type="checkbox" value="B" onchange="toggleSubtierFilter(this.value)">T5-B — half updated <span id="stcnt-B"></span></label>
+        <label style="padding-left:30px;font-size:11px;color:var(--text-3)" title="T5-C — both original (flip opportunity)"><input type="checkbox" value="C" onchange="toggleSubtierFilter(this.value)">T5-C — both original (opportunity) <span id="stcnt-C"></span></label>
         <label><input type="checkbox" value="6" onchange="toggleTierFilter(this.value)">T6 <span id="tcnt-6"></span></label>
         <label><input type="checkbox" value="untiered" onchange="toggleTierFilter(this.value)">Untiered <span id="tcnt-untiered"></span></label>
-      </div>
-    </div>
-    <div style="position:relative;display:inline-block" id="stf-wrap">
-      <button class="btn" id="stf-btn" onclick="document.getElementById('stf-drop').classList.toggle('open')" style="min-width:110px;text-align:left" title="T5 (Half-flip) sub-tier — A: kitchen+bath updated, B: half, C: both original (flip opportunity)">All T5 ▾</button>
-      <div id="stf-drop" style="position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:200px;padding:4px 0">
-        <div style="padding:4px 10px;border-bottom:1px solid var(--border)">
-          <button onclick="stfClear()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">Clear</button>
-        </div>
-        <label><input type="checkbox" value="A" onchange="toggleSubtierFilter(this.value)">T5-A — kitchen+bath updated <span id="stcnt-A"></span></label>
-        <label><input type="checkbox" value="B" onchange="toggleSubtierFilter(this.value)">T5-B — half updated <span id="stcnt-B"></span></label>
-        <label><input type="checkbox" value="C" onchange="toggleSubtierFilter(this.value)">T5-C — both original (opportunity) <span id="stcnt-C"></span></label>
-        <label><input type="checkbox" value="?" onchange="toggleSubtierFilter(this.value)">T5-unclassified <span id="stcnt-q"></span></label>
       </div>
     </div>
     <div style="position:relative;display:inline-block" id="tf-wrap">
@@ -1258,6 +1249,7 @@ function toggleTierFilter(t){
 }
 function ctfClear(){
   tierFilters.clear();
+  subtierFilters.clear();  // T5 sub-tier checkboxes now live in this same dropdown
   document.querySelectorAll('#ctf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);
   updateTierBtn();
   render();
@@ -1265,9 +1257,10 @@ function ctfClear(){
 function updateTierBtn(){
   const btn=document.getElementById('ctf-btn');if(!btn)return;
   const lbl=t=>t==='untiered'?'Untiered':'T'+t;
-  if(!tierFilters.size)btn.textContent='All Tiers ▾';
-  else if(tierFilters.size===1)btn.textContent=lbl([...tierFilters][0])+' ▾';
-  else btn.textContent=tierFilters.size+' Tiers ▾';
+  const n=tierFilters.size+subtierFilters.size;  // tier + nested T5 sub-tier selections
+  if(!n)btn.textContent='All Tiers ▾';
+  else if(n===1)btn.textContent=(tierFilters.size?lbl([...tierFilters][0]):'T5-'+[...subtierFilters][0])+' ▾';
+  else btn.textContent=n+' Tiers ▾';
 }
 function updateTierCounts(){
   const counts={'1':0,'2':0,'3':0,'4':0,'5':0,'6':0,untiered:0};
@@ -1279,7 +1272,7 @@ function updateTierCounts(){
 // Set, counts off the loaded `listings`, applied in getSorted()).
 function toggleSubtierFilter(s){
   if(subtierFilters.has(s))subtierFilters.delete(s);else subtierFilters.add(s);
-  updateSubtierBtn();
+  updateTierBtn();  // sub-tier filters share the "All Tiers" button now
   render();
 }
 function stfClear(){
@@ -1450,17 +1443,20 @@ function _tierColors(tier,isDotty){
 // the retag dropdown. Renders nothing when the listing has no tier yet.
 const TIER_LABELS={1:'Distressed',2:'Dated (livable)',3:'Modern owner-grade',4:'Lived-in flip',5:'Half-flip',6:'Full flip'};
 function condTierBadge(l){
-  const tier=l.conditionTier,isDotty=l.isDotty===true;
+  const tier=l.conditionTier,isDotty=l.isDotty===true,vdru=l.valueDriverRooms,ov=l.conditionOverridden===true;
   // Deliberate "null" call (Patty marked no-data) shows a "null" chip;
   // a never-scored listing still renders nothing.
   if(!tier&&!isDotty){
-    if(l.conditionOverridden===true)return`<span class="tag" style="background:var(--bg-alt);color:var(--text-4);border:none" title="Condition — marked null (not enough data to judge)">null</span>`;
+    if(ov)return`<span class="tag" style="background:var(--bg-alt);color:var(--text-4);border:none" title="Condition — marked null (not enough data to judge)">null</span>`;
     return'';
   }
-  const{bg,col}=_tierColors(tier,isDotty);
-  const lbl=isDotty?'DOTTY':'T'+tier;
-  const title=isDotty?'Condition tier — DOTTY (our property)':`Condition tier ${tier} — ${TIER_LABELS[tier]||''}`;
-  return`<span class="tag" style="background:${bg};color:${col};border:none" title="${title}">${lbl}</span>${subTier5Badge(l)}`;
+  // ONE chip per row: T5 shows its sub-tier (T5-A/B/C), not a redundant T5 +
+  // T5-B pair. T5-C (both original) is the flip opportunity — highlight green.
+  let{bg,col}=_tierColors(tier,isDotty);
+  if(tier===5&&SUBTIER5_LABEL[vdru]==='C'){bg='rgba(45,138,78,0.15)';col='var(--green)';}
+  const lbl=_tierChipLabel(tier,vdru,isDotty,ov);
+  const title=isDotty?'Condition tier — DOTTY (our property)':(tier===5?(SUBTIER5_TITLE[SUBTIER5_LABEL[vdru]]||'Condition tier 5 — Half-flip'):`Condition tier ${tier} — ${TIER_LABELS[tier]||''}`);
+  return`<span class="tag" style="background:${bg};color:${col};border:none" title="${title}">${lbl}</span>`;
 }
 // T5 ("Half-flip") sub-tier chip, keyed on value_driver_rooms_updated:
 // 2→A (kitchen+bath both updated), 1→B (half), 0→C (both original — the flip
