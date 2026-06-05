@@ -2210,6 +2210,12 @@ function renderDetailPage(l){
   document.getElementById('detPage').innerHTML=h;
   document.getElementById('comp-col').innerHTML=compsPanel(l);
   renderTagToggles(l.mls,id);
+  // Always populate the deal-analysis breakdown after a (re)render. detHTML only
+  // lays out the structure with "—" placeholders + empty waterfall/footer; calcDeal
+  // fills them. Many async callers re-render the whole detail page without their own
+  // calcDeal (DE-count load, remarks load, status/tier edits) — without this, those
+  // re-renders would wipe the freshly-rendered breakdown and leave it blank.
+  calcDeal(id,l.price,l.sqft);
 }
 
 // Lazy-load the two big free-text remarks blobs excluded from the list query
