@@ -8,3 +8,7 @@ secrets/
 
 # Scratch/preview artifacts
 _tmp_*
+
+# Local dev tooling & backups
+.claude/
+.backups/
