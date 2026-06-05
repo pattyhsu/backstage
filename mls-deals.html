@@ -191,6 +191,83 @@ body{overflow:hidden;height:100vh}
 .restore-btn{padding:4px 10px;border-radius:var(--radius-sm);border:1px solid var(--green-bg);background:var(--green-bg);color:var(--green);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
 .pc{background:none;border:none;cursor:pointer;font-size:16px;color:var(--text-4);padding:2px 4px}
 .pc:hover{color:var(--text)}
+
+/* ===== Deal Analysis — unified 6-bucket waterfall (ported from breakdown-mockup Surface 2) ===== */
+.da-grid{display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start;font-variant-numeric:tabular-nums}
+@media(max-width:760px){.da-grid{grid-template-columns:1fr}}
+.da-col-l{display:flex;flex-direction:column;gap:14px}
+.da-grp{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-4);margin-bottom:6px}
+.da-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.da-fin{background:var(--bg-alt);border:1px solid var(--border);border-radius:6px;padding:10px 11px}
+.da-arvrow{display:flex;gap:8px;align-items:center}
+.da-arvrow input{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;font-family:inherit;background:var(--bg);color:var(--accent)}
+.da-arvrow input:focus{outline:none;border-color:var(--accent)}
+.da-arvrow input[readonly]{background:var(--bg-alt);color:var(--text-2)}
+.da-lock{padding:7px 10px;border-radius:5px;font-size:10.5px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;border:1px solid var(--border);background:var(--bg);color:var(--text-3);transition:all .12s}
+.da-lock.on{border-color:var(--green);background:var(--green-bg);color:var(--green)}
+.da-help{font-size:10.5px;color:var(--text-4);margin-top:6px;line-height:1.5}
+.da-help b{color:var(--text-3)}
+.da-ig label{display:block;font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-4);margin-bottom:4px}
+.da-ig input{width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:5px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--text)}
+.da-ig input:focus{outline:none;border-color:var(--accent)}
+/* target-buy verdict banner */
+.da-vd{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:13px 16px;border-radius:8px;margin-bottom:16px;border:1px solid var(--border)}
+.da-vd.over{background:var(--red-bg);border-color:#FECACA}
+.da-vd.under{background:var(--green-bg);border-color:#A7F0BE}
+.da-vd-lbl{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-4)}
+.da-vd-note{color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0}
+.da-vd-reset{color:var(--accent);text-decoration:underline;cursor:pointer;font-size:9px;margin-left:6px}
+.da-vd-buyline{display:flex;align-items:baseline;gap:2px;margin-top:3px}
+.da-vd-cur{font-size:17px;font-weight:800;color:var(--text)}
+.da-vd-buy{font-size:23px;font-weight:800;color:var(--text);border:none;background:transparent;width:160px;padding:0;font-family:inherit;outline:none;border-bottom:1px dashed transparent;font-variant-numeric:tabular-nums}
+.da-vd-buy:hover{border-bottom-color:var(--border-hover)}
+.da-vd-buy:focus{border-bottom-color:var(--accent)}
+.da-vd-r{text-align:right;flex-shrink:0}
+.da-vd-verdict{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.da-vd-amt{font-size:21px;font-weight:800;line-height:1.15}
+.da-vd-sub{font-size:10.5px;color:var(--text-3);margin-top:1px}
+.da-vd.over .da-vd-verdict,.da-vd.over .da-vd-amt{color:var(--red)}
+.da-vd.under .da-vd-verdict,.da-vd.under .da-vd-amt{color:var(--green)}
+/* the breakdown waterfall */
+.da-bd{margin-top:2px;font-variant-numeric:tabular-nums}
+.da-bd-top{display:flex;align-items:baseline;justify-content:space-between;padding-bottom:10px}
+.da-bd-top .lbl{font-size:13px;font-weight:700;color:var(--text)}
+.da-bd-top .lbl .sub{font-weight:500;color:var(--text-4);font-size:11px;margin-left:4px}
+.da-bd-top .val{font-size:20px;font-weight:800;color:var(--text);letter-spacing:-.01em}
+.da-bd-bar{display:flex;height:12px;border-radius:7px;overflow:hidden;background:var(--bg-inset);margin-bottom:14px;gap:1.5px}
+.da-bd-seg{height:100%}
+.da-bd-seg.purchase{background:#6B6B63}
+.da-bd-seg.purchexp{background:#85857B}
+.da-bd-seg.rehab{background:#9E9E93}
+.da-bd-seg.financing{background:#B5B5AA}
+.da-bd-seg.holding{background:#CACAC0}
+.da-bd-seg.disposition{background:#DCDCD3}
+.da-bd-seg.profit{background:var(--green)}
+.da-bd-seg.loss{background:var(--red)}
+.da-bd-row{display:grid;grid-template-columns:14px 1fr auto auto;align-items:center;gap:10px;padding:7px 0;font-size:13px}
+.da-bd-row + .da-bd-row{border-top:1px solid #F0EFEC}
+.da-bd-sw{width:11px;height:11px;border-radius:3px}
+.da-bd-sw.purchase{background:#6B6B63}
+.da-bd-sw.purchexp{background:#85857B}
+.da-bd-sw.rehab{background:#9E9E93}
+.da-bd-sw.financing{background:#B5B5AA}
+.da-bd-sw.holding{background:#CACAC0}
+.da-bd-sw.disposition{background:#DCDCD3}
+.da-bd-name{color:var(--text-2);font-weight:500}
+.da-bd-name .det{color:var(--text-4);font-size:11px;font-weight:400}
+.da-bd-pct{color:var(--text-4);font-size:11px;justify-self:end;min-width:46px;text-align:right}
+.da-bd-amt{font-weight:600;color:var(--text);justify-self:end;min-width:104px;text-align:right}
+.da-bd-total{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:9px 0;margin-top:2px;border-top:1.5px solid var(--border-strong);font-size:13px}
+.da-bd-total .da-bd-name{font-weight:700;color:var(--text)}
+.da-bd-net{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border);font-size:14px}
+.da-bd-net .da-bd-name{font-weight:800}
+.da-bd-net .da-bd-pct{font-weight:700;font-size:12px}
+.da-bd-net .da-bd-amt{font-weight:800;font-size:16px;min-width:104px}
+.da-bd-net.pos .da-bd-name,.da-bd-net.pos .da-bd-pct,.da-bd-net.pos .da-bd-amt{color:var(--green)}
+.da-bd-net.neg .da-bd-name,.da-bd-net.neg .da-bd-pct,.da-bd-net.neg .da-bd-amt{color:var(--red)}
+.da-foot{display:flex;gap:24px;margin-top:14px;padding-top:12px;border-top:1px dashed var(--border-hover);font-size:11px;color:var(--text-3);flex-wrap:wrap}
+.da-foot b{color:var(--text)}
+.da-foot .dim{color:var(--text-4)}
 </style>
 </head>
 <body>
@@ -1629,8 +1706,17 @@ function recalcCompSummary(mid){
 
 // ========== DEAL ANALYZER ==========
 // Keep these in sync with underwriter/ Python config — drift causes deal_score row's target_buy to disagree with the in-page TARGET BUY.
-const SELL_PCT=0.05,CONST_PCT=0.16,PURCH_EXP_PCT=0.02,PROFIT_TARGET_PCT=0.10;
+// Unified 6-bucket waterfall economics (see breakdown-mockup Surface 2):
+//   purchase expenses = 1% of purchase, holding = 0.3% of ARV, disposition = 4% of ARV,
+//   financing = (LTV%·purchase) × rate × months/12. Target margin = net profit / purchase.
+const CONST_PCT=0.16,PURCH_EXP_PCT=0.01,HOLD_PCT=0.003,DISP_PCT=0.04,PROFIT_TARGET_PCT=0.10;
+const FIN_DEFAULTS={months:6,rate:10,ltv:90};
+// Money formatters that put the sign before the $ (mockup style): -$3,058 / +$110,205.
+const FMoney=n=>(n<0?'-$':'$')+Math.abs(Math.round(n)).toLocaleString();
+const FSigned=n=>(n>=0?'+$':'-$')+Math.abs(Math.round(n)).toLocaleString();
 let ppIsCustom={},constIsCustom={},listPriceMap={};
+// Session-only per-deal inputs for the breakdown (seeded from defaults; not persisted).
+let marginMap={},finMap={};
 // Rehab ladder loaded from Supabase config table (key=rehab_categories).
 // See underwriter/seed_config.py for the seed; underwriter/rehab.py is the Python twin.
 // Data-driven so the Edit modal can render checkboxes from the same source.
@@ -1833,23 +1919,109 @@ function markPPCustom(id){ppIsCustom[id]=true;const r=document.getElementById('p
 function markConstCustom(id){constIsCustom[id]=true;}
 function resetPP(id,lp,sq){ppIsCustom[id]=false;const r=document.getElementById('pp-reset-'+id);if(r)r.style.display='none';calcDeal(id,lp,sq);}
 
+// Back-solve the purchase price that hits a target margin (net profit / purchase):
+//   net/P = s  ⟺  arv − (construction+holding+disposition) = P(1 + purch_exp + k_fin + s),
+//   where k_fin = (ltv/100)·(rate/100)·(months/12) is financing as a fraction of purchase.
+function suggestedBuy(arv,construction,kFin,sTargetPct){
+  const fixed=construction+arv*HOLD_PCT+arv*DISP_PCT;
+  return Math.max(0,Math.round((arv-fixed)/(1+PURCH_EXP_PCT+kFin+sTargetPct/100)));
+}
+// The unified 6-bucket waterfall. purchase = effective acquisition cost.
+function computeDeal({arv,purchase,construction,months,rate,ltv}){
+  const loan=purchase*(ltv/100);
+  const cashDown=Math.max(0,purchase-loan);
+  const financing=loan*(rate/100)*(months/12);
+  const purchexp=purchase*PURCH_EXP_PCT;
+  const holding=arv*HOLD_PCT;
+  const disposition=arv*DISP_PCT;
+  const rows=[
+    {key:'purchase',    name:'Purchase price',      det:'',                                amt:purchase},
+    {key:'purchexp',    name:'Purchase expenses',   det:'1% of purchase',                  amt:purchexp},
+    {key:'rehab',       name:'Construction / rehab',det:'',                                amt:construction},
+    {key:'financing',   name:'Financing',           det:rate+'% · '+ltv+'% LTV · '+months+'mo', amt:financing},
+    {key:'holding',     name:'Holding',             det:'0.3% of ARV',                     amt:holding},
+    {key:'disposition', name:'Disposition',         det:'4% sell',                         amt:disposition},
+  ];
+  const allIn=rows.reduce((s,r)=>s+r.amt,0);
+  return {rows,allIn,net:arv-allIn,arv,loan,cashDown};
+}
+function renderBreakdown(elId,c){
+  const el=document.getElementById(elId);if(!el)return;
+  const segs=c.rows.map(r=>`<div class="da-bd-seg ${r.key}" style="flex:${Math.max(r.amt,1)}"></div>`).join('');
+  const netSeg=`<div class="da-bd-seg ${c.net>=0?'profit':'loss'}" style="flex:${Math.max(Math.abs(c.net),1)};border-radius:0 7px 7px 0"></div>`;
+  const rowsHtml=c.rows.map(r=>`
+    <div class="da-bd-row">
+      <span class="da-bd-sw ${r.key}"></span>
+      <span class="da-bd-name">${r.name} ${r.det?`<span class="det">· ${r.det}</span>`:''}</span>
+      <span class="da-bd-pct">${(r.amt/c.arv*100).toFixed(1)}%</span>
+      <span class="da-bd-amt">${FMoney(r.amt)}</span>
+    </div>`).join('');
+  el.innerHTML=`
+    <div class="da-bd-top"><span class="lbl">ARV<span class="sub">resale value</span></span><span class="val">${FMoney(c.arv)}</span></div>
+    <div class="da-bd-bar">${segs}${netSeg}</div>
+    ${rowsHtml}
+    <div class="da-bd-total"><span class="da-bd-name">All-in cost</span><span class="da-bd-pct">${(c.allIn/c.arv*100).toFixed(1)}%</span><span class="da-bd-amt">${FMoney(c.allIn)}</span></div>
+    <div class="da-bd-net ${c.net>=0?'pos':'neg'}"><span class="da-bd-name">Net profit <span class="det" style="font-weight:400">· margin on buy</span></span><span class="da-bd-pct">${(c.net/c.rows[0].amt*100).toFixed(1)}%</span><span class="da-bd-amt">${FSigned(c.net)}</span></div>`;
+}
+
 function detHTML(l){
   const cm=getComps(l),pref=preferredArvFor(l,cm),arv=l.lockedArv||pref.arv,id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
+  const initConst=l.lockedConstruction||estimateConstruction(l.sqft,l.mls);
+  const margin=marginMap[id]!=null?marginMap[id]:PROFIT_TARGET_PCT*100;
+  const fin=finMap[id]||FIN_DEFAULTS;
+  const kFin=(fin.ltv/100)*(fin.rate/100)*(fin.months/12);
+  const initBuy=ppIsCustom[id]?getNumVal('pp-'+id)||suggestedBuy(arv,initConst,kFin,margin):suggestedBuy(arv,initConst,kFin,margin);
   return`<div class="cb" style="position:relative">
-    ${!l.dealId?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><button id="open-offer-${id}" onclick="event.stopPropagation();openOffer('${l.mls}')" style="padding:6px 12px;border-radius:5px;border:1px solid var(--accent);font-size:12px;font-weight:700;font-family:inherit;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap" title="Open Pipeline tracking at the Pursuing phase (acquisition lead)">📤 Open offer</button><span style="font-size:11px;color:var(--text-4)">Start Pipeline tracking for this deal.</span><a id="mark-as-listing-${id}" onclick="event.stopPropagation();markAsListing('${l.mls}');return false;" href="#" style="font-size:11px;color:var(--text-4);text-decoration:underline;margin-left:auto;cursor:pointer" title="Rare — link this MLS row as the relist of one of our under_construction deals">or: mark as relist of an existing deal →</a></div>`:''}
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--text-4);flex-shrink:0;width:100px">ARV</span>
-      <input type="text" id="arv-${id}" value="${F(arv)}" oninput="calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--accent);font-family:inherit;background:var(--bg)">
-      <button id="lock-arv-${id}" onclick="event.stopPropagation();toggleLockArv('${l.mls}','${id}')" style="padding:4px 10px;border-radius:5px;border:1px solid ${l.lockedArv?'var(--green)':'var(--border)'};font-size:11px;font-weight:600;font-family:inherit;background:${l.lockedArv?'var(--green-bg)':'var(--bg)'};color:${l.lockedArv?'var(--green)':'var(--text-3)'};cursor:pointer;white-space:nowrap">${l.lockedArv?'🔒 Locked':'Lock ARV'}</button>
-      <span id="arv-source-${id}" style="font-size:10px;color:var(--text-4);white-space:nowrap">${arvSourceLabel(l,pref.source,arv)}</span></div>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--text-4);flex-shrink:0;width:100px">CONSTRUCTION</span>
-      <input type="text" id="const-${id}" value="${F(l.lockedConstruction||estimateConstruction(l.sqft,l.mls))}" ${l.lockedConstruction?'readonly':''} oninput="markConstCustom('${id}');calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--text);font-family:inherit;background:${l.lockedConstruction?'var(--bg-alt)':'var(--bg)'}">
-      <button onclick="event.stopPropagation();openConstEditor('${l.mls}','${id}',${l.sqft||0})" style="padding:4px 10px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:var(--bg);color:var(--text-3);cursor:pointer;white-space:nowrap">Edit</button>
-      <button id="lock-const-${id}" onclick="event.stopPropagation();toggleLockConstruction('${l.mls}','${id}')" style="padding:4px 10px;border-radius:5px;border:1px solid ${l.lockedConstruction?'var(--green)':'var(--border)'};font-size:11px;font-weight:600;font-family:inherit;background:${l.lockedConstruction?'var(--green-bg)':'var(--bg)'};color:${l.lockedConstruction?'var(--green)':'var(--text-3)'};cursor:pointer;white-space:nowrap">🔒 Const</button>
-      <span style="font-size:10px;color:var(--text-4);white-space:nowrap">${l.lockedConstruction?'':'16% of ARV = '+F(Math.round(arv*0.16))}</span></div>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--text-4);flex-shrink:0;width:100px">TARGET BUY</span>
-      <input type="text" id="pp-${id}" value="${F(Math.round((arv*(1-SELL_PCT)-(l.lockedConstruction||estimateConstruction(l.sqft,l.mls)))/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT)))}" oninput="markPPCustom('${id}');calcDeal('${id}',${l.price},${l.sqft})" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-weight:700;color:var(--accent);font-family:inherit;background:var(--bg)">
-      <button id="pp-reset-${id}" onclick="event.stopPropagation();resetPP('${id}',${l.price},${l.sqft})" style="font-size:10px;color:var(--accent);background:none;border:none;cursor:pointer;font-family:inherit;text-decoration:underline;display:none;white-space:nowrap">Reset</button></div>
-    <div id="gap-${id}"></div><div id="breakdown-${id}" style="margin-top:4px"></div></div>`;
+    ${!l.dealId?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap"><button id="open-offer-${id}" onclick="event.stopPropagation();openOffer('${l.mls}')" style="padding:6px 12px;border-radius:5px;border:1px solid var(--accent);font-size:12px;font-weight:700;font-family:inherit;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap" title="Open Pipeline tracking at the Pursuing phase (acquisition lead)">📤 Open offer</button><span style="font-size:11px;color:var(--text-4)">Start Pipeline tracking for this deal.</span><a id="mark-as-listing-${id}" onclick="event.stopPropagation();markAsListing('${l.mls}');return false;" href="#" style="font-size:11px;color:var(--text-4);text-decoration:underline;margin-left:auto;cursor:pointer" title="Rare — link this MLS row as the relist of one of our under_construction deals">or: mark as relist of an existing deal →</a></div>`:''}
+    <div class="da-grid">
+      <div class="da-col-l">
+        <div>
+          <div class="da-grp">ARV (resale)</div>
+          <div class="da-arvrow">
+            <input type="text" id="arv-${id}" value="${F(arv)}" oninput="calcDeal('${id}',${l.price},${l.sqft})">
+            <button id="lock-arv-${id}" class="da-lock${l.lockedArv?' on':''}" onclick="event.stopPropagation();toggleLockArv('${l.mls}','${id}')">${l.lockedArv?'🔒 Locked':'Lock ARV'}</button>
+          </div>
+          <div class="da-help"><span id="arv-source-${id}">${arvSourceLabel(l,pref.source,arv)}</span></div>
+        </div>
+        <div>
+          <div class="da-grp">Construction</div>
+          <div class="da-arvrow">
+            <input type="text" id="const-${id}" value="${F(initConst)}" ${l.lockedConstruction?'readonly':''} oninput="markConstCustom('${id}');calcDeal('${id}',${l.price},${l.sqft})" style="color:var(--text)">
+            <button class="da-lock" onclick="event.stopPropagation();openConstEditor('${l.mls}','${id}',${l.sqft||0})">Edit</button>
+            <button id="lock-const-${id}" class="da-lock${l.lockedConstruction?' on':''}" onclick="event.stopPropagation();toggleLockConstruction('${l.mls}','${id}')">🔒 Const</button>
+          </div>
+          <div class="da-help" id="consthelp-${id}"></div>
+        </div>
+        <div>
+          <div class="da-grp">Target margin %</div>
+          <div class="da-ig" style="max-width:108px"><input type="number" id="margin-${id}" min="0" step="0.5" value="${margin}" oninput="calcDeal('${id}',${l.price},${l.sqft})"></div>
+        </div>
+        <div class="da-fin">
+          <div class="da-grp">Financing assumptions</div>
+          <div class="da-grid3">
+            <div class="da-ig"><label>Months</label><input type="number" id="months-${id}" value="${fin.months}" oninput="calcDeal('${id}',${l.price},${l.sqft})"></div>
+            <div class="da-ig"><label>Rate %</label><input type="number" id="rate-${id}" step="0.25" value="${fin.rate}" oninput="calcDeal('${id}',${l.price},${l.sqft})"></div>
+            <div class="da-ig"><label>LTV %</label><input type="number" id="ltv-${id}" value="${fin.ltv}" oninput="calcDeal('${id}',${l.price},${l.sqft})"></div>
+          </div>
+          <div class="da-help" id="finhelp-${id}" style="margin-top:7px"></div>
+        </div>
+      </div>
+      <div class="da-col-r">
+        <div id="verdict-${id}" class="da-vd under">
+          <div class="da-vd-l">
+            <div class="da-vd-lbl">Your target buy <span class="da-vd-note" id="buynote-${id}">at ${margin}% margin</span><a id="pp-reset-${id}" class="da-vd-reset" onclick="event.stopPropagation();resetPP('${id}',${l.price},${l.sqft})" style="display:${ppIsCustom[id]?'inline':'none'}">reset</a></div>
+            <div class="da-vd-buyline"><span class="da-vd-cur">$</span><input id="pp-${id}" class="da-vd-buy" value="${initBuy.toLocaleString()}" oninput="markPPCustom('${id}');calcDeal('${id}',${l.price},${l.sqft})"></div>
+          </div>
+          <div class="da-vd-r">
+            <div class="da-vd-verdict" id="vtxt-${id}">—</div>
+            <div class="da-vd-amt" id="vamt-${id}">—</div>
+            <div class="da-vd-sub" id="vsub-${id}">—</div>
+          </div>
+        </div>
+        <div class="da-bd" id="breakdown-${id}"></div>
+        <div class="da-foot" id="foot-${id}"></div>
+      </div>
+    </div></div>`;
 }
 
 function calcDeal(id,listPrice,sqft){
@@ -1861,17 +2033,38 @@ function calcDeal(id,listPrice,sqft){
   if(constLocked){effConst=lObj.lockedConstruction;setNumVal('const-'+id,effConst);}
   else if(constIsCustom[id])effConst=getNumVal('const-'+id);
   else{effConst=estimateConstruction(sqft,lObj&&lObj.mls);setNumVal('const-'+id,effConst);}
-  if(!ppIsCustom[id]){const fp=Math.round((arv*(1-SELL_PCT)-effConst)/(1+PURCH_EXP_PCT+PROFIT_TARGET_PCT));setNumVal('pp-'+id,fp);}
-  const fPP=getNumVal('pp-'+id),fConst=getNumVal('const-'+id),pExp=fPP*PURCH_EXP_PCT;
-  const profit=arv*(1-SELL_PCT)-fConst-fPP-pExp,gap=listPrice-fPP,gapPct=listPrice>0?((gap/listPrice)*100).toFixed(1):'0',goTh=PROFIT_TARGET_PCT*fPP;
-  const gE=document.getElementById('gap-'+id);
-  if(gE){const gc=gap>0?'var(--red)':'var(--green)',gb=gap>0?'var(--red-bg)':'var(--green-bg)',gbd=gap>0?'#FECACA':'#A7F0BE';
-    gE.innerHTML=`<div style="padding:10px 12px;border-radius:6px;background:${gb};border:1px solid ${gbd};display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:11px;font-weight:700;color:${gc}">${gap>0?'LISTING IS OVER YOUR TARGET':'LISTING IS UNDER YOUR TARGET'}</div><div style="font-size:10px;color:var(--text-3);margin-top:2px">List ${F(listPrice)} vs Your offer ${F(fPP)}</div></div><div style="text-align:right"><div style="font-size:20px;font-weight:800;color:${gc}">${gap>0?'+':''}${F(gap)}</div><div style="font-size:11px;color:var(--text-3)">${gap>0?'+':''}${gapPct}%</div></div></div>`;}
-  const bE=document.getElementById('breakdown-'+id);
-  if(bE){const v=profit>=goTh?'GO':profit>=goTh*0.75?'MAYBE':'NO GO',vc=v==='GO'?'var(--green)':v==='MAYBE'?'var(--amber)':'var(--red)',vb=v==='GO'?'var(--green-bg)':v==='MAYBE'?'var(--amber-bg)':'var(--red-bg)';
-    let h=`<div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:4px;border-top:2px solid var(--border)"><span style="font-size:13px;font-weight:700">Profit</span><span style="font-size:18px;font-weight:800;color:${profit>=0?'var(--green)':'var(--red)'}">${F(profit)}</span></div>`;
-    if(ppIsCustom[id])h+=`<div style="margin-top:6px;padding:10px 14px;border-radius:6px;background:${vb};display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:22px;font-weight:900;color:${vc}">${v}</div><div style="font-size:10px;color:var(--text-3)">${v==='GO'?'Profit meets 10% target':v==='MAYBE'?'Close — negotiate harder':'Below profit target'}</div></div><div style="text-align:right"><div style="font-size:16px;font-weight:700;color:${vc}">${F(profit)}</div><div style="font-size:10px;color:var(--text-3)">Target: ${F(goTh)}</div></div></div>`;
-    bE.innerHTML=h;}
+  // Session-only inputs: target margin % + financing assumptions (parseFloat → allow decimals).
+  const fnum=elId=>{const el=document.getElementById(elId);return el?parseFloat((el.value||'').replace(/[^\d.]/g,'')):NaN;};
+  const margin=isNaN(fnum('margin-'+id))?PROFIT_TARGET_PCT*100:fnum('margin-'+id);
+  const months=fnum('months-'+id)||FIN_DEFAULTS.months;
+  const rate=isNaN(fnum('rate-'+id))?FIN_DEFAULTS.rate:fnum('rate-'+id);
+  const ltv=isNaN(fnum('ltv-'+id))?FIN_DEFAULTS.ltv:fnum('ltv-'+id);
+  marginMap[id]=margin;finMap[id]={months,rate,ltv};
+  const kFin=(ltv/100)*(rate/100)*(months/12);
+  // Target buy is back-solved from the target margin unless the user pinned it.
+  // The pp field has its own "$" prefix span, so write the bare number (no F()).
+  if(!ppIsCustom[id]){const el=document.getElementById('pp-'+id);if(el)el.value=suggestedBuy(arv,effConst,kFin,margin).toLocaleString();}
+  const purchase=getNumVal('pp-'+id);
+  const c=computeDeal({arv,purchase,construction:effConst,months,rate,ltv});
+  renderBreakdown('breakdown-'+id,c);
+  // Financing help line under the assumptions box.
+  const fh=document.getElementById('finhelp-'+id);
+  if(fh)fh.innerHTML=`Loan <b>${F(c.loan)}</b> (${ltv}% of ${F(purchase)}) · cash down <b>${F(c.cashDown)}</b> · interest <b>${F(c.rows[3].amt)}</b> over ${months}mo`;
+  // Construction help line.
+  const ch=document.getElementById('consthelp-'+id);
+  if(ch)ch.innerHTML=constLocked?`🔒 Locked at ${F(effConst)} · unlock to edit`:`16% of ARV = ${F(Math.round(arv*0.16))} · <b>Edit</b> to itemize`;
+  // Cash-needed footer.
+  const ft=document.getElementById('foot-'+id);
+  if(ft)ft.innerHTML=`<span><b>Cash needed</b> ${F(c.cashDown+effConst+c.rows[3].amt)} <span class="dim">· ${F(c.cashDown)} down + ${F(effConst)} rehab + ${F(c.rows[3].amt)} carry</span></span>`;
+  // Target-buy verdict banner (over = list price exceeds your target buy → red).
+  const gap=listPrice-purchase,gapPct=listPrice>0?((gap/listPrice)*100).toFixed(1):'0',over=gap>0;
+  const vd=document.getElementById('verdict-'+id);
+  if(vd){vd.classList.toggle('over',over);vd.classList.toggle('under',!over);}
+  const set=(elId,txt)=>{const el=document.getElementById(elId);if(el)el.textContent=txt;};
+  set('buynote-'+id,`at ${margin}% margin`);
+  set('vtxt-'+id,over?'LISTING IS OVER YOUR TARGET':'LISTING IS UNDER YOUR TARGET');
+  set('vamt-'+id,`${over?'+':''}${FMoney(gap)}`);
+  set('vsub-'+id,`${over?'+':''}${gapPct}% vs list ${F(listPrice)}`);
 }
 
 // ========== LIST / DETAIL RENDERING ==========
