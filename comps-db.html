@@ -111,15 +111,10 @@
 
 <!-- SEARCH -->
 <div class="panel active" id="panel-search">
-  <div class="search-grid" style="grid-template-columns:1fr auto;"><div class="field" style="grid-column:1/-1;display:grid;grid-template-columns:1fr 160px 160px;gap:12px;"><div><label>Property Address <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-4)">(optional — enables radius filter)</span></label><input type="text" id="f-address" placeholder="e.g. 13353 Beach St, Cerritos CA"></div><div><label>Property SqFt <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-4)">(±150)</span></label><input type="number" id="f-sqft" placeholder="e.g. 2242"></div><div><label>Radius</label><select id="f-radius"><option value="0.15">0.15 mi</option><option value="0.25" selected>0.25 mi</option><option value="0.5">0.5 mi</option><option value="0.75">0.75 mi</option><option value="1">1 mi</option></select></div></div></div>
+  <div class="search-grid" style="grid-template-columns:1fr auto;"><div class="field" style="grid-column:1/-1;display:grid;grid-template-columns:1fr 160px 130px 130px;gap:12px;"><div><label>Property Address <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-4)">(optional — enables radius filter)</span></label><input type="text" id="f-address" placeholder="e.g. 13353 Beach St, Cerritos CA"></div><div><label>Property SqFt</label><input type="number" id="f-sqft" placeholder="e.g. 2242"></div><div><label>SqFt ±</label><select id="f-sqft-tol"><option value="150" selected>± 150 sf</option><option value="200">± 200 sf</option><option value="250">± 250 sf</option><option value="300">± 300 sf</option><option value="400">± 400 sf</option><option value="500">± 500 sf</option></select></div><div><label>Radius</label><select id="f-radius"><option value="0.15">0.15 mi</option><option value="0.25" selected>0.25 mi</option><option value="0.5">0.5 mi</option><option value="0.75">0.75 mi</option><option value="1">1 mi</option></select></div></div></div>
   <div class="search-grid">
     <div class="field"><label>City</label><select id="f-city"><option value="">All Cities</option></select></div>
     <div class="field"><label>Bedrooms</label><select id="f-beds"><option value="">Any</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5+</option></select></div>
-    <div class="field"><label>Min SqFt</label><input type="number" id="f-sqft-min" placeholder="e.g. 1200"></div>
-    <div class="field"><label>Max SqFt</label><input type="number" id="f-sqft-max" placeholder="e.g. 2000"></div>
-    <div class="field"><label>Min Price</label><input type="number" id="f-price-min" placeholder="e.g. 800000"></div>
-    <div class="field"><label>Max Price</label><input type="number" id="f-price-max" placeholder="e.g. 1200000"></div>
-    <div class="field"><label>Pool</label><select id="f-pool"><option value="">Any</option><option value="1">Yes</option><option value="0">No</option></select></div>
     <div class="field"><label>Sold Within</label><select id="f-date-after"><option value="">Any</option><option value="1">1 month</option><option value="3">3 months</option><option value="6">6 months</option><option value="9">9 months</option><option value="12" selected>12 months</option><option value="18">18 months</option><option value="24">24 months</option><option value="36">36 months</option></select></div>
     <div class="field"><label>Comp Type</label><select id="f-comp-type"><option value="">All Types</option><option value="general">General</option><option value="dotty">Dotty</option><option value="flips">Flips</option><option value="halfflips">Half-Ass Flips</option></select></div>
   </div>
@@ -389,12 +384,7 @@ async function runSearch(){
   
   if(v('f-city'))q=q.eq('city',v('f-city'));
   if(v('f-beds')){if(v('f-beds')==='5')q=q.gte('beds',5);else q=q.eq('beds',parseInt(v('f-beds')));}
-  if(v('f-sqft')){const s=parseInt(v('f-sqft'));q=q.gte('sqft',s-150).lte('sqft',s+150);}
-  if(v('f-sqft-min'))q=q.gte('sqft',parseInt(v('f-sqft-min')));
-  if(v('f-sqft-max'))q=q.lte('sqft',parseInt(v('f-sqft-max')));
-  if(v('f-price-min'))q=q.gte('sale_price',parseInt(v('f-price-min')));
-  if(v('f-price-max'))q=q.lte('sale_price',parseInt(v('f-price-max')));
-  if(v('f-pool')!=='')q=q.eq('pool',v('f-pool')==='1'?'Yes':'No');
+  if(v('f-sqft')){const s=parseInt(v('f-sqft'));const tol=parseInt(v('f-sqft-tol'))||150;q=q.gte('sqft',s-tol).lte('sqft',s+tol);}
   if(v('f-date-after')){const months=parseInt(v('f-date-after'));const d=new Date();d.setMonth(d.getMonth()-months);q=q.gte('sold_date',d.toISOString().split('T')[0]);}
   if(v('f-comp-type'))q=q.eq('comp_type',v('f-comp-type'));
   q=q.order('sold_date',{ascending:false}).limit(1000);
@@ -434,7 +424,7 @@ async function runSearch(){
     renderResults(filtered,'search-results-nomap','search-summary',showDist);
   }
 }
-function clearSearch(){['f-address','f-city','f-beds','f-sqft','f-sqft-min','f-sqft-max','f-price-min','f-price-max','f-pool','f-date-after','f-comp-type'].forEach(id=>document.getElementById(id).value='');document.getElementById('f-radius').value='0.25';document.getElementById('search-results').innerHTML='';document.getElementById('search-results-nomap').innerHTML='';document.getElementById('search-summary').style.display='none';document.getElementById('search-split').style.display='none';}
+function clearSearch(){['f-address','f-city','f-beds','f-sqft','f-date-after','f-comp-type'].forEach(id=>document.getElementById(id).value='');document.getElementById('f-radius').value='0.25';document.getElementById('f-sqft-tol').value='150';document.getElementById('search-results').innerHTML='';document.getElementById('search-results-nomap').innerHTML='';document.getElementById('search-summary').style.display='none';document.getElementById('search-split').style.display='none';}
 
 // =========================================================
 // MISSING SCHOOLS
