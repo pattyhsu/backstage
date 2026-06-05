@@ -75,6 +75,7 @@
   .confidence-tag.high { background:var(--green-bg); color:var(--green); }
   .confidence-tag.medium { background:var(--amber-bg); color:var(--amber); }
   .confidence-tag.low { background:var(--red-bg); color:var(--red); }
+  .confidence-tag.confirmed { background:var(--green-bg); color:var(--green); }
 
   .tier-buttons { display:flex; gap:4px; margin-left:auto; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
   .tier-btn { padding:0 10px; height:32px; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); font-family:var(--sans); font-size:12.5px; font-weight:500; color:var(--text-3); cursor:pointer; transition:all .12s; white-space:nowrap; }
@@ -616,8 +617,9 @@ function renderCard(p){
       </div>
       <div class="score-row">
         <span class="score-label"><strong>${esc(tierLabel)}</strong></span>
-        <span class="confidence-tag ${p.condition_confidence||''}">${p.condition_confidence||'—'}</span>
-        ${isOverridden?'<span class="overridden-badge">Reviewed</span>':''}
+        ${isOverridden
+          ? '<span class="confidence-tag confirmed" title="You reviewed this — AI confidence no longer applies">✓ confirmed</span>'
+          : `<span class="confidence-tag ${p.condition_confidence||''}" title="AI confidence">${p.condition_confidence||'—'}</span>`}
         <div class="tier-buttons">${tierBtns}<span class="tier-divider"></span>${uncatBtn}<span class="tier-divider"></span>${reviewedBtn}</div>
       </div>
     </div>`;
@@ -631,14 +633,19 @@ function refreshCard(id){
   if(p&&el) el.outerHTML=renderCard(p);
 }
 
+// Every override below is a human review, so it also clears condition_confidence
+// (the AI's self-assessed uncertainty) — once a person confirms, the row is ground
+// truth and "low/medium/high" no longer applies. The UI then shows "✓ confirmed".
+
 // T1–T4, T6: set the tier and mark reviewed.
 async function overrideTier(id,newTier){
   const{error}=await sb.from('properties').update({
     condition_tier:newTier,
-    condition_overridden:true
+    condition_overridden:true,
+    condition_confidence:null
   }).eq('id',id);
   if(error){console.error('Override failed:',error);return;}
-  if(cardData[id]){cardData[id].condition_tier=newTier;cardData[id].condition_overridden=true;}
+  if(cardData[id]){cardData[id].condition_tier=newTier;cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
   await updateStats();
 }
@@ -648,19 +655,20 @@ async function setT5(id,val){
   const{error}=await sb.from('properties').update({
     condition_tier:5,
     value_driver_rooms_updated:val,
-    condition_overridden:true
+    condition_overridden:true,
+    condition_confidence:null
   }).eq('id',id);
   if(error){console.error('T5 override failed:',error);return;}
-  if(cardData[id]){cardData[id].condition_tier=5;cardData[id].value_driver_rooms_updated=val;cardData[id].condition_overridden=true;}
+  if(cardData[id]){cardData[id].condition_tier=5;cardData[id].value_driver_rooms_updated=val;cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
   await updateStats();
 }
 
 // Confirm AI tier as-is — flip condition_overridden without changing the tier.
 async function markReviewed(id){
-  const{error}=await sb.from('properties').update({condition_overridden:true}).eq('id',id);
+  const{error}=await sb.from('properties').update({condition_overridden:true,condition_confidence:null}).eq('id',id);
   if(error){console.error('Mark reviewed failed:',error);return;}
-  if(cardData[id]) cardData[id].condition_overridden=true;
+  if(cardData[id]){cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
   await updateStats();
 }
@@ -673,10 +681,11 @@ async function clearTier(id){
   const{error}=await sb.from('properties').update({
     condition_tier:null,
     value_driver_rooms_updated:null,
-    condition_overridden:true
+    condition_overridden:true,
+    condition_confidence:null
   }).eq('id',id);
   if(error){console.error('Clear tier failed:',error);return;}
-  if(cardData[id]){cardData[id].condition_tier=null;cardData[id].value_driver_rooms_updated=null;cardData[id].condition_overridden=true;}
+  if(cardData[id]){cardData[id].condition_tier=null;cardData[id].value_driver_rooms_updated=null;cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
   await updateStats();
 }
