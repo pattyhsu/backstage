@@ -827,7 +827,7 @@ function scopeTierLabel(t){
 const PHASE_CONFIG = {
   pursuing: {
     show: ['cashSect','offerCalc'],
-    hide: ['uwBar','escrowSect','prepSect','constructionSect','listingSect','handoffSect','lpCalc','cashGrid','finRow','docsSect'],
+    hide: ['uwBar','escrowSect','constructionSect','listingSect','lpCalc','cashGrid','docsSect'],
     cashTitle: 'Offer math',
     cashSub: 'model headline offer + reduction strategy',
     loanStatus: 'none',
@@ -836,7 +836,7 @@ const PHASE_CONFIG = {
     // The redesigned escrowSect is fully self-contained (timeline + docs +
     // checklist + cash-needed), so every legacy section is hidden.
     show: ['escrowSect'],
-    hide: ['uwBar','offerCalc','lpCalc','prepSect','cashSect','cashGrid','finRow','constructionSect','listingSect','handoffSect','docsSect'],
+    hide: ['uwBar','offerCalc','lpCalc','cashSect','cashGrid','constructionSect','listingSect','docsSect'],
     cashTitle: 'Cash position',
     cashSub: 'owner only · live from money.html data',
     loanStatus: 'pending',
@@ -844,7 +844,7 @@ const PHASE_CONFIG = {
   under_construction: {
     // Self-contained constructionSect (status bars + spend ledger + docs).
     show: ['constructionSect'],
-    hide: ['uwBar','offerCalc','lpCalc','escrowSect','prepSect','cashSect','cashGrid','finRow','listingSect','handoffSect','docsSect'],
+    hide: ['uwBar','offerCalc','lpCalc','escrowSect','cashSect','cashGrid','listingSect','docsSect'],
     cashTitle: 'Cash position',
     cashSub: 'owner only · live from money.html data',
     loanStatus: 'funded',
@@ -853,14 +853,14 @@ const PHASE_CONFIG = {
     // lpCalc (list-price + offer comparison) lives inside cashSect, so the
     // wrapper stays shown but its grid / offer-math / financing children hide.
     show: ['cashSect','lpCalc'],
-    hide: ['uwBar','offerCalc','escrowSect','prepSect','cashGrid','finRow','constructionSect','listingSect','handoffSect','docsSect'],
+    hide: ['uwBar','offerCalc','escrowSect','cashGrid','constructionSect','listingSect','docsSect'],
     cashTitle: 'List price',
     cashSub: 'model the list price + selling costs to hit your number',
     loanStatus: 'funded',
   },
   sold: {
     show: ['uwBar','cashSect','cashGrid','listingSect','docsSect'],
-    hide: ['offerCalc','lpCalc','escrowSect','prepSect','constructionSect','handoffSect','finRow'],
+    hide: ['offerCalc','lpCalc','escrowSect','constructionSect'],
     cashTitle: 'Final P&L',
     cashSub: 'closed deal — read only',
     loanStatus: 'paid_off',
@@ -868,7 +868,7 @@ const PHASE_CONFIG = {
   },
   lost: {
     show: ['cashSect','offerCalc'],
-    hide: ['uwBar','escrowSect','prepSect','constructionSect','listingSect','handoffSect','lpCalc','cashGrid','finRow','docsSect'],
+    hide: ['uwBar','escrowSect','constructionSect','listingSect','lpCalc','cashGrid','docsSect'],
     cashTitle: 'Offer math (lost)',
     cashSub: 'deal lost — read only · kept for reference',
     loanStatus: 'none',
@@ -876,7 +876,7 @@ const PHASE_CONFIG = {
   },
   archived: {
     show: [],
-    hide: ['uwBar','escrowSect','prepSect','constructionSect','listingSect','handoffSect','offerCalc','lpCalc','cashGrid','finRow','docsSect','cashSect'],
+    hide: ['uwBar','escrowSect','constructionSect','listingSect','offerCalc','lpCalc','cashGrid','docsSect','cashSect'],
     readOnly: true,
   },
 };
@@ -1358,17 +1358,11 @@ function renderPage(){
     <!-- ESCROW TIMELINE -->
     ${renderEscrowSection()}
 
-    <!-- PRE-CONSTRUCTION PREP -->
-    ${renderPrepSection()}
-
     <!-- CASH POSITION / OFFER MATH / LIST PRICE -->
     ${renderCashSection(role, cfg)}
 
     <!-- LISTING -->
     ${renderListingSection()}
-
-    <!-- PRE-HANDOFF CHECKLIST (selling) -->
-    ${renderHandoffSection()}
 
     <!-- DOCS -->
     ${renderDocsSection()}
@@ -1382,10 +1376,8 @@ function renderPage(){
   wireOfferCalc();
   wireListPriceCalc();
   wireChecklists();
-  wirePrepNotes();
   wireEscrowEdits();
   wireListingEdits();
-  wireFinancing();
   wireSpendingTree();
   wireDealDocs();
 }
@@ -1425,7 +1417,7 @@ function applyPhase(phase){
   const cfg=PHASE_CONFIG[phase] || PHASE_CONFIG.pursuing;
   // Show / hide.
   Object.keys(PHASE_CONFIG).forEach(()=>{});
-  const allIds=['uwBar','escrowSect','prepSect','cashSect','offerCalc','lpCalc','cashGrid','finRow','constructionSect','listingSect','handoffSect','docsSect'];
+  const allIds=['uwBar','escrowSect','cashSect','offerCalc','lpCalc','cashGrid','constructionSect','listingSect','docsSect'];
   for(const id of allIds){
     const el=document.getElementById(id);
     if(!el)continue;
@@ -1753,37 +1745,6 @@ async function _commitEscrowEdit(el, field, val){
 }
 
 // ============================================================
-// PRE-CONSTRUCTION PREP SECTION
-// ============================================================
-function renderPrepSection(){
-  const d=currentDeal;
-  const notes=d.prep_notes||'';
-  // Checklist moved into the in-escrow 2-column panel (renderEscrowSection);
-  // prep stays a free-form scratchpad so we don't double-render the checklist.
-  return `
-    <div class="sect phase-hide" id="prepSect">
-      <div class="sect-h">
-        <h2>Pre-construction prep</h2>
-        <span class="sub">scratchpad — what we're planning, what permits, who's lined up</span>
-      </div>
-      <textarea class="prep-area" id="prepNotes" placeholder="e.g. Kitchen + 2 bath refresh. Filed permit 5/9. Cabinets — Home Depot Hampton Bay shaker white, 5w lead. Crew available wk of close.">${escapeHtml(notes)}</textarea>
-      <div class="prep-aux">Saves on blur · no audit trail in v1</div>
-    </div>
-  `;
-}
-function wirePrepNotes(){
-  const el=document.getElementById('prepNotes');
-  if(!el)return;
-  el.addEventListener('blur', async ()=>{
-    const v=el.value||'';
-    if(v===(currentDeal.prep_notes||''))return;
-    const {error}=await sb.from('deals').update({prep_notes:v, updated_at:new Date().toISOString()}).eq('id', currentDeal.id);
-    if(error){console.warn('prep_notes save failed:', error.message);return;}
-    currentDeal.prep_notes=v;
-  });
-}
-
-// ============================================================
 // PHASE CHECKLIST BLOCK (in_escrow / under_construction / selling)
 // ============================================================
 // in_escrow phase template — EXACTLY these 4 items when no DB rows exist yet.
@@ -1908,7 +1869,6 @@ function renderCashSection(role, cfg){
       ${cashGridHtml}
       ${renderOfferCalc()}
       ${renderListPriceCalc()}
-      ${renderFinancingRow()}
     </div>
   `;
 }
@@ -2322,44 +2282,6 @@ function wireListPriceCalc(){
   recalc();
 }
 
-function renderFinancingRow(){
-  let loanHtml='';
-  if(dealLoans.length===0){
-    loanHtml=`<a class="fin-add" id="finAdd">+ Add loan</a>`;
-  } else {
-    const loan=dealLoans[0];
-    const cs=capitalSources.find(c=>c.id===loan.capital_source_id);
-    const lender=cs?cs.name:'(unknown)';
-    const amt=loan.loan_amount?FK(loan.loan_amount):'—';
-    const rate=loan.rate_apr!=null?(loan.rate_apr*100).toFixed(2)+'%':'—';
-    const term=loan.term_months?loan.term_months+'mo':'—';
-    const stCls='st-'+(loan.status||'pending');
-    loanHtml=`<span class="fin-loan">
-      <span class="fin-lender">${escapeHtml(lender)}</span>
-      <span class="fin-sep">·</span>
-      <span>${amt}</span><span class="fin-sep">·</span>
-      <span>${rate}</span><span class="fin-sep">·</span>
-      <span>${term}</span><span class="fin-sep">·</span>
-      <span class="fin-status ${stCls}">${escapeHtml(loan.status||'pending')}</span>
-      <a class="fin-action" data-loan-edit="${escapeHtml(loan.id)}">edit</a>
-    </span>
-    <a class="fin-add" id="finAdd">+ Add loan</a>`;
-  }
-  return `<div class="fin-row" id="finRow"><span class="fin-lbl">Financing</span>${loanHtml}</div>`;
-}
-function wireFinancing(){
-  const addEl=document.getElementById('finAdd');
-  if(addEl){
-    addEl.addEventListener('click', ()=>openLoanModal());
-  }
-  document.querySelectorAll('[data-loan-edit]').forEach(el=>{
-    el.addEventListener('click', (e)=>{
-      e.stopPropagation();
-      const loanId=el.dataset.loanEdit;
-      openLoanEditPopover(loanId, el);
-    });
-  });
-}
 function openLoanEditPopover(loanId, anchor){
   document.querySelectorAll('.loan-edit-pop').forEach(p=>p.remove());
   const loan=dealLoans.find(l=>l.id===loanId);
@@ -2511,28 +2433,6 @@ async function _commitListingEdit(el, field, type, raw){
   if(error){alert('Save failed: '+error.message);renderPage();return;}
   currentDeal[field]=newVal;
   await loadProject();
-}
-
-function renderHandoffSection(){
-  // Templated from phase_checklist_templates (selling phase). Same content as the selling checklist.
-  const items=phaseChecklistItems.filter(i=>i.phase==='selling');
-  if(!items.length){
-    return `<div class="sect phase-hide" id="handoffSect">
-      <div class="sect-h"><h2>Pre-handoff checklist</h2><span class="sub">things to clean up before close-of-escrow on the sell side</span></div>
-      <div style="font-size:12px;color:var(--text-4);font-style:italic">No checklist items seeded yet — phase template applies on next phase transition (Brief BV migration 065).</div>
-    </div>`;
-  }
-  let lis='';
-  for(const it of items){
-    const checked=it.completed?'checked':'';
-    const doneCls=it.completed?' class="done"':'';
-    lis+=`<li${doneCls}><input type="checkbox" data-ck-id="${escapeHtml(it.id)}" ${checked}><span class="ck-name">${escapeHtml(it.display_name)}</span></li>`;
-  }
-  return `<div class="sect phase-hide" id="handoffSect">
-    <div class="sect-h"><h2>Pre-handoff checklist</h2><span class="sub">things to clean up before close-of-escrow on the sell side</span></div>
-    <ul class="ck-list">${lis}</ul>
-    <div class="ck-add" data-ck-phase="selling">+ Add checklist item</div>
-  </div>`;
 }
 
 // ============================================================
