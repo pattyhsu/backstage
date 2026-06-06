@@ -1230,10 +1230,11 @@ function renderPage(){
             <input type="number" id="ppEscrowPrice" min="0" step="1" placeholder="Accepted purchase price">
             <div class="pp-lbl">Escrow dates</div>
             <div class="pp-dates">
-              <div><label>Start</label><input type="date" id="ppEscrowStart" oninput="onPpStartChange()"></div>
-              <div><label>Cont. removal</label><input type="date" id="ppContingency" oninput="onPpContChange()"></div>
-              <div><label>Target close</label><input type="date" id="ppTargetClose"></div>
+              <div><label>Start</label><input type="date" id="ppEscrowStart" oninput="updateEscrowPreview()"></div>
+              <div><label>Cont. days</label><input type="number" id="ppContingencyDays" min="0" step="1" placeholder="17" oninput="updateEscrowPreview()"></div>
+              <div><label>COE days</label><input type="number" id="ppCoeDays" min="0" step="1" placeholder="30" oninput="updateEscrowPreview()"></div>
             </div>
+            <div id="ppEscrowPreview" style="font-size:11px;color:var(--text-4);margin-top:2px;margin-bottom:8px"></div>
           </div>
           <div class="pp-actions">
             <button onclick="document.getElementById('phaseStack').classList.remove('open')">Cancel</button>
@@ -2224,35 +2225,48 @@ function onPhaseSelChange(){
   row.style.display=(sel.value==='in_escrow')?'block':'none';
   if(sel.value==='in_escrow'){
     const startInput=document.getElementById('ppEscrowStart');
-    const closeInput=document.getElementById('ppTargetClose');
-    const crdInput=document.getElementById('ppContingency');
+    const contInput=document.getElementById('ppContingencyDays');
+    const coeInput=document.getElementById('ppCoeDays');
     const priceInput=document.getElementById('ppEscrowPrice');
     if(priceInput && !priceInput.value){
       const seed=currentDeal.purchase_price||currentDeal.offer_price;
       if(seed!=null)priceInput.value=String(Math.round(seed));
     }
     if(currentDeal.escrow_start_date && !startInput.value)startInput.value=currentDeal.escrow_start_date;
-    if(currentDeal.target_close_date && !closeInput.value)closeInput.value=currentDeal.target_close_date;
-    if(currentDeal.contingency_removal_date && !crdInput.value)crdInput.value=currentDeal.contingency_removal_date;
+    // Day counts: reverse from existing dates if present, else sensible defaults.
+    if(!contInput.value){
+      const d=daysBetween(currentDeal.escrow_start_date, currentDeal.contingency_removal_date);
+      contInput.value=(d!=null && d>=0)?String(d):'17';
+    }
+    if(!coeInput.value){
+      const d=daysBetween(currentDeal.escrow_start_date, currentDeal.target_close_date);
+      coeInput.value=(d!=null && d>=0)?String(d):'30';
+    }
+    updateEscrowPreview();
   }
 }
 window.onPhaseSelChange=onPhaseSelChange;
-function onPpStartChange(){
-  const start=document.getElementById('ppEscrowStart').value;
-  const closeInput=document.getElementById('ppTargetClose');
-  const crdInput=document.getElementById('ppContingency');
-  if(start && !closeInput.value){
-    const d=new Date(start+'T00:00:00');d.setDate(d.getDate()+30);
-    closeInput.value=d.toISOString().slice(0,10);
-  }
-  if(start && !crdInput.value){
-    const d=new Date(start+'T00:00:00');d.setDate(d.getDate()+17);
-    crdInput.value=d.toISOString().slice(0,10);
-  }
+// Start date + N days -> yyyy-mm-dd (null if inputs invalid).
+function _escrowDateFromDays(start, days){
+  if(!start || !Number.isFinite(days) || days<0)return null;
+  const d=new Date(start+'T00:00:00');d.setDate(d.getDate()+days);
+  return d.toISOString().slice(0,10);
 }
-function onPpContChange(){}
-window.onPpStartChange=onPpStartChange;
-window.onPpContChange=onPpContChange;
+// Live preview of the dates the entered day counts resolve to.
+function updateEscrowPreview(){
+  const el=document.getElementById('ppEscrowPreview');
+  if(!el)return;
+  const start=document.getElementById('ppEscrowStart').value;
+  const cont=parseInt(document.getElementById('ppContingencyDays').value,10);
+  const coe=parseInt(document.getElementById('ppCoeDays').value,10);
+  if(!start){el.textContent='Enter a start date to compute dates.';return;}
+  const crd=_escrowDateFromDays(start,cont), close=_escrowDateFromDays(start,coe);
+  const parts=[];
+  if(crd)parts.push('Cont. removal '+crd);
+  if(close)parts.push('Close '+close);
+  el.textContent=parts.length?parts.join('  ·  '):'';
+}
+window.updateEscrowPreview=updateEscrowPreview;
 
 async function movePhase(){
   if(saving)return;
@@ -2268,9 +2282,12 @@ async function movePhase(){
   let escrowStart=null, targetClose=null, crd=null, escrowPrice=null;
   if(toPhase==='in_escrow'){
     escrowStart=document.getElementById('ppEscrowStart').value||null;
-    targetClose=document.getElementById('ppTargetClose').value||null;
-    crd=document.getElementById('ppContingency').value||null;
-    if(!escrowStart||!targetClose||!crd){msg.className='pp-msg err';msg.textContent='All 3 escrow dates required.';return;}
+    const contDays=parseInt(document.getElementById('ppContingencyDays').value,10);
+    const coeDays=parseInt(document.getElementById('ppCoeDays').value,10);
+    if(!escrowStart){msg.className='pp-msg err';msg.textContent='Escrow start date required.';return;}
+    if(!Number.isFinite(contDays)||contDays<0||!Number.isFinite(coeDays)||coeDays<0){msg.className='pp-msg err';msg.textContent='Enter contingency + COE days.';return;}
+    crd=_escrowDateFromDays(escrowStart, contDays);
+    targetClose=_escrowDateFromDays(escrowStart, coeDays);
     const priceRaw=(document.getElementById('ppEscrowPrice').value||'').trim();
     escrowPrice=priceRaw===''?null:Number(priceRaw);
     if(escrowPrice==null||!isFinite(escrowPrice)||escrowPrice<=0||escrowPrice>50000000){msg.className='pp-msg err';msg.textContent='Enter the price you’re in escrow at.';return;}
