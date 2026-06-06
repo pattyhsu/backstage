@@ -209,7 +209,6 @@
 
 
 
-<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(4px)"></div>
 
 <!-- Photo Lightbox -->
 <div class="lb-overlay" id="photoLightbox">
@@ -223,7 +222,6 @@ const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;  // expose for auth.js
-let geocodingActive=false;
 
 async function init(){await updateStats();await populateDropdowns();setupTabs();/* autocomplete inits via onMapsReady callback */}
 
@@ -320,8 +318,7 @@ async function viewCompPhotos(id){
 }
 
 // Called by Google Maps script via callback param. Guaranteed to run after places library is loaded.
-let _mapsReady=false;
-window.onMapsReady=function(){_mapsReady=true;try{initAutocomplete();}catch(e){console.error('[onMapsReady] initAutocomplete failed:',e);}};
+window.onMapsReady=function(){try{initAutocomplete();}catch(e){console.error('[onMapsReady] initAutocomplete failed:',e);}};
 
 // Header stats row was removed — no-op kept so existing callers stay valid.
 async function updateStats(){}
@@ -448,62 +445,6 @@ async function runSearch(){
 }
 function clearSearch(){['f-address','f-city','f-sqft','f-date-after'].forEach(id=>document.getElementById(id).value='');document.getElementById('f-radius').value='0.25';document.getElementById('f-sqft-tol').value='150';document.getElementById('search-results').innerHTML='';document.getElementById('search-summary').style.display='none';document.getElementById('search-mapband').style.display='none';document.getElementById('search-comps-bar').style.display='none';}
 
-// =========================================================
-// MISSING SCHOOLS
-// =========================================================
-async function loadMissingSchools(){
-  const el=document.getElementById('missingSchoolsList');
-  el.innerHTML='<div class="loading">Loading...</div>';
-  const city=document.getElementById('ms-city').value;
-  let q=sb.from('properties').select('id,address,city,elementary_school,elementary_rating,middle_school,middle_rating,high_school,high_rating').eq('change_type','sold').is('elementary_school',null);
-  if(city)q=q.eq('city',city);
-  q=q.order('city').order('address').limit(100);
-  const{data:rows,error}=await q;
-  
-  // Populate city dropdown
-  const msc=document.getElementById('ms-city');
-  if(msc.options.length<=1){const fc=document.getElementById('f-city');msc.innerHTML=fc.innerHTML;}
-
-  if(error){el.innerHTML=`<p style="color:var(--red)">${error.message}</p>`;return;}
-  if(!rows?.length){el.innerHTML='<p style="font-size:13px;color:var(--green)">All comps have schools filled in!</p>';document.getElementById('missingSchoolCount').textContent='(0)';return;}
-  
-  // Count total missing
-  const{count}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold').is('elementary_school',null);
-  document.getElementById('missingSchoolCount').textContent=`(${count||rows.length} missing)`;
-
-  let h='<div style="display:flex;flex-direction:column;gap:10px">';
-  rows.forEach(r=>{
-    h+=`<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:14px" id="ms-row-${r.id}">
-      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text)">${r.address}, ${r.city}</div>
-      <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto auto;gap:8px;align-items:center">
-        <input type="text" placeholder="Elementary School" id="ms-elem-${r.id}" value="${r.elementary_school||''}" style="padding:7px 10px;font-size:12px;font-family:inherit;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none">
-        <input type="number" placeholder="#" id="ms-elemr-${r.id}" value="${r.elementary_rating||''}" style="padding:7px 6px;font-size:12px;font-family:'JetBrains Mono',monospace;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--accent);outline:none;width:42px;text-align:center">
-        <input type="text" placeholder="Middle School" id="ms-mid-${r.id}" value="${r.middle_school||''}" style="padding:7px 10px;font-size:12px;font-family:inherit;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none">
-        <input type="number" placeholder="#" id="ms-midr-${r.id}" value="${r.middle_rating||''}" style="padding:7px 6px;font-size:12px;font-family:'JetBrains Mono',monospace;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--accent);outline:none;width:42px;text-align:center">
-        <input type="text" placeholder="High School" id="ms-high-${r.id}" value="${r.high_school||''}" style="padding:7px 10px;font-size:12px;font-family:inherit;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none">
-        <input type="number" placeholder="#" id="ms-highr-${r.id}" value="${r.high_rating||''}" style="padding:7px 6px;font-size:12px;font-family:'JetBrains Mono',monospace;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--accent);outline:none;width:42px;text-align:center">
-        <button onclick="saveSchool(${r.id})" class="btn btn-primary" style="padding:7px 14px;font-size:12px">Save</button>
-      </div>
-    </div>`;
-  });
-  h+='</div>';
-  el.innerHTML=h;
-}
-
-async function saveSchool(id){
-  const g=k=>document.getElementById(k+'-'+id)?.value?.trim()||null;
-  const n=k=>{const v=g(k);return v?parseInt(v):null;};
-  const{error}=await sb.from('properties').update({
-    elementary_school:g('ms-elem'),elementary_rating:n('ms-elemr'),
-    middle_school:g('ms-mid'),middle_rating:n('ms-midr'),
-    high_school:g('ms-high'),high_rating:n('ms-highr')
-  }).eq('id',id);
-  const row=document.getElementById('ms-row-'+id);
-  if(error){row.style.borderColor='var(--red)';return;}
-  row.style.transition='all 0.3s';row.style.opacity='0.3';row.style.borderColor='var(--green)';
-  setTimeout(()=>row.remove(),500);
-}
-
 // ===== Condition-tier retag (ported from mls-deals.html) =====
 // Click the tier chip on a comp row -> dropdown -> writes condition_tier
 // (+ value_driver_rooms_updated, is_dotty, condition_overridden) to the
@@ -617,7 +558,6 @@ function toggleAllComps(masterCb,sid){
 
 
 
-async function updateGeoStats(){const{count:t}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold');const{count:d}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('change_type','sold').not('latitude','is',null);const rem=(t||0)-(d||0);document.getElementById('geo-total').textContent=t||0;document.getElementById('geo-done').textContent=d||0;document.getElementById('geo-remaining').textContent=rem;const mins=Math.ceil(rem*0.1/60);document.getElementById('geo-eta').textContent=rem>0?(mins<1?'<1m':`~${mins}m`):'✓';document.getElementById('geoBar').style.width=t>0?((d/t)*100)+'%':'0%';}
 
 const GOOGLE_GEO_KEY='AIzaSyBtxBe0q6i46rUomZzVE3BKmJ4EQNYGvvU';
 
@@ -641,135 +581,7 @@ function initAutocomplete(){
   console.log('[initAutocomplete] ready');
 }
 
-async function startGeocoding(){geocodingActive=true;document.getElementById('geoStartBtn').style.display='none';document.getElementById('geoStopBtn').style.display='';const log=document.getElementById('geoLog');log.classList.add('visible');
-let allRows=[];for(let p=0;p<20;p++){const{data}=await sb.from('properties').select('id,address,city').eq('change_type','sold').is('latitude',null).range(p*1000,(p+1)*1000-1);if(!data?.length)break;allRows=allRows.concat(data);}
-if(!allRows.length){log.innerHTML+='<div class="log-success">All geocoded!</div>';stopGeocoding();return;}
-log.innerHTML+=`<div class="log-info">Found ${allRows.length} to geocode (using Google Maps API)...</div>`;
-let found=0,failed=0;
-for(const r of allRows){if(!geocodingActive)break;
-  let success=false;
-  // Strategy 1: Google Maps Geocoding API (best coverage)
-  try{const addr=encodeURIComponent(r.address+', '+r.city+', CA');
-    const resp=await fetch('https://maps.googleapis.com/maps/api/geocode/json?address='+addr+'&key='+GOOGLE_GEO_KEY);
-    const d=await resp.json();
-    if(d.status==='OK'&&d.results?.length){const loc=d.results[0].geometry.location;
-      await sb.from('properties').update({latitude:loc.lat,longitude:loc.lng}).eq('id',r.id);
-      log.innerHTML+=`<div class="log-success">✓ ${r.address} → ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}</div>`;
-      found++;success=true;}
-  }catch(e){}
-  // Strategy 2: US Census Geocoder (fallback, free)
-  if(!success){try{const addr=encodeURIComponent(r.address+', '+r.city+', CA');
-    const resp=await fetch('https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address='+addr+'&benchmark=Public_AR_Current&format=json');
-    const d=await resp.json();const matches=d?.result?.addressMatches;
-    if(matches?.length){const lat=matches[0].coordinates.y,lon=matches[0].coordinates.x;
-      await sb.from('properties').update({latitude:lat,longitude:lon}).eq('id',r.id);
-      log.innerHTML+=`<div class="log-success">✓ ${r.address} → ${lat.toFixed(4)}, ${lon.toFixed(4)} (Census)</div>`;
-      found++;success=true;}
-  }catch(e){}}
-  if(!success){failed++;log.innerHTML+=`<div class="log-error">✗ ${r.address} — not found</div>`;}
-  log.scrollTop=log.scrollHeight;await updateGeoStats();
-  await new Promise(x=>setTimeout(x,50));// Google allows ~50 req/sec, being conservative
-}
-log.innerHTML+=`<div class="log-info">Done! ${found} geocoded, ${failed} failed.</div>`;
-stopGeocoding();}
-function stopGeocoding(){geocodingActive=false;document.getElementById('geoStartBtn').style.display='';document.getElementById('geoStopBtn').style.display='none';}
 
-async function loadFailedGeocode(){
-  // Parse failed addresses from the geocoding log
-  const log=document.getElementById('geoLog');
-  const failedAddrs=new Set();
-  if(log){log.querySelectorAll('.log-error').forEach(el=>{const m=el.textContent.match(/✗\s+(.+?)\s+—/);if(m)failedAddrs.add(m[1].trim());});}
-  
-  const{data}=await sb.from('properties').select('id,address,city').eq('change_type','sold').is('latitude',null).order('city').order('address');
-  const c=document.getElementById('ungeocodedList');
-  if(!data?.length){c.innerHTML='<p style="color:var(--green)">All geocoded!</p>';return;}
-  
-  // Filter to only failed ones if we have log data, otherwise show all
-  const rows=failedAddrs.size>0?data.filter(r=>failedAddrs.has(r.address)):data;
-  if(!rows.length){c.innerHTML='<p style="color:var(--text-3)">No failed addresses found in log. Try "Load Missing Addresses" instead.</p>';return;}
-  
-  let h='<div style="display:flex;flex-direction:column;gap:8px">';
-  rows.forEach(r=>{const mapsUrl='https://www.google.com/maps/search/'+encodeURIComponent(r.address+', '+r.city+', CA');h+=`<div style="display:grid;grid-template-columns:1fr 280px auto;gap:8px;align-items:center" id="geo-row-${r.id}"><span style="font-size:13px">${r.address}, ${r.city} <a href="${mapsUrl}" target="_blank" style="font-size:11px;color:var(--accent);margin-left:8px">📍 Open in Maps</a></span><input type="text" placeholder="Paste coords, e.g. 33.8570, -118.0733" id="geo-coords-${r.id}" style="padding:8px 10px;font-size:13px;font-family:JetBrains Mono,monospace;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);outline:none"><button class="btn btn-primary" style="padding:8px 14px;font-size:12px" onclick="saveManualGeo(${r.id})">Save</button></div>`;});
-  c.innerHTML=h+'</div>';
-}
-async function loadUngeocoded(){const{data}=await sb.from('properties').select('id,address,city').eq('change_type','sold').is('latitude',null).order('city').order('address');const c=document.getElementById('ungeocodedList');if(!data?.length){c.innerHTML='<p style="color:var(--green)">All geocoded!</p>';return;}
-let h='<div style="display:flex;flex-direction:column;gap:8px">';data.forEach(r=>{const mapsUrl='https://www.google.com/maps/search/'+encodeURIComponent(r.address+', '+r.city+', CA');h+=`<div style="display:grid;grid-template-columns:1fr 280px auto;gap:8px;align-items:center" id="geo-row-${r.id}"><span style="font-size:13px">${r.address}, ${r.city} <a href="${mapsUrl}" target="_blank" style="font-size:11px;color:var(--accent);margin-left:8px">📍 Open in Maps</a></span><input type="text" placeholder="Paste coords, e.g. 33.8570, -118.0733" id="geo-coords-${r.id}" style="padding:8px 10px;font-size:13px;font-family:JetBrains Mono,monospace;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);outline:none"><button class="btn btn-primary" style="padding:8px 14px;font-size:12px" onclick="saveManualGeo(${r.id})">Save</button></div>`;});c.innerHTML=h+'</div>';}
-
-async function saveManualGeo(id){const raw=document.getElementById('geo-coords-'+id).value.trim(),parts=raw.split(/[,\s]+/).filter(Boolean);if(parts.length<2){alert('Paste like: 33.8570, -118.0733');return;}const lat=parseFloat(parts[0]),lng=parseFloat(parts[1]);if(isNaN(lat)||isNaN(lng)){alert('Invalid coordinates');return;}await sb.from('properties').update({latitude:lat,longitude:lng}).eq('id',id);await updateStats();await updateGeoStats();document.getElementById('geo-row-'+id).innerHTML=`<span style="color:var(--green)">✓ Saved (${lat.toFixed(4)}, ${lng.toFixed(4)})</span>`;}
-
-async function deleteComp(id){if(!confirm('Delete this comp?'))return;await sb.from('properties').delete().eq('id',id);await updateStats();const r=document.getElementById('row-'+id);if(r){r.style.transition='opacity .3s';r.style.opacity='0';setTimeout(()=>r.remove(),300);}}
-
-async function viewComp(id){
-  const{data:r}=await sb.from('properties').select('*').eq('id',id).single();if(!r)return;
-  const esc=s=>(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const fmt=v=>v?'$'+Number(v).toLocaleString():'—';
-  const fullAddr=esc(r.address)+', '+esc(r.city)+', CA'+(r.zip?' '+r.zip:'');
-  const zUrl='https://www.zillow.com/homes/'+encodeURIComponent(fullAddr);
-  const rUrl='https://www.google.com/search?q='+encodeURIComponent('redfin '+fullAddr)+'&btnI=1';
-  const mapsUrl='https://www.google.com/maps/search/'+encodeURIComponent(fullAddr);
-  const kv=(k,v)=>(v!=null&&v!=='')?`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bg-alt)"><span style="font-size:12px;color:var(--text-3)">${k}</span><span style="font-size:12px;font-weight:500">${esc(String(v))}</span></div>`:'';
-  const section=(title,content)=>content?`<div style="margin-top:16px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-4);margin-bottom:8px">${title}</div>${content}</div>`:'';
-  
-  let h=`<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:680px;width:95%;max-height:85vh;overflow-y:auto">`;
-  h+=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px"><div><div style="font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.3px">${esc(r.address)}</div><div style="font-size:13px;color:var(--text-3);margin-top:2px">${esc(r.city)}, CA ${r.zip||''}</div></div><button onclick="closeEditModal()" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:20px;padding:4px 8px">✕</button></div>`;
-  h+=`<div style="display:flex;gap:8px;margin:8px 0 16px"><a href="${zUrl}" target="_blank" style="font-size:11px;color:var(--accent)">Zillow ↗</a><a href="${rUrl}" target="_blank" style="font-size:11px;color:var(--accent)">Redfin ↗</a><a href="${mapsUrl}" target="_blank" style="font-size:11px;color:var(--accent)">Google Maps ↗</a></div>`;
-  
-  // Price header
-  h+=`<div style="display:flex;gap:24px;align-items:baseline;margin-bottom:16px;padding:12px 16px;background:var(--bg);border-radius:var(--radius)"><div><div style="font-size:22px;font-weight:700;color:var(--accent)">${fmt(r.sale_price)}</div><div style="font-size:11px;color:var(--text-4)">Sale Price</div></div><div><div style="font-size:15px;font-weight:600">${r.ppsf?'$'+Number(r.ppsf).toFixed(0)+'/sf':'—'}</div><div style="font-size:11px;color:var(--text-4)">$/SqFt</div></div><div><div style="font-size:15px;font-weight:600">${fmt(r.list_price)}</div><div style="font-size:11px;color:var(--text-4)">List Price</div></div></div>`;
-  
-  // Property details
-  h+=section('Property Details',
-    kv('MLS #',r.mls)+kv('APN',r.apn)+kv('Beds / Baths',(r.beds||'—')+'bd / '+(r.baths||'—')+'ba')+kv('SqFt',r.sqft?r.sqft.toLocaleString():null)+kv('Lot Size',r.lot_size?r.lot_size.toLocaleString()+' sf':null)+kv('Year Built',r.year_built)+kv('Pool',r.pool)+kv('Sale Type',r.sale_type)+kv('Occupant Type',r.occupant_type)
-  );
-  
-  // Dates
-  h+=section('Dates',
-    kv('Sold Date',r.sold_date)+kv('List Date',r.list_date)+kv('DOM',r.dom)+kv('Change Date',r.change_date)+kv('Change Type',r.change_type)
-  );
-  
-  // Schools
-  var schoolH='';
-  if(r.elementary_school||r.middle_school||r.high_school){
-    schoolH+=kv('Elementary',r.elementary_school?(r.elementary_school+(r.elementary_rating?' ('+r.elementary_rating+')':'')):null);
-    schoolH+=kv('Middle',r.middle_school?(r.middle_school+(r.middle_rating?' ('+r.middle_rating+')':'')):null);
-    schoolH+=kv('High',r.high_school?(r.high_school+(r.high_rating?' ('+r.high_rating+')':'')):null);
-  }
-  h+=section('Schools',schoolH||'<span style="font-size:12px;color:var(--text-4)">No school data</span>');
-  
-  // Seller Agent
-  var sellerH=kv('Agent',r.agent_name)+kv('Email',r.agent_email)+kv('Phone',r.agent_phone)+kv('Broker',r.agent_broker)+kv('Office Phone',r.agent_office_phone);
-  if(r.agent2_name)sellerH+=kv('Agent 2',r.agent2_name)+kv('Agent 2 Email',r.agent2_email)+kv('Agent 2 Phone',r.agent2_phone)+kv('Broker 2',r.agent2_broker);
-  h+=section('Seller Agent',sellerH);
-  
-  // Buyer Agent
-  var buyerH=kv('Agent',r.buyer_name)+kv('Email',r.buyer_email)+kv('Phone',r.buyer_phone)+kv('Broker',r.buyer_broker)+kv('Broker Phone',r.buyer_broker_phone);
-  h+=section('Buyer Agent',buyerH);
-  
-  // Coordinates
-  h+=section('Location',kv('Latitude',r.latitude)+kv('Longitude',r.longitude));
-  
-  // Remarks
-  if(r.remarks)h+=section('Public Remarks','<p style="font-size:12px;line-height:1.6;color:var(--text-2)">'+esc(r.remarks)+'</p>');
-  if(r.agent_remarks)h+=section('Agent Remarks','<p style="font-size:12px;line-height:1.6;color:var(--text-2)">'+esc(r.agent_remarks)+'</p>');
-  if(r.showing_remarks)h+=section('Showing Remarks','<p style="font-size:12px;line-height:1.6;color:var(--text-2)">'+esc(r.showing_remarks)+'</p>');
-  
-  // Actions
-  h+=`<div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeEditModal();editComp(${id})">✎ Edit</button><button class="btn btn-secondary" onclick="closeEditModal()">Close</button></div>`;
-  h+='</div>';
-  const m=document.getElementById('editModal');m.innerHTML=h;m.style.display='flex';
-}
-
-async function editComp(id){const{data:r}=await sb.from('properties').select('*').eq('id',id).single();if(!r)return;
-const fields=[{key:'mls',label:'MLS #',type:'text',readonly:true},{key:'address',label:'Address',type:'text'},{key:'city',label:'City',type:'text'},{key:'beds',label:'Bedrooms',type:'number'},{key:'baths',label:'Bathrooms',type:'number',step:'0.5'},{key:'sqft',label:'SqFt',type:'number'},{key:'sale_price',label:'Sale Price',type:'number'},{key:'ppsf',label:'$/SqFt',type:'number',step:'0.01'},{key:'lot_size',label:'Lot Size',type:'number'},{key:'pool',label:'Pool',type:'select',options:[['No','No'],['Yes','Yes']]},{key:'sold_date',label:'Sold Date',type:'date'},{key:'dom',label:'DOM',type:'number'},{key:'apn',label:'APN',type:'text'},{key:'elementary_school',label:'Elementary',type:'text'},{key:'elementary_rating',label:'Elem Rating',type:'number'},{key:'middle_school',label:'Middle School',type:'text'},{key:'middle_rating',label:'Mid Rating',type:'number'},{key:'high_school',label:'High School',type:'text'},{key:'high_rating',label:'High Rating',type:'number'},{key:'latitude',label:'Latitude',type:'number',step:'any'},{key:'longitude',label:'Longitude',type:'number',step:'any'}];
-let fh=fields.map(f=>{const val=r[f.key]!=null?r[f.key]:'';let inp;if(f.type==='select')inp=`<select id="edit-${f.key}" style="width:100%;padding:8px 10px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">${f.options.map(([v,l])=>`<option value="${v}" ${String(val)==v?'selected':''}>${l}</option>`).join('')}</select>`;else inp=`<input type="${f.type}" id="edit-${f.key}" value="${val}" ${f.step?'step="'+f.step+'"':''} ${f.readonly?'readonly':''} style="width:100%;padding:8px 10px;font-size:13px;font-family:inherit;background:${f.readonly?'var(--bg-alt)':'var(--bg-page)'};border:1px solid var(--border);border-radius:var(--radius);color:${f.readonly?'var(--text-3)':'var(--text)'};outline:none">`;return`<div><label style="display:block;font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${f.label}</label>${inp}</div>`;}).join('');
-const m=document.getElementById('editModal');m.innerHTML=`<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:600px;width:95%;max-height:85vh;overflow-y:auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:16px;font-weight:600">Edit Comp</h3><button onclick="closeEditModal()" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:20px;padding:4px 8px">✕</button></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${fh}</div><div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeEditModal()">Cancel</button><button class="btn btn-primary" onclick="saveEdit(${id})">Save</button></div></div>`;m.style.display='flex';}
-
-async function saveEdit(id){const g=k=>{const e=document.getElementById('edit-'+k);return e?e.value:null;},num=k=>{const v=g(k);return v!==''&&v!==null?Number(v):null;};
-const{error}=await sb.from('properties').update({address:g('address'),city:g('city'),beds:num('beds'),baths:num('baths'),sqft:num('sqft'),sale_price:num('sale_price'),ppsf:num('ppsf'),lot_size:num('lot_size'),pool:g('pool'),sold_date:g('sold_date')||null,dom:num('dom'),apn:g('apn')||null,elementary_school:g('elementary_school')||null,elementary_rating:num('elementary_rating'),middle_school:g('middle_school')||null,middle_rating:num('middle_rating'),high_school:g('high_school')||null,high_rating:num('high_rating'),latitude:num('latitude'),longitude:num('longitude')}).eq('id',id);
-if(error)alert(error.message);else{closeEditModal();await updateStats();if(document.getElementById('panel-search').classList.contains('active'))runSearch();else if(document.getElementById('panel-schools').classList.contains('active'))loadMissingSchools();else if(document.getElementById('panel-browse').classList.contains('active'))fetchBrowsePage();}}
-function closeEditModal(){document.getElementById('editModal').style.display='none';}
-
-async function exportCSV(){const{data}=await sb.from('properties').select('*').eq('change_type','sold').order('city').order('sold_date',{ascending:false});if(!data?.length){alert('No data');return;}const cols=Object.keys(data[0]);let csv=cols.join(',')+'\n';data.forEach(r=>{csv+=cols.map(c=>{const v=r[c];if(v==null)return'';const s=String(v);return s.includes(',')||s.includes('"')?'"'+s.replace(/"/g,'""')+'"':s;}).join(',')+'\n';});const b=new Blob([csv],{type:'text/csv'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='dotty_comps.csv';a.click();}
 
 // =========================================================
 // BROWSE ALL
@@ -828,9 +640,6 @@ setupTabs = function() {
     tab.addEventListener('click', () => {
       if (tab.dataset.panel === 'browse' && document.getElementById('browseResults').innerHTML === '') {
         loadBrowse();
-      }
-      if (tab.dataset.panel === 'schools') {
-        loadMissingSchools();
       }
     });
   });

@@ -1007,11 +1007,6 @@ function cardHasValue(src,av){
   return false;
 }
 function cardSubText(size,txt){return `<div style="font-size:${size};font-weight:700;color:var(--text-4);margin-top:2px">${txt}</div>`;}
-function confPill(lvl){
-  if(!lvl||lvl==='?')return'';
-  const style=lvl==='high'?'background:var(--green-bg);color:var(--green)':lvl==='low'?'background:var(--red-bg);color:var(--red)':'background:var(--amber-bg);color:var(--amber)';
-  return `<span style="${style};font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;letter-spacing:.3px;margin-left:5px;vertical-align:middle">${lvl.toUpperCase()}</span>`;
-}
 
 // Full-width detail strip below the cards row. Hosts collapsible
 // expanders for whichever cards have detail (smart comps anchors, deal
@@ -1351,12 +1346,6 @@ function toggleSubtierFilter(s){
   updateTierBtn();  // sub-tier filters share the "All Tiers" button now
   render();
 }
-function stfClear(){
-  subtierFilters.clear();
-  document.querySelectorAll('#stf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);
-  updateSubtierBtn();
-  render();
-}
 function updateSubtierBtn(){
   const btn=document.getElementById('stf-btn');if(!btn)return;
   const lbl=s=>s==='?'?'T5-unclassified':'T5-'+s;
@@ -1544,14 +1533,6 @@ function subTier5KeyOf(l){
   const v=l.valueDriverRooms;
   return v==null?'?':(SUBTIER5_LABEL[v]||'?');
 }
-function subTier5Badge(l){
-  const k=subTier5KeyOf(l);
-  if(!k)return'';
-  // C (opportunity) highlighted green; A/B/? neutral.
-  const bg=k==='C'?'rgba(45,138,78,0.15)':'var(--bg-alt)';
-  const col=k==='C'?'var(--green)':'var(--text-3)';
-  return` <span class="tag" style="background:${bg};color:${col};border:none" title="${SUBTIER5_TITLE[k]}">T5-${k}</span>`;
-}
 // Editable condition-tier control for the subject listing on the detail page.
 // The subject is itself a `properties` row, so this reuses the comp retag
 // chip/dropdown (T1-T6 gradient + DOTTY) and writes the same columns via
@@ -1708,7 +1689,7 @@ function recalcCompSummary(mid){
 // Unified 6-bucket waterfall economics (see breakdown-mockup Surface 2):
 //   purchase expenses = 1% of purchase, holding = 0.3% of ARV, disposition = 4% of ARV,
 //   financing = (LTV%·purchase) × rate × months/12. Target margin = net profit / purchase.
-const CONST_PCT=0.16,PURCH_EXP_PCT=0.01,HOLD_PCT=0.003,DISP_PCT=0.04,PROFIT_TARGET_PCT=0.10;
+const PURCH_EXP_PCT=0.01,HOLD_PCT=0.003,DISP_PCT=0.04,PROFIT_TARGET_PCT=0.10;
 const FIN_DEFAULTS={months:3,rate:9,ltv:90};
 // Money formatters that put the sign before the $ (mockup style): -$3,058 / +$110,205.
 const FMoney=n=>(n<0?'-$':'$')+Math.abs(Math.round(n)).toLocaleString();
