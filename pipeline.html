@@ -83,7 +83,7 @@ body { overflow:hidden; height:100vh; }
 .card-row.bot { margin-top:4px; }
 .card .addr { flex:1; min-width:0; font-size:13px; font-weight:600; color:var(--text); line-height:1.3; }
 .card .addr .city { font-weight:400; color:var(--text-3); }
-.card .price { font-family:var(--sans); font-size:13px; font-weight:600; color:var(--text); white-space:nowrap; }
+.card .price { font-family:var(--sans); font-size:13px; font-weight:600; color:var(--accent); white-space:nowrap; }
 .card .sub { font-size:11px; color:var(--text-3); }
 .card .age { font-size:11px; color:var(--text-4); white-space:nowrap; }
 
@@ -160,6 +160,13 @@ function daysSince(iso){
   const t=new Date(iso).getTime();if(!isFinite(t))return null;
   const days=Math.floor((Date.now()-t)/86400000);
   return days<0?0:days;
+}
+// Whole days from a to b (b-a), null if either is unparseable.
+function daysBetween(a,b){
+  if(!a||!b)return null;
+  const ta=new Date(a).getTime(),tb=new Date(b).getTime();
+  if(!isFinite(ta)||!isFinite(tb))return null;
+  return Math.round((tb-ta)/86400000);
 }
 // Per-phase suffix for the day count. Pursuing shows nothing.
 const PHASE_AGE_LABEL={in_escrow:'in escrow', under_construction:'in build', selling:'on market'};
@@ -288,10 +295,20 @@ function renderBoard(deals, propsByMls, latestByDeal, costByDeal){
         // actual_close_date. Pursuing shows no age. Falls back to the phase
         // transition / created_at when the milestone date is missing.
         let ageHtml='';
-        if(phase!=='pursuing'){
-          let anchor=null;
-          if(phase==='in_escrow')anchor=d.escrow_start_date;
-          else if(phase==='under_construction')anchor=d.actual_close_date||d.construction_start_date;
+        if(phase==='in_escrow'){
+          // Progress toward close: days elapsed / total escrow length.
+          const elapsed=daysSince(d.escrow_start_date);
+          if(elapsed!=null){
+            const total=daysBetween(d.escrow_start_date, d.target_close_date);
+            ageHtml=(total!=null && total>0)
+              ? `${elapsed}/${total}d in escrow`
+              : (elapsed===0?'today':elapsed+'d')+' in escrow';
+          } else {
+            const n=daysSince(latest?latest.transitioned_at:d.created_at);
+            if(n!=null)ageHtml=(n===0?'today':n+'d')+' in escrow';
+          }
+        } else if(phase!=='pursuing'){
+          let anchor=(phase==='under_construction')?(d.actual_close_date||d.construction_start_date):null;
           if(!anchor)anchor=latest?latest.transitioned_at:d.created_at;
           const n=daysSince(anchor);
           if(n!=null){
