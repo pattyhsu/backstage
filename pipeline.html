@@ -86,6 +86,7 @@ body { overflow:hidden; height:100vh; }
 .card .price { font-family:var(--sans); font-size:13px; font-weight:600; color:var(--accent); white-space:nowrap; }
 .card .sub { font-size:11px; color:var(--text-3); }
 .card .age { font-size:11px; color:var(--text-4); white-space:nowrap; }
+.card .age.due { color:var(--red); font-weight:600; }
 
 /* Rehab budget mini-bar — Under Construction cards only (Brief MH Phase 3).
    The one phase where rehab spend is live and steerable. Color by variance. */
@@ -294,15 +295,19 @@ function renderBoard(deals, propsByMls, latestByDeal, costByDeal){
         // pipeline transition): escrow → escrow_start_date; construction →
         // actual_close_date. Pursuing shows no age. Falls back to the phase
         // transition / created_at when the milestone date is missing.
-        let ageHtml='';
+        let ageHtml='', ageCls='';
         if(phase==='in_escrow'){
           // Progress toward close: days elapsed / total escrow length.
           const elapsed=daysSince(d.escrow_start_date);
           if(elapsed!=null){
             const total=daysBetween(d.escrow_start_date, d.target_close_date);
-            ageHtml=(total!=null && total>0)
-              ? `${elapsed}/${total}d in escrow`
-              : (elapsed===0?'today':elapsed+'d')+' in escrow';
+            if(total!=null && total>0){
+              ageHtml=`${elapsed}/${total}d in escrow`;
+              // Flag when close is near — 5 days or fewer remaining.
+              if(total-elapsed<=5)ageCls='due';
+            } else {
+              ageHtml=(elapsed===0?'today':elapsed+'d')+' in escrow';
+            }
           } else {
             const n=daysSince(latest?latest.transitioned_at:d.created_at);
             if(n!=null)ageHtml=(n===0?'today':n+'d')+' in escrow';
@@ -343,7 +348,7 @@ function renderBoard(deals, propsByMls, latestByDeal, costByDeal){
           </div>
           <div class="card-row bot">
             <span class="sub">${escapeHtml(sub)}</span>
-            <span class="age">${escapeHtml(ageHtml)}</span>
+            <span class="age${ageCls?' '+ageCls:''}">${escapeHtml(ageHtml)}</span>
           </div>
           ${rehabBar}
         </a>`;
