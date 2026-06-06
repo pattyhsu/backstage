@@ -359,6 +359,9 @@ const PHOTO_BASE='https://photos.dottyhomes.com';
 const PAGE_SIZE=20;
 let currentPage=0;
 let totalCount=0;
+// Bumped on every loadCards() call so a slow in-flight response (data or the
+// separately-fetched count) from a superseded filter can't clobber a newer one.
+let loadSeq=0;
 
 // Filter state (replaces native <select> .value reads — Tesla-friendly).
 let filters={city:'',tier:'',confidence:'',search:'',window:'',subtier:''};
@@ -496,12 +499,10 @@ async function updateStats(){
 // ========== LOAD CARDS ==========
 function resetAndLoad(){currentPage=0;loadCards();}
 
-async function loadCards(){
-  let query=sb.from('properties')
-    .select('id,mls,address,city,sqft,beds,baths,sale_price,list_price,remarks,photo_count,condition_tier,condition_confidence,condition_reasoning,condition_sample_photos,condition_overridden,value_driver_rooms_updated',{count:'exact'})
-    .order('condition_scored_at',{ascending:false});
-
-  // Filters (filter state lives in the module-level `filters` object)
+// Apply the active filters (tier / city / confidence / unreviewed / search /
+// window) to a query. Shared by the data fetch and the count fetch so the two
+// can't drift apart.
+function applyCardFilters(query){
   const city=filters.city;
   const tier=filters.tier;
   const conf=filters.confidence;
@@ -538,26 +539,50 @@ async function loadCards(){
       query=query.gte('sold_date',cutoff);
     }
   }
+  return query;
+}
 
-  // Pagination
+async function loadCards(){
+  const seq=++loadSeq;
+
+  // Data and count are fetched as TWO separate requests, in parallel. Bundling
+  // count=exact into the data SELECT roughly doubled its latency (PostgREST runs
+  // a full-table count over every matching row before returning), so the cards
+  // used to wait on it. Now the cards paint the moment the data lands, and the
+  // count fills in the header + pagination a beat later.
   const from=currentPage*PAGE_SIZE;
-  query=query.range(from,from+PAGE_SIZE-1);
+  const dataP=applyCardFilters(
+    sb.from('properties')
+      .select('id,mls,address,city,sqft,beds,baths,sale_price,list_price,remarks,photo_count,condition_tier,condition_confidence,condition_reasoning,condition_sample_photos,condition_overridden,value_driver_rooms_updated')
+      .order('condition_scored_at',{ascending:false})
+  ).range(from,from+PAGE_SIZE-1);
+  const countP=applyCardFilters(
+    sb.from('properties').select('id',{count:'exact',head:true})
+  );
 
-  const{data,count}=await query;
-  totalCount=count||0;
-
-  document.getElementById('headerCount').textContent=`(${totalCount})`;
+  // ----- Cards: render as soon as the data query returns -----
+  const{data}=await dataP;
+  if(seq!==loadSeq) return; // a newer load started; drop this stale response
 
   const container=document.getElementById('cardContainer');
   if(!data||data.length===0){
     container.innerHTML='<div class="empty-state">No scored properties match your filters.</div>';
     document.getElementById('pagination').innerHTML='';
+    document.getElementById('headerCount').textContent='(0)';
+    totalCount=0;
+    await countP.catch(()=>{}); // still consume the in-flight count request
     return;
   }
 
   cardData={};
   data.forEach(p=>{cardData[p.id]=p;});
   container.innerHTML=data.map(renderCard).join('');
+
+  // ----- Count: fills the header + pagination once it arrives -----
+  const{count}=await countP;
+  if(seq!==loadSeq) return;
+  totalCount=count||0;
+  document.getElementById('headerCount').textContent=`(${totalCount})`;
   renderPagination();
 }
 
