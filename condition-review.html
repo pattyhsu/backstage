@@ -77,6 +77,14 @@
 
   .card-reasoning { font-size:12px; color:var(--text-3); font-style:italic; line-height:1.45; max-height:78px; overflow-y:auto; padding:6px 0; }
 
+  /* Skeleton placeholders for remarks / reasoning while their text lazy-loads.
+     The card paints immediately from a light query; these shimmer until the
+     separate text fetch hydrates (or removes) them. */
+  .card-reasoning.skel { min-height:16px; }
+  .skel { position:relative; overflow:hidden; }
+  .skel::after { content:''; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg,transparent,rgba(127,127,127,.12),transparent); animation:skel-shimmer 1.1s ease-in-out infinite; }
+  @keyframes skel-shimmer { 100% { transform:translateX(100%); } }
+
   /* Score row */
   .score-row { display:flex; align-items:center; gap:14px; padding:12px 20px; border-top:1px solid var(--border); background:var(--bg-page); }
   .score-label { font-size:13px; color:var(--text-3); }
@@ -561,16 +569,25 @@ async function loadCards(){
   // used to wait on it. Now the cards paint the moment the data lands, and the
   // count fills in the header + pagination a beat later.
   const from=currentPage*PAGE_SIZE;
+  // The data query drops the two big text columns (remarks + condition_reasoning
+  // were ~80% of each row's bytes) so the cards paint as soon as it lands. The
+  // text is fetched in parallel (textP) and hydrated into the cards once it
+  // arrives; the count fills the header + pagination a beat later.
   const dataP=applyCardFilters(
     sb.from('properties')
-      .select('id,mls,address,city,sqft,beds,baths,sale_price,list_price,remarks,photo_count,condition_tier,condition_confidence,condition_reasoning,condition_sample_photos,condition_overridden,value_driver_rooms_updated')
+      .select('id,mls,address,city,sqft,beds,baths,sale_price,list_price,photo_count,condition_tier,condition_confidence,condition_sample_photos,condition_overridden,value_driver_rooms_updated')
+      .order('condition_scored_at',{ascending:false})
+  ).range(from,from+PAGE_SIZE-1);
+  const textP=applyCardFilters(
+    sb.from('properties')
+      .select('id,remarks,condition_reasoning')
       .order('condition_scored_at',{ascending:false})
   ).range(from,from+PAGE_SIZE-1);
   const countP=applyCardFilters(
     sb.from('properties').select('id',{count:'exact',head:true})
   );
 
-  // ----- Cards: render as soon as the data query returns -----
+  // ----- Cards: render as soon as the (light) data query returns -----
   const{data}=await dataP;
   if(seq!==loadSeq) return; // a newer load started; drop this stale response
 
@@ -580,7 +597,7 @@ async function loadCards(){
     document.getElementById('pagination').innerHTML='';
     document.getElementById('headerCount').textContent='(0)';
     totalCount=0;
-    await countP.catch(()=>{}); // still consume the in-flight count request
+    await Promise.allSettled([countP,textP]); // consume the in-flight requests
     return;
   }
 
@@ -588,12 +605,40 @@ async function loadCards(){
   data.forEach(p=>{cardData[p.id]=p;});
   container.innerHTML=data.map(renderCard).join('');
 
+  // ----- Text: fold remarks + reasoning into the on-screen cards on arrival -----
+  textP.then(({data:txt})=>{
+    if(seq!==loadSeq||!txt) return;
+    hydrateCardText(txt);
+  });
+
   // ----- Count: fills the header + pagination once it arrives -----
   const{count}=await countP;
   if(seq!==loadSeq) return;
   totalCount=count||0;
   document.getElementById('headerCount').textContent=`(${totalCount})`;
   renderPagination();
+}
+
+// Fold the lazily-fetched text columns into cards that are already on screen.
+// Sets the text in place (no full re-render, so photos don't reload), and
+// removes the skeleton slot for rows that have no remarks / reasoning.
+function hydrateCardText(rows){
+  rows.forEach(r=>{
+    const p=cardData[r.id];
+    if(p){ p.remarks=r.remarks; p.condition_reasoning=r.condition_reasoning; p._textLoaded=true; }
+    const card=document.querySelector(`.prop-card[data-id="${r.id}"]`);
+    if(!card) return;
+    const rSlot=card.querySelector('[data-slot="remarks"]');
+    if(rSlot){
+      if(r.remarks){ rSlot.classList.remove('skel'); rSlot.textContent=r.remarks; }
+      else rSlot.remove();
+    }
+    const cSlot=card.querySelector('[data-slot="reasoning"]');
+    if(cSlot){
+      if(r.condition_reasoning){ cSlot.classList.remove('skel'); cSlot.textContent='"'+r.condition_reasoning+'"'; }
+      else cSlot.remove();
+    }
+  });
 }
 
 function renderCard(p){
@@ -662,8 +707,12 @@ function renderCard(p){
             <span>${priceStr}</span>
             <span style="font-family:var(--mono);font-size:12px;color:var(--text-4)">${esc(p.mls||'—')}</span>
           </div>
-          ${p.remarks?`<div class="card-remarks">${esc(p.remarks)}</div>`:''}
-          ${p.condition_reasoning?`<div class="card-reasoning">"${esc(p.condition_reasoning)}"</div>`:''}
+          ${p._textLoaded
+            ? (p.remarks?`<div class="card-remarks">${esc(p.remarks)}</div>`:'')
+            : `<div class="card-remarks skel" data-slot="remarks"></div>`}
+          ${p._textLoaded
+            ? (p.condition_reasoning?`<div class="card-reasoning">"${esc(p.condition_reasoning)}"</div>`:'')
+            : `<div class="card-reasoning skel" data-slot="reasoning"></div>`}
         </div>
       </div>
       <div class="score-row">
