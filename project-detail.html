@@ -528,7 +528,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .et-grid { gap:1px; background:var(--border); border:1px solid var(--border);
   border-radius:10px; overflow:hidden; }
 .et-cell { background:#fff; padding:13px 16px; gap:6px; }
-.et-val { font-size:17px; letter-spacing:-.015em; }
+.et-val { font-size:14px; }
 
 /* 6 — Construction: tokenize the hardcoded blues, flatten gradients */
 .cn-hero-cell { background:var(--blue-bg); border-color:var(--blue-line); }
@@ -833,26 +833,29 @@ const PHASE_CONFIG = {
     loanStatus: 'none',
   },
   in_escrow: {
-    // docsSect lives inside the escrow 2-column panel for this phase, so the
-    // standalone Docs section is hidden to avoid a duplicate.
-    show: ['uwBar','escrowSect','prepSect','cashSect','cashGrid','finRow'],
-    hide: ['offerCalc','lpCalc','constructionSect','listingSect','handoffSect','docsSect'],
+    // The redesigned escrowSect is fully self-contained (timeline + docs +
+    // checklist + cash-needed), so every legacy section is hidden.
+    show: ['escrowSect'],
+    hide: ['uwBar','offerCalc','lpCalc','prepSect','cashSect','cashGrid','finRow','constructionSect','listingSect','handoffSect','docsSect'],
     cashTitle: 'Cash position',
     cashSub: 'owner only · live from money.html data',
     loanStatus: 'pending',
   },
   under_construction: {
-    show: ['uwBar','cashSect','cashGrid','finRow','constructionSect','docsSect'],
-    hide: ['offerCalc','lpCalc','escrowSect','prepSect','listingSect','handoffSect'],
+    // Self-contained constructionSect (status bars + spend ledger + docs).
+    show: ['constructionSect'],
+    hide: ['uwBar','offerCalc','lpCalc','escrowSect','prepSect','cashSect','cashGrid','finRow','listingSect','handoffSect','docsSect'],
     cashTitle: 'Cash position',
     cashSub: 'owner only · live from money.html data',
     loanStatus: 'funded',
   },
   selling: {
-    show: ['uwBar','cashSect','cashGrid','finRow','lpCalc','listingSect','handoffSect','docsSect'],
-    hide: ['offerCalc','escrowSect','prepSect','constructionSect'],
-    cashTitle: 'Cash position',
-    cashSub: 'offer-decision oriented · cost of waiting + breakeven',
+    // lpCalc (list-price + offer comparison) lives inside cashSect, so the
+    // wrapper stays shown but its grid / offer-math / financing children hide.
+    show: ['cashSect','lpCalc'],
+    hide: ['uwBar','offerCalc','escrowSect','prepSect','cashGrid','finRow','constructionSect','listingSect','handoffSect','docsSect'],
+    cashTitle: 'List price',
+    cashSub: 'model the list price + selling costs to hit your number',
     loanStatus: 'funded',
   },
   sold: {
@@ -2156,7 +2159,6 @@ function renderListPriceCalc(){
   // inner #sellCalc carries the .om-grid styling (#sellCalc .om-grid {300px 1fr}).
   return `
     <div class="lp-calc phase-hide" id="lpCalc">
-      <div class="lp-calc-head">List price calculator · model scenarios</div>
       <div id="sellCalc">
         <div class="om-grid">
           <div class="om-col-l">
@@ -2594,7 +2596,7 @@ function renderStageTabs(phase, aux, optionsHtml){
   wrap.innerHTML=STAGE_ORDER.map((ph,i)=>{
     const isCur=ph===phase, isNext=(ci>=0 && i===ci+1), isFut=(ci>=0 && i>ci+1), isView=ph===stageViewing;
     const cls=['stage-tab',isCur?'current':'',isNext?'next':'',isFut?'locked':'',isView?'on':''].filter(Boolean).join(' ');
-    const auxHtml=(isCur && aux)?` <span class="aux">${escapeHtml(aux)}</span>`:'';
+    const auxHtml='';   // status aux removed from the tab strip (per redesign)
     const inner=(isCur?'<span class="here-dot"></span> ':'')+escapeHtml(phaseLabel(ph))
       +(isNext?' <span class="next-ic">→</span>':'')+(isFut?' <span class="lock-ic">🔒</span>':'')+auxHtml;
     const title=isNext?('Open '+phaseLabel(ph)+' — advance this deal'):(isFut?'Locked until earlier stages finish':'');
