@@ -2246,10 +2246,15 @@ function onPhaseSelChange(){
   }
 }
 window.onPhaseSelChange=onPhaseSelChange;
-// Start date + N days -> yyyy-mm-dd (null if inputs invalid).
+// Start date + N calendar days -> yyyy-mm-dd (null if inputs invalid).
+// CAR RPA ¶25: days count from Acceptance as Day 0 (so the deadline is
+// start + N), and the last day for any act (contingency removal, COE)
+// rolls forward off a Saturday/Sunday to the next Day. Legal holidays
+// also roll under the RPA but are not tracked here.
 function _escrowDateFromDays(start, days){
   if(!start || !Number.isFinite(days) || days<0)return null;
   const d=new Date(start+'T00:00:00');d.setDate(d.getDate()+days);
+  while(d.getDay()===0 || d.getDay()===6)d.setDate(d.getDate()+1);
   return d.toISOString().slice(0,10);
 }
 // Live preview of the dates the entered day counts resolve to.
