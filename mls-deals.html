@@ -118,7 +118,7 @@ body{overflow:hidden;height:100vh}
 .main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
 
 /* Header */
-.hdr{position:sticky;top:0;z-index:200;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);height:52px;padding:0 24px;display:flex;align-items:center;justify-content:space-between}
+.hdr{position:sticky;top:0;z-index:200;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);height:52px;padding:0 20px;display:flex;align-items:center;justify-content:space-between}
 .logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;color:var(--accent);letter-spacing:-.3px}
 .hdr-meta{font-size:12px;font-weight:500;color:var(--text-3);margin-left:12px;border-left:1px solid var(--border);padding-left:10px}
 .hdr-meta b{color:var(--amber)}
@@ -142,7 +142,7 @@ body{overflow:hidden;height:100vh}
 .det-full{grid-column:1/-1}
 
 /* List header + rows */
-.th-p{display:grid;grid-template-columns:32px 56px 52px minmax(160px,1fr) 85px 100px 220px 70px 110px 100px 70px 70px;min-width:1190px;align-items:center;padding:8px 10px;background:var(--bg-alt);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.4px;gap:4px}
+.th-p{display:grid;grid-template-columns:32px 56px 52px minmax(160px,1fr) 85px 100px 220px 70px 110px 100px 70px 70px;min-width:1210px;align-items:center;padding:8px 20px;background:var(--bg-alt);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.4px;gap:4px}
 #lh{position:sticky;top:0;z-index:20;background:var(--bg-alt)}
 .th-sort{cursor:pointer;user-select:none}
 .th-sort:hover{color:var(--text)}
@@ -150,7 +150,7 @@ body{overflow:hidden;height:100vh}
 .rw:hover{background:var(--bg-alt)}
 .rw.act,.rw.sel{background:var(--accent-dim)}
 .rw.archived{display:none}
-.rm-p{display:grid;grid-template-columns:32px 56px 52px minmax(160px,1fr) 85px 100px 220px 70px 110px 100px 70px 70px;min-width:1190px;align-items:center;padding:8px 10px;font-size:13px;font-weight:500;gap:4px}
+.rm-p{display:grid;grid-template-columns:32px 56px 52px minmax(160px,1fr) 85px 100px 220px 70px 110px 100px 70px 70px;min-width:1210px;align-items:center;padding:8px 20px;font-size:13px;font-weight:500;gap:4px}
 /* NOTES column shown only in the Potential tab; drop its 220px track elsewhere. */
 #ls.no-notes .th-p,#ls.no-notes .rm-p{grid-template-columns:32px 56px 52px minmax(160px,1fr) 85px 100px 70px 110px 100px 70px 70px;min-width:966px}
 
