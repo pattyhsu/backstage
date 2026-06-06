@@ -376,7 +376,12 @@ async function init(){
 }
 
 async function populateCityDropdown(){
-  const{data}=await sb.from('properties').select('city').not('condition_tier','is',null).not('city','is',null);
+  // Distinct scored-row cities via RPC (Postgres does the DISTINCT) instead of
+  // pulling one row per scored property into the browser to dedupe ~30 strings.
+  // Fall back to the direct scan if the RPC isn't available.
+  let data;
+  try{const r=await sb.rpc('get_distinct_scored_cities');data=r.data;}catch(e){data=null;}
+  if(!data){const f=await sb.from('properties').select('city').not('condition_tier','is',null).not('city','is',null);data=f.data;}
   if(!data)return;
   const cities=[...new Set(data.map(r=>r.city))].filter(Boolean).sort();
   const drop=document.getElementById('fCity-drop');
