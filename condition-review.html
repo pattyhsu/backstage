@@ -89,15 +89,15 @@
 
   /* Score row */
   .score-row { display:flex; align-items:center; gap:14px; padding:12px 20px; border-top:1px solid var(--border); background:var(--bg-page); }
-  .score-label { font-size:13px; color:var(--text-3); }
-  .score-label strong { color:var(--text); font-weight:600; }
   .confidence-tag { font-size:11px; font-weight:600; padding:3px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:.5px; }
   .confidence-tag.high { background:var(--green-bg); color:var(--green); }
   .confidence-tag.medium { background:var(--amber-bg); color:var(--amber); }
   .confidence-tag.low { background:var(--red-bg); color:var(--red); }
   .confidence-tag.confirmed { background:var(--green-bg); color:var(--green); }
 
-  .tier-buttons { display:flex; gap:4px; margin-left:auto; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+  /* nowrap keeps the whole control cluster (tiers + Uncat + Reviewed) on one
+     row — the redundant tier label was removed, leaving room for it to fit. */
+  .tier-buttons { display:flex; gap:4px; margin-left:auto; align-items:center; flex-wrap:nowrap; justify-content:flex-end; }
   .tier-btn { padding:0 10px; height:32px; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); font-family:var(--sans); font-size:12.5px; font-weight:500; color:var(--text-3); cursor:pointer; transition:all .12s; white-space:nowrap; }
   .tier-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
   .tier-btn.active { border-color:var(--accent); background:var(--accent); color:#fff; }
@@ -346,21 +346,8 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;  // expose for auth.js
 
-const TIER_LABELS={1:'Distressed',2:'Dated (livable)',3:'Modern (owner-grade)',4:'Lived-in flip-quality',5:'Half-flip',6:'Full flip'};
 const SUBTIER={2:{l:'A',t:'Kitchen + bath both updated (nicest)'},1:{l:'B',t:'One of kitchen/bath updated (half-flip)'},0:{l:'C',t:'Both original — flip opportunity'}};
 const SUBTIER_U={l:'U',t:'Unclassified — sub-tier not yet set'};
-
-// Display string for the score-label: "T2 · Dated (livable)" or "T5-B · Half-flip".
-function tierDisplay(p){
-  const t=p.condition_tier;
-  if(t==null) return 'Uncategorized · no tier';
-  if(t===5){
-    const s=p.value_driver_rooms_updated;
-    const l=(s in SUBTIER)?SUBTIER[s].l:'U';
-    return `T5-${l} · Half-flip`;
-  }
-  return `T${t} · ${TIER_LABELS[t]||'—'}`;
-}
 
 // Last loaded page of rows, keyed by id — lets override handlers re-render a
 // single card in place without a full reload.
@@ -651,7 +638,6 @@ function renderCard(p){
   const previewNums=evenSample(totalPhotos,9);
   const price=p.sale_price||p.list_price;
   const priceStr=price?'$'+Number(price).toLocaleString():'—';
-  const tierLabel=tierDisplay(p);
   const isOverridden=p.condition_overridden===true;
 
   // Escape single quotes for inline onclick. esc() only handles & < > for textContent;
@@ -717,7 +703,6 @@ function renderCard(p){
         </div>
       </div>
       <div class="score-row">
-        <span class="score-label"><strong>${esc(tierLabel)}</strong></span>
         ${isOverridden
           ? '<span class="confidence-tag confirmed" title="You reviewed this — AI confidence no longer applies">✓ confirmed</span>'
           : `<span class="confidence-tag ${p.condition_confidence||''}" title="AI confidence">${p.condition_confidence||'—'}</span>`}
