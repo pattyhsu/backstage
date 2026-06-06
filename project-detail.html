@@ -1471,7 +1471,7 @@ function renderConstructionSection(){
   const spendHtml=renderSpendingTree();
 
   return `
-    <div class="sect phase-hide" id="constructionSect">
+    <div class="phase-hide" id="constructionSect">
       <div class="constr-cols">
 
         <!-- LEFT · status bars + documents -->
@@ -1591,7 +1591,7 @@ function renderEscrowSection(){
   const relF=d=>d==null?'':(d>0?'in '+d+'d':(d===0?'today':Math.abs(d)+'d ago'));
   const ckHtml=renderChecklistBlock('in_escrow');
   return `
-    <div class="sect phase-hide" id="escrowSect">
+    <div class="phase-hide" id="escrowSect">
       <div class="escrow-cols">
 
         <!-- LEFT · escrow timeline + documents -->
