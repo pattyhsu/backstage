@@ -480,6 +480,11 @@ document.addEventListener('keydown',e=>{
   }
 });
 
+let _statsTimer=null;
+// Each of the 4 stat counts is an exact full-table count. A reviewer clicking
+// through cards would otherwise fire all 4 after every single click. Debounce so
+// rapid edits coalesce into one refresh after they pause.
+function scheduleStats(){clearTimeout(_statsTimer);_statsTimer=setTimeout(updateStats,600);}
 async function updateStats(){
   // The 4 counts are independent — run them concurrently rather than serially.
   // "uncategorized" = rows a reviewer explicitly cleared (null tier + overridden).
@@ -688,7 +693,7 @@ async function overrideTier(id,newTier){
   if(error){console.error('Override failed:',error);return;}
   if(cardData[id]){cardData[id].condition_tier=newTier;cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
-  await updateStats();
+  scheduleStats();
 }
 
 // T5 sub-tier: set tier=5 and value_driver_rooms_updated (2/1/0, or null for U).
@@ -702,7 +707,7 @@ async function setT5(id,val){
   if(error){console.error('T5 override failed:',error);return;}
   if(cardData[id]){cardData[id].condition_tier=5;cardData[id].value_driver_rooms_updated=val;cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
-  await updateStats();
+  scheduleStats();
 }
 
 // Confirm AI tier as-is — flip condition_overridden without changing the tier.
@@ -711,7 +716,7 @@ async function markReviewed(id){
   if(error){console.error('Mark reviewed failed:',error);return;}
   if(cardData[id]){cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
-  await updateStats();
+  scheduleStats();
 }
 
 // Uncategorize / de-select — clear the tier (no gradeable condition) and mark
@@ -728,7 +733,7 @@ async function clearTier(id){
   if(error){console.error('Clear tier failed:',error);return;}
   if(cardData[id]){cardData[id].condition_tier=null;cardData[id].value_driver_rooms_updated=null;cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
-  await updateStats();
+  scheduleStats();
 }
 
 // ========== PAGINATION ==========

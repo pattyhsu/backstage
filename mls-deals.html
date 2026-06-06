@@ -1185,17 +1185,21 @@ async function loadArvEstimates(){
   if(!mlsList.length)return;
   const CHUNK=200;
   try{
-    for(let i=0;i<mlsList.length;i+=CHUNK){
-      const chunk=mlsList.slice(i,i+CHUNK);
-      const{data,error}=await sb.from('arv_estimates').select('*').in('mls',chunk).order('computed_at',{ascending:false});
-      if(error){console.error('loadArvEstimates',error);continue;}
+    const chunks=[];
+    for(let i=0;i<mlsList.length;i+=CHUNK)chunks.push(mlsList.slice(i,i+CHUNK));
+    // Fire the chunk fetches concurrently instead of serially (~10 chunks for a
+    // full list = ~10x round-trip latency saved before the ARV column fills in).
+    const results=await Promise.all(chunks.map(chunk=>
+      sb.from('arv_estimates').select('*').in('mls',chunk).order('computed_at',{ascending:false})));
+    results.forEach(({data,error})=>{
+      if(error){console.error('loadArvEstimates',error);return;}
       (data||[]).forEach(row=>{
         // Rows arrive newest-first; first occurrence per mls is the latest.
         // Don't clobber an entry already cached (e.g. from an expand).
         if(arvEstimateCache[row.mls])return;
         arvEstimateCache[row.mls]={state:(row.status==='error'?'error':'ok'),row};
       });
-    }
+    });
   }catch(e){console.error('loadArvEstimates',e);}
   render();
 }
@@ -1400,16 +1404,19 @@ async function bulkLoadDealScores(mlses){
   if(!need.length)return;
   need.forEach(m=>{dealScoreCache[m]={state:'pending'};});
   try{
-    const{data,error}=await sb.from('deal_scores').select('mls,status,grade,spread,spread_pct,breakdown_json,error_message,computed_at').in('mls',need).order('computed_at',{ascending:false});
-    if(error){need.forEach(m=>{dealScoreCache[m]={state:'missing'};});}
-    else{
-      const seen={};
-      (data||[]).forEach(r=>{if(!seen[r.mls])seen[r.mls]=r;});
-      need.forEach(m=>{
-        if(seen[m])dealScoreCache[m]={state:(seen[m].status==='error'?'error':'ok'),row:seen[m]};
-        else dealScoreCache[m]={state:'missing'};
-      });
-    }
+    // Chunk the IN list (can be ~2000 MLS on a full load) into parallel
+    // queries — a single 2000-element IN makes an enormous URL and one heavy
+    // scan. Any MLS not returned by its chunk falls through to 'missing'.
+    const CHUNK=200,chunks=[];
+    for(let i=0;i<need.length;i+=CHUNK)chunks.push(need.slice(i,i+CHUNK));
+    const results=await Promise.all(chunks.map(chunk=>
+      sb.from('deal_scores').select('mls,status,grade,spread,spread_pct,breakdown_json,error_message,computed_at').in('mls',chunk).order('computed_at',{ascending:false})));
+    const seen={};
+    results.forEach(({data,error})=>{if(error)console.error('bulkLoadDealScores',error);(data||[]).forEach(r=>{if(!seen[r.mls])seen[r.mls]=r;});});
+    need.forEach(m=>{
+      if(seen[m])dealScoreCache[m]={state:(seen[m].status==='error'?'error':'ok'),row:seen[m]};
+      else dealScoreCache[m]={state:'missing'};
+    });
   }catch(e){
     need.forEach(m=>{if(dealScoreCache[m]&&dealScoreCache[m].state==='pending')dealScoreCache[m]={state:'missing'};});
   }
@@ -2962,10 +2969,14 @@ async function loadListings(status){
       data.forEach(r=>{const k=norm(r);if(!offByAddr.has(k)||new Date(r.change_date||0)>new Date(offByAddr.get(k).change_date||0))offByAddr.set(k,r);});
       const addrs=[...new Set(data.map(r=>r.address).filter(Boolean))];
       const relisted=new Set();
-      // Chunk address lookups to avoid huge IN clauses
-      for(let i=0;i<addrs.length;i+=100){
-        const chunk=addrs.slice(i,i+100);
-        const{data:other}=await sb.from('properties').select('mls,address,city,change_date,change_type').in('address',chunk);
+      // Chunk address lookups to avoid huge IN clauses, but run the chunks
+      // concurrently — the off-market tab shouldn't be gated on ceil(N/100)
+      // back-to-back round-trips.
+      const chunks=[];
+      for(let i=0;i<addrs.length;i+=100)chunks.push(addrs.slice(i,i+100));
+      const results=await Promise.all(chunks.map(chunk=>
+        sb.from('properties').select('mls,address,city,change_date,change_type').in('address',chunk)));
+      results.forEach(({data:other})=>{
         (other||[]).forEach(o=>{
           const k=norm(o);
           const offRow=offByAddr.get(k);
@@ -2974,7 +2985,7 @@ async function loadListings(status){
           if(OFF_LOCK.indexOf(oct)>=0)return; // another off-market row doesn't count as a relist
           if(new Date(o.change_date||0)>new Date(offRow.change_date||0))relisted.add(k);
         });
-      }
+      });
       if(relisted.size)data=data.filter(r=>!relisted.has(norm(r)));
     }
     listings=(data||[]).map(mapRowToListing);
