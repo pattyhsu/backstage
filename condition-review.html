@@ -562,33 +562,27 @@ function applyCardFilters(query){
 
 async function loadCards(){
   const seq=++loadSeq;
-
-  // Data and count are fetched as TWO separate requests, in parallel. Bundling
-  // count=exact into the data SELECT roughly doubled its latency (PostgREST runs
-  // a full-table count over every matching row before returning), so the cards
-  // used to wait on it. Now the cards paint the moment the data lands, and the
-  // count fills in the header + pagination a beat later.
   const from=currentPage*PAGE_SIZE;
+
   // The data query drops the two big text columns (remarks + condition_reasoning
-  // were ~80% of each row's bytes) so the cards paint as soon as it lands. The
-  // text is fetched in parallel (textP) and hydrated into the cards once it
-  // arrives; the count fills the header + pagination a beat later.
-  const dataP=applyCardFilters(
+  // were ~80% of each row's bytes) so the cards paint as soon as it lands. Count
+  // is a separate request — bundling count=exact into the data SELECT made
+  // PostgREST run a full count over every matching row before returning.
+  //
+  // NOTE: the Supabase query builder is lazy — it only fires the request when
+  // then/await is called. Promise.resolve(...) forces both to fire NOW so they
+  // actually run concurrently instead of one-after-another.
+  const dataReq=Promise.resolve(applyCardFilters(
     sb.from('properties')
       .select('id,mls,address,city,sqft,beds,baths,sale_price,list_price,photo_count,condition_tier,condition_confidence,condition_sample_photos,condition_overridden,value_driver_rooms_updated')
       .order('condition_scored_at',{ascending:false}).order('id',{ascending:false})
-  ).range(from,from+PAGE_SIZE-1);
-  const textP=applyCardFilters(
-    sb.from('properties')
-      .select('id,remarks,condition_reasoning')
-      .order('condition_scored_at',{ascending:false}).order('id',{ascending:false})
-  ).range(from,from+PAGE_SIZE-1);
-  const countP=applyCardFilters(
+  ).range(from,from+PAGE_SIZE-1));
+  const countReq=Promise.resolve(applyCardFilters(
     sb.from('properties').select('id',{count:'exact',head:true})
-  );
+  ));
 
   // ----- Cards: render as soon as the (light) data query returns -----
-  const{data}=await dataP;
+  const{data}=await dataReq;
   if(seq!==loadSeq) return; // a newer load started; drop this stale response
 
   const container=document.getElementById('cardContainer');
@@ -597,7 +591,7 @@ async function loadCards(){
     document.getElementById('pagination').innerHTML='';
     document.getElementById('headerCount').textContent='(0)';
     totalCount=0;
-    await Promise.allSettled([countP,textP]); // consume the in-flight requests
+    await countReq.catch(()=>{}); // consume the in-flight count
     return;
   }
 
@@ -605,14 +599,19 @@ async function loadCards(){
   data.forEach(p=>{cardData[p.id]=p;});
   container.innerHTML=data.map(renderCard).join('');
 
-  // ----- Text: fold remarks + reasoning into the on-screen cards on arrival -----
-  textP.then(({data:txt})=>{
+  // ----- Text: fetched by the EXACT ids now on screen, then folded in. Using
+  // .in(id) (not a second paginated query) means hydration can't miss a card
+  // due to any ordering difference between two separate queries. -----
+  const ids=data.map(p=>p.id);
+  Promise.resolve(
+    sb.from('properties').select('id,remarks,condition_reasoning').in('id',ids)
+  ).then(({data:txt})=>{
     if(seq!==loadSeq||!txt) return;
     hydrateCardText(txt);
   });
 
   // ----- Count: fills the header + pagination once it arrives -----
-  const{count}=await countP;
+  const{count}=await countReq;
   if(seq!==loadSeq) return;
   totalCount=count||0;
   document.getElementById('headerCount').textContent=`(${totalCount})`;
