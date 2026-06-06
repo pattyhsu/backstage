@@ -1584,6 +1584,11 @@ function renderEscrowSection(){
   const closeStr=d.target_close_date||'';
   const daysIn=startStr?daysBetween(startStr, today):null;
   const daysToCRD=crdStr?daysBetween(today, crdStr):null;
+  const daysToClose=closeStr?daysBetween(today, closeStr):null;
+  // Compact relative-date helpers, matching the mockup (rel = past-leaning for the
+  // Started date; relF = future-leaning for the contingency/close deadlines).
+  const rel=d=>d==null?'':(d>0?d+' days ago':(d===0?'today':'in '+Math.abs(d)+'d'));
+  const relF=d=>d==null?'':(d>0?'in '+d+'d':(d===0?'today':Math.abs(d)+'d ago'));
   const ckHtml=renderChecklistBlock('in_escrow');
   return `
     <div class="sect phase-hide" id="escrowSect">
@@ -1594,12 +1599,12 @@ function renderEscrowSection(){
           <div class="sect">
             <div class="sect-h">
               <h2>Escrow Timeline</h2>
-              <span class="sub">3-anchor schedule · click any date to edit</span>
+              <span class="sub">3-anchor schedule · click to edit</span>
             </div>
             <div class="et-grid">
-              <div class="et-cell"><div class="et-lbl">Started</div><div class="et-val" data-escrow-field="escrow_start_date">${startStr||'—'}</div><div class="et-aux">${daysIn!=null?(daysIn>=0?daysIn+' days ago':'in '+Math.abs(daysIn)+' days'):''}</div></div>
-              <div class="et-cell"><div class="et-lbl">Contingency removed</div><div class="et-val" data-escrow-field="contingency_removal_date">${crdStr||'—'}</div><div class="et-aux ${daysToCRD!=null && daysToCRD<=7 && daysToCRD>=0?'et-deadline':''}">${daysToCRD!=null?(daysToCRD>0?'in '+daysToCRD+'d':(daysToCRD===0?'today':Math.abs(daysToCRD)+'d ago')):''}</div></div>
-              <div class="et-cell"><div class="et-lbl">Target close</div><div class="et-val" data-escrow-field="target_close_date">${closeStr||'—'}</div><div class="et-aux">${closeStr?(daysBetween(today,closeStr)>=0?'in '+daysBetween(today,closeStr)+' days':Math.abs(daysBetween(today,closeStr))+'d ago'):''}</div></div>
+              <div class="et-cell"><div class="et-lbl">Started</div><div class="et-val" data-escrow-field="escrow_start_date">${startStr||'—'}</div><div class="et-aux">${rel(daysIn)}</div></div>
+              <div class="et-cell"><div class="et-lbl">Contingency removed</div><div class="et-val" data-escrow-field="contingency_removal_date">${crdStr||'—'}</div><div class="et-aux ${daysToCRD!=null && daysToCRD<=7 && daysToCRD>=0?'et-deadline':''}">${relF(daysToCRD)}</div></div>
+              <div class="et-cell"><div class="et-lbl">Target close</div><div class="et-val" data-escrow-field="target_close_date">${closeStr||'—'}</div><div class="et-aux">${relF(daysToClose)}</div></div>
             </div>
           </div>
           <div class="sect doc-sect">
@@ -1763,11 +1768,11 @@ function renderChecklistBlock(phase){
       <span class="ck-name">${escapeHtml(it.display_name)}</span>
     </li>`;
   }
-  return `<div class="ck-block">
-    <div class="ck-block-h">Checklist · no specific date</div>
-    <ul class="ck-list">${lis}</ul>
-    <div class="ck-add" data-ck-phase="${escapeHtml(phase)}">+ Add checklist item</div>
-  </div>`;
+  // Clean markup matching the mockup: items sit directly under the section's
+  // CHECKLIST header (no .ck-block dashed-separator wrapper, which the redesign
+  // makes redundant since the checklist IS its own section now).
+  return `<ul class="ck-list">${lis}</ul>
+    <div class="ck-add" data-ck-phase="${escapeHtml(phase)}">+ Add checklist item</div>`;
 }
 function wireChecklists(){
   document.querySelectorAll('input[type=checkbox][data-ck-id]').forEach(cb=>{
