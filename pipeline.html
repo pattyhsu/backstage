@@ -207,7 +207,7 @@ function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'
 async function loadPipeline(){
   // Fetch all in-flight deals (exclude sold + archived).
   const {data:deals, error:dErr}=await sb.from('deals')
-    .select('id, phase, buy_side_mls, relist_mls, list_price, escrow_start_date, target_close_date, actual_close_date, construction_start_date, created_at')
+    .select('id, phase, buy_side_mls, relist_mls, list_price, purchase_price, escrow_start_date, target_close_date, actual_close_date, construction_start_date, created_at')
     .not('phase','in','(sold,archived,lost)')
     .order('created_at');
   if(dErr){console.error('[pipeline] deals load failed',dErr);renderError(dErr.message);return;}
@@ -352,9 +352,14 @@ function renderBoard(deals, propsByMls, latestByDeal, costByDeal){
           }
         }
 
-        // Price: prefer the deal's list_price (canonical), else fall back
-        // to the linked property row. May be NULL for OFFMKT- deals.
-        const priceVal=(d.list_price!=null)?d.list_price:(p?(p.list_price||p.sale_price):null);
+        // Price: once in escrow the deal's purchase_price (what we're buying
+        // at) is the relevant number, carried through Under Construction.
+        // Earlier phases show the list price. Falls back to list price if the
+        // purchase price is missing. May be NULL for OFFMKT- deals.
+        const listVal=(d.list_price!=null)?d.list_price:(p?(p.list_price||p.sale_price):null);
+        const priceVal=(phase==='in_escrow'||phase==='under_construction')
+          ? (d.purchase_price!=null?d.purchase_price:listVal)
+          : listVal;
         const priceStr=priceVal?FK(priceVal):'';
 
         const bb=p?[
