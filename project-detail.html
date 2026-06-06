@@ -1240,8 +1240,6 @@ function renderPage(){
               <div><label>Target close</label><input type="date" id="ppTargetClose"></div>
             </div>
           </div>
-          <div class="pp-lbl">Note (optional)</div>
-          <textarea id="ppNote" placeholder="e.g. 'Offer accepted at $1.05M'"></textarea>
           <div class="pp-actions">
             <button onclick="document.getElementById('phaseStack').classList.remove('open')">Cancel</button>
             <button class="primary" id="ppMoveBtn" onclick="movePhase()">Move</button>
@@ -2266,7 +2264,6 @@ window.onPpContChange=onPpContChange;
 async function movePhase(){
   if(saving)return;
   const sel=document.getElementById('ppNewPhase');
-  const noteEl=document.getElementById('ppNote');
   const btn=document.getElementById('ppMoveBtn');
   const msg=document.getElementById('ppMsg');
   msg.className='pp-msg'; msg.textContent='';
@@ -2274,7 +2271,6 @@ async function movePhase(){
   if(!toPhase){msg.className='pp-msg err';msg.textContent='Pick a phase.';return;}
   const fromPhase=currentDeal.phase;
   if(toPhase===fromPhase){msg.className='pp-msg err';msg.textContent='Already in that phase.';return;}
-  const note=(noteEl.value||'').trim()||null;
   const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
   let escrowStart=null, targetClose=null, crd=null, escrowPrice=null;
   if(toPhase==='in_escrow'){
@@ -2301,12 +2297,11 @@ async function movePhase(){
   if(dErr){saving=false;btn.disabled=false;msg.className='pp-msg err';msg.textContent='Deal update failed: '+dErr.message;return;}
   const {error:hErr}=await sb.from('deals_phase_history').insert({
     deal_id: currentDeal.id, from_phase: fromPhase, to_phase: toPhase,
-    transitioned_by: userId, note: note,
+    transitioned_by: userId, note: null,
   });
   if(hErr){saving=false;btn.disabled=false;msg.className='pp-msg err';msg.textContent='History insert failed: '+hErr.message;return;}
   saving=false; btn.disabled=false;
   msg.className='pp-msg ok'; msg.textContent='Moved.';
-  noteEl.value='';
   document.getElementById('phaseStack').classList.remove('open');
   await loadProject();
   // MG — fire loan modal on in_escrow if no loan yet.
