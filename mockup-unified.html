@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — One project, morphs by stage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fff; --bg-page:#F8F8F7; --bg-alt:#F2F1EF; --bg-inset:#EBEAE7; --bg-deep:#E2E1DD;
+  --border:#E2E1DD; --border-hover:#CCCBC6; --border-strong:#B0AFA8;
+  --text:#1A1A18; --text-2:#3A3A35; --text-3:#5C5C55; --text-4:#85857E;
+  --accent:#9C7C3C; --accent-hover:#B08E48; --accent-dim:rgba(156,124,60,.06); --accent-dim2:rgba(156,124,60,.13);
+  --green:#2D8A4E; --green-bg:#E8F5EC; --red:#C0392B; --red-bg:#FBEAEA; --amber:#B8651A; --amber-bg:#FDF0E2;
+  --radius:8px; --radius-sm:5px; --radius-lg:12px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.06); --shadow-md:0 4px 16px rgba(0,0,0,.08);
+  --sans:'DM Sans',system-ui,-apple-system,sans-serif; --mono:'JetBrains Mono','SF Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--sans);font-size:13px;color:var(--text);background:var(--bg-page);line-height:1.45;-webkit-font-smoothing:antialiased;}
+.app{display:grid;grid-template-columns:208px 1fr;min-height:100vh;}
+
+/* ---- Sidebar (the cleaned-up 3-door nav) ---- */
+.side{background:var(--bg);border-right:1px solid var(--border);padding:14px 10px;display:flex;flex-direction:column;gap:2px;}
+.brand{display:flex;align-items:center;gap:8px;padding:4px 8px 14px;font-weight:700;font-size:15px;letter-spacing:-.2px;}
+.brand .dot{width:18px;height:18px;border-radius:5px;background:var(--accent);display:inline-block;}
+.sec-label{font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-4);padding:12px 8px 3px;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:var(--radius);color:var(--text-3);text-decoration:none;font-size:13px;cursor:pointer;}
+.nav-item:hover{background:var(--bg-page);}
+.nav-item.active{background:var(--bg-alt);color:var(--text);font-weight:600;}
+.nav-item .ic{width:16px;height:16px;flex:none;color:var(--text-4);}
+.nav-item.active .ic{color:var(--text);}
+.killed{position:relative;opacity:.4;}
+.killed::after{content:"removed";position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:8px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--red);background:var(--red-bg);padding:1px 5px;border-radius:99px;}
+.killed .ic, .killed span:first-of-type{text-decoration:line-through;}
+
+/* ---- Main ---- */
+.main{padding:22px 30px 60px;max-width:980px;}
+.crumb{font-size:11px;color:var(--text-4);margin-bottom:10px;}
+.crumb b{color:var(--text-3);font-weight:600;}
+
+.phead{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:18px;}
+.phead h1{font-size:21px;font-weight:700;letter-spacing:-.3px;}
+.phead .addr-sub{color:var(--text-4);font-size:12px;margin-top:3px;}
+.phead .aux{font-size:12px;color:var(--accent);font-weight:600;margin-top:6px;font-family:var(--mono);}
+
+/* stage switcher = the morph control */
+.stages{display:flex;gap:4px;background:var(--bg-inset);padding:3px;border-radius:99px;}
+.stage-pill{border:none;background:transparent;font-family:var(--sans);font-size:12px;font-weight:600;color:var(--text-3);padding:5px 13px;border-radius:99px;cursor:pointer;white-space:nowrap;}
+.stage-pill:hover{color:var(--text);}
+.stage-pill.on{background:var(--bg);color:var(--text);box-shadow:var(--shadow-sm);}
+
+/* section cards */
+.sect{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;margin-bottom:14px;}
+.sect h2{font-size:13px;font-weight:700;letter-spacing:-.1px;display:flex;align-items:center;gap:8px;margin-bottom:2px;}
+.sect .sub{font-size:11px;color:var(--text-4);font-weight:500;}
+.sect-head{margin-bottom:13px;}
+.tag{font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:2px 7px;border-radius:99px;}
+.tag.money{background:var(--accent-dim2);color:var(--accent);}
+.tag.plan{background:#E9EEF6;color:#3A5C8A;}
+.tag.speed{background:var(--amber-bg);color:var(--amber);}
+.tag.offers{background:var(--green-bg);color:var(--green);}
+
+/* hide mechanism — mirrors real .phase-hide */
+[data-show]{display:none;}
+body[data-stage="pursuing"] [data-show~="pursuing"],
+body[data-stage="escrow"] [data-show~="escrow"],
+body[data-stage="construction"] [data-show~="construction"],
+body[data-stage="selling"] [data-show~="selling"]{display:block;}
+
+/* money grid */
+.kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;background:var(--border);border-radius:var(--radius);overflow:hidden;}
+.kcell{background:var(--bg);padding:10px 12px;}
+.kcell .l{font-size:10px;color:var(--text-4);text-transform:uppercase;letter-spacing:.4px;font-weight:600;}
+.kcell .v{font-size:16px;font-weight:700;font-family:var(--mono);margin-top:3px;letter-spacing:-.5px;}
+.kcell .v.g{color:var(--green);} .kcell .v.r{color:var(--red);}
+.headline{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;}
+.headline .big{font-size:26px;font-weight:700;font-family:var(--mono);letter-spacing:-1px;}
+.headline .lbl{font-size:11px;color:var(--text-4);text-transform:uppercase;letter-spacing:.5px;font-weight:600;}
+
+/* progress / speed bar */
+.bar{height:8px;background:var(--bg-inset);border-radius:99px;overflow:hidden;margin:8px 0 6px;}
+.bar > i{display:block;height:100%;border-radius:99px;}
+.bar.speed > i{background:var(--amber);}
+.bar.budget > i{background:var(--accent);}
+.barrow{display:flex;justify-content:space-between;font-size:11px;color:var(--text-3);font-family:var(--mono);}
+
+/* timeline rows */
+.tl{display:flex;flex-direction:column;gap:0;}
+.tlrow{display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--bg-alt);}
+.tlrow:last-child{border-bottom:none;}
+.tlrow .mk{width:10px;height:10px;border-radius:99px;border:2px solid var(--border-strong);}
+.tlrow.done .mk{background:var(--green);border-color:var(--green);}
+.tlrow.now .mk{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim2);}
+.tlrow .nm{font-weight:500;} .tlrow.done .nm{color:var(--text-3);}
+.tlrow .dt{font-family:var(--mono);font-size:11px;color:var(--text-4);}
+
+/* checklist */
+.chk{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:12px;}
+.chk .box{width:15px;height:15px;border-radius:4px;border:1.5px solid var(--border-strong);flex:none;}
+.chk.done .box{background:var(--green);border-color:var(--green);}
+.chk.done .t{color:var(--text-4);text-decoration:line-through;}
+
+/* offers compare */
+.offers{display:grid;gap:8px;}
+.offer{display:grid;grid-template-columns:1fr auto auto auto;gap:14px;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);}
+.offer.best{border-color:var(--green);background:var(--green-bg);}
+.offer .who{font-weight:600;} .offer .amt{font-family:var(--mono);font-weight:700;}
+.offer .meta{font-size:11px;color:var(--text-4);}
+.offer .net{font-family:var(--mono);font-weight:700;color:var(--green);}
+.pick{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--green);}
+
+.note{font-size:11px;color:var(--text-4);margin:22px 0 0;padding:12px 14px;background:var(--bg-alt);border-radius:var(--radius);border-left:3px solid var(--accent);}
+.note b{color:var(--text-2);}
+.emph{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;}
+</style>
+</head>
+<body data-stage="pursuing">
+<div class="app">
+
+  <!-- ===== Cleaned-up nav: 3 doors, concern-stubs removed ===== -->
+  <aside class="side">
+    <div class="brand"><span class="dot"></span>Backstage</div>
+
+    <div class="sec-label">Pipeline</div>
+    <a class="nav-item active"><span class="ic">▦</span><span>Pipeline</span></a>
+    <a class="nav-item"><span class="ic">▤</span><span>Calendar</span></a>
+
+    <div class="sec-label">Acquisitions</div>
+    <a class="nav-item"><span class="ic">◇</span><span>MLS Deals</span></a>
+    <a class="nav-item"><span class="ic">◈</span><span>Comp Check</span></a>
+
+    <div class="sec-label">Projects</div>
+    <a class="nav-item killed"><span class="ic">▣</span><span>Construction</span></a>
+    <a class="nav-item killed"><span class="ic">▥</span><span>Listings</span></a>
+
+    <div class="sec-label">Insights</div>
+    <a class="nav-item"><span class="ic">▧</span><span>Money</span></a>
+  </aside>
+
+  <!-- ===== One project, morphs by stage ===== -->
+  <main class="main">
+    <div class="crumb">Pipeline / <b>Project</b></div>
+
+    <div class="phead">
+      <div>
+        <h1>1428 Magnolia Ave</h1>
+        <div class="addr-sub">San Jose, CA 95126 · 3 bd / 2 ba · 1,540 sqft</div>
+        <div class="aux" id="aux">offer sent 4d ago</div>
+      </div>
+      <div class="stages" id="switcher">
+        <button class="stage-pill on" data-go="pursuing">Pursuing</button>
+        <button class="stage-pill" data-go="escrow">In Escrow</button>
+        <button class="stage-pill" data-go="construction">Construction</button>
+        <button class="stage-pill" data-go="selling">Selling</button>
+      </div>
+    </div>
+
+    <!-- MONEY — always present, retitled per stage -->
+    <section class="sect">
+      <div class="sect-head">
+        <h2 id="moneyTitle">Offer math <span class="tag money">money</span></h2>
+        <div class="sub" id="moneySub">model headline offer + reduction strategy</div>
+      </div>
+
+      <!-- pursuing money -->
+      <div data-show="pursuing">
+        <div class="headline"><span class="big">$612K</span><span class="lbl">recommended offer</span></div>
+        <div class="kgrid">
+          <div class="kcell"><div class="l">ARV</div><div class="v">$915K</div></div>
+          <div class="kcell"><div class="l">Rehab est.</div><div class="v">$118K</div></div>
+          <div class="kcell"><div class="l">Projected profit</div><div class="v g">$96K</div></div>
+          <div class="kcell"><div class="l">Margin</div><div class="v g">15.7%</div></div>
+        </div>
+      </div>
+      <!-- escrow money -->
+      <div data-show="escrow">
+        <div class="headline"><span class="big">$612K</span><span class="lbl">in escrow · 3% down</span></div>
+        <div class="kgrid">
+          <div class="kcell"><div class="l">Cash in deal</div><div class="v">$214K</div></div>
+          <div class="kcell"><div class="l">Loan funded</div><div class="v">$398K</div></div>
+          <div class="kcell"><div class="l">Projected profit</div><div class="v g">$94K</div></div>
+          <div class="kcell"><div class="l">Carry / mo</div><div class="v r">$4.1K</div></div>
+        </div>
+      </div>
+      <!-- construction money -->
+      <div data-show="construction">
+        <div class="headline"><span class="big">$71K</span><span class="lbl">of $118K rehab spent</span></div>
+        <div class="bar budget"><i style="width:60%"></i></div>
+        <div class="barrow"><span>$71K spent</span><span>60% · $47K left</span></div>
+        <div class="kgrid" style="margin-top:12px;">
+          <div class="kcell"><div class="l">All-in to date</div><div class="v">$683K</div></div>
+          <div class="kcell"><div class="l">Carry burned</div><div class="v r">$12.3K</div></div>
+          <div class="kcell"><div class="l">Projected profit</div><div class="v g">$88K</div></div>
+        </div>
+      </div>
+      <!-- selling money -->
+      <div data-show="selling">
+        <div class="headline"><span class="big">$905K</span><span class="lbl">list price · 11 DOM</span></div>
+        <div class="kgrid">
+          <div class="kcell"><div class="l">All-in cost</div><div class="v">$731K</div></div>
+          <div class="kcell"><div class="l">Breakeven</div><div class="v">$762K</div></div>
+          <div class="kcell"><div class="l">Cost of waiting</div><div class="v r">$137 / day</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ESCROW TIMELINE — planning, escrow only -->
+    <section class="sect" data-show="escrow">
+      <div class="sect-head"><h2>Escrow timeline <span class="tag plan">planning</span></h2>
+        <div class="sub">CAR RPA contingency deadlines, rolled off weekends</div></div>
+      <div class="tl">
+        <div class="tlrow done"><span class="mk"></span><span class="nm">Acceptance</span><span class="dt">Jun 2</span></div>
+        <div class="tlrow done"><span class="mk"></span><span class="nm">EMD deposited</span><span class="dt">Jun 5</span></div>
+        <div class="tlrow now"><span class="mk"></span><span class="nm">Inspection contingency</span><span class="dt">Jun 14</span></div>
+        <div class="tlrow"><span class="mk"></span><span class="nm">Loan contingency</span><span class="dt">Jun 23</span></div>
+        <div class="tlrow"><span class="mk"></span><span class="nm">Close of escrow</span><span class="dt">Jul 2</span></div>
+      </div>
+    </section>
+
+    <!-- PRE-CONSTRUCTION PREP — planning, escrow only -->
+    <section class="sect" data-show="escrow">
+      <div class="sect-head"><h2>Pre-construction prep <span class="tag plan">planning</span></h2>
+        <div class="sub">line up the crew so day 1 isn't day 1 of waiting</div></div>
+      <div class="chk done"><span class="box"></span><span class="t">Scope of work finalized</span></div>
+      <div class="chk done"><span class="box"></span><span class="t">GC walkthrough booked</span></div>
+      <div class="chk"><span class="box"></span><span class="t">Permits pre-filed</span></div>
+      <div class="chk"><span class="box"></span><span class="t">Materials long-lead ordered</span></div>
+    </section>
+
+    <!-- CONSTRUCTION — speed, construction only -->
+    <section class="sect" data-show="construction">
+      <div class="sect-head"><h2>Construction <span class="tag speed">speed</span></h2>
+        <div class="sub">day 22 of 60 · on pace for Jul 18 finish</div></div>
+      <div class="bar speed"><i style="width:37%"></i></div>
+      <div class="barrow"><span>day 22</span><span>37% · 38 days left</span></div>
+      <div class="tl" style="margin-top:14px;">
+        <div class="tlrow done"><span class="mk"></span><span class="nm">Demo</span><span class="dt">done · d4</span></div>
+        <div class="tlrow done"><span class="mk"></span><span class="nm">Rough plumbing + electrical</span><span class="dt">done · d16</span></div>
+        <div class="tlrow now"><span class="mk"></span><span class="nm">Drywall + paint</span><span class="dt">in progress</span></div>
+        <div class="tlrow"><span class="mk"></span><span class="nm">Kitchen + baths</span><span class="dt">~d40</span></div>
+        <div class="tlrow"><span class="mk"></span><span class="nm">Flooring + punch list</span><span class="dt">~d58</span></div>
+      </div>
+    </section>
+
+    <!-- LISTING / OFFERS — selling only -->
+    <section class="sect" data-show="selling">
+      <div class="sect-head"><h2>Offers on the table <span class="tag offers">compare</span></h2>
+        <div class="sub">3 offers · sorted by net to us after concessions</div></div>
+      <div class="offers">
+        <div class="offer best">
+          <div><div class="who">Nguyen <span class="pick">· best net</span></div><div class="meta">conventional · 25% down · no contingencies</div></div>
+          <div class="amt">$908K</div>
+          <div class="meta">close Jul 9</div>
+          <div class="net">+$889K</div>
+        </div>
+        <div class="offer">
+          <div><div class="who">Patel</div><div class="meta">cash · 10-day close · $8K credit ask</div></div>
+          <div class="amt">$895K</div>
+          <div class="meta">close Jun 30</div>
+          <div class="net">+$881K</div>
+        </div>
+        <div class="offer">
+          <div><div class="who">Reyes</div><div class="meta">FHA · 3.5% down · inspection contingency</div></div>
+          <div class="amt">$912K</div>
+          <div class="meta">close Jul 24</div>
+          <div class="net">+$873K</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="note">
+      <b>This is one page.</b> The stage pills above don't navigate — they re-emphasize the same project.
+      Each stage surfaces only its real concerns:
+      <div class="emph">
+        <span class="tag money">pursuing → money</span>
+        <span class="tag money">escrow → money</span><span class="tag plan">+ planning</span>
+        <span class="tag money">construction → money</span><span class="tag speed">+ speed</span>
+        <span class="tag offers">selling → compare offers</span>
+      </div>
+      No separate Construction / Listings pages — those concerns live here, gated by stage. The nav drops to 3 real doors:
+      <b>Pipeline</b> (all projects) → <b>Project</b> (this, morphing) → <b>Money</b> (portfolio roll-up).
+    </div>
+  </main>
+</div>
+
+<script>
+const aux = {
+  pursuing:'offer sent 4d ago',
+  escrow:'8 days in escrow',
+  construction:'day 22 of 60',
+  selling:'11 DOM',
+};
+const money = {
+  pursuing:['Offer math','model headline offer + reduction strategy'],
+  escrow:['Cash position','owner only · live from money.html data'],
+  construction:['Cash position','owner only · rehab burn + carry'],
+  selling:['Cash position','offer-decision oriented · cost of waiting + breakeven'],
+};
+document.getElementById('switcher').addEventListener('click', e=>{
+  const b=e.target.closest('[data-go]'); if(!b)return;
+  const s=b.dataset.go;
+  document.body.dataset.stage=s;
+  document.querySelectorAll('.stage-pill').forEach(p=>p.classList.toggle('on',p===b));
+  document.getElementById('aux').textContent=aux[s];
+  document.getElementById('moneyTitle').firstChild.textContent=money[s][0]+' ';
+  document.getElementById('moneySub').textContent=money[s][1];
+});
+</script>
+</body>
+</html>

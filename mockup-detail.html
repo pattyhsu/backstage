@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Detail (mockup) — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fff; --bg-page:#F8F8F7; --bg-alt:#F2F1EF; --bg-inset:#EBEAE7; --bg-deep:#E2E1DD;
+  --border:#E2E1DD; --border-hover:#CCCBC6; --border-strong:#B0AFA8;
+  --text:#1A1A18; --text-2:#3A3A35; --text-3:#5C5C55; --text-4:#85857E;
+  --accent:#9C7C3C; --accent-hover:#B08E48; --accent-dim:rgba(156,124,60,.06); --accent-dim2:rgba(156,124,60,.13);
+  --green:#2D8A4E; --green-bg:#E8F5EC; --red:#C0392B; --red-bg:#FBEAEA; --amber:#B8651A; --amber-bg:#FDF0E2;
+  --blue:#2873A8; --blue-bg:#E5F2FA;
+  --radius:8px; --radius-sm:5px; --radius-lg:12px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.06); --shadow-md:0 4px 16px rgba(0,0,0,.08);
+  --sans:'DM Sans',system-ui,-apple-system,sans-serif; --mono:'JetBrains Mono','SF Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--sans);font-size:13px;color:var(--text);background:#FAFAF7;height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased;}
+.app-shell{display:flex;height:100vh;}
+
+/* ---- Sidebar (faithful to current) ---- */
+.bs-sidebar{width:230px;background:var(--bg);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;}
+.side-brand{display:flex;align-items:center;gap:9px;padding:16px 16px 14px;font-weight:700;font-size:15px;}
+.side-mark{width:26px;height:26px;border-radius:7px;background:var(--text);display:grid;place-items:center;font-weight:700;font-size:11px;color:#fff;}
+.side-section{padding:6px 10px 0;}
+.side-section-label{font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-4);padding:8px 8px 3px;}
+.side-item{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:var(--radius);color:var(--text-3);text-decoration:none;font-size:13px;cursor:pointer;}
+.side-item:hover{background:var(--bg-page);}
+.side-item.active{background:var(--bg-alt);color:var(--text);font-weight:600;}
+.side-item.muted{color:var(--text-4);opacity:.5;cursor:default;}
+.side-ic{width:16px;height:16px;flex:none;opacity:.7;}
+.side-footer{margin-top:auto;display:flex;align-items:center;gap:9px;padding:14px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3);}
+.side-avatar{width:26px;height:26px;border-radius:50%;background:var(--bg-alt);display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--text-3);}
+
+.main-content{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+
+/* ============================================================
+   NEW TOP BAR — back link + stage tabs live here now.
+   The old redundant "Buy: PW…" label is gone (the MLS# already
+   lives in the acquisition sub-line), and the phase pill that
+   used to sit top-right of the acq card is now this tab strip.
+   ============================================================ */
+.topbar{display:flex;align-items:center;gap:14px;padding:9px 24px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.92);backdrop-filter:blur(20px);flex-shrink:0;}
+.back-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:4px 10px;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text-3);text-decoration:none;white-space:nowrap;}
+.back-btn:hover{color:var(--text);border-color:var(--border-hover);}
+.stage-tabs{display:flex;gap:3px;background:var(--bg-inset);padding:3px;border-radius:99px;}
+.stage-tab{border:none;background:transparent;font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--text-3);padding:5px 15px;border-radius:99px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:7px;}
+.stage-tab:hover{color:var(--text);}
+.stage-tab .aux{font-size:10px;font-weight:600;font-family:var(--mono);opacity:.8;}
+.stage-tab.on{background:var(--bg);box-shadow:var(--shadow-sm);color:var(--text-2);}     /* the tab you're VIEWING */
+.stage-tab.current{font-weight:700;}                                                    /* the deal's REAL phase — "you are here" */
+.stage-tab.current[data-phase="pursuing"]{color:var(--accent);}
+.stage-tab.current[data-phase="in_escrow"]{color:var(--amber);}
+.stage-tab.current[data-phase="under_construction"]{color:var(--blue);}
+.stage-tab.current[data-phase="selling"]{color:var(--green);}
+.stage-tab .here-dot{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block;}
+.stage-tab .lock-ic{font-size:10px;opacity:.7;}
+.stage-tab.locked{color:var(--text-4);opacity:.5;cursor:not-allowed;}                    /* future — not reached yet */
+.stage-tab.locked:hover{color:var(--text-4);}
+
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:14px;}
+.topbar-link{font-size:12px;color:var(--accent);text-decoration:none;white-space:nowrap;}
+.topbar-link:hover{text-decoration:underline;}
+
+.scroll-wrap{flex:1;overflow-y:auto;}
+.page{max-width:1080px;margin:0 auto;padding:20px 28px 60px;}
+
+/* ---- Acquisition card (phase pill removed from it) ---- */
+.acq{display:grid;grid-template-columns:48px 1fr;gap:12px;padding-bottom:16px;border-bottom:1px solid var(--border);margin-bottom:16px;align-items:start;}
+.acq-photo{width:48px;height:36px;border-radius:4px;overflow:hidden;background:linear-gradient(135deg,#cdc8be,#a8a297);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.7);font-size:15px;border:1px solid var(--border);}
+.acq-body{display:flex;flex-direction:column;gap:6px;}
+.acq-title{font-size:16px;font-weight:800;color:var(--text);line-height:1.2;}
+.acq-sub{font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.acq-sch{display:inline-flex;align-items:center;flex-wrap:wrap;}
+/* school pills — same format as mls-deals (.sp) */
+.sp{display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;padding:2px 5px;border-radius:4px;}
+.sp .lv{font-size:8px;font-weight:700;opacity:.7;}
+.sp.sh{background:var(--green-bg);color:var(--green);}
+.sp.sm{background:var(--amber-bg);color:var(--amber);}
+.sp.sl{background:var(--red-bg);color:var(--red);}
+.sp-nm{font-size:9px;color:var(--text-3);margin:0 8px 0 3px;}
+.acq-agent{display:flex;align-items:baseline;gap:12px;font-size:11px;color:var(--text-2);margin-top:3px;flex-wrap:wrap;}
+.acq-agent .lbl{color:var(--text-4);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-right:4px;}
+.acq-agent .ph{color:var(--accent);text-decoration:none;}
+.acq-agent .ph:hover{text-decoration:underline;}
+
+/* ---- Section block ---- */
+.sect{background:#fff;border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:14px;}
+.sect-h{display:flex;align-items:baseline;gap:12px;margin-bottom:12px;}
+.sect-h h2{font-size:13px;font-weight:700;color:var(--text);margin:0;letter-spacing:.02em;text-transform:uppercase;}
+.sect-h .sub{font-size:11px;color:var(--text-4);font-weight:500;}
+.sect-h .right{margin-left:auto;display:flex;align-items:center;gap:14px;}
+.sect-h .right a{font-size:12px;color:var(--accent);text-decoration:none;cursor:pointer;}
+.gen-rpa{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-2);border:1px solid var(--border);border-radius:6px;padding:5px 11px;cursor:pointer;background:#fff;}
+.gen-rpa:hover{border-color:var(--border-hover);}
+
+/* ---- OFFER MATH (ported verbatim from project-detail.html) ---- */
+.lp-calc{margin-top:2px;}
+#offerCalc .om-grid,#sellCalc .om-grid{display:grid;grid-template-columns:300px 1fr;gap:26px;align-items:start;margin-top:4px;font-variant-numeric:tabular-nums;}
+@media(max-width:860px){#offerCalc .om-grid,#sellCalc .om-grid{grid-template-columns:1fr;}}
+.om-col-l{display:flex;flex-direction:column;gap:14px;}
+.om-grp{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-4);margin-bottom:6px;}
+.om-grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.om-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
+.om-fin{background:var(--bg-alt);border:1px solid var(--border);border-radius:6px;padding:10px 11px;}
+.om-ig label{display:block;font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-4);margin-bottom:4px;}
+.om-ig input{width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:5px;font:13px var(--sans);font-weight:700;background:#fff;color:var(--text);font-variant-numeric:tabular-nums;}
+.om-ig input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim);}
+.om-arv-row{display:flex;gap:8px;align-items:center;}
+.om-arv-row input{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--border);border-radius:5px;font:14px var(--sans);font-weight:700;background:#fff;color:var(--accent);font-variant-numeric:tabular-nums;}
+.om-arv-row input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim);}
+.om-arv-row input[readonly]{background:var(--bg-alt);color:var(--text-2);}
+.om-lockbtn{font-size:10.5px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;border:1px solid var(--border);background:#fff;color:var(--text-3);border-radius:5px;padding:6px 10px;transition:all .12s;}
+.om-lockbtn:hover{border-color:var(--border-hover);color:var(--text);}
+.om-lockbtn.on{border-color:var(--green);background:var(--green-bg);color:var(--green);}
+.om-help{font-size:10.5px;color:var(--text-4);margin-top:6px;line-height:1.5;}
+.om-help b{color:var(--text-3);}
+.om-bd{margin-top:2px;}
+.om-bd-top{display:flex;align-items:baseline;justify-content:space-between;padding-bottom:10px;}
+.om-bd-top .lbl{font-size:13px;font-weight:700;color:var(--text);}
+.om-bd-top .val{font-size:20px;font-weight:800;color:var(--text);letter-spacing:-.01em;}
+.om-bd-bar{display:flex;height:12px;border-radius:7px;overflow:hidden;background:var(--bg-inset);margin-bottom:14px;gap:1.5px;}
+.om-bd-seg{height:100%;}
+.om-seg-purchase{background:#6B6B63;}
+.om-seg-purchexp{background:#85857B;}
+.om-seg-rehab{background:#9E9E93;}
+.om-seg-financing{background:#B5B5AA;}
+.om-seg-holding{background:#CACAC0;}
+.om-seg-disposition{background:#DCDCD3;}
+.om-seg-profit{background:var(--green);}
+.om-seg-loss{background:var(--red);}
+.om-bd-row{display:grid;grid-template-columns:14px 1fr auto auto;align-items:center;gap:10px;padding:7px 0;font-size:13px;}
+.om-bd-row+.om-bd-row{border-top:1px solid var(--border);}
+.om-bd-sw{width:11px;height:11px;border-radius:3px;}
+.om-bd-name{color:var(--text-2);font-weight:500;}
+.om-bd-name .det{color:var(--text-4);font-size:11px;font-weight:400;}
+.om-bd-pct{color:var(--text-4);font-size:11px;justify-self:end;min-width:46px;text-align:right;}
+.om-bd-amt{font-weight:600;color:var(--text);justify-self:end;min-width:104px;text-align:right;}
+.om-bd-total{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:9px 0;margin-top:2px;border-top:1.5px solid var(--border-strong);font-size:13px;}
+.om-bd-total .om-bd-name{font-weight:700;color:var(--text);}
+.om-bd-net{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border);font-size:14px;}
+.om-bd-net .om-bd-name{font-weight:800;}
+.om-bd-net .om-bd-pct{font-weight:700;font-size:12px;}
+.om-bd-net .om-bd-amt{font-weight:800;font-size:16px;min-width:104px;}
+.om-bd-net.pos .om-bd-name,.om-bd-net.pos .om-bd-pct,.om-bd-net.pos .om-bd-amt{color:var(--green);}
+.om-bd-net.neg .om-bd-name,.om-bd-net.neg .om-bd-pct,.om-bd-net.neg .om-bd-amt{color:var(--red);}
+.om-foot{display:flex;gap:18px;margin-top:14px;padding-top:12px;border-top:1px dashed var(--border-hover);font-size:11px;color:var(--text-3);flex-wrap:wrap;align-items:baseline;}
+.om-foot b{color:var(--text);}
+.om-foot .dim{color:var(--text-4);}
+
+/* placeholder for the not-yet-designed stages */
+.stub{background:#fff;border:1px dashed var(--border-strong);border-radius:8px;padding:40px 24px;text-align:center;color:var(--text-4);font-size:13px;}
+.stub b{color:var(--text-2);display:block;margin-bottom:5px;font-size:14px;}
+
+/* ---- Escrow timeline (ported from project-detail) ---- */
+.et-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;}
+.et-cell{display:flex;flex-direction:column;gap:3px;}
+.et-lbl{font-size:10px;color:var(--text-4);font-weight:600;letter-spacing:.04em;text-transform:uppercase;}
+.et-val{font-variant-numeric:tabular-nums;font-size:14px;font-weight:700;color:var(--text);cursor:text;padding:1px 3px;border-radius:3px;width:max-content;}
+.et-val:hover{background:var(--accent-dim);}
+.et-aux{font-size:11px;color:var(--text-4);font-variant-numeric:tabular-nums;}
+.et-deadline{color:var(--amber);font-weight:700;}
+
+/* ---- Checklist (ported) ---- */
+.ck-list{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:1fr;gap:9px;}
+/* escrow: two stacked columns — [timeline + docs] | [checklist + cash] */
+.escrow-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;}
+.esc-col{display:flex;flex-direction:column;gap:14px;}
+.esc-col .sect{margin-bottom:0;}
+.escrow-cols .et-grid{grid-template-columns:repeat(3,1fr);gap:12px 14px;}   /* 3 anchor dates only */
+@media(max-width:860px){.escrow-cols{grid-template-columns:1fr;}}
+
+/* compact documents — a side reference, not a headliner */
+.doc-sect .doc-row{grid-template-columns:24px 1fr auto;padding:7px 10px;gap:9px;}
+.doc-sect .doc-ic{width:24px;height:24px;font-size:12px;border-radius:5px;}
+.doc-sect .doc-name{font-size:12px;}
+.doc-sect .doc-meta{font-size:10px;}
+.doc-sect .doc-dl{font-size:11px;}
+.ck-list li{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);}
+.ck-list input[type=checkbox]{cursor:pointer;margin:0;}
+.ck-list li.done .ck-name{text-decoration:line-through;color:var(--text-4);}
+.ck-add{margin-top:12px;font-size:11px;color:var(--accent);cursor:pointer;}
+
+/* ---- Cash needed breakdown (segments mirror the offer-math buckets) ---- */
+.cn-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;}
+.cn-lbl{font-size:13px;font-weight:700;color:var(--text);}
+.cn-total{font-size:22px;font-weight:800;color:var(--text);letter-spacing:-.01em;font-variant-numeric:tabular-nums;}
+.cn-bar{display:flex;height:12px;border-radius:7px;overflow:hidden;background:var(--bg-inset);gap:1.5px;margin-bottom:14px;}
+.cn-seg{height:100%;}
+.cn-down{background:#6B6B63;}    /* same gray as Purchase price in offer math */
+.cn-rehab{background:#9E9E93;}   /* same as Construction / rehab */
+.cn-carry{background:#B5B5AA;}   /* same as Financing */
+.cn-row{display:grid;grid-template-columns:14px 1fr auto;gap:10px;align-items:center;padding:8px 0;font-size:13px;}
+.cn-row+.cn-row{border-top:1px solid var(--border);}
+.cn-sw{width:11px;height:11px;border-radius:3px;}
+.cn-name{color:var(--text-2);font-weight:500;}
+.cn-name .det{color:var(--text-4);font-size:11px;font-weight:400;}
+.cn-amt{font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;justify-self:end;}
+
+/* ---- Advance / "Open escrow" affordances ---- */
+.stage-tab.next{color:var(--amber);}                 /* the immediate next stage — openable, not a free view */
+.stage-tab.next .next-ic{font-size:11px;opacity:.85;}
+.stage-tab.next:hover{background:var(--amber-bg);}
+
+/* ---- Advance modal ---- */
+.modal-overlay{position:fixed;inset:0;background:rgba(26,26,24,.35);display:none;align-items:center;justify-content:center;z-index:100;}
+.modal-overlay.open{display:flex;}
+.modal{background:#fff;border-radius:12px;box-shadow:var(--shadow-md);width:430px;max-width:92vw;padding:22px 22px 18px;}
+.modal-h{font-size:16px;font-weight:800;color:var(--text);}
+.modal-blurb{font-size:12px;color:var(--text-3);margin-top:5px;margin-bottom:16px;line-height:1.5;}
+.modal-fields{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+.adv-f{display:flex;flex-direction:column;gap:4px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-4);}
+.adv-f input{padding:7px 9px;border:1px solid var(--border);border-radius:5px;font:13px var(--sans);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;}
+.adv-f input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim);}
+.modal-preview{margin-top:14px;padding:9px 12px;background:var(--accent-dim);border:1px solid var(--accent-dim2);border-radius:6px;font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+.btn-ghost{background:#fff;border:1px solid var(--border);border-radius:6px;padding:7px 14px;font:13px var(--sans);font-weight:600;color:var(--text-2);cursor:pointer;}
+.btn-primary{background:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:7px 16px;font:13px var(--sans);font-weight:700;color:#fff;cursor:pointer;}
+.btn-primary:hover{background:var(--accent-hover);}
+
+/* ---- Construction: status bars (schedule + budget) — label+value above a full-width bar ---- */
+.cn-bars{display:flex;flex-direction:column;gap:14px;}
+.cn-bar2{display:flex;flex-direction:column;gap:6px;}
+.cn-bar2-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+.cn-bar2 .lbl{font-size:11px;color:var(--text-4);font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+.cn-bar2 .pct{font-variant-numeric:tabular-nums;font-size:12px;color:var(--text-2);font-weight:600;}
+.cn-bar2 .track{width:100%;height:8px;background:var(--bg-inset);border-radius:999px;overflow:hidden;}
+.cn-bar2 .fill{height:100%;border-radius:999px;transition:width .3s;}
+.cn-bar2 .fill.blue{background:var(--blue);}
+.cn-bar2 .fill.gold{background:var(--accent);}
+.cn-bar2 .fill.over{background:var(--red);}
+.constr-cols{display:grid;grid-template-columns:1fr 1.5fr;gap:14px;align-items:start;}   /* left: bars+docs · right: spent (bigger) */
+.constr-cols .sect{margin-bottom:0;}
+@media(max-width:860px){.constr-cols{grid-template-columns:1fr;}}
+
+/* ---- Construction cost breakdown — mirrors iOS pipeline construction card ---- */
+.comp-bar{display:flex;height:11px;border-radius:5px;overflow:hidden;background:#ECEBE8;margin-bottom:14px;}
+.comp-seg{height:100%;}
+.led-grp{padding-top:12px;border-top:1px solid var(--bg-alt);}
+.led-grp:first-child{padding-top:0;border-top:none;}
+.led-head{display:grid;grid-template-columns:auto auto 1fr auto;gap:8px;align-items:center;padding-bottom:6px;}
+.led-sw{width:9px;height:9px;border-radius:2px;}
+.led-name{font-size:12px;font-weight:600;color:var(--text-2);}
+.led-pct{font-size:10px;color:var(--text-4);font-variant-numeric:tabular-nums;}
+.led-sub{font-variant-numeric:tabular-nums;font-size:12px;font-weight:600;color:var(--text);text-align:right;}
+.led-row{display:grid;grid-template-columns:1fr auto;gap:10px;padding:4px 0 4px 17px;}
+.led-row .nm{font-size:12px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.led-row .amt{font-variant-numeric:tabular-nums;font-size:12px;color:var(--text-2);font-weight:500;text-align:right;}
+
+/* ---- Selling: editable offer comparison table ---- */
+.off-cols{grid-template-columns:1.5fr 120px 74px 74px 96px 126px;gap:12px;}
+.off-hrow{display:grid;align-items:end;padding:0 12px 8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-4);}
+.off-hrow span:not(:first-child){text-align:right;}
+.off-row{display:grid;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;}
+.off-row.best{border-color:var(--green);background:var(--green-bg);}
+.off-buyer{font-weight:700;font-size:13px;}
+.off-terms{font-size:11px;color:var(--text-4);margin-top:2px;}
+.off-in{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font:12px var(--sans);font-weight:600;text-align:right;background:#fff;color:var(--text);font-variant-numeric:tabular-nums;}
+.off-in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim);}
+.off-net{text-align:right;}
+.off-net .v{font-variant-numeric:tabular-nums;font-weight:800;font-size:14px;color:var(--green);}
+.off-net .b{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--green);margin-top:2px;}
+.off-net .d{font-size:10px;color:var(--text-4);font-variant-numeric:tabular-nums;margin-top:2px;}
+
+/* ---- Documents (shared across escrow + construction) ---- */
+.doc-list{display:flex;flex-direction:column;gap:8px;}
+.doc-row{display:grid;grid-template-columns:32px 1fr auto;gap:12px;align-items:center;padding:9px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;}
+.doc-row:hover{border-color:var(--border-hover);}
+.doc-ic{width:32px;height:32px;border-radius:6px;display:grid;place-items:center;font-size:15px;}
+.doc-ic.design{background:#E9EEF6;}
+.doc-ic.permit{background:var(--amber-bg);}
+.doc-ic.contract{background:var(--accent-dim2);}
+.doc-ic.inspect{background:var(--green-bg);}
+.doc-ic.other{background:var(--bg-inset);}
+.doc-main{min-width:0;}
+.doc-name{font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.doc-meta{font-size:11px;color:var(--text-4);margin-top:1px;}
+.doc-tag{font-weight:600;}
+.doc-tag.design{color:#3A5C8A;}
+.doc-tag.permit{color:var(--amber);}
+.doc-tag.contract{color:var(--accent);}
+.doc-tag.inspect{color:var(--green);}
+.doc-dl{font-size:12px;color:var(--text-4);cursor:pointer;text-decoration:none;white-space:nowrap;}
+.doc-dl:hover{color:var(--text-2);}
+.doc-add{font-size:12px;color:var(--accent);cursor:pointer;}
+.doc-empty{font-size:12px;color:var(--text-4);font-style:italic;padding:8px 0;}
+
+.hide{display:none;}
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="bs-sidebar">
+    <div class="side-brand"><span class="side-mark">D</span>Backstage</div>
+    <div class="side-section">
+      <div class="side-section-label">Pipeline</div>
+      <a class="side-item"><span class="side-ic">▤</span>Pipeline</a>
+      <a class="side-item"><span class="side-ic">▦</span>Calendar</a>
+    </div>
+    <div class="side-section">
+      <div class="side-section-label">Acquisitions</div>
+      <a class="side-item"><span class="side-ic">◇</span>MLS Deals</a>
+      <a class="side-item"><span class="side-ic">◈</span>Comp Check</a>
+    </div>
+    <div class="side-section">
+      <div class="side-section-label">Projects</div>
+      <a class="side-item muted"><span class="side-ic">▣</span>Construction</a>
+      <a class="side-item muted"><span class="side-ic">▥</span>Listings</a>
+    </div>
+    <div class="side-section">
+      <div class="side-section-label">Data</div>
+      <a class="side-item"><span class="side-ic">◷</span>Condition</a>
+    </div>
+    <div class="side-section">
+      <div class="side-section-label">Insights</div>
+      <a class="side-item"><span class="side-ic">＄</span>Money</a>
+    </div>
+    <div class="side-footer"><span class="side-avatar">P</span>Patty Hsu</div>
+  </aside>
+
+  <div class="main-content">
+
+    <!-- ===== Consolidated top bar ===== -->
+    <div class="topbar">
+      <a class="back-btn" href="#">← Pipeline</a>
+      <div class="topbar-right">
+        <div class="stage-tabs" id="stageTabs">
+          <button class="stage-tab" data-phase="pursuing">Pursuing</button>
+          <button class="stage-tab" data-phase="in_escrow">In Escrow</button>
+          <button class="stage-tab" data-phase="under_construction">Construction</button>
+          <button class="stage-tab" data-phase="selling">Selling</button>
+        </div>
+        <a class="topbar-link" href="#">View full listing →</a>
+      </div>
+    </div>
+
+    <div class="scroll-wrap">
+    <div class="page">
+
+      <!-- Acquisition card -->
+      <div class="acq">
+        <div class="acq-photo">🏠</div>
+        <div class="acq-body">
+          <div class="acq-title">13635 Palm ST, CERRITOS 90703</div>
+          <div class="acq-sub">
+            <span id="acqSpecs">4/4 · 2,523 sf · Lot 5,001 sf · Pool No<span id="acqMls"> · MLS# PW26095294MR</span></span>
+            <span class="acq-sch">
+              <span class="sp sh"><span class="lv">E</span>10</span><span class="sp-nm">Gonsalves (Joe A.) ES</span>
+              <span class="sp sm"><span class="lv">M</span>9</span><span class="sp-nm">Carmenita MS</span>
+              <span class="sp sh"><span class="lv">H</span>10</span><span class="sp-nm">Whitney HS</span>
+            </span>
+          </div>
+          <div class="acq-agent" id="acqAgent"><span><span class="lbl">Agent</span>Ching, Emily · <a class="ph" href="tel:5629243838">(562) 924-3838</a></span></div>
+        </div>
+      </div>
+
+      <!-- ===== PURSUING — Offer math (unchanged) ===== -->
+      <div class="sect" id="panel-pursuing">
+        <div class="sect-h">
+          <h2>Offer math</h2>
+          <span class="sub">model headline offer + reduction strategy</span>
+          <span class="right">
+            <span class="gen-rpa">📄 Generate RPA</span>
+            <a href="#">Money page →</a>
+          </span>
+        </div>
+        <div class="lp-calc" id="offerCalc">
+          <div class="om-grid">
+            <div class="om-col-l">
+              <div>
+                <div class="om-grp">Sell price (ARV)</div>
+                <div class="om-arv-row">
+                  <input id="ocArv" value="$1,650,000" readonly>
+                  <button type="button" id="ocArvLock" class="om-lockbtn on">🔒 Locked</button>
+                </div>
+              </div>
+              <div>
+                <div class="om-grp">Offer</div>
+                <div class="om-grid2">
+                  <div class="om-ig"><label>Headline offer</label><input type="number" id="ocOffer" value="1122000" step="10000"></div>
+                  <div class="om-ig"><label>Reduction</label><input type="number" id="ocReduction" value="25000" step="1000"></div>
+                  <div class="om-ig"><label>Commission %</label><input type="number" id="ocCommission" value="2" step="0.25" min="0" max="5"></div>
+                  <div class="om-ig"><label>Target margin %</label><input type="number" id="ocTargetSpread" value="10" step="0.5" min="0" max="50"></div>
+                </div>
+              </div>
+              <div class="om-fin">
+                <div class="om-grp">Financing assumptions</div>
+                <div class="om-grid3">
+                  <div class="om-ig"><label>Months</label><input type="number" id="ocMonths" value="3" step="1" min="0"></div>
+                  <div class="om-ig"><label>Rate %</label><input type="number" id="ocRate" value="9" step="0.5" min="0"></div>
+                  <div class="om-ig"><label>LTV %</label><input type="number" id="ocLtv" value="90" step="5" min="0" max="100"></div>
+                </div>
+                <div class="om-help" id="ocFinHelp" style="margin-top:7px"></div>
+              </div>
+            </div>
+            <div class="om-col-r">
+              <div class="om-bd" id="ocBd"></div>
+              <div class="om-foot" id="ocFoot"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Other stages — stubs to design next ===== -->
+      <div class="hide" id="panel-in_escrow">
+        <div class="escrow-cols">
+
+          <!-- LEFT column · escrow timeline (big) + documents (compact) -->
+          <div class="esc-col">
+            <div class="sect">
+              <div class="sect-h"><h2>Escrow Timeline</h2><span class="sub">3-anchor schedule · click to edit</span><span class="right"><a href="#">Calendar →</a></span></div>
+              <div class="et-grid">
+                <div class="et-cell"><div class="et-lbl">Started</div><div class="et-val" id="etStarted">2026-06-06</div><div class="et-aux" id="etStartedAux">today</div></div>
+                <div class="et-cell"><div class="et-lbl">Contingency removed</div><div class="et-val" id="etCont">2026-06-23</div><div class="et-aux" id="etContAux">in 17d</div></div>
+                <div class="et-cell"><div class="et-lbl">Target close</div><div class="et-val" id="etClose">2026-07-06</div><div class="et-aux" id="etCloseAux">in 30d</div></div>
+              </div>
+            </div>
+            <div class="sect doc-sect">
+              <div class="sect-h"><h2>Documents</h2><span class="sub">design plans · permits — carry into construction</span><span class="right"><span class="doc-add" data-docadd>+ Upload</span></span></div>
+              <div class="doc-list" id="docs-in_escrow"></div>
+            </div>
+          </div>
+
+          <!-- RIGHT column · checklist + cash needed -->
+          <div class="esc-col">
+            <div class="sect">
+              <div class="sect-h"><h2>Checklist</h2><span class="sub">pre-construction prep · who's lined up, what's filed</span></div>
+              <ul class="ck-list" id="escrowChecklist">
+                <li><input type="checkbox"><span class="ck-name">Check prelim title</span></li>
+                <li><input type="checkbox"><span class="ck-name">Notify escrow of insurance binder</span></li>
+                <li><input type="checkbox"><span class="ck-name">City permit research re: rehab plans</span></li>
+                <li><input type="checkbox"><span class="ck-name">Utility setup (electricity/gas/water/trash)</span></li>
+              </ul>
+              <div class="ck-add" id="ckAdd">+ Add checklist item</div>
+            </div>
+            <div class="sect">
+              <div class="sect-h"><h2>Cash needed</h2><span class="sub">what you wire to close + fund the rehab</span><span class="right"><a href="#">Money page →</a></span></div>
+              <div class="cn-top"><span class="cn-lbl">Total to bring</span><span class="cn-total">$306,376</span></div>
+              <div class="cn-bar"><i class="cn-seg cn-down" style="flex:107506"></i><i class="cn-seg cn-rehab" style="flex:177100"></i><i class="cn-seg cn-carry" style="flex:21770"></i></div>
+              <div class="cn-row"><span class="cn-sw cn-down"></span><span class="cn-name">Down payment <span class="det">· 10% of $1,075,060 purchase</span></span><span class="cn-amt">$107,506</span></div>
+              <div class="cn-row"><span class="cn-sw cn-rehab"></span><span class="cn-name">Construction / rehab</span><span class="cn-amt">$177,100</span></div>
+              <div class="cn-row"><span class="cn-sw cn-carry"></span><span class="cn-name">Carry cost <span class="det">· 3 mo @ 9% on $967,554 loan</span></span><span class="cn-amt">$21,770</span></div>
+            </div>
+          </div>
+
+        </div><!-- /escrow-cols -->
+      </div>
+      <div class="hide" id="panel-under_construction">
+        <div class="constr-cols">
+
+          <!-- LEFT: construction status bars + documents -->
+          <div class="esc-col">
+            <div class="sect">
+              <div class="sect-h"><h2>Construction</h2><span class="sub">how far in · how much spent</span><span class="right"><a href="#">Money page →</a></span></div>
+              <div class="cn-bars">
+                <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Schedule</span><span class="pct">day 22 of 60 · 37%</span></div><div class="track"><div class="fill blue" style="width:37%"></div></div></div>
+                <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Budget</span><span class="pct">$98,240 / $177,100 · 55%</span></div><div class="track"><div class="fill gold" style="width:55%"></div></div></div>
+              </div>
+            </div>
+            <div class="sect doc-sect">
+              <div class="sect-h"><h2>Documents</h2><span class="sub">from escrow + build docs</span><span class="right"><span class="doc-add" data-docadd>+ Upload</span></span></div>
+              <div class="doc-list" id="docs-under_construction"></div>
+            </div>
+          </div>
+
+          <!-- RIGHT: spent to date (bigger) -->
+          <div class="sect">
+            <div class="sect-h"><h2>Spent to date</h2><span class="sub">cost breakdown · <span id="bdCount"></span></span><span class="right"><a href="#">Money page →</a></span></div>
+            <div class="comp-bar" id="compBar"></div>
+            <div id="ledger"></div>
+          </div>
+
+        </div>
+      </div>
+      <div class="hide" id="panel-selling">
+
+        <!-- List price calculator — mimics offer math, inverted for the sell side -->
+        <div class="sect">
+          <div class="sect-h"><h2>List price</h2><span class="sub">model the list price + selling costs to hit your number</span><span class="right"><a href="#">Money page →</a></span></div>
+          <div class="lp-calc" id="sellCalc">
+            <div class="om-grid">
+              <div class="om-col-l">
+                <div>
+                  <div class="om-grp">List price</div>
+                  <div class="om-arv-row"><input id="slList" value="$1,650,000"></div>
+                  <div class="om-help">Set from comps — what buyers will pay, not a margin you pick.</div>
+                </div>
+                <div>
+                  <div class="om-grp">Selling assumptions</div>
+                  <div class="om-grid2">
+                    <div class="om-ig"><label>Commission %</label><input type="number" id="slComm" value="2.85" step="0.05" min="0" max="10"></div>
+                    <div class="om-ig"><label>Closing %</label><input type="number" id="slClose" value="1" step="0.25" min="0" max="5"></div>
+                    <div class="om-ig"><label>Concessions $</label><input type="number" id="slConc" value="0" step="1000" min="0"></div>
+                    <div class="om-ig"><label>Days to close</label><input type="number" id="slDays" value="45" step="1" min="0"></div>
+                  </div>
+                </div>
+                <div class="om-fin">
+                  <div class="om-grp">Cost basis (actual · already spent)</div>
+                  <div class="om-help" id="slBasisHelp"></div>
+                </div>
+              </div>
+              <div class="om-col-r">
+                <div class="om-bd" id="slBd"></div>
+                <div class="om-foot" id="slFoot"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Offer comparison calculator -->
+        <div class="sect">
+          <div class="sect-h"><h2>Offer comparison</h2><span class="sub">net to you after selling costs + carry-to-close — edit price/terms live during counters</span><span class="right"><a href="#" id="addOffer">+ Add offer</a></span></div>
+          <div class="off-list" id="offerList"></div>
+        </div>
+
+      </div>
+
+    </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Advance modal (Open escrow / Start construction / List it) -->
+<div class="modal-overlay" id="advOverlay">
+  <div class="modal">
+    <div class="modal-h" id="advTitle">Open escrow</div>
+    <div class="modal-blurb" id="advBlurb"></div>
+    <div class="modal-fields" id="advFields"></div>
+    <div class="modal-preview" id="advPreview"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="advCancel">Cancel</button>
+      <button class="btn-primary" id="advGo">Open escrow</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- Stage tabs = a lifecycle timeline, not free navigation ----
+// Two separate ideas the tab strip carries:
+//   • CURRENT  = the deal's real phase ("you are here", colored dot). Fixed.
+//   • viewing  = which stage's view you're looking at. You may browse any
+//                stage you've ALREADY passed (and edit it — it still saves);
+//                future stages are locked until the deal actually reaches them.
+const ORDER=['pursuing','in_escrow','under_construction','selling'];
+const LABEL={pursuing:'Pursuing',in_escrow:'In Escrow',under_construction:'Construction',selling:'Selling'};
+const STATUS={pursuing:'offer sent 4d ago',in_escrow:'just opened escrow',under_construction:'day 22 of 60',selling:'11 DOM'};
+const TODAY='2026-06-06';
+let CURRENT='pursuing';     // demo starts in Pursuing so the advance is demonstrable
+let viewing=CURRENT;
+
+// UTC-based so there's no timezone off-by-one in the browser
+function addDays(iso,n){const [y,m,d]=iso.split('-').map(Number);return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10);}
+function dayDiff(a,b){const x=a.split('-').map(Number),z=b.split('-').map(Number);return Math.round((Date.UTC(z[0],z[1]-1,z[2])-Date.UTC(x[0],x[1]-1,x[2]))/86400000);}
+function rel(d){return d>0?d+' days ago':(d===0?'today':'in '+Math.abs(d)+'d');}
+function relF(d){return d>0?'in '+d+'d':(d===0?'today':Math.abs(d)+'d ago');}
+
+function apply(){
+  const ci=ORDER.indexOf(CURRENT);
+  ORDER.forEach((ph,i)=>{
+    const t=document.querySelector(`.stage-tab[data-phase="${ph}"]`);
+    const isCur=ph===CURRENT, isNext=i===ci+1, isFut=i>ci+1, isView=ph===viewing;
+    t.classList.toggle('current',isCur);
+    t.classList.toggle('next',isNext);          // the one openable next stage
+    t.classList.toggle('locked',isFut);         // stages further out — inert
+    t.classList.toggle('on',isView);
+    t.innerHTML=(isCur?'<span class="here-dot"></span> ':'')+LABEL[ph]
+      +(isNext?' <span class="next-ic">→</span>':'')
+      +(isFut?' <span class="lock-ic">🔒</span>':'');
+    t.title=isNext?('Open '+LABEL[ph]+' — advance this deal'):(isFut?'Locked until earlier stages finish':'');
+    document.getElementById('panel-'+ph).classList.toggle('hide',!isView);
+  });
+  updateAcqCard(viewing);
+}
+// The header adapts to the stage you're viewing: buy-side MLS while acquiring,
+// no MLS/agent once we own it (construction), our relist MLS when selling.
+function updateAcqCard(phase){
+  const mls=document.getElementById('acqMls'), agent=document.getElementById('acqAgent');
+  if(phase==='under_construction')      mls.textContent='';
+  else if(phase==='selling')            mls.textContent=' · MLS# PW26241783';   // our relist
+  else                                  mls.textContent=' · MLS# PW26095294MR'; // buy-side
+  agent.style.display=(phase==='under_construction'||phase==='selling')?'none':'';
+}
+document.getElementById('stageTabs').addEventListener('click',e=>{
+  const b=e.target.closest('[data-phase]'); if(!b)return;
+  if(b.classList.contains('next')){openAdvance();return;}   // next stage = advance, not view-switch
+  if(b.classList.contains('locked'))return;                // far stages inert
+  viewing=b.dataset.phase; apply();
+});
+
+// ---- Advance flow: each phase advances to the next via a real-world milestone ----
+const ADVANCE={
+  pursuing:{to:'in_escrow',label:'Open escrow',blurb:'Offer accepted — lock the accepted price and start the escrow clock.',
+    fields:[{id:'price',label:'Accepted price ($)',type:'number',val:1097000},{id:'acc',label:'Acceptance date',type:'date',val:TODAY},{id:'cont',label:'Contingency days',type:'number',val:17},{id:'coe',label:'COE days',type:'number',val:30}],preview:true},
+  in_escrow:{to:'under_construction',label:'Start construction',blurb:'Closed and funded — start the build clock.',
+    fields:[{id:'start',label:'Construction start',type:'date',val:addDays(TODAY,30)},{id:'days',label:'Target days',type:'number',val:60}]},
+  under_construction:{to:'selling',label:'List it',blurb:'Build done — take it to market.',
+    fields:[{id:'list',label:'List date',type:'date',val:addDays(TODAY,110)},{id:'lp',label:'List price ($)',type:'number',val:1650000}]},
+};
+const ov=document.getElementById('advOverlay');
+function gF(id){const el=document.querySelector(`#advFields [data-f="${id}"]`);return el?el.value:'';}
+function openAdvance(){
+  const cfg=ADVANCE[CURRENT]; if(!cfg)return;
+  document.getElementById('advTitle').textContent=cfg.label;
+  document.getElementById('advBlurb').textContent=cfg.blurb;
+  document.getElementById('advGo').textContent=cfg.label;
+  document.getElementById('advFields').innerHTML=cfg.fields.map(f=>`<label class="adv-f"><span>${f.label}</span><input data-f="${f.id}" type="${f.type}" value="${f.val}"></label>`).join('');
+  const prev=document.getElementById('advPreview');
+  function refresh(){
+    if(!cfg.preview){prev.style.display='none';return;}
+    prev.style.display='';
+    prev.textContent=`Contingency removes ${addDays(gF('acc'),+gF('cont'))} · closes ${addDays(gF('acc'),+gF('coe'))}`;
+  }
+  document.getElementById('advFields').oninput=refresh; refresh();
+  document.getElementById('advGo').onclick=()=>{
+    if(CURRENT==='pursuing')updateEscrowTimeline(gF('acc'),+gF('cont'),+gF('coe'));
+    CURRENT=cfg.to; viewing=cfg.to; ov.classList.remove('open'); apply();
+  };
+  ov.classList.add('open');
+}
+document.getElementById('advCancel').onclick=()=>ov.classList.remove('open');
+ov.addEventListener('click',e=>{if(e.target===ov)ov.classList.remove('open');});
+
+function updateEscrowTimeline(acc,cont,coe){
+  const cd=addDays(acc,cont), close=addDays(acc,coe), din=dayDiff(acc,TODAY);
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  set('etStarted',acc); set('etStartedAux',rel(din));
+  set('etCont',cd); const dToCd=dayDiff(TODAY,cd), ca=document.getElementById('etContAux');
+  if(ca){ca.textContent=relF(dToCd);ca.classList.toggle('et-deadline',dToCd>=0&&dToCd<=7);}
+  set('etClose',close); set('etCloseAux',relF(dayDiff(TODAY,close)));
+}
+apply();
+
+// ---- Escrow checklist: toggle done + add item ----
+const ckList=document.getElementById('escrowChecklist');
+if(ckList){
+  ckList.addEventListener('change',e=>{
+    const cb=e.target.closest('input[type=checkbox]'); if(!cb)return;
+    cb.closest('li').classList.toggle('done',cb.checked);
+  });
+  document.getElementById('ckAdd').addEventListener('click',()=>{
+    const n=prompt('Checklist item:'); if(!n)return;
+    const li=document.createElement('li');
+    li.innerHTML='<input type="checkbox"><span class="ck-name"></span>';
+    li.querySelector('.ck-name').textContent=n;
+    ckList.appendChild(li);
+  });
+}
+
+// ---- Documents: ONE list, mounted in both Escrow and Construction ----
+// Design starts during escrow, so a doc added there shows up in construction too.
+const DOC_TYPES={design:{label:'Design plan',ic:'📐'},permit:{label:'Permit',ic:'🏛️'},contract:{label:'Contract',ic:'📝'},inspect:{label:'Inspection',ic:'🔍'},other:{label:'Doc',ic:'📄'}};
+const DOCS=[
+  {name:'Architectural plans — rev B.pdf', type:'design',   by:'Patty', date:'2026-06-06', size:'4.2 MB'},
+  {name:'Contractor bid — Alvarez Const.pdf', type:'contract', by:'Patty', date:'2026-06-06', size:'820 KB'},
+  {name:'City permit application.pdf', type:'permit',   by:'Patty', date:'2026-06-06', size:'1.1 MB'},
+];
+function renderDocs(){
+  const html=DOCS.length?DOCS.map(d=>{
+    const t=DOC_TYPES[d.type]||DOC_TYPES.other;
+    return `<div class="doc-row"><span class="doc-ic ${d.type}">${t.ic}</span><div class="doc-main"><div class="doc-name">${d.name}</div><div class="doc-meta"><span class="doc-tag ${d.type}">${t.label}</span> · ${d.by} · ${d.date} · ${d.size}</div></div><a class="doc-dl">Download</a></div>`;
+  }).join(''):'<div class="doc-empty">No documents yet — design plans, bids, and permits live here.</div>';
+  ['docs-in_escrow','docs-under_construction'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=html;});
+}
+function addDoc(){
+  const name=prompt('Document name (e.g. Floor plan v3.pdf):'); if(!name)return;
+  const l=name.toLowerCase();
+  let type='other';
+  if(/plan|design|render|elevation|floor/.test(l))type='design';
+  else if(/permit|city|zoning/.test(l))type='permit';
+  else if(/bid|contract|agreement|rpa|escrow/.test(l))type='contract';
+  else if(/inspect|report/.test(l))type='inspect';
+  DOCS.unshift({name,type,by:'Patty',date:TODAY,size:'—'});
+  renderDocs();
+}
+document.addEventListener('click',e=>{if(e.target.matches('[data-docadd]'))addDoc();});
+renderDocs();
+
+// ---- Construction cost breakdown — mirrors the iOS pipeline construction card ----
+// 4 QBO buckets (RehabBucket in PipelineService.swift): Labor / Materials / Soft costs / Other,
+// with the same blue-gradient composition bar + grouped ledger.
+const fmtD=n=>'$'+Math.round(n).toLocaleString();
+const BUCKETS=[
+  {key:'labor',     name:'Labor',      color:'#1D4ED8', lines:[
+    {name:'Framing & drywall', amt:14200},{name:'Electrical', amt:11300},{name:'Plumbing rough-in', amt:9400},{name:'Demolition', amt:8000},{name:'Painting labor', amt:5240}]},
+  {key:'materials', name:'Materials',  color:'#5B8DEF', lines:[
+    {name:'Kitchen cabinets & counters', amt:14200},{name:'Flooring', amt:7900},{name:'Lumber & hardware', amt:6800},{name:'Paint & finishes', amt:3200},{name:'Fixtures', amt:2000}]},
+  {key:'soft',      name:'Soft costs', color:'#A9C4F5', lines:[
+    {name:'City permits', amt:4500},{name:'Architectural / design', amt:3300},{name:'Dumpster & disposal', amt:2000}]},
+  {key:'other',     name:'Other',      color:'#D3E1FA', lines:[
+    {name:"Builder's risk insurance", amt:2400},{name:'Utilities', amt:2100},{name:'Misc', amt:1700}]},
+];
+function renderBreakdown(){
+  const sub=b=>b.lines.reduce((s,l)=>s+l.amt,0);
+  const total=BUCKETS.reduce((s,b)=>s+sub(b),0);
+  const lineCount=BUCKETS.reduce((s,b)=>s+b.lines.length,0);
+  document.getElementById('compBar').innerHTML=BUCKETS.map(b=>`<div class="comp-seg" style="background:${b.color};flex:${sub(b)}"></div>`).join('');
+  document.getElementById('ledger').innerHTML=BUCKETS.map(b=>{
+    const st=sub(b), pct=Math.round(st/total*100);
+    const lines=[...b.lines].sort((x,y)=>y.amt-x.amt).map(l=>`<div class="led-row"><span class="nm">${l.name}</span><span class="amt">${fmtD(l.amt)}</span></div>`).join('');
+    return `<div class="led-grp"><div class="led-head"><span class="led-sw" style="background:${b.color}"></span><span class="led-name">${b.name}</span><span class="led-pct">${pct}%</span><span class="led-sub">${fmtD(st)}</span></div>${lines}</div>`;
+  }).join('');
+  const c=document.getElementById('bdCount'); if(c)c.textContent=lineCount+' line items';
+}
+renderBreakdown();
+
+// ---- Offer math compute (ported verbatim from project-detail.html wireOfferCalc) ----
+(function(){
+  const construction=177100; // locked_construction for this deal
+  const F  = n => (n<0?'-$':'$') + Math.abs(Math.round(n)).toLocaleString();
+  const FS = n => (n>=0?'+$':'-$') + Math.abs(Math.round(n)).toLocaleString();
+  const PURCH_EXP=0.01, HOLD_PCT=0.003, DISP_PCT=0.04;
+  const offerEl=document.getElementById('ocOffer');
+  const arvEl=document.getElementById('ocArv');
+  const curArv=()=>Number((arvEl.value||'').replace(/[^\d.-]/g,''))||0;
+  function compute(arv, purchase, months, rate, ltv){
+    const loan=purchase*(ltv/100);
+    const cashDown=Math.max(0, purchase-loan);
+    const financing=loan*(rate/100)*(months/12);
+    const purchexp=purchase*PURCH_EXP;
+    const holding=arv*HOLD_PCT;
+    const disposition=arv*DISP_PCT;
+    const rows=[
+      {key:'purchase',    name:'Purchase price',       det:'',                                      amt:purchase},
+      {key:'purchexp',    name:'Purchase expenses',    det:'1% of purchase',                        amt:purchexp},
+      {key:'rehab',       name:'Construction / rehab', det:'',                                      amt:construction},
+      {key:'financing',   name:'Financing',            det:rate+'% · '+ltv+'% LTV · '+months+'mo',  amt:financing},
+      {key:'holding',     name:'Holding',              det:'0.3% of ARV',                           amt:holding},
+      {key:'disposition', name:'Disposition',          det:'4% sell',                               amt:disposition},
+    ];
+    const allIn=rows.reduce((s,r)=>s+r.amt,0);
+    return {rows, allIn, net:arv-allIn, loan, cashDown};
+  }
+  function renderBreakdown(arv, c){
+    const segs=c.rows.map(r=>`<div class="om-bd-seg om-seg-${r.key}" style="flex:${Math.max(r.amt,1)}"></div>`).join('');
+    const netSeg=`<div class="om-bd-seg om-seg-${c.net>=0?'profit':'loss'}" style="flex:${Math.max(Math.abs(c.net),1)};border-radius:0 7px 7px 0"></div>`;
+    const rowsHtml=c.rows.map(r=>`
+      <div class="om-bd-row">
+        <span class="om-bd-sw om-seg-${r.key}"></span>
+        <span class="om-bd-name">${r.name} ${r.det?`<span class="det">· ${r.det}</span>`:''}</span>
+        <span class="om-bd-pct">${arv>0?(r.amt/arv*100).toFixed(1):'0.0'}%</span>
+        <span class="om-bd-amt">${F(r.amt)}</span>
+      </div>`).join('');
+    document.getElementById('ocBd').innerHTML=`
+      <div class="om-bd-top"><span class="lbl">Sell price</span><span class="val">${F(arv)}</span></div>
+      <div class="om-bd-bar">${segs}${netSeg}</div>
+      ${rowsHtml}
+      <div class="om-bd-total"><span class="om-bd-name">All-in cost</span><span class="om-bd-pct">${arv>0?(c.allIn/arv*100).toFixed(1):'0.0'}%</span><span class="om-bd-amt">${F(c.allIn)}</span></div>
+      <div class="om-bd-net ${c.net>=0?'pos':'neg'}"><span class="om-bd-name">Net profit <span class="det" style="font-weight:400">· margin on buy</span></span><span class="om-bd-pct">${c.rows[0].amt>0?(c.net/c.rows[0].amt*100).toFixed(1):'0.0'}%</span><span class="om-bd-amt">${FS(c.net)}</span></div>
+    `;
+  }
+  function recalc(){
+    const arv=curArv();
+    const offer=Number(offerEl.value)||0;
+    const reduct=Number(document.getElementById('ocReduction').value)||0;
+    const commPct=Number(document.getElementById('ocCommission').value)||0;
+    const target=Number(document.getElementById('ocTargetSpread').value)||0;
+    const months=Number(document.getElementById('ocMonths').value)||0;
+    const rate=Number(document.getElementById('ocRate').value)||0;
+    const ltv=Number(document.getElementById('ocLtv').value)||0;
+    const contract=Math.max(0, offer-reduct);
+    const rebate=contract*commPct/100;
+    const purchase=contract-rebate;
+    const c=compute(arv, purchase, months, rate, ltv);
+    renderBreakdown(arv, c);
+    const margin=purchase>0?(c.net/purchase*100):0;
+    const carry=c.rows[3].amt;
+    document.getElementById('ocFinHelp').innerHTML=
+      `Loan <b>${F(c.loan)}</b> (${ltv}% of ${F(purchase)}) · cash down <b>${F(c.cashDown)}</b> · interest <b>${F(carry)}</b> over ${months}mo`;
+    const meets=Math.round(margin*10)/10>=target;
+    document.getElementById('ocFoot').innerHTML=
+      `<span><b>Cash needed</b> ${F(c.cashDown+construction+carry)} <span class="dim">· ${F(c.cashDown)} down + ${F(construction)} rehab + ${F(carry)} carry</span></span>`+
+      `<span style="margin-left:auto;font-weight:600;color:${meets?'var(--green)':'var(--red)'}">${meets?`✓ meets ${target}% target margin`:`▼ below ${target}% target margin`}</span>`;
+  }
+  ['ocArv','ocOffer','ocReduction','ocCommission','ocTargetSpread','ocMonths','ocRate','ocLtv'].forEach(id=>{
+    document.getElementById(id).addEventListener('input',recalc);
+  });
+  recalc();
+})();
+
+// ---- SELLING: list-price calculator + offer comparison ----
+(function(){
+  const slList=document.getElementById('slList'); if(!slList)return;
+  const COST_BASIS=1288111;        // actual all-in already spent (= fixed buckets below)
+  const FIXED_EX_HOLDING=1283011;  // purchase + purchase expenses + rehab + financing
+  const HOLD_BASE=5100;            // hold-period holding before listing
+  const BASIS_NOTE='$1,288,111 already spent (purchase, rehab, financing, holding) — itemized at right →';
+  const LOAN_BALANCE=967554, LOAN_RATE=0.09;
+  const DAILY_CARRY=LOAN_BALANCE*LOAN_RATE/365;   // ≈ $239/day, from the actual loan balance
+  const OFFERS=[
+    {buyer:'Nguyen', fin:'Conventional · 25% down · no contingencies', price:1665000, comm:2.85, days:33, concess:0},
+    {buyer:'Patel',  fin:'Cash · 10-day close',                         price:1650000, comm:2.85, days:24, concess:10000},
+    {buyer:'Reyes',  fin:'FHA · 3.5% down · inspection contingency',    price:1672000, comm:2.85, days:48, concess:15000},
+  ];
+  const F  = n => (n<0?'-$':'$') + Math.abs(Math.round(n)).toLocaleString();
+  const FS = n => (n>=0?'+$':'-$') + Math.abs(Math.round(n)).toLocaleString();
+  const num = el => Number((el.value||'').replace(/[^\d.-]/g,''))||0;
+  const v = id => Number(document.getElementById(id).value)||0;
+
+  // 6 ClosedBucket cost lines (iOS ClosedService grey gradient) + green profit.
+  function renderSellBd(c){
+    const lines=[
+      {name:'Purchase price',    color:'#6B7280', det:'',                                                    amt:1075060},
+      {name:'Purchase expenses', color:'#868E99', det:'1% of purchase',                                      amt:10751},
+      {name:'Rehab',             color:'#9CA3AF', det:'actual',                                              amt:172400},
+      {name:'Financing',         color:'#C7C7CC', det:'loan interest, build + hold',                         amt:24800},
+      {name:'Disposition',       color:'#D8D7D2', det:c.comm+'% comm + '+c.clo+'% closing'+(c.conc?' + '+F(c.conc)+' credit':''), amt:c.disposition},
+      {name:'Holding',           color:'#E1E0DC', det:c.days+' days to close @ '+F(DAILY_CARRY)+'/day',      amt:c.holding},
+    ];
+    const segs=lines.map(l=>`<div class="om-bd-seg" style="background:${l.color};flex:${Math.max(l.amt,1)}"></div>`).join('');
+    const netSeg=`<div class="om-bd-seg" style="background:var(--green);flex:${Math.max(Math.abs(c.profit),1)};border-radius:0 7px 7px 0"></div>`;
+    const rowsHtml=lines.map(l=>`
+      <div class="om-bd-row">
+        <span class="om-bd-sw" style="background:${l.color}"></span>
+        <span class="om-bd-name">${l.name} ${l.det?`<span class="det">· ${l.det}</span>`:''}</span>
+        <span class="om-bd-pct">${c.list>0?(l.amt/c.list*100).toFixed(1):'0.0'}%</span>
+        <span class="om-bd-amt">${F(l.amt)}</span>
+      </div>`).join('');
+    document.getElementById('slBd').innerHTML=`
+      <div class="om-bd-top"><span class="lbl">Sale price</span><span class="val">${F(c.list)}</span></div>
+      <div class="om-bd-bar">${segs}${netSeg}</div>
+      ${rowsHtml}
+      <div class="om-bd-total"><span class="om-bd-name">All-in cost</span><span class="om-bd-pct">${c.list>0?(c.allOut/c.list*100).toFixed(1):'0.0'}%</span><span class="om-bd-amt">${F(c.allOut)}</span></div>
+      <div class="om-bd-net ${c.profit>=0?'pos':'neg'}"><span class="om-bd-name">Net profit <span class="det" style="font-weight:400">· ${(c.profit/COST_BASIS*100).toFixed(1)}% on cost</span></span><span class="om-bd-pct">${(c.profit/c.list*100).toFixed(1)}%</span><span class="om-bd-amt">${FS(c.profit)}</span></div>
+    `;
+  }
+  // Editable table — price / commission / escrow days / credit per offer, net recomputes live.
+  function renderOfferTable(){
+    const head=`<div class="off-hrow off-cols"><span>Buyer</span><span>Offer $</span><span>Comm %</span><span>Esc days</span><span>Credit $</span><span>Net to you</span></div>`;
+    const rows=OFFERS.map((o,i)=>`
+      <div class="off-row off-cols" data-i="${i}">
+        <div><div class="off-buyer">${o.buyer}</div><div class="off-terms">${o.fin}</div></div>
+        <input class="off-in" type="number" step="5000" data-f="price"   value="${o.price}">
+        <input class="off-in" type="number" step="0.05" data-f="comm"    value="${o.comm}">
+        <input class="off-in" type="number" step="1"    data-f="days"    value="${o.days}">
+        <input class="off-in" type="number" step="1000" data-f="concess" value="${o.concess}">
+        <div class="off-net" data-net></div>
+      </div>`).join('');
+    document.getElementById('offerList').innerHTML=`<div class="off-table">${head}${rows}</div>`;
+    recomputeOffers();
+  }
+  function recomputeOffers(){
+    const rows=[...document.querySelectorAll('#offerList .off-row')]; if(!rows.length)return;
+    const clo=v('slClose');
+    const nets=rows.map(row=>{
+      const g=f=>Number(row.querySelector(`[data-f="${f}"]`).value)||0;
+      const price=g('price');
+      return price - price*g('comm')/100 - price*clo/100 - g('concess') - g('days')*DAILY_CARRY;
+    });
+    const best=Math.max(...nets);
+    rows.forEach((row,i)=>{
+      const isBest=nets[i]===best;
+      row.classList.toggle('best',isBest);
+      row.querySelector('[data-net]').innerHTML=
+        `<div class="v" style="color:${nets[i]<0?'var(--red)':'var(--green)'}">${F(nets[i])}</div>`+
+        (isBest?'<div class="b">✓ best net</div>':`<div class="d">−${F(best-nets[i])}</div>`);
+    });
+  }
+  function recalc(){
+    const list=num(slList), comm=v('slComm'), clo=v('slClose'), conc=v('slConc'), days=v('slDays');
+    const commission=list*comm/100, closing=list*clo/100, carry=days*DAILY_CARRY;
+    const disposition=commission+closing+conc, holding=HOLD_BASE+carry;
+    const allOut=FIXED_EX_HOLDING+disposition+holding, profit=list-allOut;
+    document.getElementById('slBasisHelp').textContent=BASIS_NOTE;
+    renderSellBd({list,comm,clo,conc,days,disposition,holding,allOut,profit});
+    document.getElementById('slFoot').innerHTML=
+      `<span><b>Net proceeds</b> ${F(list-disposition)} <span class="dim">at close, before loan payoff</span></span>`+
+      `<span style="margin-left:auto;font-weight:600;color:${profit>=0?'var(--green)':'var(--red)'}">Profit ${FS(profit)} · ${Math.round(profit/COST_BASIS*100)}% on cost</span>`;
+    recomputeOffers();   // closing % is shared, so list-calc edits flow into the offers
+  }
+  // List price is a free input (comp/market driven); everything else just re-derives the report.
+  ['slList','slComm','slClose','slConc','slDays'].forEach(id=>document.getElementById(id).addEventListener('input',recalc));
+  // Offer comparison — each row's price / commission / escrow days / credit is editable.
+  document.getElementById('offerList').addEventListener('input',e=>{ if(e.target.classList.contains('off-in'))recomputeOffers(); });
+  document.getElementById('addOffer').addEventListener('click',e=>{
+    e.preventDefault();
+    const name=prompt('Buyer name:'); if(!name)return;
+    OFFERS.push({buyer:name, fin:'—', price:1650000, comm:2.85, days:30, concess:0});
+    renderOfferTable();
+  });
+  renderOfferTable();
+  recalc();
+})();
+</script>
+</body>
+</html>
