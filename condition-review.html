@@ -366,9 +366,10 @@ let searchDebounce=null;
 
 // ========== INIT ==========
 async function init(){
-  await populateCityDropdown();
-  await updateStats();
-  await loadCards();
+  // Fire all three in parallel — the cards are what the user is waiting on, so
+  // they no longer queue behind the dropdown + stat counts (which were 6 serial
+  // round-trips). loadCards renders as soon as its own query lands.
+  await Promise.all([loadCards(),updateStats(),populateCityDropdown()]);
 }
 
 async function populateCityDropdown(){
@@ -477,12 +478,15 @@ document.addEventListener('keydown',e=>{
 });
 
 async function updateStats(){
-  const{count:total}=await sb.from('properties').select('*',{count:'exact',head:true}).not('condition_tier','is',null);
-  const{count:overridden}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('condition_overridden',true);
-  const{count:low}=await sb.from('properties').select('*',{count:'exact',head:true}).eq('condition_confidence','low');
+  // The 4 counts are independent — run them concurrently rather than serially.
   // "uncategorized" = rows a reviewer explicitly cleared (null tier + overridden).
   // NOT all null-tier rows — most of those are simply never-scored, not ungradeable.
-  const{count:uncat}=await sb.from('properties').select('*',{count:'exact',head:true}).is('condition_tier',null).eq('condition_overridden',true);
+  const[{count:total},{count:overridden},{count:low},{count:uncat}]=await Promise.all([
+    sb.from('properties').select('*',{count:'exact',head:true}).not('condition_tier','is',null),
+    sb.from('properties').select('*',{count:'exact',head:true}).eq('condition_overridden',true),
+    sb.from('properties').select('*',{count:'exact',head:true}).eq('condition_confidence','low'),
+    sb.from('properties').select('*',{count:'exact',head:true}).is('condition_tier',null).eq('condition_overridden',true),
+  ]);
   document.getElementById('statTotal').textContent=total||0;
   document.getElementById('statOverridden').textContent=overridden||0;
   document.getElementById('statLow').textContent=low||0;
