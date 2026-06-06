@@ -56,6 +56,24 @@ body { overflow:hidden; height:100vh; }
 .pipe-hdr h1 { font-size:14px; font-weight:700; letter-spacing:-.3px; color:var(--accent); margin:0; }
 .pipe-hdr h1 span { color:var(--text-3); font-weight:400; margin-left:6px; }
 .pipe-hdr .totals { font-size:11px; color:var(--text-3); font-family:var(--mono); }
+.pipe-hdr .hdr-right { display:flex; align-items:baseline; gap:14px; }
+.lost-link { font-size:11px; color:var(--text-3); text-decoration:none; cursor:pointer; white-space:nowrap; }
+.lost-link:hover { color:var(--accent); }
+/* Lost-deals popup */
+.lost-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:100; align-items:flex-start; justify-content:center; }
+.lost-overlay.open { display:flex; }
+.lost-card { background:var(--bg); border:1px solid var(--border); border-radius:10px; margin-top:84px; width:440px; max-width:90vw; max-height:70vh; display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,.2); }
+.lost-head { display:flex; align-items:center; justify-content:space-between; padding:13px 16px; border-bottom:1px solid var(--border); font-weight:700; font-size:13px; }
+.lost-x { border:none; background:none; cursor:pointer; font-size:15px; color:var(--text-3); line-height:1; }
+.lost-x:hover { color:var(--text); }
+.lost-body { overflow-y:auto; padding:6px; }
+.lost-row { display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:9px 10px; border-radius:6px; text-decoration:none; color:inherit; }
+.lost-row:hover { background:var(--bg-inset); }
+.lr-addr { font-size:13px; font-weight:600; color:var(--text); }
+.lr-city { font-weight:400; color:var(--text-3); }
+.lr-price { font-size:12px; font-weight:600; color:var(--accent); white-space:nowrap; }
+.lost-empty { padding:28px; text-align:center; color:var(--text-4); font-size:12px; }
+.lost-hint { padding:9px 16px; border-top:1px solid var(--border); font-size:10.5px; color:var(--text-4); }
 
 /* Kanban board */
 .board { flex:1; display:flex; gap:10px; padding:14px 14px 20px; overflow-x:auto; overflow-y:hidden; align-items:stretch; }
@@ -123,11 +141,23 @@ body { overflow:hidden; height:100vh; }
 
 <div class="pipe-hdr">
   <h1>Pipeline <span id="pipe-summary"></span></h1>
-  <div class="totals" id="pipe-totals"></div>
+  <div class="hdr-right">
+    <div class="totals" id="pipe-totals"></div>
+    <a class="lost-link" id="lostLink" href="#" onclick="openLostModal();return false;">Lost</a>
+  </div>
 </div>
 
 <div id="board" class="board">
   <div class="empty-state">Loading...</div>
+</div>
+
+<!-- Lost-deals popup -->
+<div class="lost-overlay" id="lostModal" onclick="if(event.target===this)closeLostModal()">
+  <div class="lost-card">
+    <div class="lost-head"><span>Lost deals</span><button class="lost-x" onclick="closeLostModal()">✕</button></div>
+    <div class="lost-body" id="lostBody"></div>
+    <div class="lost-hint">Open a deal to move it back into the pipeline.</div>
+  </div>
 </div>
 
 </div><!-- /main-content -->
@@ -368,12 +398,57 @@ function renderError(msg){
   document.getElementById('board').innerHTML=`<div class="empty-state">Failed to load pipeline: ${escapeHtml(msg)}</div>`;
 }
 
+// ========== LOST DEALS POPUP ==========
+let LOST_DEALS=[];
+async function loadLostDeals(){
+  const {data:deals, error}=await sb.from('deals')
+    .select('id, buy_side_mls, relist_mls, list_price, created_at')
+    .eq('phase','lost')
+    .order('created_at',{ascending:false});
+  if(error){console.warn('[pipeline] lost deals load failed',error);return;}
+  const rows=deals||[];
+  const mlsSet=new Set();
+  rows.forEach(d=>{if(d.buy_side_mls)mlsSet.add(d.buy_side_mls);if(d.relist_mls)mlsSet.add(d.relist_mls);});
+  const props={};
+  if(mlsSet.size){
+    const {data:pr}=await sb.from('properties')
+      .select('mls, address, city, list_price, sale_price').in('mls', Array.from(mlsSet));
+    for(const r of (pr||[]))props[r.mls]=r;
+  }
+  LOST_DEALS=rows.map(d=>{
+    const p=props[d.buy_side_mls]||props[d.relist_mls]||null;
+    const priceVal=(d.list_price!=null)?d.list_price:(p?(p.list_price||p.sale_price):null);
+    return {
+      id:d.id,
+      addr:(p&&p.address)?titleCase(p.address):'(no address)',
+      city:(p&&p.city)?titleCase(p.city):'',
+      price:priceVal?FK(priceVal):'',
+    };
+  });
+  const link=document.getElementById('lostLink');
+  if(link)link.textContent='Lost ('+LOST_DEALS.length+')';
+}
+function openLostModal(){
+  const body=document.getElementById('lostBody');
+  body.innerHTML=LOST_DEALS.length
+    ? LOST_DEALS.map(d=>`<a class="lost-row" href="project-detail.html?deal=${encodeURIComponent(d.id)}">
+        <span class="lr-addr">${escapeHtml(d.addr)}${d.city?`<span class="lr-city">, ${escapeHtml(d.city)}</span>`:''}</span>
+        <span class="lr-price">${escapeHtml(d.price)}</span>
+      </a>`).join('')
+    : '<div class="lost-empty">No lost deals.</div>';
+  document.getElementById('lostModal').classList.add('open');
+}
+function closeLostModal(){document.getElementById('lostModal').classList.remove('open');}
+window.openLostModal=openLostModal;
+window.closeLostModal=closeLostModal;
+
 // ========== INIT ==========
 (async()=>{
   await window.authGate();
   if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
   window.renderSidebar('pipeline');
   await loadPipeline();
+  loadLostDeals();
 })();
 </script>
 </body>
