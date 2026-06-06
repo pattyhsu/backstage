@@ -79,7 +79,7 @@ body { overflow:hidden; height:100vh; }
 .card { display:block; padding:10px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; text-decoration:none; color:inherit; transition:all .1s; }
 .card:hover { border-color:var(--border-hover); transform:translateY(-1px); box-shadow:0 2px 6px rgba(0,0,0,.04); text-decoration:none; }
 .card .addr { font-size:13px; font-weight:600; color:var(--text); line-height:1.25; }
-.card .addr .city { font-size:12px; font-weight:400; color:var(--text-3); }
+.card .addr .city { color:var(--text-3); }
 .card .meta { display:flex; justify-content:space-between; align-items:baseline; margin-top:6px; gap:8px; }
 .card .meta .meta-r { display:flex; align-items:baseline; gap:8px; white-space:nowrap; }
 .card .price { font-size:11px; font-weight:600; color:var(--accent); }
@@ -153,15 +153,12 @@ function FK(n){if(n==null||!isFinite(n))return '';if(n>=1e6)return '$'+(n/1e6).t
 // DB stores city in ALL CAPS; CSS text-transform:capitalize can't lowercase it,
 // so title-case here (DIAMOND BAR -> Diamond Bar).
 function titleCase(s){return String(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());}
-function relTime(iso){
+// Time in current phase, always in days (today / 1d / 35d).
+function ageInDays(iso){
   if(!iso)return '';
   const t=new Date(iso).getTime();if(!isFinite(t))return '';
   const days=Math.floor((Date.now()-t)/86400000);
-  if(days<=0)return 'today';
-  if(days===1)return '1d';
-  if(days<14)return days+'d';
-  if(days<60)return Math.floor(days/7)+'w';
-  return Math.floor(days/30)+'mo';
+  return days<=0?'today':days+'d';
 }
 function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
 
@@ -283,20 +280,21 @@ function renderBoard(deals, propsByMls, latestByDeal, costByDeal){
         const p=primaryMls?propsByMls[primaryMls]:null;
 
         const latest=latestByDeal[d.id+'|'+phase];
-        const age=latest?relTime(latest.transitioned_at):relTime(d.created_at);
+        // Age (days in phase) shown everywhere except Pursuing.
+        const age=(phase==='pursuing')?'':(latest?ageInDays(latest.transitioned_at):ageInDays(d.created_at));
 
         // Price: prefer the deal's list_price (canonical), else fall back
         // to the linked property row. May be NULL for OFFMKT- deals.
         const priceVal=(d.list_price!=null)?d.list_price:(p?(p.list_price||p.sale_price):null);
         const priceStr=priceVal?FK(priceVal):'';
 
-        const sub=p?[
-          (p.beds!=null&&p.beds!==0)?`${p.beds}bd`:null,
-          (p.baths!=null&&p.baths!==0)?`${p.baths}ba`:null,
-          p.sqft?`${p.sqft.toLocaleString()} sf`:null,
-        ].filter(Boolean).join(' / '):'';
+        const bb=p?[
+          (p.beds!=null&&p.beds!==0)?p.beds:null,
+          (p.baths!=null&&p.baths!==0)?p.baths:null,
+        ].filter(v=>v!=null).join('/'):'';
+        const sub=p?[bb||null, p.sqft?`${p.sqft.toLocaleString()} sf`:null].filter(Boolean).join(' · '):'';
 
-        const addrText=p?(p.address||'(no address)'):'(no linked properties row)';
+        const addrText=p?(p.address?titleCase(p.address):'(no address)'):'(no linked properties row)';
         const cityText=p?titleCase(p.city||''):'';
         const href='project-detail.html?deal='+encodeURIComponent(d.id);
 
