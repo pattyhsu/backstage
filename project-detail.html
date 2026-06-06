@@ -1766,7 +1766,6 @@ function renderOfferCalc(){
   const offer=d.offer_price||Math.round(arv*0.68);
   return `
     <div class="lp-calc phase-hide" id="offerCalc">
-      <div class="lp-calc-head">Offer calculator · model headline offer + reduction strategy</div>
       <div class="om-grid">
         <div class="om-col-l">
           <div>
@@ -1775,7 +1774,6 @@ function renderOfferCalc(){
               <input id="ocArv" value="$${Math.round(arv).toLocaleString()}" ${arvLocked?'readonly':''}>
               <button type="button" id="ocArvLock" class="om-lockbtn${arvLocked?' on':''}">${arvLocked?'🔒 Locked':'Lock ARV'}</button>
             </div>
-            <div class="om-help" id="ocArvHelp">${arvLocked?'pinned value · unlock to edit':'edit, then lock to pin this ARV'}</div>
           </div>
           <div>
             <div class="om-grp">Offer</div>
@@ -1848,7 +1846,7 @@ function wireOfferCalc(){
         <span class="om-bd-amt">${F(r.amt)}</span>
       </div>`).join('');
     document.getElementById('ocBd').innerHTML=`
-      <div class="om-bd-top"><span class="lbl">Sell price<span class="sub">${arvLocked?'🔒 locked ARV':'unlocked · not pinned'}</span></span><span class="val">${F(arv)}</span></div>
+      <div class="om-bd-top"><span class="lbl">Sell price</span><span class="val">${F(arv)}</span></div>
       <div class="om-bd-bar">${segs}${netSeg}</div>
       ${rowsHtml}
       <div class="om-bd-total"><span class="om-bd-name">All-in cost</span><span class="om-bd-pct">${arv>0?(c.allIn/arv*100).toFixed(1):'0.0'}%</span><span class="om-bd-amt">${F(c.allIn)}</span></div>
