@@ -216,10 +216,7 @@
   <a class="tab" href="import.html#geocode">Geocode</a>
   <a class="tab" href="import.html#schools">Missing Schools</a>
   <div class="cond-stats">
-    <span><strong id="statTotal">0</strong> scored</span>
-    <span><strong id="statOverridden">0</strong> overridden</span>
-    <span style="color:var(--red)"><strong id="statLow">0</strong> low-conf</span>
-    <span style="color:var(--text-4)"><strong id="statUncat">0</strong> uncat</span>
+    <span style="color:var(--red)"><strong id="statUnreviewed">0</strong> unreviewed</span>
   </div>
 </div>
 
@@ -490,19 +487,14 @@ let _statsTimer=null;
 // rapid edits coalesce into one refresh after they pause.
 function scheduleStats(){clearTimeout(_statsTimer);_statsTimer=setTimeout(updateStats,600);}
 async function updateStats(){
-  // The 4 counts are independent — run them concurrently rather than serially.
-  // "uncategorized" = rows a reviewer explicitly cleared (null tier + overridden).
-  // NOT all null-tier rows — most of those are simply never-scored, not ungradeable.
-  const[{count:total},{count:overridden},{count:low},{count:uncat}]=await Promise.all([
-    sb.from('properties').select('*',{count:'exact',head:true}).not('condition_tier','is',null),
-    sb.from('properties').select('*',{count:'exact',head:true}).eq('condition_overridden',true),
-    sb.from('properties').select('*',{count:'exact',head:true}).eq('condition_confidence','low'),
-    sb.from('properties').select('*',{count:'exact',head:true}).is('condition_tier',null).eq('condition_overridden',true),
-  ]);
-  document.getElementById('statTotal').textContent=total||0;
-  document.getElementById('statOverridden').textContent=overridden||0;
-  document.getElementById('statLow').textContent=low||0;
-  document.getElementById('statUncat').textContent=uncat||0;
+  // "Unreviewed" = scored rows (a tier was assigned) that no reviewer has
+  // confirmed or overridden yet — i.e. still need a manual pass. Excludes the
+  // ~6k never-scored rows (null tier, never touched).
+  const{count:unreviewed}=await sb.from('properties')
+    .select('*',{count:'exact',head:true})
+    .not('condition_tier','is',null)
+    .or('condition_overridden.is.null,condition_overridden.eq.false');
+  document.getElementById('statUnreviewed').textContent=unreviewed||0;
 }
 
 // ========== LOAD CARDS ==========
