@@ -17,6 +17,8 @@ html, body { height: 100vh; overflow: hidden; }
 .logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;color:var(--accent);letter-spacing:-.3px}
 /* Anchor-styled tab (the cross-page Condition link) — drop the global a:hover underline. */
 a.tab,a.tab:hover{text-decoration:none}
+/* Pin the tab strip over the scrolling content (matches condition-review). */
+.tabs{position:sticky;top:0;z-index:200}
 
 /* Shell */
 .app-shell{display:flex;height:100vh}

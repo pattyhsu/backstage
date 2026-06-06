@@ -13,16 +13,16 @@
 <link rel="stylesheet" href="backstage.css">
 <style>
   /* === CONDITION REVIEW — local layout only === */
-  .header { position:sticky;top:0;z-index:200;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);height:52px;padding:0 24px;display:flex;align-items:center;justify-content:space-between }
-  .header-left { display: flex; align-items: center; gap: 14px; }
-  .header h1 { font-size: 14px; font-weight: 700; letter-spacing: -0.3px; color: var(--accent); margin: 0; }
-  .header h1 span { color: var(--text-3); font-weight: 400; }
-  .header-stats { display: flex; gap: 18px; font-size: 13px; color: var(--text-3); }
-  .header-stats strong { color: var(--accent); font-weight: 600; }
 
-  /* Shared Data-hub tab strip (.tabs/.tab come from backstage.css). Keep
-     anchor-styled tabs from picking up the global a:hover underline. */
-  a.tab, a.tab:hover { text-decoration: none; }
+  /* The top bar IS the Data-hub tab strip (.tabs/.tab from backstage.css) —
+     same as import.html — with the live QA stats folded onto its right edge,
+     replacing the old standalone "Condition QA" title header. Sticky so the
+     tabs + stats stay pinned over the long card list. */
+  .cond-tabs { position:sticky; top:0; z-index:200; flex-wrap:wrap; align-items:center; }
+  .tab-count { color:var(--text-4); font-weight:400; font-size:12px; }
+  .cond-stats { margin-left:auto; display:flex; align-items:center; gap:13px; font-size:12px; color:var(--text-3); padding-left:16px; }
+  .cond-stats strong { color:var(--accent); font-weight:600; }
+  a.tab, a.tab:hover { text-decoration:none; }
 
   /* Filter bar */
   .filter-bar { display:flex; gap:12px; padding:16px 24px; border-bottom:1px solid var(--border); flex-wrap:wrap; align-items:center; }
@@ -191,25 +191,20 @@
 <!-- Main content -->
 <div class="main-content">
 
-<div class="header">
-  <div class="header-left">
-    <h1>Condition QA <span id="headerCount"></span></h1>
-  </div>
-  <div class="header-stats">
-    <span><strong id="statTotal">0</strong> scored</span>
-    <span><strong id="statOverridden">0</strong> overridden</span>
-    <span style="color:var(--red)"><strong id="statLow">0</strong> low confidence</span>
-    <span style="color:var(--text-4)"><strong id="statUncat">0</strong> uncategorized</span>
-  </div>
-</div>
-
-<!-- Data-hub tab strip — Condition is active here; the rest deep-link into
-     import.html's existing tabs via #hash. -->
-<div class="tabs">
-  <div class="tab active">Condition</div>
+<!-- Top bar: the Data-hub tab strip (Condition active; the rest deep-link into
+     import.html's tabs via #hash) with the live QA stats on its right edge —
+     mirrors the import.html tab bar instead of a separate title header. -->
+<div class="tabs cond-tabs">
+  <div class="tab active">Condition <span id="headerCount" class="tab-count"></span></div>
   <a class="tab" href="import.html#import">Import CSV</a>
   <a class="tab" href="import.html#geocode">Geocode</a>
   <a class="tab" href="import.html#schools">Missing Schools</a>
+  <div class="cond-stats">
+    <span><strong id="statTotal">0</strong> scored</span>
+    <span><strong id="statOverridden">0</strong> overridden</span>
+    <span style="color:var(--red)"><strong id="statLow">0</strong> low-conf</span>
+    <span style="color:var(--text-4)"><strong id="statUncat">0</strong> uncat</span>
+  </div>
 </div>
 
 <div class="filter-bar">
