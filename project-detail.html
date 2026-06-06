@@ -1231,6 +1231,8 @@ function renderPage(){
             ${movePhaseOptions}
           </select>
           <div id="ppDatesRow" style="display:none">
+            <div class="pp-lbl">In escrow at</div>
+            <input type="number" id="ppEscrowPrice" min="0" step="1" placeholder="Accepted purchase price">
             <div class="pp-lbl">Escrow dates</div>
             <div class="pp-dates">
               <div><label>Start</label><input type="date" id="ppEscrowStart" oninput="onPpStartChange()"></div>
@@ -2233,6 +2235,11 @@ function onPhaseSelChange(){
     const startInput=document.getElementById('ppEscrowStart');
     const closeInput=document.getElementById('ppTargetClose');
     const crdInput=document.getElementById('ppContingency');
+    const priceInput=document.getElementById('ppEscrowPrice');
+    if(priceInput && !priceInput.value){
+      const seed=currentDeal.purchase_price||currentDeal.offer_price;
+      if(seed!=null)priceInput.value=String(Math.round(seed));
+    }
     if(currentDeal.escrow_start_date && !startInput.value)startInput.value=currentDeal.escrow_start_date;
     if(currentDeal.target_close_date && !closeInput.value)closeInput.value=currentDeal.target_close_date;
     if(currentDeal.contingency_removal_date && !crdInput.value)crdInput.value=currentDeal.contingency_removal_date;
@@ -2269,16 +2276,20 @@ async function movePhase(){
   if(toPhase===fromPhase){msg.className='pp-msg err';msg.textContent='Already in that phase.';return;}
   const note=(noteEl.value||'').trim()||null;
   const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
-  let escrowStart=null, targetClose=null, crd=null;
+  let escrowStart=null, targetClose=null, crd=null, escrowPrice=null;
   if(toPhase==='in_escrow'){
     escrowStart=document.getElementById('ppEscrowStart').value||null;
     targetClose=document.getElementById('ppTargetClose').value||null;
     crd=document.getElementById('ppContingency').value||null;
     if(!escrowStart||!targetClose||!crd){msg.className='pp-msg err';msg.textContent='All 3 escrow dates required.';return;}
+    const priceRaw=(document.getElementById('ppEscrowPrice').value||'').trim();
+    escrowPrice=priceRaw===''?null:Number(priceRaw);
+    if(escrowPrice==null||!isFinite(escrowPrice)||escrowPrice<=0||escrowPrice>50000000){msg.className='pp-msg err';msg.textContent='Enter the price you’re in escrow at.';return;}
   }
   saving=true; btn.disabled=true; msg.textContent='Saving...';
   const updatePayload={phase: toPhase, updated_at: new Date().toISOString()};
   if(toPhase==='in_escrow'){
+    updatePayload.purchase_price=escrowPrice;
     updatePayload.escrow_start_date=escrowStart;
     updatePayload.target_close_date=targetClose;
     updatePayload.contingency_removal_date=crd;
