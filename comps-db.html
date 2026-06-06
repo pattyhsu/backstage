@@ -359,6 +359,11 @@ async function populateDropdowns(){
 function setupTabs(){document.querySelectorAll('.tab').forEach(t=>{t.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));t.classList.add('active');document.getElementById('panel-'+t.dataset.panel).classList.add('active');});});}
 
 
+// Columns actually read by renderResults + cdbTierEditor/cdbUpdateTier +
+// updateSummary + the search map markers, shared by both the search and browse
+// queries. Selecting these instead of '*' avoids shipping ~30 unused wide
+// columns (remarks, agent contacts, photo metadata, etc.) per row.
+const COMP_COLS='id,address,city,beds,baths,sqft,lot_size,sale_price,ppsf,sold_date,latitude,longitude,elementary_rating,middle_rating,high_rating,is_dotty,condition_tier,value_driver_rooms_updated,condition_overridden';
 async function runSearch(){
   const v=id=>document.getElementById(id).value;
   const addr=v('f-address').trim(),miles=parseFloat(v('f-radius'));
@@ -395,7 +400,7 @@ async function runSearch(){
     if(!sLat){el.innerHTML='<div class="empty-state"><h3>Address not found</h3><p>Select an address from the autocomplete dropdown, or try a different format.</p></div>';return;}
   }
   
-  let q=sb.from('properties').select('*').eq('change_type','sold');
+  let q=sb.from('properties').select(COMP_COLS).eq('change_type','sold');
   
   // If we have a subject address, add bounding box to Supabase query
   if(sLat!==null){
@@ -588,6 +593,7 @@ function initAutocomplete(){
 // =========================================================
 let browsePage = 0;
 const BROWSE_LIMIT = 50;
+let _browseCount = null, _browseCountKey = null;  // cached browse total + the filter sig it was counted for
 
 async function loadBrowse() {
   browsePage = 0;
@@ -605,7 +611,13 @@ async function fetchBrowsePage() {
   const missing = document.getElementById('b-missing').value;
   const search = document.getElementById('b-search').value.trim();
 
-  let query = sb.from('properties').select('*', { count: 'exact' }).eq('change_type','sold');
+  // The exact row count only changes when the FILTER changes, not when paging.
+  // Run count:'exact' (a full count over ~22k rows) only for a new filter set;
+  // reuse the cached total when merely turning pages.
+  const filterKey = JSON.stringify({ city, missing, search });
+  const needCount = filterKey !== _browseCountKey;
+
+  let query = sb.from('properties').select(COMP_COLS, needCount ? { count: 'exact' } : undefined).eq('change_type','sold');
   if (search) query = query.ilike('address', `%${search}%`);
   if (city) query = query.eq('city', city);
   if (missing === 'no-school') query = query.is('elementary_school', null);
@@ -617,16 +629,20 @@ async function fetchBrowsePage() {
   if (error) { el.innerHTML = `<div class="empty-state"><p>${error.message}</p></div>`; return; }
   if (!rows?.length) { el.innerHTML = '<div class="empty-state"><h3>No comps found</h3></div>'; return; }
 
-  const totalPages = Math.ceil((count || 0) / BROWSE_LIMIT);
-  document.getElementById('browseCount').textContent = `(${(count||0).toLocaleString()} total)`;
+  if (needCount) { _browseCount = count || 0; _browseCountKey = filterKey; }
+  const total = _browseCount || 0;
+  const totalPages = Math.ceil(total / BROWSE_LIMIT);
+  document.getElementById('browseCount').textContent = `(${total.toLocaleString()} total)`;
   document.getElementById('browsePageInfo').textContent = `Page ${browsePage + 1} of ${totalPages}`;
 
-  // Populate city dropdown from search comps dropdown (already correct)
+  // Populate the browse city dropdown once (it never changes after init) rather
+  // than re-parsing the full option list on every page turn.
   const bCity = document.getElementById('b-city');
-  const currentVal = bCity.value;
-  const fCity = document.getElementById('f-city');
-  bCity.innerHTML = fCity.innerHTML;
-  bCity.value = currentVal;
+  if (bCity.options.length <= 1) {
+    const currentVal = bCity.value;
+    bCity.innerHTML = document.getElementById('f-city').innerHTML;
+    bCity.value = currentVal;
+  }
 
   renderResults(rows, 'browseResults', 'search-summary', false);
   document.getElementById('search-summary').style.display = 'none';
