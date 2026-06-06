@@ -15,6 +15,8 @@
 html, body { height: 100vh; overflow: hidden; }
 .hdr{position:sticky;top:0;z-index:200;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);height:52px;padding:0 24px;display:flex;align-items:center;justify-content:space-between}
 .logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;color:var(--accent);letter-spacing:-.3px}
+/* Anchor-styled tab (the cross-page Condition link) — drop the global a:hover underline. */
+a.tab,a.tab:hover{text-decoration:none}
 
 /* Shell */
 .app-shell{display:flex;height:100vh}
@@ -96,6 +98,7 @@ html, body { height: 100vh; overflow: hidden; }
 </div>
 
 <div class="tabs">
+  <a class="tab" href="condition-review.html">Condition</a>
   <div class="tab active" data-tab="import" onclick="switchTab('import')">Import CSV</div>
   <div class="tab" data-tab="geocode" onclick="switchTab('geocode')">Geocode</div>
   <div class="tab" data-tab="schools" onclick="switchTab('schools')">Missing Schools</div>
@@ -192,6 +195,9 @@ async function loadHistory(){
 function switchTab(t){
   document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===t));
   document.querySelectorAll('.panel').forEach(el=>{el.classList.toggle('active',el.id==='panel-'+t);el.removeAttribute('style');});
+  // Reflect the active tab in the URL so deep-links (e.g. condition-review's
+  // "Geocode" tab → import.html#geocode) and reloads land on the right tab.
+  if(history.replaceState) history.replaceState(null,'',t==='import'?location.pathname:'#'+t);
   if(t==='geocode')updateGeoStats();
   if(t==='schools')loadMissingSchools();
   if(t==='dupes')findDuplicates();
@@ -925,7 +931,10 @@ async function autoRemoveDupes(){
 (async function(){
   await window.authGate();
   if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
-  window.renderSidebar('import');
+  window.renderSidebar('data');
+  // Deep-link support: open the tab named in the URL hash (Import is default).
+  var ht=(location.hash||'').slice(1);
+  if(['geocode','schools','dupes'].indexOf(ht)>=0) switchTab(ht);
   try{var{error}=await sb.from(TABLE).select('id').limit(1);document.getElementById('dbStatus').innerHTML=error?'<span style="color:var(--red)">●</span>':'<span style="color:var(--green)">●</span>';}
   catch(e){document.getElementById('dbStatus').innerHTML='<span style="color:var(--red)">●</span>';}
   loadHistory();

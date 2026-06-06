@@ -43,8 +43,11 @@
     {
       label: 'Data',
       items: [
-        { key: 'condition', label: 'Condition',  href: 'condition-review.html', icon: iconCondition() },
-        { key: 'import',    label: 'Import Hub', href: 'import.html',           icon: iconImport() },
+        // Condition QA + Import Hub (CSV / Geocode / Schools / Dupes) are one
+        // tabbed surface now — a single nav entry (keyed 'data') is active on
+        // both condition-review.html and import.html; the in-page top tab strip
+        // switches between them. Default landing is the Condition tab.
+        { key: 'data', label: 'Condition', href: 'condition-review.html', icon: iconCondition() },
       ],
     },
     {

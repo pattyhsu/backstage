@@ -20,6 +20,10 @@
   .header-stats { display: flex; gap: 18px; font-size: 13px; color: var(--text-3); }
   .header-stats strong { color: var(--accent); font-weight: 600; }
 
+  /* Shared Data-hub tab strip (.tabs/.tab come from backstage.css). Keep
+     anchor-styled tabs from picking up the global a:hover underline. */
+  a.tab, a.tab:hover { text-decoration: none; }
+
   /* Filter bar */
   .filter-bar { display:flex; gap:12px; padding:16px 24px; border-bottom:1px solid var(--border); flex-wrap:wrap; align-items:center; }
   .filter-bar select, .filter-bar label { font-family:var(--sans); font-size:13px; }
@@ -197,6 +201,16 @@
     <span style="color:var(--red)"><strong id="statLow">0</strong> low confidence</span>
     <span style="color:var(--text-4)"><strong id="statUncat">0</strong> uncategorized</span>
   </div>
+</div>
+
+<!-- Data-hub tab strip — Condition is active here; the rest deep-link into
+     import.html's existing tabs via #hash. -->
+<div class="tabs">
+  <div class="tab active">Condition</div>
+  <a class="tab" href="import.html#import">Import CSV</a>
+  <a class="tab" href="import.html#geocode">Geocode</a>
+  <a class="tab" href="import.html#schools">Missing Schools</a>
+  <a class="tab" href="import.html#dupes">Find Duplicates</a>
 </div>
 
 <div class="filter-bar">
@@ -791,7 +805,7 @@ function evenSample(total,count){
 (async()=>{
   await window.authGate();
   if(!window.CURRENT_USER_ROLE) return;  // authGate redirected; abort
-  window.renderSidebar('condition');
+  window.renderSidebar('data');
   init();
 })();
 </script>
