@@ -19,3 +19,8 @@
 
 /backstage.css
   Cache-Control: no-cache, must-revalidate
+
+# HTML pages: revalidate on every load so a plain refresh picks up new
+# deploys immediately instead of serving a stale cached page (Brief PH).
+/*.html
+  Cache-Control: no-cache, must-revalidate

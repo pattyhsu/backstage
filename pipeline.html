@@ -79,7 +79,7 @@ body { overflow:hidden; height:100vh; }
 .card { display:block; padding:10px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; text-decoration:none; color:inherit; transition:all .1s; }
 .card:hover { border-color:var(--border-hover); transform:translateY(-1px); box-shadow:0 2px 6px rgba(0,0,0,.04); text-decoration:none; }
 .card .addr { font-size:13px; font-weight:600; color:var(--text); line-height:1.25; }
-.card .addr .city { font-size:12px; font-weight:400; color:var(--text-3); text-transform:capitalize; }
+.card .addr .city { font-size:12px; font-weight:400; color:var(--text-3); }
 .card .meta { display:flex; justify-content:space-between; align-items:baseline; margin-top:6px; gap:8px; }
 .card .meta .meta-r { display:flex; align-items:baseline; gap:8px; white-space:nowrap; }
 .card .price { font-size:11px; font-weight:600; color:var(--accent); }
@@ -150,6 +150,9 @@ function phaseLabel(s){
 
 // ========== HELPERS ==========
 function FK(n){if(n==null||!isFinite(n))return '';if(n>=1e6)return '$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';if(n>=1e3)return '$'+Math.round(n/1e3)+'K';return '$'+n;}
+// DB stores city in ALL CAPS; CSS text-transform:capitalize can't lowercase it,
+// so title-case here (DIAMOND BAR -> Diamond Bar).
+function titleCase(s){return String(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());}
 function relTime(iso){
   if(!iso)return '';
   const t=new Date(iso).getTime();if(!isFinite(t))return '';
@@ -294,7 +297,7 @@ function renderBoard(deals, propsByMls, latestByDeal, costByDeal){
         ].filter(Boolean).join(' / '):'';
 
         const addrText=p?(p.address||'(no address)'):'(no linked properties row)';
-        const cityText=p?(p.city||''):'';
+        const cityText=p?titleCase(p.city||''):'';
         const href='project-detail.html?deal='+encodeURIComponent(d.id);
 
         // Brief MH Phase 3 — rehab spent/budget mini-bar, Under Construction
