@@ -576,12 +576,12 @@ async function loadCards(){
   const dataP=applyCardFilters(
     sb.from('properties')
       .select('id,mls,address,city,sqft,beds,baths,sale_price,list_price,photo_count,condition_tier,condition_confidence,condition_sample_photos,condition_overridden,value_driver_rooms_updated')
-      .order('condition_scored_at',{ascending:false})
+      .order('condition_scored_at',{ascending:false}).order('id',{ascending:false})
   ).range(from,from+PAGE_SIZE-1);
   const textP=applyCardFilters(
     sb.from('properties')
       .select('id,remarks,condition_reasoning')
-      .order('condition_scored_at',{ascending:false})
+      .order('condition_scored_at',{ascending:false}).order('id',{ascending:false})
   ).range(from,from+PAGE_SIZE-1);
   const countP=applyCardFilters(
     sb.from('properties').select('id',{count:'exact',head:true})
