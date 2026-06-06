@@ -23,7 +23,6 @@
       label: 'Pipeline',
       items: [
         { key: 'pipeline', label: 'Pipeline', href: 'pipeline.html', icon: iconPipeline() },
-        { key: 'calendar', label: 'Calendar', href: 'calendar.html', icon: iconCalendar() },
       ],
     },
     {

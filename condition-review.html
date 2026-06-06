@@ -640,7 +640,7 @@ function renderCard(p){
   const photoHtml=previewNums.length>0
     ? previewNums.map(n=>{
         const url=`${PHOTO_BASE}/${p.mls}/${p.mls}_${String(n).padStart(2,'0')}.jpg`;
-        return `<img src="${esc(url)}" loading="lazy" onerror="this.style.display='none'" onclick="openLightbox('${esc(p.mls)}', ${totalPhotos}, '${addrSafe}')" title="Photo ${n} of ${totalPhotos} — click to open gallery">`;
+        return `<img src="${esc(url)}" loading="lazy" onerror="this.style.display='none'" onclick="openLightbox('${esc(p.mls)}', ${totalPhotos}, '${addrSafe}', ${n})" title="Photo ${n} of ${totalPhotos} — click to open gallery">`;
       }).join('')
     : `<div style="padding:20px;color:var(--text-4);font-size:13px">No photos available (photo_count=${totalPhotos})</div>`;
 
@@ -803,7 +803,7 @@ function goPage(n){
 // rendering don't intermix grids from different listings.
 let lbMls=null;
 
-function openLightbox(mls, photoCount, addr){
+function openLightbox(mls, photoCount, addr, landOn){
   lbMls=mls;
   const myMls=mls;
   const addrEl=document.getElementById('lbAddr');
@@ -819,6 +819,7 @@ function openLightbox(mls, photoCount, addr){
 
   // Render all photos up to photo_count. R2 files are {mls}/{mls}_NN.jpg
   // zero-padded; gracefully hide any that 404.
+  let landEl=null;
   for(let n=1; n<=photoCount; n++){
     if(lbMls!==myMls) return;  // bailed out — user reopened on a different listing
     const url=`${PHOTO_BASE}/${mls}/${mls}_${String(n).padStart(2,'0')}.jpg`;
@@ -834,7 +835,13 @@ function openLightbox(mls, photoCount, addr){
       }
     };
     grid.appendChild(el);
+    if(n===landOn) landEl=el;
   }
+
+  // Scroll the clicked thumbnail into view (the grid renders all photos, so
+  // without this the gallery always opens at the top regardless of which
+  // thumbnail was clicked). rAF lets layout settle before scrolling.
+  if(landEl) requestAnimationFrame(()=>{ landEl.scrollIntoView({block:'center'}); });
 }
 
 function closeLightbox(){
