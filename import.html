@@ -92,11 +92,6 @@ a.tab,a.tab:hover{text-decoration:none}
 <div class="bs-sidebar" id="bsSidebar"></div>
 
 <div class="main-content">
-<div class="hdr">
-  <div class="logo">Import Hub</div>
-  <span style="font-size:12px;color:var(--text-4)" id="dbStatus"></span>
-</div>
-
 <div class="tabs">
   <a class="tab" href="condition-review.html">Condition</a>
   <div class="tab active" data-tab="import" onclick="switchTab('import')">Import CSV</div>
@@ -935,8 +930,6 @@ async function autoRemoveDupes(){
   // Deep-link support: open the tab named in the URL hash (Import is default).
   var ht=(location.hash||'').slice(1);
   if(['geocode','schools','dupes'].indexOf(ht)>=0) switchTab(ht);
-  try{var{error}=await sb.from(TABLE).select('id').limit(1);document.getElementById('dbStatus').innerHTML=error?'<span style="color:var(--red)">●</span>':'<span style="color:var(--green)">●</span>';}
-  catch(e){document.getElementById('dbStatus').innerHTML='<span style="color:var(--red)">●</span>';}
   loadHistory();
 })();
 </script>
