@@ -54,19 +54,19 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 
 /* Layout */
 .scroll-wrap { flex:1; overflow-y:auto; }
-.page { max-width:900px; margin:0 auto; padding:22px 24px 60px; }
+.page { max-width:1080px; margin:0 auto; padding:20px 28px 60px; }
 .crumb { display:flex; align-items:center; gap:12px; font-size:13px; color:var(--text-3); margin-bottom:16px; }
 .crumb a { color:var(--accent); }
 .crumb .sep { color:var(--text-4); }
 
 /* Top bar (back button) */
-.topbar { display:flex; align-items:center; gap:10px; padding:14px 24px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.92); backdrop-filter:blur(20px); position:sticky; top:0; z-index:10; }
-.back-btn { background:none; border:1px solid var(--border); border-radius:5px; padding:4px 10px; cursor:pointer; font-size:12px; font-family:inherit; color:var(--text-3); text-decoration:none; }
+.topbar { display:flex; align-items:center; gap:14px; padding:9px 24px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.92); backdrop-filter:blur(20px); position:sticky; top:0; z-index:10; flex-shrink:0; }
+.back-btn { background:none; border:1px solid var(--border); border-radius:5px; padding:4px 10px; cursor:pointer; font-size:12px; font-family:inherit; color:var(--text-3); text-decoration:none; white-space:nowrap; }
 .back-btn:hover { color:var(--text); border-color:var(--border-hover); text-decoration:none; }
 
 /* === ACQUISITION CARD === */
-.acq { display:grid; grid-template-columns:48px 1fr; gap:12px; padding-bottom:18px; border-bottom:1px solid var(--border); margin-bottom:18px; position:relative; }
-.acq-photo { width:48px; height:36px; border-radius:4px; overflow:hidden; background:linear-gradient(135deg,#cdc8be,#a8a297); cursor:pointer; }
+.acq { display:grid; grid-template-columns:48px 1fr; gap:12px; padding-bottom:16px; border-bottom:1px solid var(--border); margin-bottom:16px; position:relative; align-items:start; }
+.acq-photo { width:48px; height:36px; border-radius:4px; overflow:hidden; background:linear-gradient(135deg,#cdc8be,#a8a297); cursor:pointer; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.7); font-size:15px; border:1px solid var(--border); }
 .acq-photo img { width:100%; height:100%; object-fit:cover; display:block; }
 .acq-photo.empty { display:flex; align-items:center; justify-content:center; font-size:8px; color:var(--text-4); cursor:default; text-align:center; line-height:1.1; }
 .acq-body { display:flex; flex-direction:column; gap:6px; }
@@ -79,11 +79,11 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .sp.sh { background:var(--green-bg); color:var(--green); }
 .sp.sm { background:var(--amber-bg); color:var(--amber); }
 .sp.sl { background:var(--red-bg); color:var(--red); }
-.sp-nm { font-size:9px; color:var(--text-4); margin:0 8px 0 3px; }
+.sp-nm { font-size:9px; color:var(--text-3); margin:0 8px 0 3px; }
 .acq-schools { display:flex; gap:14px; flex-wrap:wrap; align-items:center; font-size:11px; color:var(--text-2); }
 .acq-schools .school-chip { display:inline-flex; align-items:center; gap:3px; font-family:var(--mono); font-size:11px; font-weight:700; padding:1px 6px; border-radius:4px; margin-right:5px; }
-.acq-agent { display:flex; align-items:baseline; gap:12px; font-size:11px; color:var(--text-2); margin-top:2px; flex-wrap:wrap; }
-.acq-agent .lbl { color:var(--text-4); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; margin-right:4px; }
+.acq-agent { display:flex; align-items:baseline; gap:12px; font-size:11px; color:var(--text-2); margin-top:3px; flex-wrap:wrap; }
+.acq-agent .lbl { color:var(--text-4); font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; margin-right:4px; }
 .acq-link { font-size:11px; color:var(--accent); margin-left:auto; }
 .de-pill { background:var(--purple-bg); color:var(--purple); padding:2px 7px; border-radius:4px; font-size:11px; font-weight:600; }
 
@@ -92,7 +92,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .topbar-link { font-size:12px; color:var(--accent); text-decoration:none; white-space:nowrap; }
 .topbar-link:hover { text-decoration:underline; }
 .stage-tabs { display:flex; gap:3px; background:var(--bg-inset); padding:3px; border-radius:99px; }
-.stage-tab { border:none; background:transparent; font-family:inherit; font-size:12.5px; font-weight:600; color:var(--text-3); padding:5px 15px; border-radius:99px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:7px; }
+.stage-tab { border:none; background:transparent; font-family:var(--sans); font-size:12.5px; font-weight:600; color:var(--text-3); padding:5px 15px; border-radius:99px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:7px; }
 .stage-tab:hover { color:var(--text); }
 .stage-tab .aux { font-size:10px; font-weight:600; font-family:var(--mono); opacity:.8; }
 .stage-tab.on { background:var(--bg); box-shadow:var(--shadow-sm); color:var(--text-2); }   /* the tab you're VIEWING */
@@ -156,21 +156,18 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 
 /* === Section blocks === */
 .sect { background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px 20px; margin-bottom:14px; }
-.sect-h { display:flex; align-items:baseline; gap:12px; margin-bottom:12px; flex-wrap:wrap; row-gap:3px; }
+.sect-h { display:flex; align-items:baseline; gap:12px; margin-bottom:12px; }
 .sect-h h2 { font-size:13px; font-weight:700; color:var(--text); margin:0; letter-spacing:.02em; text-transform:uppercase; }
-/* In narrow cards (constr/escrow cols) the sub keeps a sensible basis so it wraps to
-   ~2 lines beside the title instead of collapsing into a skinny column; the action
-   link then drops to its own row rather than squeezing the sub. */
-.sect-h .sub { font-size:11px; color:var(--text-4); font-weight:500; flex:1 1 120px; min-width:90px; }
+.sect-h .sub { font-size:11px; color:var(--text-4); font-weight:500; }
 .sect-h .right { margin-left:auto; display:flex; align-items:center; gap:14px; }
-.sect-h .right a { font-size:12px; color:var(--accent); white-space:nowrap; }
+.sect-h .right a { font-size:12px; color:var(--accent); text-decoration:none; cursor:pointer; }
 .phase-hide { display:none !important; }
 
 /* Escrow timeline */
 .et-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:16px; }
 .et-cell { display:flex; flex-direction:column; gap:3px; }
 .et-lbl { font-size:10px; color:var(--text-4); font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
-.et-val { font-family:var(--mono); font-size:14px; font-weight:700; color:var(--text); cursor:text; padding:1px 3px; border-radius:3px; }
+.et-val { font-size:14px; font-weight:700; color:var(--text); cursor:text; padding:1px 3px; border-radius:3px; width:max-content; }
 .et-val:hover { background:var(--accent-dim); }
 .et-val.editing { background:var(--bg); padding:0; }
 .et-val input { font:inherit; border:1px solid var(--accent); border-radius:3px; padding:1px 4px; outline:none; background:var(--bg); width:130px; }
@@ -181,7 +178,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .escrow-cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start; }
 .esc-col { display:flex; flex-direction:column; gap:14px; }
 .esc-col .sect { margin-bottom:0; }
-.escrow-cols .et-grid { grid-template-columns:repeat(3,1fr); }   /* 3 anchor dates only */
+.escrow-cols .et-grid { grid-template-columns:repeat(3,1fr); gap:12px 14px; }   /* 3 anchor dates only */
 @media(max-width:860px){ .escrow-cols { grid-template-columns:1fr; } }
 
 /* Escrow checklist list */
@@ -193,8 +190,8 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 
 /* Cash needed breakdown (segments mirror the offer-math buckets) */
 .cn-top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
-.cn-lbl { font-size:11px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
-.cn-total { font-size:22px; font-weight:800; color:var(--text); font-variant-numeric:tabular-nums; }
+.cn-lbl { font-size:13px; font-weight:700; color:var(--text); }
+.cn-total { font-size:22px; font-weight:800; color:var(--text); letter-spacing:-.01em; font-variant-numeric:tabular-nums; }
 .cn-bar { display:flex; height:12px; border-radius:7px; overflow:hidden; background:var(--bg-inset); gap:1.5px; margin-bottom:14px; }
 .cn-seg { height:100%; }
 .cn-down { background:#6B6B63; }    /* same gray as Purchase price in offer math */
@@ -297,7 +294,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .ck-list li { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-2); }
 .ck-list input[type=checkbox] { cursor:pointer; margin:0; }
 .ck-list li.done .ck-name { text-decoration:line-through; color:var(--text-4); }
-.ck-add { margin-top:8px; font-size:11px; color:var(--accent); cursor:pointer; }
+.ck-add { margin-top:12px; font-size:11px; color:var(--accent); cursor:pointer; }
 .ck-block-h { display:none; }   /* redundant — the section already has a CHECKLIST header */
 .ck-block { margin-top:16px; padding-top:14px; border-top:1px dashed var(--border); }
 
@@ -311,13 +308,9 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .cn-hero-cell .lbl { font-size:10px; color:#4A6F8F; font-weight:600; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
 .cn-hero-cell .val { font-family:var(--mono); font-size:24px; font-weight:700; color:#2873A8; line-height:1.1; }
 .cn-hero-cell .sub { font-size:11px; color:#4A6F8F; margin-top:4px; font-family:var(--mono); }
-.cn-bars { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
-.cn-bar { display:flex; align-items:center; gap:12px; }
-.cn-bar .lbl { width:110px; font-size:11px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; flex-shrink:0; }
-.cn-bar .track { flex:1; height:10px; background:var(--accent-dim); border-radius:5px; overflow:hidden; position:relative; }
-.cn-bar .fill { height:100%; background:linear-gradient(90deg, #2873A8, #4A99CC); border-radius:5px; transition:width .3s; }
-.cn-bar .fill.over { background:linear-gradient(90deg, var(--red), #D85543); }
-.cn-bar .pct { width:140px; font-family:var(--mono); font-size:12px; color:var(--text-2); font-weight:600; text-align:right; flex-shrink:0; }
+.cn-bars { display:flex; flex-direction:column; gap:14px; margin-bottom:16px; }
+/* (old horizontal .cn-bar removed — redesigned construction uses .cn-bar2; the
+   bare .cn-bar is now only the cash-needed segmented bar, styled above.) */
 
 /* Spending tree */
 .cn-expenses { margin-top:16px; border-top:1px solid var(--border); padding-top:12px; }
@@ -503,10 +496,6 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
   letter-spacing: -.01em;
 }
 
-/* 2 — Cards: flatter, roomier, softer corners */
-.sect { border-radius:12px; padding:20px 22px; margin-bottom:12px; }
-.sect-h h2 { letter-spacing:.08em; color:var(--text-3); }
-
 /* 3 — Underwriting bar → light inline summary (not a heavy slab) */
 .uw-bar { background:transparent; border:none; border-bottom:1px solid var(--border);
   border-radius:0; padding:2px 2px 16px; margin-top:14px; gap:34px; }
@@ -526,12 +515,6 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
   display:flex; flex-direction:column; justify-content:center; }
 .lp-out-cell .val { font-size:21px; letter-spacing:-.018em; }
 .lp-out-cell.accent { background:var(--accent-bg); }
-
-/* 5 — Escrow timeline cells → divided strip (markup unchanged) */
-.et-grid { gap:1px; background:var(--border); border:1px solid var(--border);
-  border-radius:10px; overflow:hidden; }
-.et-cell { background:#fff; padding:13px 16px; gap:6px; }
-.et-val { font-size:14px; white-space:nowrap; }
 
 /* 6 — Construction: tokenize the hardcoded blues, flatten gradients */
 .cn-hero-cell { background:var(--blue-bg); border-color:var(--blue-line); }
@@ -889,6 +872,9 @@ const PHASE_CONFIG = {
 // ============================================================
 function FK(n){if(n==null||!isFinite(n))return '—';if(Math.abs(n)>=1e6)return '$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';if(Math.abs(n)>=1e3)return '$'+Math.round(n/1e3)+'K';return '$'+Math.round(n);}
 function FKsigned(n){if(n==null||!isFinite(n))return '—';return (n>=0?'+':'-')+FK(Math.abs(n));}
+// Full-precision dollars ($306,376) — the mockup shows exact figures (not K-abbreviated)
+// for the construction budget + escrow cash-needed. Used there; FK stays for closed views.
+function FD(n){if(n==null||!isFinite(n))return '—';return '$'+Math.round(n).toLocaleString();}
 function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
 function relTime(iso){
   if(!iso)return '';
@@ -1479,7 +1465,7 @@ function renderConstructionSection(){
   const budgetPct=(d.rehab_actual!=null && d.rehab_budget && d.rehab_budget>0)
     ? Math.round((d.rehab_actual/d.rehab_budget)*100)
     : 0;
-  const budgetLabel=`${d.rehab_actual!=null?FK(d.rehab_actual):'$0'} / ${d.rehab_budget!=null?FK(d.rehab_budget):'—'} · ${budgetPct}%`;
+  const budgetLabel=`${d.rehab_actual!=null?FD(d.rehab_actual):'$0'} / ${d.rehab_budget!=null?FD(d.rehab_budget):'—'} · ${budgetPct}%`;
 
   // Spent-to-date breakdown (composition bar + grouped ledger)
   const spendHtml=renderSpendingTree();
@@ -1657,14 +1643,14 @@ function renderCashNeeded(){
   const carry=Math.round(loanAmt*loanRate*(months/12));
   const totalCash=down+construction+carry;
   const seg=(v)=>Math.max(1, Math.round(v));
-  const downDet=buy>0?`· ${down>0&&buy>0?Math.round(down/buy*100):0}% of ${FK(buy)} purchase`:'';
-  const carryDet=loanAmt>0?`· ${months.toFixed(months>=3?0:1)} mo @ ${(loanRate*100).toFixed(loanRate*100%1?1:0)}% on ${FK(loanAmt)} loan`:'· no loan yet';
+  const downDet=buy>0?`· ${down>0&&buy>0?Math.round(down/buy*100):0}% of ${FD(buy)} purchase`:'';
+  const carryDet=loanAmt>0?`· ${months.toFixed(months>=3?0:1)} mo @ ${(loanRate*100).toFixed(loanRate*100%1?1:0)}% on ${FD(loanAmt)} loan`:'· no loan yet';
   return `
-    <div class="cn-top"><span class="cn-lbl">Total to bring</span><span class="cn-total">${FK(totalCash)}</span></div>
+    <div class="cn-top"><span class="cn-lbl">Total to bring</span><span class="cn-total">${FD(totalCash)}</span></div>
     <div class="cn-bar"><i class="cn-seg cn-down" style="flex:${seg(down)}"></i><i class="cn-seg cn-rehab" style="flex:${seg(construction)}"></i><i class="cn-seg cn-carry" style="flex:${seg(carry)}"></i></div>
-    <div class="cn-row"><span class="cn-sw cn-down"></span><span class="cn-name">Down payment <span class="det">${downDet}</span></span><span class="cn-amt">${FK(down)}</span></div>
-    <div class="cn-row"><span class="cn-sw cn-rehab"></span><span class="cn-name">Construction / rehab</span><span class="cn-amt">${FK(construction)}</span></div>
-    <div class="cn-row"><span class="cn-sw cn-carry"></span><span class="cn-name">Carry cost <span class="det">${carryDet}</span></span><span class="cn-amt">${FK(carry)}</span></div>
+    <div class="cn-row"><span class="cn-sw cn-down"></span><span class="cn-name">Down payment <span class="det">${downDet}</span></span><span class="cn-amt">${FD(down)}</span></div>
+    <div class="cn-row"><span class="cn-sw cn-rehab"></span><span class="cn-name">Construction / rehab</span><span class="cn-amt">${FD(construction)}</span></div>
+    <div class="cn-row"><span class="cn-sw cn-carry"></span><span class="cn-name">Carry cost <span class="det">${carryDet}</span></span><span class="cn-amt">${FD(carry)}</span></div>
   `;
 }
 
