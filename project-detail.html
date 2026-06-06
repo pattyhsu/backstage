@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Project Detail — Backstage</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="backstage.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -64,14 +65,21 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .back-btn:hover { color:var(--text); border-color:var(--border-hover); text-decoration:none; }
 
 /* === ACQUISITION CARD === */
-.acq { display:grid; grid-template-columns:132px 1fr; gap:18px; padding-bottom:18px; border-bottom:1px solid var(--border); margin-bottom:18px; position:relative; }
-.acq-photo { width:132px; height:96px; border-radius:6px; overflow:hidden; background:linear-gradient(135deg,#cdc8be,#a8a297); cursor:pointer; }
+.acq { display:grid; grid-template-columns:48px 1fr; gap:12px; padding-bottom:18px; border-bottom:1px solid var(--border); margin-bottom:18px; position:relative; }
+.acq-photo { width:48px; height:36px; border-radius:4px; overflow:hidden; background:linear-gradient(135deg,#cdc8be,#a8a297); cursor:pointer; }
 .acq-photo img { width:100%; height:100%; object-fit:cover; display:block; }
-.acq-photo.empty { display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--text-4); cursor:default; text-align:center; line-height:1.2; }
+.acq-photo.empty { display:flex; align-items:center; justify-content:center; font-size:8px; color:var(--text-4); cursor:default; text-align:center; line-height:1.1; }
 .acq-body { display:flex; flex-direction:column; gap:6px; }
 .acq-title-row { display:flex; align-items:flex-start; gap:12px; }
 .acq-title { font-size:16px; font-weight:800; color:var(--text); line-height:1.2; flex:1; }
-.acq-sub { font-size:11px; color:var(--text-3); }
+.acq-sub { font-size:11px; color:var(--text-3); display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
+.acq-sch { display:inline-flex; gap:2px; align-items:center; flex-wrap:wrap; }
+.sp { display:inline-flex; align-items:center; gap:2px; font-size:11px; font-weight:600; padding:2px 5px; border-radius:4px; font-variant-numeric:tabular-nums; }
+.sp .lv { font-size:8px; font-weight:700; opacity:.7; }
+.sp.sh { background:var(--green-bg); color:var(--green); }
+.sp.sm { background:var(--amber-bg); color:var(--amber); }
+.sp.sl { background:var(--red-bg); color:var(--red); }
+.sp-nm { font-size:9px; color:var(--text-4); margin:0 8px 0 3px; }
 .acq-schools { display:flex; gap:14px; flex-wrap:wrap; align-items:center; font-size:11px; color:var(--text-2); }
 .acq-schools .school-chip { display:inline-flex; align-items:center; gap:3px; font-family:var(--mono); font-size:11px; font-weight:700; padding:1px 6px; border-radius:4px; margin-right:5px; }
 .acq-agent { display:flex; align-items:baseline; gap:12px; font-size:11px; color:var(--text-2); margin-top:2px; flex-wrap:wrap; }
@@ -79,34 +87,48 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .acq-link { font-size:11px; color:var(--accent); margin-left:auto; }
 .de-pill { background:var(--purple-bg); color:var(--purple); padding:2px 7px; border-radius:4px; font-size:11px; font-weight:600; }
 
-/* Phase pill + popover combo (top-right of acq card) */
-.phase-stack { display:flex; flex-direction:column; align-items:flex-end; gap:4px; position:absolute; top:0; right:0; z-index:15; }
-.phase-pill-big { display:inline-block; font-size:12px; font-weight:700; padding:4px 12px; border-radius:10px; letter-spacing:.3px; cursor:pointer; user-select:none; }
-.phase-pill-big::after { content:'▾'; font-size:9px; margin-left:6px; opacity:.7; }
-.phase-pill-big:hover { filter:brightness(0.96); }
-.phase-pill-pursuing       { background:var(--accent-dim); color:var(--accent); }
-.phase-pill-in_escrow      { background:var(--amber-bg); color:var(--amber); }
-.phase-pill-under_construction { background:#E5F2FA; color:#2873A8; }
-.phase-pill-selling        { background:var(--green-bg); color:var(--green); }
-.phase-pill-sold           { background:#ECECEA; color:var(--text-3); }
-.phase-pill-lost           { background:var(--red-bg); color:var(--red); }
-.phase-pill-archived       { background:var(--bg-alt); color:var(--text-4); }
-.phase-aux { font-size:11px; color:var(--text-4); }
-.phase-popover { position:absolute; top:100%; right:0; margin-top:6px; background:#fff; border:1px solid var(--border-strong); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.08); padding:14px; min-width:300px; z-index:20; display:none; }
-.phase-stack.open .phase-popover { display:block; }
-.phase-popover .pp-lbl { font-size:10px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
-.phase-popover select, .phase-popover textarea, .phase-popover input { width:100%; padding:6px 8px; font:inherit; border:1px solid var(--border); border-radius:4px; margin-bottom:10px; font-size:12px; box-sizing:border-box; }
-.phase-popover textarea { resize:vertical; min-height:50px; }
-.phase-popover .pp-dates { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:6px; }
-.phase-popover .pp-dates label { font-size:9px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
-.phase-popover .pp-dates input { margin-bottom:0; padding:4px 6px; }
-.phase-popover .pp-actions { display:flex; gap:8px; justify-content:flex-end; }
-.phase-popover button { padding:5px 12px; font-size:12px; font-weight:600; border-radius:4px; cursor:pointer; border:1px solid var(--border); background:#fff; color:var(--text-2); font-family:inherit; }
-.phase-popover button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
-.phase-popover button:disabled { opacity:.55; cursor:not-allowed; }
-.phase-popover .pp-msg { font-size:11px; min-height:14px; margin-top:4px; }
-.phase-popover .pp-msg.err { color:var(--red); }
-.phase-popover .pp-msg.ok  { color:var(--green); }
+/* Lifecycle stage tabs (live in the topbar — replaced the old phase pill) */
+.topbar-right { margin-left:auto; display:flex; align-items:center; gap:14px; }
+.topbar-link { font-size:12px; color:var(--accent); text-decoration:none; white-space:nowrap; }
+.topbar-link:hover { text-decoration:underline; }
+.stage-tabs { display:flex; gap:3px; background:var(--bg-inset); padding:3px; border-radius:99px; }
+.stage-tab { border:none; background:transparent; font-family:inherit; font-size:12.5px; font-weight:600; color:var(--text-3); padding:5px 15px; border-radius:99px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:7px; }
+.stage-tab:hover { color:var(--text); }
+.stage-tab .aux { font-size:10px; font-weight:600; font-family:var(--mono); opacity:.8; }
+.stage-tab.on { background:var(--bg); box-shadow:var(--shadow-sm); color:var(--text-2); }   /* the tab you're VIEWING */
+.stage-tab.current { font-weight:700; }                                                    /* deal's REAL phase — "you are here" */
+.stage-tab.current[data-phase="pursuing"] { color:var(--accent); }
+.stage-tab.current[data-phase="in_escrow"] { color:var(--amber); }
+.stage-tab.current[data-phase="under_construction"] { color:var(--blue); }
+.stage-tab.current[data-phase="selling"] { color:var(--green); }
+.stage-tab .here-dot { width:6px; height:6px; border-radius:50%; background:currentColor; display:inline-block; }
+.stage-tab .lock-ic { font-size:10px; opacity:.7; }
+.stage-tab.locked { color:var(--text-4); opacity:.5; cursor:not-allowed; }                  /* future — not reached yet */
+.stage-tab.locked:hover { color:var(--text-4); }
+.stage-tab.next { color:var(--amber); }                                                    /* immediate next stage — openable */
+.stage-tab.next .next-ic { font-size:11px; opacity:.85; }
+.stage-tab.next:hover { background:var(--amber-bg); }
+
+/* Advance modal (Open escrow / Start construction / List it) */
+.adv-overlay { position:fixed; inset:0; background:rgba(26,26,24,.35); display:none; align-items:center; justify-content:center; z-index:100; }
+.adv-overlay.open { display:flex; }
+.adv-modal { background:#fff; border-radius:12px; box-shadow:var(--shadow-md,0 4px 16px rgba(0,0,0,.08)); width:430px; max-width:92vw; padding:22px 22px 18px; }
+.adv-modal h3 { font-size:16px; font-weight:800; color:var(--text); margin:0; }
+.adv-blurb { font-size:12px; color:var(--text-3); margin-top:5px; margin-bottom:16px; line-height:1.5; }
+.adv-fields { display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+.adv-f { display:flex; flex-direction:column; gap:4px; font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--text-4); }
+.adv-f input { padding:7px 9px; border:1px solid var(--border); border-radius:5px; font:13px var(--sans,inherit); font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; }
+.adv-f input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim); }
+.adv-preview { margin-top:14px; padding:9px 12px; background:var(--accent-dim); border:1px solid var(--accent-dim2); border-radius:6px; font-size:12px; color:var(--text-2); font-variant-numeric:tabular-nums; }
+.adv-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
+.adv-msg { font-size:11px; min-height:14px; margin-top:8px; }
+/* movePhase() writes status into #ppMsg with the legacy .pp-msg classes — keep their colors */
+.adv-msg.err, .pp-msg.err { color:var(--red); }
+.adv-msg.ok,  .pp-msg.ok  { color:var(--green); }
+.adv-btn-ghost { background:#fff; border:1px solid var(--border); border-radius:6px; padding:7px 14px; font:13px var(--sans,inherit); font-weight:600; color:var(--text-2); cursor:pointer; }
+.adv-btn-primary { background:var(--accent); border:1px solid var(--accent); border-radius:6px; padding:7px 16px; font:13px var(--sans,inherit); font-weight:700; color:#fff; cursor:pointer; }
+.adv-btn-primary:hover { background:var(--accent-hover); }
+.adv-btn-primary:disabled { opacity:.55; cursor:not-allowed; }
 
 /* === Underwriting bar === */
 .uw-bar { margin-top:16px; padding:14px 18px; background:var(--accent-dim); border:1px solid var(--accent-dim2); border-radius:8px; display:flex; align-items:center; gap:28px; flex-wrap:wrap; }
@@ -151,6 +173,59 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .et-val input { font:inherit; border:1px solid var(--accent); border-radius:3px; padding:1px 4px; outline:none; background:var(--bg); width:130px; }
 .et-aux { font-size:11px; color:var(--text-4); font-family:var(--mono); }
 .et-deadline { color:var(--amber); font-weight:700; }
+
+/* Escrow panel: two columns — [timeline + docs] | [checklist + cash] */
+.escrow-cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start; }
+.esc-col { display:flex; flex-direction:column; gap:14px; }
+.esc-col .sect { margin-bottom:0; }
+.escrow-cols .et-grid { grid-template-columns:repeat(3,1fr); }   /* 3 anchor dates only */
+@media(max-width:860px){ .escrow-cols { grid-template-columns:1fr; } }
+
+/* Escrow checklist list */
+.ck-list { list-style:none; padding:0; margin:0; display:grid; grid-template-columns:1fr; gap:9px; }
+.ck-list li { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-2); }
+.ck-list input[type=checkbox] { cursor:pointer; margin:0; }
+.ck-list li.done .ck-name { text-decoration:line-through; color:var(--text-4); }
+.ck-add { margin-top:12px; font-size:11px; color:var(--accent); cursor:pointer; }
+
+/* Cash needed breakdown (segments mirror the offer-math buckets) */
+.cn-top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
+.cn-lbl { font-size:11px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.cn-total { font-size:22px; font-weight:800; color:var(--text); font-variant-numeric:tabular-nums; }
+.cn-bar { display:flex; height:12px; border-radius:7px; overflow:hidden; background:var(--bg-inset); gap:1.5px; margin-bottom:14px; }
+.cn-seg { height:100%; }
+.cn-down { background:#6B6B63; }    /* same gray as Purchase price in offer math */
+.cn-rehab { background:#9E9E93; }   /* same as Construction / rehab */
+.cn-carry { background:#B5B5AA; }   /* same as Financing */
+.cn-row { display:grid; grid-template-columns:14px 1fr auto; gap:10px; align-items:center; padding:8px 0; font-size:13px; }
+.cn-row+.cn-row { border-top:1px solid var(--border); }
+.cn-sw { width:11px; height:11px; border-radius:3px; }
+.cn-name { color:var(--text-2); font-weight:500; }
+.cn-name .det { color:var(--text-4); font-size:11px; font-weight:400; }
+.cn-amt { font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; justify-self:end; }
+
+/* Documents (escrow + construction) */
+.doc-list { display:flex; flex-direction:column; gap:8px; }
+.doc-row { display:grid; grid-template-columns:32px 1fr auto; gap:12px; align-items:center; padding:9px 12px; border:1px solid var(--border); border-radius:6px; background:#fff; }
+.doc-row:hover { border-color:var(--border-hover, var(--accent-dim2)); }
+.doc-ic { width:32px; height:32px; border-radius:6px; display:grid; place-items:center; font-size:15px; }
+.doc-ic.design { background:#E9EEF6; }
+.doc-ic.permit { background:var(--amber-bg); }
+.doc-ic.contract { background:var(--accent-dim2); }
+.doc-ic.inspect { background:var(--green-bg); }
+.doc-ic.other { background:var(--bg-inset); }
+.doc-main { min-width:0; }
+.doc-name { font-weight:600; font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.doc-meta { font-size:11px; color:var(--text-4); margin-top:1px; }
+.doc-tag { font-weight:600; }
+.doc-tag.design { color:#3A5C8A; }
+.doc-tag.permit { color:var(--amber); }
+.doc-tag.contract { color:var(--accent); }
+.doc-tag.inspect { color:var(--green); }
+.doc-dl { font-size:12px; color:var(--text-4); cursor:pointer; text-decoration:none; white-space:nowrap; }
+.doc-dl:hover { color:var(--text-2); }
+.doc-add { font-size:12px; color:var(--accent); cursor:pointer; }
+.doc-empty { font-size:12px; color:var(--text-4); font-style:italic; padding:8px 0; }
 
 /* Cash position panel */
 .cash-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:12px; }
@@ -257,6 +332,34 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .sp-tree .lvl-2 td:last-child { font-weight:500; }
 .sp-tree .hidden { display:none; }
 .sp-empty { font-size:12px; color:var(--text-4); font-style:italic; padding:10px 0; }
+
+/* Construction: status bars (schedule + budget) — label+value above a full-width bar */
+.cn-bar2 { display:flex; flex-direction:column; gap:6px; }
+.cn-bar2-top { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+.cn-bar2 .lbl { font-size:11px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.cn-bar2 .pct { font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-2); font-weight:600; }
+.cn-bar2 .track { width:100%; height:8px; background:var(--bg-inset); border-radius:999px; overflow:hidden; }
+.cn-bar2 .fill { height:100%; border-radius:999px; transition:width .3s; }
+.cn-bar2 .fill.blue { background:var(--blue); }
+.cn-bar2 .fill.gold { background:var(--accent); }
+.cn-bar2 .fill.over { background:var(--red); }
+.constr-cols { display:grid; grid-template-columns:1fr 1.5fr; gap:14px; align-items:start; }   /* left: bars+docs · right: spent (bigger) */
+.constr-cols .sect { margin-bottom:0; }
+@media(max-width:860px){ .constr-cols { grid-template-columns:1fr; } }
+
+/* Construction cost breakdown — iOS composition bar + grouped ledger */
+.comp-bar { display:flex; height:11px; border-radius:5px; overflow:hidden; background:#ECEBE8; margin-bottom:14px; }
+.comp-seg { height:100%; }
+.led-grp { padding-top:12px; border-top:1px solid var(--bg-alt); }
+.led-grp:first-child { padding-top:0; border-top:none; }
+.led-head { display:grid; grid-template-columns:auto auto 1fr auto; gap:8px; align-items:center; padding-bottom:6px; }
+.led-sw { width:9px; height:9px; border-radius:2px; }
+.led-name { font-size:12px; font-weight:600; color:var(--text-2); }
+.led-pct { font-size:10px; color:var(--text-4); font-variant-numeric:tabular-nums; }
+.led-sub { font-variant-numeric:tabular-nums; font-size:12px; font-weight:600; color:var(--text); text-align:right; }
+.led-row { display:grid; grid-template-columns:1fr auto; gap:10px; padding:4px 0 4px 17px; }
+.led-row .nm { font-size:12px; color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.led-row .amt { font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-2); font-weight:500; text-align:right; }
 
 /* Listing kv-grid */
 .kv-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px 22px; }
@@ -442,8 +545,8 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .lp-input-group input:focus, .lp-input-group select:focus { box-shadow:0 0 0 3px var(--accent-dim); }
 
 /* ── Offer math: two-column inputs + waterfall breakdown (mirrors breakdown mockup / mls-deals deal analysis) ── */
-#offerCalc .om-grid { display:grid; grid-template-columns:300px 1fr; gap:26px; align-items:start; margin-top:4px; font-variant-numeric:tabular-nums; }
-@media(max-width:860px){ #offerCalc .om-grid { grid-template-columns:1fr; } }
+#offerCalc .om-grid, #sellCalc .om-grid { display:grid; grid-template-columns:300px 1fr; gap:26px; align-items:start; margin-top:4px; font-variant-numeric:tabular-nums; }
+@media(max-width:860px){ #offerCalc .om-grid, #sellCalc .om-grid { grid-template-columns:1fr; } }
 .om-col-l { display:flex; flex-direction:column; gap:14px; }
 .om-grp { font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-4); margin-bottom:6px; }
 .om-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
@@ -495,6 +598,21 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .om-foot { display:flex; gap:18px; margin-top:14px; padding-top:12px; border-top:1px dashed var(--border-hover); font-size:11px; color:var(--text-3); flex-wrap:wrap; align-items:baseline; }
 .om-foot b { color:var(--text); }
 .om-foot .dim { color:var(--text-4); }
+
+/* ── Selling: editable offer-comparison table (local state; net-to-you live) ── */
+.off-cols { grid-template-columns:1.5fr 120px 74px 74px 96px 126px; gap:12px; }
+.off-hrow { display:grid; align-items:end; padding:0 12px 8px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--text-4); }
+.off-hrow span:not(:first-child) { text-align:right; }
+.off-row { display:grid; align-items:center; padding:10px 12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; }
+.off-row.best { border-color:var(--green); background:var(--green-bg); }
+.off-buyer { font-weight:700; font-size:13px; }
+.off-terms { font-size:11px; color:var(--text-4); margin-top:2px; }
+.off-in { width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:5px; font:12px var(--sans); font-weight:600; text-align:right; background:#fff; color:var(--text); font-variant-numeric:tabular-nums; }
+.off-in:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim); }
+.off-net { text-align:right; }
+.off-net .v { font-variant-numeric:tabular-nums; font-weight:800; font-size:14px; color:var(--green); }
+.off-net .b { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--green); margin-top:2px; }
+.off-net .d { font-size:10px; color:var(--text-4); font-variant-numeric:tabular-nums; margin-top:2px; }
 </style>
 </head>
 <body>
@@ -507,7 +625,10 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 
 <div class="topbar">
   <a class="back-btn" href="pipeline.html">← Pipeline</a>
-  <span style="font-size:11px;color:var(--text-4)" id="topbar-mls"></span>
+  <div class="topbar-right">
+    <div class="stage-tabs" id="stageTabs"></div>
+    <a class="topbar-link" id="topbarListingLink" href="#" style="display:none">View full listing →</a>
+  </div>
 </div>
 
 <div class="scroll-wrap">
@@ -528,6 +649,25 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 
 <!-- Backstage toast (used by RPA generator + future surfaces) -->
 <div class="bs-toast" id="bsToast"></div>
+
+<!-- Advance modal (Open escrow / Start construction / List it) — feeds the existing movePhase() pathway.
+     id="phaseStack" is intentional: movePhase() closes the dialog via phaseStack.classList.remove('open'),
+     and .adv-overlay.open is the visible state — so the existing pathway closes this modal unchanged. -->
+<div class="adv-overlay" id="phaseStack" onclick="if(event.target===this)closeAdvance()">
+  <div class="adv-modal">
+    <h3 id="advTitle">Advance</h3>
+    <div class="adv-blurb" id="advBlurb"></div>
+    <div class="adv-fields" id="advFields"></div>
+    <div class="adv-preview" id="advPreview" style="display:none"></div>
+    <!-- Hidden select keeps movePhase()'s #ppNewPhase contract intact -->
+    <select id="ppNewPhase" style="display:none"></select>
+    <div class="adv-actions">
+      <button class="adv-btn-ghost" onclick="closeAdvance()">Cancel</button>
+      <button class="adv-btn-primary" id="ppMoveBtn" onclick="movePhase()">Advance</button>
+    </div>
+    <div class="adv-msg" id="ppMsg"></div>
+  </div>
+</div>
 
 <!-- RPA Generator modal — fills CAR RPA PDF for the current deal -->
 <div class="rpa-modal-overlay" id="rpaModal" onclick="if(event.target===this)closeRpaModal()">
@@ -693,8 +833,10 @@ const PHASE_CONFIG = {
     loanStatus: 'none',
   },
   in_escrow: {
-    show: ['uwBar','escrowSect','prepSect','cashSect','cashGrid','finRow','docsSect'],
-    hide: ['offerCalc','lpCalc','constructionSect','listingSect','handoffSect'],
+    // docsSect lives inside the escrow 2-column panel for this phase, so the
+    // standalone Docs section is hidden to avoid a duplicate.
+    show: ['uwBar','escrowSect','prepSect','cashSect','cashGrid','finRow'],
+    hide: ['offerCalc','lpCalc','constructionSect','listingSect','handoffSect','docsSect'],
     cashTitle: 'Cash position',
     cashSub: 'owner only · live from money.html data',
     loanStatus: 'pending',
@@ -808,6 +950,13 @@ function schoolChipStyle(rating){
   if(r>=5)return 'background:var(--amber-bg);color:var(--amber)';
   return 'background:var(--red-bg);color:var(--red)';
 }
+// mls-deals .sp pill tier from a 1-10 GreatSchools rating: high / mid / low
+function spClass(rating){
+  const r=Number(rating||0);
+  if(r>=7)return 'sh';
+  if(r>=5)return 'sm';
+  return 'sl';
+}
 
 // ============================================================
 // QUERY PARAMS
@@ -844,7 +993,10 @@ let lastDeCount=0;
 // ============================================================
 async function loadProject(){
   const {dealId, mls}=getQueryParams();
-  const topBarMls=document.getElementById('topbar-mls');
+  // Each full (re)load defaults the viewed lifecycle stage to the deal's real
+  // phase — so advancing the deal lands you on the new current stage. In-page
+  // tab clicks don't reload, so a chosen past-stage view is preserved meanwhile.
+  stageViewing=null;
 
   if(!dealId && !mls){
     document.getElementById('page').innerHTML=`<div style="padding:40px 0;text-align:center;color:var(--text-4)">No <code>?deal=&lt;uuid&gt;</code> or <code>?mls=&lt;mls&gt;</code> query param. Open this page from the Pipeline kanban or an MLS Deals listing.</div>`;
@@ -879,13 +1031,6 @@ async function loadProject(){
     return;
   }
   currentDeal=dealRow;
-
-  if(topBarMls){
-    const labels=[];
-    if(dealRow.buy_side_mls)labels.push('Buy: '+dealRow.buy_side_mls);
-    if(dealRow.relist_mls)labels.push('Relist: '+dealRow.relist_mls);
-    topBarMls.textContent=labels.join(' · ');
-  }
 
   // 2. Properties.
   const mlsList=[dealRow.buy_side_mls, dealRow.relist_mls].filter(Boolean);
@@ -1068,81 +1213,56 @@ function renderPage(){
     ?`${p.address||'(no address)'}, ${(p.city||'').toUpperCase()}${p.zip?' '+p.zip:''}`
     :'(no linked properties row)';
 
-  // Sticky sub-line: morphs per phase per Brief BV D5
+  // Sticky sub-line: specs only — MLS# is its own (phase-aware) span, schools
+  // ride inline as mls-deals .sp pills. Phase visibility handled by updateAcqCard.
   const subParts=[];
   if(p && !isOffMkt){
-    if(p.beds!=null && p.beds!==0)subParts.push(p.beds+'bd/'+(p.baths||0)+'ba');
+    if(p.beds!=null && p.beds!==0)subParts.push(p.beds+'/'+(p.baths||0));
     if(p.sqft)subParts.push(p.sqft.toLocaleString()+' sf');
     if(p.lot_size)subParts.push('Lot '+Number(p.lot_size).toLocaleString()+' sf');
     if(p.pool)subParts.push('Pool '+p.pool);
   }
-  if(phase==='under_construction'){
-    if(d.purchase_price)subParts.push('Bought '+FK(d.purchase_price));
-    if(d.actual_close_date)subParts.push(fmtMD(d.actual_close_date)+' COE');
-  } else if(phase==='selling' || phase==='sold'){
-    if(d.relist_mls)subParts.push('Relist MLS# '+d.relist_mls);
-  } else {
-    if(d.buy_side_mls)subParts.push('MLS# '+d.buy_side_mls);
+
+  // MLS# span (#acqMls) — default to buy-side; updateAcqCard swaps to relist
+  // on the Selling tab and hides it entirely on Construction.
+  const buyMls=d.buy_side_mls||(p&&!isOffMkt?p.mls:'');
+  const mlsHtml=buyMls?`<span id="acqMls"> · MLS# ${escapeHtml(buyMls)}</span>`:`<span id="acqMls"></span>`;
+
+  // Schools — inline .sp pills (level letter + rating, sh/sm/sl) + small grey name.
+  let acqSchHtml='';
+  if(p && !isOffMkt){
+    const pills=[];
+    const pill=(lv, rating, name)=>`<span class="sp ${spClass(rating)}"><span class="lv">${lv}</span>${rating!=null?rating:'—'}</span><span class="sp-nm">${escapeHtml(shortenSchool(name)||'')}</span>`;
+    if(p.elementary_school || p.elementary_rating!=null)pills.push(pill('E', p.elementary_rating, p.elementary_school));
+    if((p.middle_school||p.middle_rating!=null) && p.middle_school!==p.elementary_school)pills.push(pill('M', p.middle_rating, p.middle_school));
+    if(p.high_school || p.high_rating!=null)pills.push(pill('H', p.high_rating, p.high_school));
+    if(pills.length)acqSchHtml=`<span class="acq-sch">${pills.join('')}</span>`;
   }
+
   const subHtml=isOffMkt
     ? `${escapeHtml(p.mls)} · beds/baths/sqft TBD <span style="color:var(--text-4); font-style:italic">(off-market — fill via off-market.html when BM ships)</span>`
-    : subParts.map(escapeHtml).join(' · ');
+    : `<span>${subParts.map(escapeHtml).join(' · ')}${mlsHtml}</span>${acqSchHtml}`;
+  const schoolsHtml='';
 
-  // Schools
-  let schoolsHtml='';
-  if(p && !isOffMkt && phase!=='under_construction'){
-    const chips=[];
-    if(p.elementary_school || p.elementary_rating!=null){
-      chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.elementary_rating)}">E ${p.elementary_rating!=null?p.elementary_rating:'—'}</span>${escapeHtml(shortenSchool(p.elementary_school)||'')}</span>`);
-    }
-    if((p.middle_school||p.middle_rating!=null) && p.middle_school!==p.elementary_school){
-      chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.middle_rating)}">M ${p.middle_rating!=null?p.middle_rating:'—'}</span>${escapeHtml(shortenSchool(p.middle_school)||'')}</span>`);
-    }
-    if(p.high_school || p.high_rating!=null){
-      chips.push(`<span><span class="school-chip" style="${schoolChipStyle(p.high_rating)}">H ${p.high_rating!=null?p.high_rating:'—'}</span>${escapeHtml(shortenSchool(p.high_rating)||p.high_school||'')}</span>`);
-    }
-    if(chips.length)schoolsHtml=`<div class="acq-schools">${chips.join('')}</div>`;
-  }
-
-  // Agent / Crew / Listing line per phase
+  // Agent line — "Name · (phone)" with NO brokerage. updateAcqCard hides it on
+  // Construction / Selling tabs (no buy-side agent in play then).
   let agentLineHtml='';
-  if(phase==='under_construction'){
-    const crewBits=[];
-    if(d.gc_crew)crewBits.push(`<span><span class="lbl">Crew</span>${escapeHtml(d.gc_crew)}</span>`);
-    else crewBits.push(`<span><span class="lbl">Crew</span>In-house</span>`);
-    if(d.construction_start_date){
-      const days=daysBetween(d.construction_start_date, todayStr());
-      if(days!=null)crewBits.push('Day '+days+(d.construction_complete_date?' of '+daysBetween(d.construction_start_date,d.construction_complete_date):''));
-    }
-    if(d.rehab_actual!=null && d.rehab_budget){
-      crewBits.push(Math.round(d.rehab_actual/d.rehab_budget*100)+'% done');
-    }
-    agentLineHtml=`<div class="acq-agent">${crewBits.join(' · ')}</div>`;
-  } else if(phase==='selling' || phase==='sold'){
-    const bits=[];
-    if(d.list_price)bits.push(`<span><span class="lbl">Listing</span>${FK(d.list_price)}</span>`);
-    if(d.list_date){
-      const dom=daysBetween(d.list_date, todayStr());
-      if(dom!=null && dom>=0)bits.push(dom+' DOM');
-    }
-    if(d.sale_price && phase==='sold')bits.push('Sold '+FK(d.sale_price));
-    agentLineHtml=`<div class="acq-agent">${bits.join(' · ')}</div>`;
-  } else if(p && !isOffMkt){
+  if(p && !isOffMkt){
     const agentBits=[];
     if(p.agent_name){
-      const brokerSuffix=p.agent_broker?` (${escapeHtml(p.agent_broker)})`:'';
-      agentBits.push(`<span><span class="lbl">Agent</span>${escapeHtml(p.agent_name)}${brokerSuffix}</span>`);
+      const phone=p.agent_cell||p.agent_phone||p.agent_office_phone||'';
+      const phoneHtml=phone?` · <a class="acq-link" style="margin-left:0" href="tel:${escapeHtml(String(phone).replace(/[^\d+]/g,''))}">${escapeHtml(phone)}</a>`:'';
+      agentBits.push(`<span><span class="lbl">Agent</span>${escapeHtml(p.agent_name)}${phoneHtml}</span>`);
     }
     if(lastDeCount && lastDeCount>0){
       agentBits.push(`<span class="de-pill" title="Listing agent has ${lastDeCount} double-end deal${lastDeCount===1?'':'s'} since 2023">🔁 DE×${lastDeCount}</span>`);
     }
-    const linkMls=p.mls;
-    agentBits.push(`<a href="mls-deals.html?mls=${encodeURIComponent(linkMls)}" class="acq-link">View full listing →</a>`);
-    agentLineHtml=`<div class="acq-agent">${agentBits.join('')}</div>`;
+    agentBits.push(`<a href="mls-deals.html?mls=${encodeURIComponent(p.mls)}" class="acq-link">View full listing →</a>`);
+    if(agentBits.length)agentLineHtml=`<div class="acq-agent" id="acqAgent">${agentBits.join('')}</div>`;
   }
 
-  // Phase pill / popover
-  const phasePillCls='phase-pill-'+phase;
+  // Lifecycle: aux label for the current stage tab + the option set the
+  // hidden #ppNewPhase carries so the existing movePhase() pathway still works.
   const phaseAux=computePhaseAux(d, phase);
   const movePhaseOptions=MOVE_TO_PHASES.map(s=>{
     const sel=(s===phase)?' selected disabled':'';
@@ -1216,33 +1336,6 @@ function renderPage(){
         ${schoolsHtml}
         ${agentLineHtml}
       </div>
-      <div class="phase-stack" id="phaseStack">
-        <div class="phase-pill-big ${phasePillCls}" id="phasePill" title="Click to change phase">${escapeHtml(phaseLabel(phase))}</div>
-        <div class="phase-aux">${escapeHtml(phaseAux)}</div>
-        <div class="phase-popover" id="phasePopover">
-          <div class="pp-lbl">Move to</div>
-          <select id="ppNewPhase" onchange="onPhaseSelChange()">
-            <option value="" disabled selected>Choose phase...</option>
-            ${movePhaseOptions}
-          </select>
-          <div id="ppDatesRow" style="display:none">
-            <div class="pp-lbl">In escrow at</div>
-            <input type="number" id="ppEscrowPrice" min="0" step="1" placeholder="Accepted purchase price">
-            <div class="pp-lbl">Escrow dates</div>
-            <div class="pp-dates">
-              <div><label>Acceptance</label><input type="date" id="ppEscrowStart" oninput="updateEscrowPreview()"></div>
-              <div><label>Cont. days</label><input type="number" id="ppContingencyDays" min="0" step="1" placeholder="17" oninput="updateEscrowPreview()"></div>
-              <div><label>COE days</label><input type="number" id="ppCoeDays" min="0" step="1" placeholder="30" oninput="updateEscrowPreview()"></div>
-            </div>
-            <div id="ppEscrowPreview" style="font-size:11px;color:var(--text-4);margin-top:2px;margin-bottom:8px"></div>
-          </div>
-          <div class="pp-actions">
-            <button onclick="document.getElementById('phaseStack').classList.remove('open')">Cancel</button>
-            <button class="primary" id="ppMoveBtn" onclick="movePhase()">Move</button>
-          </div>
-          <div class="pp-msg" id="ppMsg"></div>
-        </div>
-      </div>
     </div>
 
     <!-- UNDERWRITING BAR (owner-only — dollar values: Bought At / Sell price / Construction / Projected Profit) -->
@@ -1281,7 +1374,7 @@ function renderPage(){
   document.getElementById('page').innerHTML=pageHtml;
 
   applyPhase(phase);
-  wirePhasePill();
+  renderStageTabs(phase, phaseAux, movePhaseOptions);
   wireUwEdits();
   wireOfferCalc();
   wireListPriceCalc();
@@ -1291,6 +1384,7 @@ function renderPage(){
   wireListingEdits();
   wireFinancing();
   wireSpendingTree();
+  wireDealDocs();
 }
 
 function computePhaseAux(d, phase){
@@ -1340,6 +1434,34 @@ function applyPhase(phase){
   const subEl=document.getElementById('cashSectSub');
   if(titleEl)titleEl.textContent=cfg.cashTitle||'Cash position';
   if(subEl)subEl.textContent=cfg.cashSub||'owner only';
+  // Acq card MLS#/agent follow the viewed stage.
+  updateAcqCard(phase);
+}
+
+// Phase-aware acquisition-card chrome. Driven by the *viewed* stage so clicking a
+// stage tab morphs the MLS#/agent line in lock-step with the panels below.
+//   Construction      → hide MLS# + agent (we own it; buy-side listing is moot)
+//   Selling / sold    → show relist MLS# (deal.relist_mls), hide agent
+//   Pursuing / Escrow → show buy-side MLS# + agent
+function updateAcqCard(viewing){
+  const d=currentDeal; if(!d)return;
+  const mlsEl=document.getElementById('acqMls');
+  const agentEl=document.getElementById('acqAgent');
+  if(mlsEl){
+    if(viewing==='under_construction'){ mlsEl.style.display='none'; }
+    else if(viewing==='selling' || viewing==='sold'){
+      mlsEl.style.display='';
+      mlsEl.textContent=d.relist_mls?' · Relist MLS# '+d.relist_mls:'';
+    } else {
+      const p=primaryProperty();
+      const buyMls=d.buy_side_mls||(p?p.mls:'');
+      mlsEl.style.display='';
+      mlsEl.textContent=buyMls?' · MLS# '+buyMls:'';
+    }
+  }
+  if(agentEl){
+    agentEl.style.display=(viewing==='under_construction'||viewing==='selling'||viewing==='sold')?'none':'';
+  }
 }
 
 // ============================================================
@@ -1349,71 +1471,72 @@ function renderConstructionSection(){
   const d=currentDeal;
   const start=d.construction_start_date||d.actual_close_date;
   const complete=d.construction_complete_date;
-  const totalDays=(start && complete)?daysBetween(start, complete):36;
+  const totalDays=(start && complete)?daysBetween(start, complete):null;
   const today=todayStr();
   const elapsed=start?daysBetween(start, today):null;
-  const remaining=(complete && elapsed!=null)?Math.max(0,totalDays-elapsed):'?';
-  const completionPct=(d.rehab_actual!=null && d.rehab_budget && d.rehab_budget>0)
-    ? Math.round((d.rehab_actual/d.rehab_budget)*100)
-    : (elapsed!=null && totalDays>0?Math.round((elapsed/totalDays)*100):0);
+  // Schedule bar: elapsed days / total construction days (real construction dates).
+  const schedPct=(elapsed!=null && totalDays && totalDays>0)?Math.round(Math.max(0,elapsed)/totalDays*100):0;
+  const schedLabel=(elapsed!=null && totalDays)?`day ${Math.max(0,elapsed)} of ${totalDays} · ${schedPct}%`:'dates not set';
+  // Budget bar: rehab_actual / rehab_budget (real spend vs budget).
   const budgetPct=(d.rehab_actual!=null && d.rehab_budget && d.rehab_budget>0)
     ? Math.round((d.rehab_actual/d.rehab_budget)*100)
     : 0;
-  const weeklyBurn=(elapsed && elapsed>0 && d.rehab_actual)?Math.round(d.rehab_actual/elapsed*7):null;
+  const budgetLabel=`${d.rehab_actual!=null?FK(d.rehab_actual):'$0'} / ${d.rehab_budget!=null?FK(d.rehab_budget):'—'} · ${budgetPct}%`;
 
   // Phase checklist for under_construction
   const ckHtml=renderChecklistBlock('under_construction');
 
-  // Spending tree
-  const treeHtml=renderSpendingTree();
+  // Spent-to-date breakdown (composition bar + grouped ledger)
+  const spendHtml=renderSpendingTree();
 
   return `
     <div class="sect phase-hide" id="constructionSect">
-      <div class="sect-h">
-        <h2>Construction</h2>
-        <span class="sub">scope · budget burn · crew</span>
+      <div class="constr-cols">
+
+        <!-- LEFT · status bars + documents -->
+        <div class="esc-col">
+          <div class="sect">
+            <div class="sect-h"><h2>Construction</h2><span class="sub">how far in · how much spent</span><span class="right"><a href="money.html">Money page →</a></span></div>
+            <div class="cn-bars">
+              <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Schedule</span><span class="pct">${schedLabel}</span></div><div class="track"><div class="fill blue" style="width:${Math.min(100,schedPct)}%"></div></div></div>
+              <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Budget</span><span class="pct">${budgetLabel}</span></div><div class="track"><div class="fill ${budgetPct>100?'over':'gold'}" style="width:${Math.min(100,budgetPct)}%"></div></div></div>
+            </div>
+            ${ckHtml}
+          </div>
+          <div class="sect doc-sect">
+            <div class="sect-h"><h2>Documents</h2><span class="sub">from escrow + build docs</span><span class="right"><span class="doc-add" data-docadd>+ Upload</span></span></div>
+            <div class="doc-list" id="docs-under_construction"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT · spent to date (bigger) -->
+        <div class="sect">
+          ${spendHtml}
+        </div>
+
       </div>
-      <div class="cn-hero">
-        <div class="cn-hero-cell">
-          <div class="lbl">Completion</div>
-          <div class="val">${completionPct}%</div>
-          <div class="sub">${start?'started '+fmtMD(start):'not started'}${(elapsed!=null && totalDays)?' · day '+elapsed+' of '+totalDays:''}</div>
-        </div>
-        <div class="cn-hero-cell">
-          <div class="lbl">Days remaining</div>
-          <div class="val">~${remaining}d</div>
-          <div class="sub">${complete?'target '+fmtMD(complete):''} · ${totalDays} total days</div>
-        </div>
-        <div class="cn-hero-cell">
-          <div class="lbl">Weekly burn</div>
-          <div class="val">${weeklyBurn?'~'+FK(weeklyBurn):'—'}</div>
-          <div class="sub">trailing avg labor + materials</div>
-        </div>
-      </div>
-      <div class="cn-bars">
-        <div class="cn-bar">
-          <div class="lbl">Completion</div>
-          <div class="track"><div class="fill" style="width:${Math.min(100,completionPct)}%"></div></div>
-          <div class="pct">${completionPct}% done</div>
-        </div>
-        <div class="cn-bar">
-          <div class="lbl">Budget burn</div>
-          <div class="track"><div class="fill ${budgetPct>100?'over':''}" style="width:${Math.min(100,budgetPct)}%"></div></div>
-          <div class="pct">${d.rehab_actual!=null?FK(d.rehab_actual):'$0'} / ${d.rehab_budget!=null?FK(d.rehab_budget):'—'}</div>
-        </div>
-      </div>
-      ${ckHtml}
-      ${treeHtml}
     </div>
   `;
 }
 
+// Spent-to-date: iOS composition bar (blue gradient) + grouped ledger over the
+// REAL 4 rehab buckets (Labor / Materials / Soft costs / Other) from dealExpenses.
+// Line items within each bucket = qbo_account_name subtotals.
 function renderSpendingTree(){
-  const rehab=dealExpenses.filter(e=>['rehab_labor','rehab_materials','rehab_soft','rehab_other'].includes(e.bucket||''));
+  // Blue-gradient buckets, dark→light, in fixed display order.
+  const BUCKETS=[
+    {key:'rehab_labor',     name:'Labor',      color:'#1D4ED8'},
+    {key:'rehab_materials', name:'Materials',  color:'#5B8DEF'},
+    {key:'rehab_soft',      name:'Soft costs', color:'#A9C4F5'},
+    {key:'rehab_other',     name:'Other',      color:'#D3E1FA'},
+  ];
+  const keys=BUCKETS.map(b=>b.key);
+  const rehab=dealExpenses.filter(e=>keys.includes(e.bucket||''));
+  const hdr=(sub)=>`<div class="sect-h"><h2>Spent to date</h2><span class="sub">cost breakdown · ${sub}</span><span class="right"><a href="money.html">Money page →</a></span></div>`;
   if(!rehab.length){
-    return `<div class="cn-expenses"><div class="ttl">Spending snapshot · grouped by QBO account</div><div class="sp-empty">No rehab expenses synced yet. Run QBO sync from <a href="money.html" style="color:var(--accent)">Money</a>.</div></div>`;
+    return `${hdr('no expenses yet')}<div class="sp-empty">No rehab expenses synced yet. Run QBO sync from <a href="money.html" style="color:var(--accent)">Money</a>.</div>`;
   }
-  // Group by bucket → qbo_account_name
+  // Group by bucket → qbo_account_name (line items).
   const byBucket={};
   for(const e of rehab){
     const b=e.bucket||'rehab_other';
@@ -1421,30 +1544,24 @@ function renderSpendingTree(){
     const amt=Number(e.amount||0);
     byBucket[b].total+=amt;
     const acct=e.qbo_account_name||'(unmapped)';
-    if(!byBucket[b].accts[acct])byBucket[b].accts[acct]=0;
-    byBucket[b].accts[acct]+=amt;
+    byBucket[b].accts[acct]=(byBucket[b].accts[acct]||0)+amt;
   }
-  let total=0;
-  for(const b of Object.keys(byBucket))total+=byBucket[b].total;
-  const bucketLabel={rehab_labor:'Contract labor', rehab_materials:'Materials', rehab_soft:'Soft costs', rehab_other:'Other rehab'};
-  let rows=`<tr class="lvl-0"><td><span class="caret">▾</span>Construction costs</td><td>$${total.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>`;
-  for(const b of Object.keys(byBucket).sort()){
-    const grp=byBucket[b];
-    const cls='g-'+b;
-    rows+=`<tr class="lvl-1 ${cls}"><td><span class="caret collapsed">▾</span>${escapeHtml(bucketLabel[b]||b)}</td><td>$${grp.total.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>`;
-    const accts=Object.entries(grp.accts).sort((a,b)=>b[1]-a[1]);
-    for(const [acct, amt] of accts){
-      rows+=`<tr class="lvl-2 ${cls} hidden"><td>${escapeHtml(acct)}</td><td>$${amt.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>`;
-    }
-  }
+  let total=0, lineCount=0;
+  for(const k of keys){ if(byBucket[k]){ total+=byBucket[k].total; lineCount+=Object.keys(byBucket[k].accts).length; } }
+  const fmtD=n=>'$'+Math.round(n).toLocaleString();
+  const comp=BUCKETS.filter(b=>byBucket[b.key] && byBucket[b.key].total>0)
+    .map(b=>`<div class="comp-seg" style="background:${b.color};flex:${Math.max(1,Math.round(byBucket[b.key].total))}"></div>`).join('');
+  const ledger=BUCKETS.filter(b=>byBucket[b.key]).map(b=>{
+    const grp=byBucket[b.key];
+    const pct=total>0?Math.round(grp.total/total*100):0;
+    const lines=Object.entries(grp.accts).sort((x,y)=>y[1]-x[1])
+      .map(([acct,amt])=>`<div class="led-row"><span class="nm">${escapeHtml(acct)}</span><span class="amt">${fmtD(amt)}</span></div>`).join('');
+    return `<div class="led-grp"><div class="led-head"><span class="led-sw" style="background:${b.color}"></span><span class="led-name">${b.name}</span><span class="led-pct">${pct}%</span><span class="led-sub">${fmtD(grp.total)}</span></div>${lines}</div>`;
+  }).join('');
   return `
-    <div class="cn-expenses">
-      <div class="ttl">Spending snapshot · grouped by QBO account</div>
-      <table class="sp-tree" id="spTree"><tbody>${rows}</tbody></table>
-      <div style="margin-top:8px;font-size:11px;color:var(--text-4);font-style:italic">
-        Click any account row to see underlying QBO transactions (drill-down deferred to v2 — for now, jump to <a href="money.html" style="color:var(--accent)">Money page</a> for per-txn detail).
-      </div>
-    </div>
+    ${hdr(lineCount+' line items')}
+    <div class="comp-bar">${comp}</div>
+    <div id="ledger">${ledger}</div>
   `;
 }
 
@@ -1486,23 +1603,102 @@ function renderEscrowSection(){
   const crdStr=d.contingency_removal_date||'';
   const closeStr=d.target_close_date||'';
   const daysIn=startStr?daysBetween(startStr, today):null;
-  const total=(startStr && closeStr)?daysBetween(startStr, closeStr):null;
   const daysToCRD=crdStr?daysBetween(today, crdStr):null;
+  const ckHtml=renderChecklistBlock('in_escrow');
   return `
     <div class="sect phase-hide" id="escrowSect">
-      <div class="sect-h">
-        <h2>Escrow Timeline</h2>
-        <span class="sub">3-anchor schedule · click any date to edit</span>
-        <span class="right"><a href="calendar.html">Calendar →</a></span>
-      </div>
-      <div class="et-grid">
-        <div class="et-cell"><div class="et-lbl">Started</div><div class="et-val" data-escrow-field="escrow_start_date">${startStr||'—'}</div><div class="et-aux">${daysIn!=null?(daysIn>=0?daysIn+' days ago':'in '+Math.abs(daysIn)+' days'):''}</div></div>
-        <div class="et-cell"><div class="et-lbl">Contingency removed</div><div class="et-val" data-escrow-field="contingency_removal_date">${crdStr||'—'}</div><div class="et-aux ${daysToCRD!=null && daysToCRD<=7 && daysToCRD>=0?'et-deadline':''}">${daysToCRD!=null?(daysToCRD>0?'in '+daysToCRD+'d':(daysToCRD===0?'today':Math.abs(daysToCRD)+'d ago')):''}</div></div>
-        <div class="et-cell"><div class="et-lbl">Target close</div><div class="et-val" data-escrow-field="target_close_date">${closeStr||'—'}</div><div class="et-aux">${closeStr?(daysBetween(today,closeStr)>=0?'in '+daysBetween(today,closeStr)+' days':Math.abs(daysBetween(today,closeStr))+'d ago'):''}</div></div>
-        <div class="et-cell"><div class="et-lbl">Days in escrow</div><div class="et-val">${daysIn!=null && total!=null?daysIn+' / '+total:'—'}</div><div class="et-aux">${daysIn!=null && total>0?Math.round(daysIn/total*100)+'% complete':''}</div></div>
+      <div class="escrow-cols">
+
+        <!-- LEFT · escrow timeline + documents -->
+        <div class="esc-col">
+          <div class="sect">
+            <div class="sect-h">
+              <h2>Escrow Timeline</h2>
+              <span class="sub">3-anchor schedule · click any date to edit</span>
+              <span class="right"><a href="calendar.html">Calendar →</a></span>
+            </div>
+            <div class="et-grid">
+              <div class="et-cell"><div class="et-lbl">Started</div><div class="et-val" data-escrow-field="escrow_start_date">${startStr||'—'}</div><div class="et-aux">${daysIn!=null?(daysIn>=0?daysIn+' days ago':'in '+Math.abs(daysIn)+' days'):''}</div></div>
+              <div class="et-cell"><div class="et-lbl">Contingency removed</div><div class="et-val" data-escrow-field="contingency_removal_date">${crdStr||'—'}</div><div class="et-aux ${daysToCRD!=null && daysToCRD<=7 && daysToCRD>=0?'et-deadline':''}">${daysToCRD!=null?(daysToCRD>0?'in '+daysToCRD+'d':(daysToCRD===0?'today':Math.abs(daysToCRD)+'d ago')):''}</div></div>
+              <div class="et-cell"><div class="et-lbl">Target close</div><div class="et-val" data-escrow-field="target_close_date">${closeStr||'—'}</div><div class="et-aux">${closeStr?(daysBetween(today,closeStr)>=0?'in '+daysBetween(today,closeStr)+' days':Math.abs(daysBetween(today,closeStr))+'d ago'):''}</div></div>
+            </div>
+          </div>
+          <div class="sect doc-sect">
+            <div class="sect-h"><h2>Documents</h2><span class="sub">design plans · permits — carry into construction</span><span class="right"><span class="doc-add" data-docadd>+ Upload</span></span></div>
+            <div class="doc-list" id="docs-in_escrow"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT · checklist + cash needed -->
+        <div class="esc-col">
+          <div class="sect">
+            <div class="sect-h"><h2>Checklist</h2><span class="sub">pre-construction prep · who's lined up, what's filed</span></div>
+            ${ckHtml}
+          </div>
+          <div class="sect">
+            <div class="sect-h"><h2>Cash needed</h2><span class="sub">what you wire to close + fund the rehab</span><span class="right"><a href="money.html">Money page →</a></span></div>
+            ${renderCashNeeded()}
+          </div>
+        </div>
+
       </div>
     </div>
   `;
+}
+
+// Cash needed = down payment (purchase − loan) + construction/rehab (locked_construction)
+// + carry (loan × rate × months in escrow). All from REAL deal/property/loan data.
+function renderCashNeeded(){
+  const d=currentDeal;
+  const p=primaryProperty();
+  const buy=d.purchase_price||d.offer_price||0;
+  const loan=dealLoans.find(l=>l.status==='funded'||l.status==='pending')||dealLoans[0];
+  const loanAmt=loan?(loan.loan_amount||0):0;
+  const loanRate=loan?(loan.rate_apr||0):0;
+  const down=Math.max(0, buy-loanAmt);
+  const construction=(p && p.locked_construction!=null)?p.locked_construction:(lastGradeRow?lastGradeRow.rehab_estimate:0)||0;
+  // Months in escrow from the 3 anchor dates (fallback 3 mo).
+  const escDays=(d.escrow_start_date && d.target_close_date)?daysBetween(d.escrow_start_date, d.target_close_date):null;
+  const months=escDays!=null && escDays>0?escDays/30:3;
+  const carry=Math.round(loanAmt*loanRate*(months/12));
+  const totalCash=down+construction+carry;
+  const seg=(v)=>Math.max(1, Math.round(v));
+  const downDet=buy>0?`· ${down>0&&buy>0?Math.round(down/buy*100):0}% of ${FK(buy)} purchase`:'';
+  const carryDet=loanAmt>0?`· ${months.toFixed(months>=3?0:1)} mo @ ${(loanRate*100).toFixed(loanRate*100%1?1:0)}% on ${FK(loanAmt)} loan`:'· no loan yet';
+  return `
+    <div class="cn-top"><span class="cn-lbl">Total to bring</span><span class="cn-total">${FK(totalCash)}</span></div>
+    <div class="cn-bar"><i class="cn-seg cn-down" style="flex:${seg(down)}"></i><i class="cn-seg cn-rehab" style="flex:${seg(construction)}"></i><i class="cn-seg cn-carry" style="flex:${seg(carry)}"></i></div>
+    <div class="cn-row"><span class="cn-sw cn-down"></span><span class="cn-name">Down payment <span class="det">${downDet}</span></span><span class="cn-amt">${FK(down)}</span></div>
+    <div class="cn-row"><span class="cn-sw cn-rehab"></span><span class="cn-name">Construction / rehab</span><span class="cn-amt">${FK(construction)}</span></div>
+    <div class="cn-row"><span class="cn-sw cn-carry"></span><span class="cn-name">Carry cost <span class="det">${carryDet}</span></span><span class="cn-amt">${FK(carry)}</span></div>
+  `;
+}
+
+// Documents — shared list mounted in both Escrow (and later Construction) panels.
+const DOC_TYPES={design:{label:'Design plan',ic:'📐'},permit:{label:'Permit',ic:'🏛️'},contract:{label:'Contract',ic:'📝'},inspect:{label:'Inspection',ic:'🔍'},other:{label:'Doc',ic:'📄'}};
+let dealDocs=[];  // TODO(Brief BW): back with a real deal_documents table + Storage upload.
+function renderDealDocs(){
+  const html=dealDocs.length?dealDocs.map(doc=>{
+    const t=DOC_TYPES[doc.type]||DOC_TYPES.other;
+    return `<div class="doc-row"><span class="doc-ic ${doc.type}">${t.ic}</span><div class="doc-main"><div class="doc-name">${escapeHtml(doc.name)}</div><div class="doc-meta"><span class="doc-tag ${doc.type}">${t.label}</span> · ${escapeHtml(doc.by||'—')} · ${escapeHtml(doc.date||'—')} · ${escapeHtml(doc.size||'—')}</div></div><a class="doc-dl">Download</a></div>`;
+  }).join(''):'<div class="doc-empty">No documents yet — design plans, bids, and permits live here.</div>';
+  ['docs-in_escrow','docs-under_construction'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=html;});
+}
+function wireDealDocs(){
+  renderDealDocs();
+  document.querySelectorAll('[data-docadd]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const name=prompt('Document name (e.g. Floor plan v3.pdf):'); if(!name)return;
+      const l=name.toLowerCase();
+      let type='other';
+      if(/plan|design|render|elevation|floor/.test(l))type='design';
+      else if(/permit|city|zoning/.test(l))type='permit';
+      else if(/bid|contract|agreement|rpa|escrow/.test(l))type='contract';
+      else if(/inspect|report/.test(l))type='inspect';
+      dealDocs.unshift({name,type,by:'You',date:todayStr(),size:'—'});
+      renderDealDocs();
+    });
+  });
 }
 
 function wireEscrowEdits(){
@@ -1559,7 +1755,8 @@ async function _commitEscrowEdit(el, field, val){
 function renderPrepSection(){
   const d=currentDeal;
   const notes=d.prep_notes||'';
-  const ckHtml=renderChecklistBlock('in_escrow');
+  // Checklist moved into the in-escrow 2-column panel (renderEscrowSection);
+  // prep stays a free-form scratchpad so we don't double-render the checklist.
   return `
     <div class="sect phase-hide" id="prepSect">
       <div class="sect-h">
@@ -1568,7 +1765,6 @@ function renderPrepSection(){
       </div>
       <textarea class="prep-area" id="prepNotes" placeholder="e.g. Kitchen + 2 bath refresh. Filed permit 5/9. Cabinets — Home Depot Hampton Bay shaker white, 5w lead. Crew available wk of close.">${escapeHtml(notes)}</textarea>
       <div class="prep-aux">Saves on blur · no audit trail in v1</div>
-      ${ckHtml}
     </div>
   `;
 }
@@ -1587,11 +1783,24 @@ function wirePrepNotes(){
 // ============================================================
 // PHASE CHECKLIST BLOCK (in_escrow / under_construction / selling)
 // ============================================================
+// in_escrow phase template — EXACTLY these 4 items when no DB rows exist yet.
+const IN_ESCROW_CHECKLIST=[
+  'Check prelim title',
+  'Notify escrow of insurance binder',
+  'City permit research re: rehab plans',
+  'Utility setup (electricity/gas/water/trash)',
+];
 function renderChecklistBlock(phase){
   const items=phaseChecklistItems.filter(i=>i.phase===phase);
   if(!items.length){
-    // If the migration hasn't run yet, render an empty placeholder so the
-    // layout doesn't blow up.
+    // No DB rows yet (migration 065 not applied / not seeded). For in_escrow,
+    // render the 4-item phase template as local-state checkboxes (matches the
+    // mockup); other phases get a neutral placeholder.
+    if(phase==='in_escrow'){
+      const lis=IN_ESCROW_CHECKLIST.map(n=>`<li><input type="checkbox"><span class="ck-name">${escapeHtml(n)}</span></li>`).join('');
+      return `<ul class="ck-list" id="escrowChecklist">${lis}</ul>
+        <div class="ck-add" id="ckAddLocal">+ Add checklist item</div>`;
+    }
     return `<div class="ck-block">
       <div class="ck-block-h">Checklist · no specific date</div>
       <div style="font-size:12px;color:var(--text-4);font-style:italic">No checklist items seeded yet — phase template applies on next phase transition (Brief BV migration 065).</div>
@@ -1642,6 +1851,22 @@ function wireChecklists(){
       await loadProject();
     });
   });
+  // Local-state fallback checklist (in_escrow template before DB seeding).
+  const ckLocal=document.getElementById('escrowChecklist');
+  if(ckLocal){
+    ckLocal.addEventListener('change', e=>{
+      const cb=e.target.closest('input[type=checkbox]'); if(!cb)return;
+      cb.closest('li').classList.toggle('done', cb.checked);
+    });
+    const addLocal=document.getElementById('ckAddLocal');
+    if(addLocal)addLocal.addEventListener('click', ()=>{
+      const n=prompt('Checklist item:'); if(!n)return;
+      const li=document.createElement('li');
+      li.innerHTML='<input type="checkbox"><span class="ck-name"></span>';
+      li.querySelector('.ck-name').textContent=n;
+      ckLocal.appendChild(li);
+    });
+  }
 }
 
 // ============================================================
@@ -1924,54 +2149,174 @@ function renderListPriceCalc(){
   const loan=dealLoans.find(l=>l.status==='funded'||l.status==='pending');
   const loanPayoff=loan?loan.loan_amount||0:0;
   const listPrice=d.list_price||Math.round((costBasis+loanPayoff)*1.2);
+  const listVal='$'+Math.round(listPrice).toLocaleString();
+  // Restyled into the offer-math two-column layout: inputs left, a 6-bucket
+  // Closed-tab P&L on the right (grey gradient + green profit, om-bd chrome).
+  // Wrapper keeps id="lpCalc" so the phase show/hide config is untouched; the
+  // inner #sellCalc carries the .om-grid styling (#sellCalc .om-grid {300px 1fr}).
   return `
     <div class="lp-calc phase-hide" id="lpCalc">
       <div class="lp-calc-head">List price calculator · model scenarios</div>
-      <div class="lp-inputs">
-        <div class="lp-input-group"><label>List price ($)</label><input type="number" id="lpListPrice" value="${listPrice}" step="1000"></div>
-        <div class="lp-input-group"><label>Selling cost %</label><input type="number" id="lpSellingCostPct" value="4" step="0.25" min="0" max="15"></div>
-        <div class="lp-input-group"><label>Total cost basis</label><div class="static" id="lpCostBasis">${FK(costBasis)}</div></div>
-        <div class="lp-input-group"><label>Loan payoff</label><div class="static" id="lpLoanPayoff">${FK(loanPayoff)}</div></div>
+      <div id="sellCalc">
+        <div class="om-grid">
+          <div class="om-col-l">
+            <div>
+              <div class="om-grp">List price</div>
+              <div class="om-arv-row"><input id="slList" value="${listVal}"></div>
+              <div class="om-help">Set from comps — what buyers will pay, not a margin you pick.</div>
+            </div>
+            <div>
+              <div class="om-grp">Selling assumptions</div>
+              <div class="om-grid2">
+                <div class="om-ig"><label>Commission %</label><input type="number" id="slComm" value="2.85" step="0.05" min="0" max="10"></div>
+                <div class="om-ig"><label>Closing %</label><input type="number" id="slClose" value="1" step="0.25" min="0" max="5"></div>
+                <div class="om-ig"><label>Concessions $</label><input type="number" id="slConc" value="0" step="1000" min="0"></div>
+                <div class="om-ig"><label>Days to close</label><input type="number" id="slDays" value="45" step="1" min="0"></div>
+              </div>
+            </div>
+            <div class="om-fin">
+              <div class="om-grp">Cost basis (actual · already spent)</div>
+              <div class="om-help" id="slBasisHelp"></div>
+            </div>
+          </div>
+          <div class="om-col-r">
+            <div class="om-bd" id="slBd"></div>
+            <div class="om-foot" id="slFoot"></div>
+          </div>
+        </div>
       </div>
-      <div class="lp-output">
-        <div class="lp-out-cell accent"><div class="lbl">Net to Dotty</div><div class="val" id="lpNet">—</div><div class="sub" id="lpNetSub"></div></div>
-        <div class="lp-out-cell profit"><div class="lbl">Profit</div><div class="val" id="lpProfit">—</div><div class="sub" id="lpProfitSub"></div></div>
-        <div class="lp-out-cell"><div class="lbl">Cash-on-cash</div><div class="val" id="lpCoc">—</div><div class="sub" id="lpCocSub">profit ÷ cost basis</div></div>
-      </div>
+      <div class="lp-calc-head" style="margin-top:18px">Offer comparison · net to you after selling costs + carry-to-close <a href="#" id="addOffer" style="float:right;font-weight:600;text-transform:none;letter-spacing:0;color:var(--accent)">+ Add offer</a></div>
+      <div class="off-list" id="offerList"></div>
     </div>
   `;
 }
 function wireListPriceCalc(){
-  const listEl=document.getElementById('lpListPrice');
-  if(!listEl)return;
-  const costBasis=listPriceCostBasis();
-  const loan=dealLoans.find(l=>l.status==='funded'||l.status==='pending');
-  const loanPayoff=loan?loan.loan_amount||0:0;
-  function recalc(){
-    const list=Number(listEl.value)||0;
-    const sellPct=Number(document.getElementById('lpSellingCostPct').value)||0;
-    const sellCost=list*sellPct/100;
-    const net=list-sellCost-loanPayoff;
-    // Gross-profit view: net sale proceeds (list − selling costs) minus full
-    // cost basis. Loan principal is NOT subtracted — it cancels out (borrowed
-    // in, paid back at close). Subtracting loanPayoff here AND a cost basis
-    // funded by that loan would double-count the principal.
-    const profit=(list-sellCost)-costBasis;
-    // Cash-on-cash denominator: ideally equity_in = costBasis − loan_proceeds_received.
-    // We don't track loan_proceeds_received separately on deal_loans (loan_amount
-    // is the contractual principal, not the disbursed cash). Using total cost
-    // basis as the denominator is the documented simplification.
-    const coc=costBasis>0?(profit/costBasis)*100:0;
-    document.getElementById('lpNet').textContent=FK(net);
-    document.getElementById('lpNetSub').textContent=FK(list)+' − '+sellPct+'% − '+FK(loanPayoff)+' payoff';
-    document.getElementById('lpProfit').textContent=FKsigned(profit);
-    document.getElementById('lpProfitSub').textContent='(list − '+sellPct+'%) '+FK(list-sellCost)+' − cost basis '+FK(costBasis);
-    document.getElementById('lpCoc').textContent=(coc>=0?'':'−')+Math.round(Math.abs(coc))+'%';
-    const profitCell=document.querySelector('#lpCalc .lp-out-cell.profit');
-    if(profitCell)profitCell.classList.toggle('neg', profit<0);
+  const slList=document.getElementById('slList');
+  if(!slList)return;
+  const d=currentDeal||{};
+  const p=primaryProperty();
+
+  // ── Real cost-basis line items (actual · already spent) ───────────────────
+  // Prefer deal_pnl_v1 actuals; fall back to the deals row. These six are the
+  // grey-gradient "Closed" buckets — purchase + purchase expenses + rehab +
+  // financing are fixed (already spent); disposition + holding move with the
+  // selling assumptions on the left.
+  const pnl=dealPnl||{};
+  const purchase   = (typeof pnl.acquisition_actual==='number' && pnl.acquisition_actual>0)
+                       ? pnl.acquisition_actual : (d.purchase_price||0);
+  const purchExp   = (typeof pnl.purchase_expenses_actual==='number') ? pnl.purchase_expenses_actual
+                       : Math.round(purchase*0.01);
+  const rehab      = (typeof pnl.rehab_actual==='number' && pnl.rehab_actual>0) ? pnl.rehab_actual
+                       : (d.rehab_actual || (p&&p.locked_construction) || 0);
+  const financing  = (typeof pnl.financing_actual==='number') ? pnl.financing_actual : 0;
+  const HOLD_BASE  = (typeof pnl.holding_actual==='number') ? pnl.holding_actual : 0; // pre-listing carry
+  const FIXED_EX_HOLDING = purchase + purchExp + rehab + financing;
+  const COST_BASIS = listPriceCostBasis() || (FIXED_EX_HOLDING + HOLD_BASE) || 1;
+
+  // Daily carry comes from the ACTUAL loan ($/day), not a guess.
+  const loan=dealLoans.find(l=>l.status==='funded'||l.status==='pending')||dealLoans[0];
+  const LOAN_BALANCE=loan?(loan.loan_amount||0):0;
+  const LOAN_RATE=loan?(loan.rate_apr||0):0;
+  const DAILY_CARRY=LOAN_BALANCE*LOAN_RATE/365;
+
+  const F  = n => (n<0?'-$':'$') + Math.abs(Math.round(n)).toLocaleString();
+  const FS = n => (n>=0?'+$':'-$') + Math.abs(Math.round(n)).toLocaleString();
+  const num = el => Number((el.value||'').replace(/[^\d.-]/g,''))||0;
+  const v = id => Number(document.getElementById(id).value)||0;
+
+  // TODO(offers-backend): OFFERS is LOCAL editable state only — edits are not
+  // persisted. Wire this to a real seller_offers table (deal_id, buyer_name,
+  // financing_terms, offer_price, commission_pct, close_days, buyer_concession)
+  // when the backend exists: load on the selling phase and replace this seed.
+  const OFFERS=[
+    {buyer:'Offer 1', fin:'—', price:Math.round(num(slList)*1.01), comm:2.85, days:33, concess:0},
+    {buyer:'Offer 2', fin:'—', price:num(slList),                  comm:2.85, days:24, concess:0},
+  ];
+
+  // 6 "Closed"-bucket cost lines (grey gradient) + green profit.
+  function renderSellBd(c){
+    const lines=[
+      {name:'Purchase price',    color:'#6B7280', det:'',                                                              amt:purchase},
+      {name:'Purchase expenses', color:'#868E99', det:'1% of purchase',                                                amt:purchExp},
+      {name:'Rehab',             color:'#9CA3AF', det:'actual',                                                        amt:rehab},
+      {name:'Financing',         color:'#C7C7CC', det:'loan interest, build + hold',                                   amt:financing},
+      {name:'Disposition',       color:'#D8D7D2', det:c.comm+'% comm + '+c.clo+'% closing'+(c.conc?' + '+F(c.conc)+' credit':''), amt:c.disposition},
+      {name:'Holding',           color:'#E1E0DC', det:c.days+' days to close @ '+F(DAILY_CARRY)+'/day',                amt:c.holding},
+    ];
+    const segs=lines.map(l=>`<div class="om-bd-seg" style="background:${l.color};flex:${Math.max(l.amt,1)}"></div>`).join('');
+    const netSeg=`<div class="om-bd-seg" style="background:var(--green);flex:${Math.max(Math.abs(c.profit),1)};border-radius:0 7px 7px 0"></div>`;
+    const rowsHtml=lines.map(l=>`
+      <div class="om-bd-row">
+        <span class="om-bd-sw" style="background:${l.color}"></span>
+        <span class="om-bd-name">${l.name} ${l.det?`<span class="det">· ${l.det}</span>`:''}</span>
+        <span class="om-bd-pct">${c.list>0?(l.amt/c.list*100).toFixed(1):'0.0'}%</span>
+        <span class="om-bd-amt">${F(l.amt)}</span>
+      </div>`).join('');
+    document.getElementById('slBd').innerHTML=`
+      <div class="om-bd-top"><span class="lbl">Sale price</span><span class="val">${F(c.list)}</span></div>
+      <div class="om-bd-bar">${segs}${netSeg}</div>
+      ${rowsHtml}
+      <div class="om-bd-total"><span class="om-bd-name">All-in cost</span><span class="om-bd-pct">${c.list>0?(c.allOut/c.list*100).toFixed(1):'0.0'}%</span><span class="om-bd-amt">${F(c.allOut)}</span></div>
+      <div class="om-bd-net ${c.profit>=0?'pos':'neg'}"><span class="om-bd-name">Net profit <span class="det" style="font-weight:400">· ${(c.profit/COST_BASIS*100).toFixed(1)}% on cost</span></span><span class="om-bd-pct">${c.list>0?(c.profit/c.list*100).toFixed(1):'0.0'}%</span><span class="om-bd-amt">${FS(c.profit)}</span></div>
+    `;
   }
-  listEl.addEventListener('input', recalc);
-  document.getElementById('lpSellingCostPct').addEventListener('input', recalc);
+  // Editable table — price / commission / escrow days / credit per offer; net recomputes live.
+  function renderOfferTable(){
+    const head=`<div class="off-hrow off-cols"><span>Buyer</span><span>Offer $</span><span>Comm %</span><span>Esc days</span><span>Credit $</span><span>Net to you</span></div>`;
+    const rows=OFFERS.map((o,i)=>`
+      <div class="off-row off-cols" data-i="${i}">
+        <div><div class="off-buyer">${escapeHtml(o.buyer)}</div><div class="off-terms">${escapeHtml(o.fin)}</div></div>
+        <input class="off-in" type="number" step="5000" data-f="price"   value="${o.price}">
+        <input class="off-in" type="number" step="0.05" data-f="comm"    value="${o.comm}">
+        <input class="off-in" type="number" step="1"    data-f="days"    value="${o.days}">
+        <input class="off-in" type="number" step="1000" data-f="concess" value="${o.concess}">
+        <div class="off-net" data-net></div>
+      </div>`).join('');
+    document.getElementById('offerList').innerHTML=`${head}${rows}`;
+    recomputeOffers();
+  }
+  function recomputeOffers(){
+    const rows=[...document.querySelectorAll('#offerList .off-row')]; if(!rows.length)return;
+    const clo=v('slClose');
+    const nets=rows.map(row=>{
+      const g=f=>Number(row.querySelector(`[data-f="${f}"]`).value)||0;
+      const price=g('price');
+      return price - price*g('comm')/100 - price*clo/100 - g('concess') - g('days')*DAILY_CARRY;
+    });
+    const best=Math.max(...nets);
+    rows.forEach((row,i)=>{
+      const isBest=nets[i]===best;
+      row.classList.toggle('best',isBest);
+      row.querySelector('[data-net]').innerHTML=
+        `<div class="v" style="color:${nets[i]<0?'var(--red)':'var(--green)'}">${F(nets[i])}</div>`+
+        (isBest?'<div class="b">✓ best net</div>':`<div class="d">−${F(best-nets[i])}</div>`);
+    });
+  }
+  function recalc(){
+    const list=num(slList), comm=v('slComm'), clo=v('slClose'), conc=v('slConc'), days=v('slDays');
+    const commission=list*comm/100, closing=list*clo/100, carry=days*DAILY_CARRY;
+    const disposition=commission+closing+conc, holding=HOLD_BASE+carry;
+    const allOut=FIXED_EX_HOLDING+disposition+holding, profit=list-allOut;
+    document.getElementById('slBasisHelp').textContent=
+      `${F(COST_BASIS)} already spent (purchase, rehab, financing, holding) — itemized at right →`;
+    renderSellBd({list,comm,clo,conc,days,disposition,holding,allOut,profit});
+    document.getElementById('slFoot').innerHTML=
+      `<span><b>Net proceeds</b> ${F(list-disposition)} <span class="dim">at close, before loan payoff</span></span>`+
+      `<span style="margin-left:auto;font-weight:600;color:${profit>=0?'var(--green)':'var(--red)'}">Profit ${FS(profit)} · ${Math.round(profit/COST_BASIS*100)}% on cost</span>`;
+    recomputeOffers();   // closing % is shared, so list-calc edits flow into the offers
+  }
+  // List price is a free input (comp/market driven); everything else re-derives the report.
+  ['slList','slComm','slClose','slConc','slDays'].forEach(id=>document.getElementById(id).addEventListener('input',recalc));
+  // Offer comparison — each row's price / commission / escrow days / credit is editable.
+  document.getElementById('offerList').addEventListener('input',e=>{ if(e.target.classList.contains('off-in'))recomputeOffers(); });
+  const addEl=document.getElementById('addOffer');
+  if(addEl) addEl.addEventListener('click',e=>{
+    e.preventDefault();
+    const name=prompt('Buyer name:'); if(!name)return;
+    OFFERS.push({buyer:name, fin:'—', price:num(slList), comm:2.85, days:30, concess:0});
+    renderOfferTable();
+  });
+  renderOfferTable();
   recalc();
 }
 
@@ -2204,48 +2549,134 @@ function renderDocsSection(){
 }
 
 // ============================================================
-// PHASE PILL POPOVER + MOVE
+// LIFECYCLE STAGE TABS + ADVANCE MODAL
+// (replaced the old phase pill/popover; advance reuses movePhase())
 // ============================================================
-function wirePhasePill(){
-  const pill=document.getElementById('phasePill');
-  const stack=document.getElementById('phaseStack');
-  if(!pill||!stack)return;
-  pill.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    stack.classList.toggle('open');
-  });
-  document.addEventListener('click', (e)=>{
-    if(!stack.contains(e.target))stack.classList.remove('open');
-  });
+// The four-stage lifecycle the tab strip walks. The deal's REAL phase is
+// "current" (you-are-here); already-passed stages are viewable; the single
+// next stage is the openable "advance"; further stages are locked.
+const STAGE_ORDER=['pursuing','in_escrow','under_construction','selling'];
+let stageViewing=null;   // which stage's panel you're looking at (defaults to current)
+
+// Per-transition advance config — label/blurb + the fields the modal collects.
+// Field ids match exactly what movePhase() reads, so the existing
+// escrow-seeding / date / price side effects fire unchanged.
+const ADVANCE_CFG={
+  pursuing:{ to:'in_escrow', label:'Open escrow',
+    blurb:'Offer accepted — lock the accepted price and start the escrow clock.',
+    fields:[
+      {id:'ppEscrowPrice', label:'Accepted price ($)', type:'number', step:'1', min:'0'},
+      {id:'ppEscrowStart', label:'Acceptance date',    type:'date'},
+      {id:'ppContingencyDays', label:'Contingency days', type:'number', step:'1', min:'0', ph:'17'},
+      {id:'ppCoeDays',     label:'COE days',           type:'number', step:'1', min:'0', ph:'30'},
+    ], preview:true },
+  in_escrow:{ to:'under_construction', label:'Start construction',
+    blurb:'Closed and funded — start the build clock.', fields:[] },
+  under_construction:{ to:'selling', label:'List it',
+    blurb:'Build done — take it to market.', fields:[] },
+};
+
+function renderStageTabs(phase, aux, optionsHtml){
+  // Keep the hidden #ppNewPhase select populated so movePhase() still reads it.
+  const ppSel=document.getElementById('ppNewPhase');
+  if(ppSel)ppSel.innerHTML=`<option value="" disabled selected>Choose phase...</option>${optionsHtml}`;
+
+  const wrap=document.getElementById('stageTabs');
+  if(!wrap)return;
+  // If the deal's real phase isn't on the linear strip (lost/sold/archived),
+  // just show the strip with that phase highlighted where possible.
+  const ci=STAGE_ORDER.indexOf(phase);
+  // Default the viewed stage to current; never leave it parked on a now-locked
+  // (future) stage — after an advance the user should land on the new current.
+  if(stageViewing===null)stageViewing=phase;
+  const vi=STAGE_ORDER.indexOf(stageViewing);
+  if(vi<0 || (ci>=0 && vi>ci))stageViewing=phase;
+  wrap.innerHTML=STAGE_ORDER.map((ph,i)=>{
+    const isCur=ph===phase, isNext=(ci>=0 && i===ci+1), isFut=(ci>=0 && i>ci+1), isView=ph===stageViewing;
+    const cls=['stage-tab',isCur?'current':'',isNext?'next':'',isFut?'locked':'',isView?'on':''].filter(Boolean).join(' ');
+    const auxHtml=(isCur && aux)?` <span class="aux">${escapeHtml(aux)}</span>`:'';
+    const inner=(isCur?'<span class="here-dot"></span> ':'')+escapeHtml(phaseLabel(ph))
+      +(isNext?' <span class="next-ic">→</span>':'')+(isFut?' <span class="lock-ic">🔒</span>':'')+auxHtml;
+    const title=isNext?('Open '+phaseLabel(ph)+' — advance this deal'):(isFut?'Locked until earlier stages finish':'');
+    return `<button class="${cls}" data-phase="${ph}" title="${escapeHtml(title)}">${inner}</button>`;
+  }).join('');
+
+  // Topbar "View full listing" link — to the active MLS listing.
+  const link=document.getElementById('topbarListingLink');
+  if(link){
+    const p=primaryProperty();
+    const linkMls=p?p.mls:(currentDeal.relist_mls||currentDeal.buy_side_mls);
+    if(linkMls){ link.href=`mls-deals.html?mls=${encodeURIComponent(linkMls)}`; link.style.display=''; }
+    else link.style.display='none';
+  }
+
+  wrap.onclick=(e)=>{
+    const b=e.target.closest('[data-phase]'); if(!b)return;
+    if(b.classList.contains('next')){ openAdvance(); return; }   // next stage = advance
+    if(b.classList.contains('locked'))return;                    // far stages inert
+    stageViewing=b.dataset.phase;
+    applyPhase(stageViewing);
+    renderStageTabs(phase, aux, optionsHtml);
+  };
+
+  // Keep the visible panel in lock-step with the viewed tab (covers re-renders
+  // where the viewed stage differs from the deal's real phase).
+  applyPhase(stageViewing);
 }
-function onPhaseSelChange(){
+
+// Open the advance modal for the deal's current phase. Builds the modal fields
+// with the exact element ids movePhase() expects, seeds sensible defaults, and
+// sets the hidden #ppNewPhase to the target so movePhase() drives the move.
+function openAdvance(){
+  const phase=currentDeal.phase;
+  const cfg=ADVANCE_CFG[phase];
+  if(!cfg)return;
   const sel=document.getElementById('ppNewPhase');
-  const row=document.getElementById('ppDatesRow');
-  if(!sel||!row)return;
-  row.style.display=(sel.value==='in_escrow')?'block':'none';
-  if(sel.value==='in_escrow'){
+  if(sel)sel.value=cfg.to;
+  document.getElementById('advTitle').textContent=cfg.label;
+  document.getElementById('advBlurb').textContent=cfg.blurb;
+  document.getElementById('ppMoveBtn').textContent=cfg.label;
+  const msg=document.getElementById('ppMsg'); msg.className='adv-msg'; msg.textContent='';
+
+  const fieldsHost=document.getElementById('advFields');
+  fieldsHost.innerHTML=cfg.fields.map(f=>{
+    const ph=f.ph?` placeholder="${f.ph}"`:'';
+    const st=f.step?` step="${f.step}"`:''; const mn=f.min!=null?` min="${f.min}"`:'';
+    return `<label class="adv-f"><span>${f.label}</span><input id="${f.id}" type="${f.type}"${st}${mn}${ph}></label>`;
+  }).join('');
+
+  // Seed defaults for the escrow transition (mirrors the old onPhaseSelChange seeding).
+  if(cfg.to==='in_escrow'){
+    const priceInput=document.getElementById('ppEscrowPrice');
     const startInput=document.getElementById('ppEscrowStart');
     const contInput=document.getElementById('ppContingencyDays');
     const coeInput=document.getElementById('ppCoeDays');
-    const priceInput=document.getElementById('ppEscrowPrice');
-    if(priceInput && !priceInput.value){
-      const seed=currentDeal.purchase_price||currentDeal.offer_price;
-      if(seed!=null)priceInput.value=String(Math.round(seed));
-    }
-    if(currentDeal.escrow_start_date && !startInput.value)startInput.value=currentDeal.escrow_start_date;
-    // Day counts: reverse from existing dates if present, else sensible defaults.
-    if(!contInput.value){
-      const d=daysBetween(currentDeal.escrow_start_date, currentDeal.contingency_removal_date);
-      contInput.value=(d!=null && d>=0)?String(d):'17';
-    }
-    if(!coeInput.value){
-      const d=daysBetween(currentDeal.escrow_start_date, currentDeal.target_close_date);
-      coeInput.value=(d!=null && d>=0)?String(d):'30';
-    }
-    updateEscrowPreview();
+    if(priceInput){ const seed=currentDeal.purchase_price||currentDeal.offer_price; if(seed!=null)priceInput.value=String(Math.round(seed)); }
+    if(startInput)startInput.value=currentDeal.escrow_start_date||todayStr();
+    if(contInput){ const d=daysBetween(currentDeal.escrow_start_date, currentDeal.contingency_removal_date); contInput.value=(d!=null&&d>=0)?String(d):'17'; }
+    if(coeInput){ const d=daysBetween(currentDeal.escrow_start_date, currentDeal.target_close_date); coeInput.value=(d!=null&&d>=0)?String(d):'30'; }
   }
+
+  // Live preview of resolved escrow dates.
+  const prev=document.getElementById('advPreview');
+  const refresh=()=>{
+    if(!cfg.preview){ prev.style.display='none'; return; }
+    prev.style.display='';
+    const start=document.getElementById('ppEscrowStart').value;
+    const cont=parseInt(document.getElementById('ppContingencyDays').value,10);
+    const coe=parseInt(document.getElementById('ppCoeDays').value,10);
+    if(!start){ prev.textContent='Enter an acceptance date to compute escrow dates.'; return; }
+    const crd=_escrowDateFromDays(start,cont), close=_escrowDateFromDays(start,coe);
+    const parts=[]; if(crd)parts.push('Contingency removes '+crd); if(close)parts.push('closes '+close);
+    prev.textContent=parts.length?parts.join(' · '):'';
+  };
+  fieldsHost.oninput=refresh; refresh();
+
+  document.getElementById('phaseStack').classList.add('open');
 }
-window.onPhaseSelChange=onPhaseSelChange;
+function closeAdvance(){ const ov=document.getElementById('phaseStack'); if(ov)ov.classList.remove('open'); }
+window.openAdvance=openAdvance;
+window.closeAdvance=closeAdvance;
 // Start date + N calendar days -> yyyy-mm-dd (null if inputs invalid).
 // CAR RPA ¶25: days count from Acceptance as Day 0 (so the deadline is
 // start + N), and the last day for any act (contingency removal, COE)

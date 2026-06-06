@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — One money model across the seam</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fff; --bg-page:#F8F8F7; --bg-alt:#F2F1EF; --bg-inset:#EBEAE7; --bg-deep:#E2E1DD;
+  --border:#E2E1DD; --border-hover:#CCCBC6; --border-strong:#B0AFA8;
+  --text:#1A1A18; --text-2:#3A3A35; --text-3:#5C5C55; --text-4:#85857E;
+  --accent:#9C7C3C; --accent-hover:#B08E48; --accent-dim:rgba(156,124,60,.06); --accent-dim2:rgba(156,124,60,.13);
+  --green:#2D8A4E; --green-bg:#E8F5EC; --red:#C0392B; --red-bg:#FBEAEA; --amber:#B8651A; --amber-bg:#FDF0E2;
+  --radius:8px; --radius-sm:5px; --radius-lg:12px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.06); --shadow-md:0 4px 16px rgba(0,0,0,.08);
+  --sans:'DM Sans',system-ui,-apple-system,sans-serif; --mono:'JetBrains Mono','SF Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--sans);font-size:13px;color:var(--text);background:var(--bg-page);line-height:1.45;-webkit-font-smoothing:antialiased;padding:26px 34px 60px;}
+.wrap{max-width:860px;margin:0 auto;}
+.crumb{font-size:11px;color:var(--text-4);margin-bottom:10px;}
+.crumb b{color:var(--text-3);font-weight:600;}
+h1{font-size:21px;font-weight:700;letter-spacing:-.3px;}
+.addr-sub{color:var(--text-4);font-size:12px;margin-top:3px;}
+
+/* ---- Stage rail with the price-lock seam ---- */
+.rail{display:flex;align-items:stretch;margin:20px 0 22px;border:1px solid var(--border);border-radius:99px;background:var(--bg);overflow:hidden;position:relative;}
+.rstage{flex:1;border:none;background:transparent;font-family:var(--sans);font-size:12px;font-weight:600;color:var(--text-3);padding:10px 8px;cursor:pointer;position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;}
+.rstage:hover{color:var(--text);background:var(--bg-page);}
+.rstage.on{color:var(--text);background:var(--accent-dim);}
+.rstage .rsub{font-size:9px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--text-4);}
+.rstage.on .rsub{color:var(--accent);}
+/* the seam — where offer stops being an output and becomes an input */
+.seam{width:0;position:relative;}
+.seam::before{content:"";position:absolute;top:-1px;bottom:-1px;left:-1px;width:2px;background:repeating-linear-gradient(var(--accent) 0 4px,transparent 4px 8px);}
+.seam::after{content:"price locks";position:absolute;top:-17px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:8px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);}
+
+/* ---- The single money panel ---- */
+.money{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:hidden;}
+.mhead{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:20px;}
+.mhead .ml{display:flex;flex-direction:column;gap:7px;}
+.mode{display:inline-flex;align-items:center;gap:6px;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:3px 9px;border-radius:99px;width:max-content;}
+.mode.out{background:var(--accent-dim2);color:var(--accent);}
+.mode.in{background:var(--bg-inset);color:var(--text-3);}
+.mode .pulse{width:6px;height:6px;border-radius:99px;background:currentColor;}
+.title{font-size:13px;font-weight:700;}
+.title .sub{font-weight:500;color:var(--text-4);margin-left:7px;}
+
+/* the price — the cell that flips output⇄input */
+.price{text-align:right;min-width:240px;}
+.price .lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-4);display:flex;align-items:center;gap:6px;justify-content:flex-end;}
+.price .big{font-size:30px;font-weight:700;font-family:var(--mono);letter-spacing:-1.5px;line-height:1.1;}
+.price.lever .big{color:var(--accent);}
+.lock{font-size:11px;}
+.slider{-webkit-appearance:none;appearance:none;width:200px;height:5px;border-radius:99px;background:var(--bg-inset);outline:none;margin-top:8px;}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:99px;background:var(--accent);cursor:grab;box-shadow:var(--shadow-sm);border:2px solid #fff;}
+.slider::-webkit-slider-thumb:active{cursor:grabbing;}
+.leverhint{font-size:10px;color:var(--accent);margin-top:4px;font-weight:500;}
+
+/* persistent ledger — same cells every stage, only values + state change */
+.ledger{display:grid;grid-template-columns:repeat(5,1fr);}
+.cell{padding:14px 16px;border-right:1px solid var(--bg-alt);border-top:1px solid var(--bg-alt);}
+.cell:nth-child(5n){border-right:none;}
+.cell .cl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-4);}
+.cell .cv{font-size:18px;font-weight:700;font-family:var(--mono);letter-spacing:-.5px;margin-top:5px;transition:color .25s;}
+.cell .cv.g{color:var(--green);} .cell .cv.r{color:var(--red);}
+.state{display:inline-block;font-size:8px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:2px 6px;border-radius:99px;margin-top:7px;}
+.state.proj{background:var(--bg-inset);color:var(--text-3);}      /* projected */
+.state.commit{background:#E9EEF6;color:#3A5C8A;}                  /* committed */
+.state.act{background:var(--amber-bg);color:var(--amber);}       /* actual */
+.state.real{background:var(--green-bg);color:var(--green);}      /* realized */
+.minibar{height:5px;background:var(--bg-inset);border-radius:99px;overflow:hidden;margin-top:8px;}
+.minibar > i{display:block;height:100%;background:var(--amber);border-radius:99px;}
+
+.legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:16px 2px 0;font-size:11px;color:var(--text-4);}
+.legend .item{display:flex;align-items:center;gap:6px;}
+.note{font-size:11.5px;color:var(--text-3);margin-top:20px;padding:14px 16px;background:var(--bg-alt);border-radius:var(--radius);border-left:3px solid var(--accent);line-height:1.6;}
+.note b{color:var(--text-2);}
+.note .seamword{color:var(--accent);font-weight:700;}
+</style>
+</head>
+<body data-stage="pursuing">
+<div class="wrap">
+  <div class="crumb">Pipeline / <b>Project</b> / Money</div>
+  <h1>1428 Magnolia Ave</h1>
+  <div class="addr-sub">San Jose, CA 95126 · 3 bd / 2 ba · 1,540 sqft</div>
+
+  <!-- stage rail: the dashed seam sits between Pursuing and In Escrow -->
+  <div class="rail" id="rail">
+    <button class="rstage on" data-go="pursuing">Pursuing<span class="rsub">offer = output</span></button>
+    <div class="seam"></div>
+    <button class="rstage" data-go="escrow">In Escrow<span class="rsub">offer = input</span></button>
+    <button class="rstage" data-go="construction">Construction<span class="rsub">offer = input</span></button>
+    <button class="rstage" data-go="selling">Selling<span class="rsub">exit = live</span></button>
+  </div>
+
+  <!-- ONE money panel -->
+  <div class="money">
+    <div class="mhead">
+      <div class="ml">
+        <span class="mode" id="mode"></span>
+        <span class="title" id="mtitle"></span>
+      </div>
+      <div class="price" id="price"></div>
+    </div>
+    <div class="ledger" id="ledger"></div>
+  </div>
+
+  <div class="legend">
+    <span>State of each number:</span>
+    <span class="item"><span class="state proj">projected</span> modeled</span>
+    <span class="item"><span class="state commit">committed</span> contractually fixed</span>
+    <span class="item"><span class="state act">actual</span> real spend to date</span>
+    <span class="item"><span class="state real">realized</span> at exit</span>
+  </div>
+
+  <div class="note" id="note"></div>
+</div>
+
+<script>
+// One model. Same five ledger cells every stage. The offer flips from the
+// thing you SOLVE FOR (pursuing) to a LOCKED INPUT (everything after), and the
+// downstream numbers carry continuously — only their state changes.
+const FIXED = 708; // ARV - rehab - costs bundle, in $K → profit = FIXED - offer
+let offer = 612;
+
+const STAGES = {
+  pursuing: {
+    mode:['out','OUTPUT · solving for offer'],
+    title:['Offer math', 'what can I pay and still clear margin?'],
+    note:`<b>Pursuing — the offer is the unknown.</b> Drag the lever: every downstream number is computed <i>off</i> the offer. ARV, rehab and costs are fixed; the offer is what you tune until the margin clears. This is the same panel you'll see all the way through escrow and construction — here it just runs <span class="seamword">backwards</span>, solving for price.`,
+    lever:true,
+  },
+  escrow: {
+    mode:['in','INPUT · price locked at acceptance'],
+    title:['Cash position', 'owner only · live from money data'],
+    cells:[
+      ['Exit (ARV)','$915K','proj'],
+      ['Rehab','$118K','commit'],
+      ['Cash in deal','$214K','commit'],
+      ['Carry / mo','$4.1K','commit','r'],
+      ['Projected profit','$94K','proj','g'],
+    ],
+    note:`<b>In escrow — the offer locks.</b> At acceptance the price stops being an output and becomes a <span class="seamword">committed input</span> ($612K). The very same cells now run <i>forward</i>: cash-in is committed, carry starts accruing, profit is still projected off the locked price. Nothing was thrown away — the offer math <i>became</i> the cash position.`,
+  },
+  construction: {
+    mode:['in','INPUT · price locked · rehab in flight'],
+    title:['Cash position', 'owner only · rehab burn + carry'],
+    cells:[
+      ['Exit (ARV)','$915K','proj'],
+      ['Rehab','$71K / $118K','act','',0.60],
+      ['Cash in deal','$214K','commit'],
+      ['Carry burned','$12.3K','act','r'],
+      ['Projected profit','$88K','proj','g'],
+    ],
+    note:`<b>Under construction — projections turn into actuals.</b> Rehab flips from a committed estimate to <span class="seamword">real spend</span> (the bar), carry is now money actually burned, and profit re-derives off the same locked price. Same five cells, same positions — the only thing changing is how much of each number is real vs. still modeled.`,
+  },
+  selling: {
+    mode:['in','INPUT · exit price now live'],
+    title:['Cash position', 'offer-decision oriented · which bid nets most'],
+    cells:[
+      ['Exit (best offer)','$908K','real','g'],
+      ['Rehab (final)','$116K','act'],
+      ['Cash in deal','$214K','commit'],
+      ['Cost of waiting','$137/d','act','r'],
+      ['Net profit','$90K','real','g'],
+    ],
+    note:`<b>Selling — the exit goes live.</b> Now the <i>buy</i> price is settled history and the <span class="seamword">exit</span> price becomes the live variable: real offers replace the ARV estimate, and profit moves from projected to realized. The model never changed shape across four stages — only which end is the unknown.`,
+  },
+};
+
+function fmtK(n){return '$'+Math.round(n)+'K';}
+
+function renderPursuingCells(){
+  const loan=Math.round(offer*0.65), cashIn=offer-loan, profit=FIXED-offer, margin=(profit/offer*100);
+  return [
+    ['Exit (ARV)','$915K','proj'],
+    ['Rehab','$118K','proj'],
+    ['Cash in deal',fmtK(cashIn),'proj'],
+    ['Margin',margin.toFixed(1)+'%','proj', margin>=12?'g':(margin>=8?'':'r')],
+    ['Projected profit',fmtK(profit),'proj', profit>0?'g':'r'],
+  ];
+}
+
+function render(){
+  const s=document.body.dataset.stage, cfg=STAGES[s];
+  // mode chip
+  const mode=document.getElementById('mode');
+  mode.className='mode '+cfg.mode[0];
+  mode.innerHTML='<span class="pulse"></span>'+cfg.mode[1];
+  // title
+  document.getElementById('mtitle').innerHTML=cfg.title[0]+'<span class="sub">'+cfg.title[1]+'</span>';
+  // price block — lever vs locked
+  const price=document.getElementById('price');
+  if(cfg.lever){
+    const profit=FIXED-offer, margin=(profit/offer*100);
+    price.className='price lever';
+    price.innerHTML=
+      '<div class="lbl">recommended offer ▾</div>'+
+      '<div class="big">'+fmtK(offer)+'</div>'+
+      '<input class="slider" id="ofSlider" type="range" min="560" max="660" step="2" value="'+offer+'">'+
+      '<div class="leverhint">↑ price → ↓ margin ('+margin.toFixed(1)+'%) · drag to solve</div>';
+    price.querySelector('#ofSlider').addEventListener('input',e=>{offer=+e.target.value;render();});
+  } else {
+    price.className='price';
+    price.innerHTML=
+      '<div class="lbl"><span class="lock">🔒</span> purchase price · locked</div>'+
+      '<div class="big">'+fmtK(offer)+'</div>'+
+      '<div class="leverhint" style="color:var(--text-4)">acceptance · Jun 2 · was the offer output</div>';
+  }
+  // ledger
+  const cells=cfg.cells||renderPursuingCells();
+  document.getElementById('ledger').innerHTML=cells.map(c=>{
+    const [label,val,state,tone,bar]=c;
+    return '<div class="cell"><div class="cl">'+label+'</div>'+
+      '<div class="cv '+(tone||'')+'">'+val+'</div>'+
+      (bar!=null?'<div class="minibar"><i style="width:'+(bar*100)+'%"></i></div>':'')+
+      '<div><span class="state '+state+'">'+({proj:'projected',commit:'committed',act:'actual',real:'realized'})[state]+'</span></div>'+
+    '</div>';
+  }).join('');
+  // note
+  document.getElementById('note').innerHTML=cfg.note;
+  // rail active
+  document.querySelectorAll('.rstage').forEach(b=>b.classList.toggle('on',b.dataset.go===s));
+}
+
+document.getElementById('rail').addEventListener('click',e=>{
+  const b=e.target.closest('[data-go]'); if(!b)return;
+  document.body.dataset.stage=b.dataset.go; render();
+});
+render();
+</script>
+</body>
+</html>
