@@ -1202,11 +1202,6 @@ function renderPage(){
   // === Render full page ===
   const pageHtml=`
     ${soldBannerHtml}
-    <div class="crumb">
-      <a href="pipeline.html">← Pipeline</a>
-      <span class="sep">·</span>
-      <span>${d.buy_side_mls?'Buy: ':'Relist: '}<span style="font-family:var(--mono);color:var(--text-2)">${escapeHtml(d.buy_side_mls||d.relist_mls||'')}</span></span>
-    </div>
 
     <!-- ACQUISITION CARD -->
     <div class="acq">
