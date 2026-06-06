@@ -65,27 +65,9 @@ a.tab,a.tab:hover{text-decoration:none}
 .import-log{background:var(--bg-inset);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;font-family:var(--mono);font-size:11px;line-height:1.6;white-space:pre-wrap;max-height:300px;overflow-y:auto;display:none;margin:12px 24px;max-width:900px}
 .section{margin:24px;max-width:900px}
 .section h3{font-size:15px;font-weight:600;margin-bottom:12px}
-  .lb-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:10000;display:none}
-  .lb-overlay.open{display:block}
-  .lb-close{position:absolute;top:16px;right:20px;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;z-index:10003}
-  .lb-addr{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);color:#fff;font-size:14px;font-weight:600;z-index:10002;text-align:center;padding:0 60px}
-  .lb-scroll{position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto;padding:20px 20px 40px}
-  .lb-grid{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:repeat(2,1fr);gap:4px}
-  .lb-grid img{width:100%;display:block;cursor:pointer;border-radius:2px}
-  .lb-grid img.lb-full{position:fixed;inset:0;max-width:95vw;max-height:95vh;margin:auto;z-index:10004;border-radius:6px;object-fit:contain;cursor:zoom-out}
-  .dupe-thumb{width:60px;height:45px;object-fit:cover;border-radius:4px;cursor:pointer;background:var(--bg-alt);flex-shrink:0;border:1px solid var(--border);transition:transform .15s}
-  .dupe-thumb:hover{transform:scale(1.8);z-index:10;position:relative;box-shadow:0 4px 16px rgba(0,0,0,.3)}
-  .dupe-thumb-empty{width:60px;height:45px;border-radius:4px;background:var(--bg-alt);flex-shrink:0;border:1px dashed var(--border);display:grid;place-items:center;font-size:10px;color:var(--text-4)}
 </style>
 </head>
 <body>
-<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(4px)"></div>
-<div class="lb-overlay" id="photoLightbox">
-  <div class="lb-addr" id="lbAddr"></div>
-  <button class="lb-close" onclick="closeLightbox()">✕</button>
-  <div class="lb-scroll"><div class="lb-grid" id="lbGrid"></div></div>
-</div>
-
 <!-- APP SHELL -->
 <div class="app-shell">
 <!-- Sidebar (rendered by sidebar.js) -->
@@ -97,7 +79,6 @@ a.tab,a.tab:hover{text-decoration:none}
   <div class="tab active" data-tab="import" onclick="switchTab('import')">Import CSV</div>
   <div class="tab" data-tab="geocode" onclick="switchTab('geocode')">Geocode</div>
   <div class="tab" data-tab="schools" onclick="switchTab('schools')">Missing Schools</div>
-  <div class="tab" data-tab="dupes" onclick="switchTab('dupes')">Find Duplicates</div>
 </div>
 
 <!-- IMPORT CSV TAB -->
@@ -163,16 +144,6 @@ a.tab,a.tab:hover{text-decoration:none}
   </div>
 </div>
 
-<!-- FIND DUPLICATES TAB -->
-<div class="panel" id="panel-dupes">
-  <div class="section">
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
-      <button class="btn btn-secondary" id="autoRemoveBtn" onclick="autoRemoveDupes()" style="display:none">Auto Remove True Dupes</button>
-    </div>
-    <div id="dupeResults"></div>
-  </div>
-</div>
-
 <script>
 const SB_URL='https://pwrnywsojomrygsiezzi.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
@@ -195,7 +166,6 @@ function switchTab(t){
   if(history.replaceState) history.replaceState(null,'',t==='import'?location.pathname:'#'+t);
   if(t==='geocode')updateGeoStats();
   if(t==='schools')loadMissingSchools();
-  if(t==='dupes')findDuplicates();
 }
 
 // ═══ CSV COLUMN MAP ═══
@@ -748,180 +718,6 @@ async function addManualComp(){
   else{log.innerHTML='<p style="color:var(--green);margin-top:8px">✓ Added '+g('m-address')+', '+g('m-city')+'</p>';['m-address','m-city','m-beds','m-baths','m-sqft','m-price','m-lot','m-sold','m-dom','m-coords'].forEach(function(id){document.getElementById(id).value='';});}
 }
 
-// ═══ FIND DUPLICATES ═══
-async function findDuplicates(){
-  var c=document.getElementById('dupeResults');c.innerHTML='<div class="loading">Checking...</div>';
-  var allData=[];for(var p=0;p<20;p++){var res=await sb.from(TABLE).select('id,mls,address,city,sale_price,sold_date,sqft,comp_type,dom,reviewed').eq('change_type','sold').order('city').order('address').range(p*1000,(p+1)*1000-1);if(!res.data||!res.data.length)break;allData=allData.concat(res.data);}
-  if(!allData.length){c.innerHTML='<p style="color:var(--green)">No comps to check.</p>';return;}
-  var groups={};allData.forEach(function(r){var k=(r.address||'').toUpperCase().replace(/\s+/g,' ').trim()+'|'+(r.city||'').toUpperCase().trim();if(!groups[k])groups[k]=[];groups[k].push(r);});
-  var repeats=Object.entries(groups).filter(function(e){return e[1].length>1;});
-  if(!repeats.length){c.innerHTML='<p style="color:var(--green)">No duplicates found!</p>';document.getElementById('autoRemoveBtn').style.display='none';return;}
-
-  var trueDupes=[],possibleFlips=[];
-  repeats.forEach(function(e){var key=e[0],comps=e[1];
-    var pg={};comps.forEach(function(r){var pk=(r.sale_price||0)+'|'+(r.sold_date||'');if(!pg[pk])pg[pk]=[];pg[pk].push(r);});
-    var hasTrueDupes=Object.values(pg).some(function(g){return g.length>1;});
-    var hasDiffSales=Object.keys(pg).length>1;
-    var allSameType=new Set(comps.map(function(r){return r.comp_type||'general';})).size===1;
-    if(hasTrueDupes)trueDupes.push([key,comps,pg]);
-    if(hasDiffSales&&allSameType&&!comps.every(function(r){return r.reviewed;}))possibleFlips.push([key,comps]);
-  });
-
-  var h='';
-
-  // Helper: generate thumbnail HTML for a comp row
-  function dupeThumb(r){
-    if(!r.mls)return '<div class="dupe-thumb-empty">no MLS</div>';
-    var src=PHOTO_BASE+'/'+r.mls+'/'+r.mls+'_01.jpg';
-    return '<img class="dupe-thumb" src="'+src+'" onclick="openLightbox(\''+r.mls+'\',\''+((r.address||'')+', '+(r.city||'')).replace(/'/g,"\\'")+'\');event.stopPropagation()" onerror="this.outerHTML=\'<div class=dupe-thumb-empty>no photo</div>\'" title="Click for all photos">';
-  }
-
-  // TRUE DUPLICATES
-  if(trueDupes.length){
-    var tdCount=trueDupes.reduce(function(s,e){return s+Object.values(e[2]).reduce(function(ss,g){return ss+g.length-1;},0);},0);
-    h+='<div style="margin-bottom:24px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h4 style="color:var(--red)">🗑 True Duplicates ('+tdCount+') <span style="color:var(--text-3);font-weight:400;font-size:12px">— same address, price, and date</span></h4></div>';
-    document.getElementById('autoRemoveBtn').style.display='';
-    trueDupes.forEach(function(e){var key=e[0],comps=e[1],pg=e[2];var parts=key.split('|');
-      h+='<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+parts[0]+', '+parts[1]+' <a href="https://www.zillow.com/homes/'+encodeURIComponent(parts[0]+', '+parts[1]+', CA')+'" target="_blank" style="opacity:0.5;margin-left:4px"><img src="https://www.zillow.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a> <span style="color:var(--red)">('+comps.length+')</span></div>';
-      comps.forEach(function(r){var isDupe=Object.values(pg).some(function(g){return g.length>1&&g.indexOf(r)>0;});
-        h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;border-radius:6px;'+(isDupe?'':'background:var(--accent-dim)')+'" id="dupe-row-'+r.id+'">'+dupeThumb(r)+'<span style="font-size:12px;font-family:var(--mono);color:'+(isDupe?'var(--red)':'var(--green)')+';min-width:55px">'+(isDupe?'dupe':'★ keep')+'</span><span style="font-size:12px;min-width:90px">'+(r.sold_date||'—')+'</span><span style="font-size:12px;font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="font-size:12px;color:var(--text-4)">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="viewCompPhotos('+r.id+')" title="View photos" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:14px;font-family:inherit;margin-right:8px">📷</button><button onclick="editComp('+r.id+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;font-family:inherit;margin-right:8px">edit</button><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-family:inherit">delete</button></div>';
-      });h+='</div>';
-    });h+='</div>';
-  }
-
-  // POSSIBLE FLIPS
-  if(possibleFlips.length){
-    // Calculate months apart and sort
-    possibleFlips.forEach(function(pf){
-      var dates=pf[1].map(function(r){return r.sold_date;}).filter(Boolean).sort();
-      if(dates.length>=2){var d1=new Date(dates[0]),d2=new Date(dates[dates.length-1]);pf[2]=Math.round((d2-d1)/(1000*60*60*24*30));}
-      else pf[2]=999;
-    });
-    possibleFlips.sort(function(a,b){return a[2]-b[2];});
-
-    h+='<h4 style="color:var(--amber);margin:12px 0 8px">🔄 Possible Flips ('+possibleFlips.length+') <span style="color:var(--text-3);font-weight:400;font-size:12px">— same address, different price/date</span></h4>';
-    possibleFlips.forEach(function(e){var key=e[0],comps=e[1],monthsApart=e[2];var parts=key.split('|');var ids=comps.map(function(r){return r.id;});
-      var isHighly=monthsApart<=8;
-      var prices=comps.map(function(r){return r.sale_price;}).filter(Boolean).sort(function(a,b){return a-b;});
-      var priceDiff=prices.length>=2?prices[prices.length-1]-prices[0]:0;
-      var diffStr=priceDiff>0?'+'+Math.ceil(priceDiff/1000)+'k':'';
-      var borderColor=isHighly?'var(--red)':'var(--blue)';
-      var latestDate=comps.reduce(function(max,r){return r.sold_date>max?r.sold_date:max;},'');
-      var latestComp=comps.find(function(r){return r.sold_date===latestDate;});
-
-      h+='<div style="background:var(--bg-page);border:1px solid var(--border);border-left:3px solid '+borderColor+';border-radius:var(--radius);padding:14px;margin-bottom:8px" id="flip-group-'+ids[0]+'">';
-      h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:13px;font-weight:600">'+parts[0]+', '+parts[1]+' <a href="https://www.zillow.com/homes/'+encodeURIComponent(parts[0]+', '+parts[1]+', CA')+'" target="_blank" style="opacity:0.5;margin-left:4px"><img src="https://www.zillow.com/favicon.ico" width="12" height="12" style="vertical-align:middle"></a> <span style="color:var(--blue)">('+comps.length+' sales)</span>'+(isHighly?'<span style="background:var(--red);color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;margin-left:8px">HIGHLY LIKELY</span>':'')+(diffStr?'<span style="font-size:11px;font-weight:600;color:var(--green);margin-left:8px">'+diffStr+'</span>':'')+'<span style="font-size:11px;color:var(--text-4);margin-left:8px">'+(monthsApart<999?monthsApart+'mo apart':'')+'</span></span>';
-      h+='<div style="display:flex;gap:6px"><button onclick="markAsFlip('+(latestComp?latestComp.id:0)+',['+ids+'])" style="background:var(--accent);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;padding:4px 10px;font-family:inherit;font-weight:600">Is Flip ↗</button><button onclick="markAsHalfFlip('+(latestComp?latestComp.id:0)+',['+ids+'])" style="background:var(--amber);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;padding:4px 10px;font-family:inherit;font-weight:600">Half-Ass ½</button><button onclick="dismissFlip(['+ids+'])" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-3);cursor:pointer;font-size:11px;padding:4px 10px;font-family:inherit">Not a flip ✓</button></div></div>';
-
-      comps.forEach(function(r){var isLatest=r.sold_date===latestDate;
-        h+='<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;border-radius:6px;'+(isLatest?'background:var(--accent-dim)':'')+'" id="dupe-row-'+r.id+'">'+dupeThumb(r)+'<span style="font-size:12px;min-width:20px;color:var(--accent)">'+(isLatest?'★':'')+'</span><span style="font-size:12px;min-width:90px">'+(r.sold_date||'—')+'</span><span style="font-size:12px;font-family:var(--mono);color:var(--accent);min-width:100px">'+(r.sale_price?'$'+r.sale_price.toLocaleString():'—')+'</span><span style="font-size:12px;color:'+(r.comp_type==='flips'?'var(--blue)':r.comp_type==='dotty'?'var(--green)':r.comp_type==='halfflips'?'var(--amber)':'var(--text-4)')+';font-weight:600;min-width:60px">'+(r.comp_type||'general')+'</span><span style="flex:1"></span><button onclick="viewCompPhotos('+r.id+')" title="View photos" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:14px;font-family:inherit;margin-right:8px">📷</button><button onclick="editComp('+r.id+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;font-family:inherit;margin-right:8px">edit</button><button onclick="deleteDupe('+r.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-family:inherit">delete</button></div>';
-      });h+='</div>';
-    });
-  }
-
-  if(!trueDupes.length&&!possibleFlips.length)h='<p style="color:var(--green)">No duplicates found!</p>';
-  c.innerHTML=h;
-}
-async function deleteDupe(id){await sb.from(TABLE).delete().eq('id',id);var r=document.getElementById('dupe-row-'+id);if(r){r.style.transition='opacity .3s';r.style.opacity='0';setTimeout(function(){r.remove();},300);}}
-const editFields=[{key:'mls',label:'MLS #',type:'text',readonly:true},{key:'address',label:'Address',type:'text'},{key:'city',label:'City',type:'text'},{key:'beds',label:'Bedrooms',type:'number'},{key:'baths',label:'Bathrooms',type:'number',step:'0.5'},{key:'sqft',label:'SqFt',type:'number'},{key:'sale_price',label:'Sale Price',type:'number'},{key:'ppsf',label:'$/SqFt',type:'number',step:'0.01'},{key:'lot_size',label:'Lot Size',type:'number'},{key:'pool',label:'Pool',type:'select',options:[['No','No'],['Yes','Yes']]},{key:'sold_date',label:'Sold Date',type:'date'},{key:'dom',label:'DOM',type:'number'},{key:'apn',label:'APN',type:'text'},{key:'elementary_school',label:'Elementary',type:'text'},{key:'elementary_rating',label:'Elem Rating',type:'number'},{key:'middle_school',label:'Middle School',type:'text'},{key:'middle_rating',label:'Mid Rating',type:'number'},{key:'high_school',label:'High School',type:'text'},{key:'high_rating',label:'High Rating',type:'number'},{key:'latitude',label:'Latitude',type:'number',step:'any'},{key:'longitude',label:'Longitude',type:'number',step:'any'},{key:'comp_type',label:'Comp Type',type:'select',options:[['general','General'],['dotty','Dotty'],['flips','Flips'],['halfflips','Half-Ass Flip']]}];
-async function editComp(id){const{data:r}=await sb.from(TABLE).select('*').eq('id',id).single();if(!r)return;
-let fh=editFields.map(f=>{const val=r[f.key]!=null?r[f.key]:'';let inp;if(f.type==='select')inp=`<select id="edit-${f.key}" style="width:100%;padding:8px 10px;font-size:13px;font-family:inherit;background:var(--bg-page);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">${f.options.map(([v,l])=>`<option value="${v}" ${String(val)==v?'selected':''}>${l}</option>`).join('')}</select>`;else inp=`<input type="${f.type}" id="edit-${f.key}" value="${val}" ${f.step?'step="'+f.step+'"':''} ${f.readonly?'readonly':''} style="width:100%;padding:8px 10px;font-size:13px;font-family:inherit;background:${f.readonly?'var(--bg-alt)':'var(--bg-page)'};border:1px solid var(--border);border-radius:var(--radius);color:${f.readonly?'var(--text-3)':'var(--text)'};outline:none">`;return`<div><label style="display:block;font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${f.label}</label>${inp}</div>`;}).join('');
-const m=document.getElementById('editModal');m.innerHTML=`<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:600px;width:95%;max-height:85vh;overflow-y:auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:16px;font-weight:600">Edit Comp</h3><button onclick="closeEditModal()" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:20px;padding:4px 8px">✕</button></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${fh}</div><div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeEditModal()">Cancel</button><button class="btn btn-primary" onclick="saveEdit(${id})">Save</button></div></div>`;m.style.display='flex';}
-async function saveEdit(id){const g=k=>{const e=document.getElementById('edit-'+k);return e?e.value:null;},num=k=>{const v=g(k);return v!==''&&v!==null?Number(v):null;};
-const{error}=await sb.from(TABLE).update({address:g('address'),city:g('city'),beds:num('beds'),baths:num('baths'),sqft:num('sqft'),sale_price:num('sale_price'),ppsf:num('ppsf'),lot_size:num('lot_size'),pool:g('pool'),sold_date:g('sold_date')||null,dom:num('dom'),apn:g('apn')||null,elementary_school:g('elementary_school')||null,elementary_rating:num('elementary_rating'),middle_school:g('middle_school')||null,middle_rating:num('middle_rating'),high_school:g('high_school')||null,high_rating:num('high_rating'),latitude:num('latitude'),longitude:num('longitude'),comp_type:g('comp_type')||'general'}).eq('id',id);
-if(error)alert(error.message);else{closeEditModal();findDuplicates();}}
-function closeEditModal(){document.getElementById('editModal').style.display='none';}
-// ========== PHOTO LIGHTBOX (ported from comps-db.html) ==========
-const PHOTO_BASE='https://photos.dottyhomes.com';
-const photoCountCache={};
-let lbMls='';
-async function fetchPhotoCount(mls){
-  if(photoCountCache[mls]!=null)return photoCountCache[mls];
-  const url=`${PHOTO_BASE}/${mls}/`;
-  try{
-    const res=await fetch(url);
-    if(!res.ok)return null;
-    const txt=await res.text();
-    const matches=txt.match(new RegExp(`${mls}_\\d+\\.jpg`,'gi'));
-    const uniq=matches?new Set(matches.map(s=>s.toLowerCase())):new Set();
-    const count=uniq.size;
-    photoCountCache[mls]=count;
-    return count;
-  }catch(e){return null;}
-}
-function openLightbox(mls,addr){
-  if(!mls){alert('No MLS number on this comp — cannot load photos.');return;}
-  lbMls=mls;
-  const myMls=mls;
-  const addrEl=document.getElementById('lbAddr');
-  addrEl.textContent=addr+' (loading…)';
-  const grid=document.getElementById('lbGrid');
-  grid.innerHTML='';
-  document.getElementById('photoLightbox').classList.add('open');
-  document.addEventListener('keydown',lbKeyHandler);
-  fetchPhotoCount(mls).then(total=>{
-    if(lbMls!==myMls)return;
-    if(total!=null)addrEl.textContent=addr+(total===0?' (no photos)':' ('+total+(total===1?' photo':' photos')+')');
-    let i=1;
-    function loadNext(){
-      if(lbMls!==myMls)return;
-      if(total!=null&&i>total)return;
-      const num=String(i).padStart(2,'0');
-      const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
-      const img=new Image();
-      img.onload=function(){
-        if(lbMls!==myMls)return;
-        const el=document.createElement('img');
-        el.src=url;
-        el.onclick=function(){
-          if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
-          else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
-        };
-        grid.appendChild(el);
-        if(total==null)addrEl.textContent=addr+' ('+i+(i===1?' photo':' photos')+')';
-        i++;
-        loadNext();
-      };
-      img.onerror=function(){
-        if(lbMls!==myMls)return;
-        const count=i-1;
-        if(total==null){photoCountCache[mls]=count;if(count===0)addrEl.textContent=addr+' (no photos)';}
-      };
-      img.src=url;
-    }
-    loadNext();
-  });
-}
-function closeLightbox(){
-  lbMls='';
-  document.getElementById('photoLightbox').classList.remove('open');
-  document.removeEventListener('keydown',lbKeyHandler);
-}
-function lbKeyHandler(e){
-  if(e.key==='Escape'){
-    const full=document.querySelector('.lb-grid img.lb-full');
-    if(full)full.classList.remove('lb-full');
-    else closeLightbox();
-  }
-}
-async function viewCompPhotos(id){
-  const{data:r}=await sb.from(TABLE).select('mls,address,city,zip').eq('id',id).single();
-  if(!r){alert('Comp not found');return;}
-  const fullAddr=(r.address||'')+', '+(r.city||'')+(r.zip?' '+r.zip:'');
-  openLightbox(r.mls,fullAddr);
-}
-async function dismissFlip(ids){await sb.from(TABLE).update({reviewed:true}).in('id',ids);var g=document.getElementById('flip-group-'+ids[0]);if(g){g.style.transition='opacity .3s';g.style.opacity='0';setTimeout(function(){g.remove();},300);}}
-async function markAsFlip(latestId,allIds){await sb.from(TABLE).update({comp_type:'flips'}).eq('id',latestId);var g=document.getElementById('flip-group-'+allIds[0]);if(g){g.style.transition='opacity .3s';g.style.opacity='0';setTimeout(function(){g.remove();},300);}}
-async function markAsHalfFlip(latestId,allIds){await sb.from(TABLE).update({comp_type:'halfflips'}).eq('id',latestId);var g=document.getElementById('flip-group-'+allIds[0]);if(g){g.style.transition='opacity .3s';g.style.opacity='0';setTimeout(function(){g.remove();},300);}}
-async function autoRemoveDupes(){
-  if(!confirm('Remove true duplicates only (same address+price+date)? Possible flips will NOT be touched.'))return;
-  var allData=[];for(var p=0;p<20;p++){var res=await sb.from(TABLE).select('id,address,city,sale_price,sold_date').eq('change_type','sold').order('id',{ascending:true}).range(p*1000,(p+1)*1000-1);if(!res.data||!res.data.length)break;allData=allData.concat(res.data);}
-  var seen={},del=[];allData.forEach(function(r){var k=(r.address||'').toUpperCase().replace(/\s+/g,' ').trim()+'|'+(r.city||'').toUpperCase().trim()+'|'+(r.sale_price||0)+'|'+(r.sold_date||'');if(seen[k])del.push(r.id);else seen[k]=true;});
-  if(!del.length){alert('No true duplicates to remove.');return;}
-  for(var i=0;i<del.length;i+=100){await sb.from(TABLE).delete().in('id',del.slice(i,i+100));}
-  alert('Removed '+del.length+' duplicates.');findDuplicates();
-}
-
 // ═══ INIT — gate on auth, then boot ═══
 (async function(){
   await window.authGate();
@@ -929,7 +725,7 @@ async function autoRemoveDupes(){
   window.renderSidebar('data');
   // Deep-link support: open the tab named in the URL hash (Import is default).
   var ht=(location.hash||'').slice(1);
-  if(['geocode','schools','dupes'].indexOf(ht)>=0) switchTab(ht);
+  if(['geocode','schools'].indexOf(ht)>=0) switchTab(ht);
   loadHistory();
 })();
 </script>
