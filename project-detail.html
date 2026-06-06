@@ -156,11 +156,14 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 
 /* === Section blocks === */
 .sect { background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px 20px; margin-bottom:14px; }
-.sect-h { display:flex; align-items:baseline; gap:12px; margin-bottom:12px; }
+.sect-h { display:flex; align-items:baseline; gap:12px; margin-bottom:12px; flex-wrap:wrap; row-gap:3px; }
 .sect-h h2 { font-size:13px; font-weight:700; color:var(--text); margin:0; letter-spacing:.02em; text-transform:uppercase; }
-.sect-h .sub { font-size:11px; color:var(--text-4); font-weight:500; }
-.sect-h .right { margin-left:auto; }
-.sect-h .right a { font-size:12px; color:var(--accent); }
+/* In narrow cards (constr/escrow cols) the sub keeps a sensible basis so it wraps to
+   ~2 lines beside the title instead of collapsing into a skinny column; the action
+   link then drops to its own row rather than squeezing the sub. */
+.sect-h .sub { font-size:11px; color:var(--text-4); font-weight:500; flex:1 1 120px; min-width:90px; }
+.sect-h .right { margin-left:auto; display:flex; align-items:center; gap:14px; }
+.sect-h .right a { font-size:12px; color:var(--accent); white-space:nowrap; }
 .phase-hide { display:none !important; }
 
 /* Escrow timeline */
@@ -1260,7 +1263,7 @@ function renderPage(){
     if(lastDeCount && lastDeCount>0){
       agentBits.push(`<span class="de-pill" title="Listing agent has ${lastDeCount} double-end deal${lastDeCount===1?'':'s'} since 2023">🔁 DE×${lastDeCount}</span>`);
     }
-    agentBits.push(`<a href="mls-deals.html?mls=${encodeURIComponent(p.mls)}" class="acq-link">View full listing →</a>`);
+    // View-full-listing link lives in the topbar (#topbarListingLink) — no dup here.
     if(agentBits.length)agentLineHtml=`<div class="acq-agent" id="acqAgent">${agentBits.join('')}</div>`;
   }
 
@@ -1478,9 +1481,6 @@ function renderConstructionSection(){
     : 0;
   const budgetLabel=`${d.rehab_actual!=null?FK(d.rehab_actual):'$0'} / ${d.rehab_budget!=null?FK(d.rehab_budget):'—'} · ${budgetPct}%`;
 
-  // Phase checklist for under_construction
-  const ckHtml=renderChecklistBlock('under_construction');
-
   // Spent-to-date breakdown (composition bar + grouped ledger)
   const spendHtml=renderSpendingTree();
 
@@ -1496,7 +1496,6 @@ function renderConstructionSection(){
               <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Schedule</span><span class="pct">${schedLabel}</span></div><div class="track"><div class="fill blue" style="width:${Math.min(100,schedPct)}%"></div></div></div>
               <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Budget</span><span class="pct">${budgetLabel}</span></div><div class="track"><div class="fill ${budgetPct>100?'over':'gold'}" style="width:${Math.min(100,budgetPct)}%"></div></div></div>
             </div>
-            ${ckHtml}
           </div>
           <div class="sect doc-sect">
             <div class="sect-h"><h2>Documents</h2><span class="sub">from escrow + build docs</span><span class="right"><span class="doc-add" data-docadd>+ Upload</span></span></div>
