@@ -79,11 +79,12 @@ body { overflow:hidden; height:100vh; }
 .card { display:block; padding:10px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; text-decoration:none; color:inherit; transition:all .1s; }
 .card:hover { border-color:var(--border-hover); transform:translateY(-1px); box-shadow:0 2px 6px rgba(0,0,0,.04); text-decoration:none; }
 .card .addr { font-size:13px; font-weight:600; color:var(--text); line-height:1.25; }
-.card .city { font-size:11px; color:var(--text-3); margin-top:1px; }
-.card .meta { display:flex; justify-content:space-between; align-items:center; margin-top:6px; gap:6px; }
+.card .addr .city { font-size:12px; font-weight:400; color:var(--text-3); }
+.card .meta { display:flex; justify-content:space-between; align-items:baseline; margin-top:6px; gap:8px; }
+.card .meta .meta-r { display:flex; align-items:baseline; gap:8px; white-space:nowrap; }
 .card .price { font-size:11px; font-weight:600; color:var(--accent); font-family:var(--mono); }
 .card .age { font-size:10px; color:var(--text-4); font-family:var(--mono); }
-.card .sub { font-size:10px; color:var(--text-3); margin-top:2px; }
+.card .sub { font-size:10px; color:var(--text-3); }
 
 /* Rehab budget mini-bar — Under Construction cards only (Brief MH Phase 3).
    The one phase where rehab spend is live and steerable. Color by variance. */
@@ -301,12 +302,13 @@ function renderBoard(deals, propsByMls, latestByDeal, costByDeal){
         const rehabBar=(phase==='under_construction')?rehabBarHtml(costByDeal[d.id]):'';
 
         html+=`<a class="card" href="${href}">
-          <div class="addr">${escapeHtml(addrText)}</div>
-          <div class="city">${escapeHtml(cityText)}</div>
-          ${sub?`<div class="sub">${escapeHtml(sub)}</div>`:''}
+          <div class="addr">${escapeHtml(addrText)}${cityText?`<span class="city">, ${escapeHtml(cityText)}</span>`:''}</div>
           <div class="meta">
-            <span class="price">${priceStr}</span>
-            <span class="age">${age?'in phase '+age:''}</span>
+            <span class="sub">${escapeHtml(sub)}</span>
+            <span class="meta-r">
+              <span class="price">${priceStr}</span>
+              <span class="age">${age?'in phase '+age:''}</span>
+            </span>
           </div>
           ${rehabBar}
         </a>`;
