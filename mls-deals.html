@@ -2286,15 +2286,111 @@ async function bulkArchive(){const n=selectedMls.size;if(n===0)return;if(!confir
   const{error}=await sb.from('properties').update({stage:'archived',archived_at:new Date().toISOString(),updated_at:new Date().toISOString()}).in('mls',mlsList);
   if(error){alert(`Bulk archive failed: ${error.message}`);await loadListings(currentFilter);return;}
   updateStageCounts();}
-// Server-side address search across all non-sold listings (regardless of
-// current filter scope). Hits Supabase on every debounced keystroke;
-// 120ms debounce keeps the round-trip count reasonable. Click handler
-// fetches the full row + maps to the listing shape so opn() can render
-// the detail pane even when the listing isn't in the current visible
-// view (e.g. searching for a Hold listing while viewing Unread).
+// Address search across all listings regardless of status or current
+// filter scope. MLS Deals is the canonical place to look up any listing's
+// details, so search spans every status — sold, in escrow, hold, etc.
+//
+// Perf: ilike '%q%' over 22k+ rows can't use an index, so each keystroke
+// used to cost a Supabase round-trip + full seq scan (sluggish). Instead
+// we preload a compact in-memory index once (mls/address/city/price/
+// change_type), then filter synchronously per keystroke — instant, zero
+// per-keystroke network. The server query stays as a fallback until the
+// index is warm. Click handler fetches the full row + maps to the listing
+// shape so opn() can render the detail pane even when the listing isn't in
+// the current visible view.
+//
+// Staleness: the index is captured once per page load; listings added
+// mid-session won't appear in search until reload. Acceptable here.
 let _addrSearchTimer=null;
 let _addrSearchSeq=0;
-function onAddrSearch(q){clearTimeout(_addrSearchTimer);_addrSearchTimer=setTimeout(()=>doAddrSearch(q),120);}
+let _addrIndex=null;        // [{mls,address,city,list_price,change_type,_lc}]
+let _addrIndexPromise=null; // in-flight loader (dedup across callers)
+let _addrWatermark=null;    // newest updated_at captured in the current index
+let _addrFreshTimer=null;   // periodic staleness poller (started once)
+// Paginate the full non-OFFMKT property set (server caps at 1000 rows/req)
+// in parallel and cache it. Resolves to the index array; rejects on error.
+function loadAddrIndex(){
+  if(_addrIndex)return Promise.resolve(_addrIndex);
+  if(_addrIndexPromise)return _addrIndexPromise;
+  _addrIndexPromise=(async()=>{
+    const PAGE=1000;
+    // updated_at is carried only to compute the freshness watermark below.
+    const cols='mls,address,city,list_price,change_type,updated_at';
+    // First page also yields the exact total so we know how many more to fetch.
+    // Order by mls (unique) for stable, non-overlapping pagination.
+    const first=await sb.from('properties').select(cols,{count:'exact'})
+      .not('mls','like','OFFMKT-%').order('mls',{ascending:true}).range(0,PAGE-1);
+    if(first.error)throw first.error;
+    const total=first.count||first.data.length;
+    const rows=first.data.slice();
+    const reqs=[];
+    for(let off=PAGE;off<total;off+=PAGE){
+      reqs.push(sb.from('properties').select(cols)
+        .not('mls','like','OFFMKT-%').order('mls',{ascending:true}).range(off,off+PAGE-1));
+    }
+    for(const p of await Promise.all(reqs)){if(p.data)rows.push(...p.data);}
+    // ISO-8601 UTC strings sort lexically, so a string max == the latest time.
+    let wm=null;
+    for(const r of rows){if(r.updated_at&&(!wm||r.updated_at>wm))wm=r.updated_at;r._lc=(r.address||'').toLowerCase();}
+    _addrWatermark=wm;
+    _addrIndex=rows;
+    startAddrFreshPoll();
+    return rows;
+  })();
+  // Let a failed load retry on the next keystroke rather than poisoning forever.
+  _addrIndexPromise.catch(()=>{_addrIndexPromise=null;});
+  return _addrIndexPromise;
+}
+// Discard the cached index and rebuild it (used when a data pull lands).
+function reloadAddrIndex(){_addrIndex=null;_addrIndexPromise=null;return loadAddrIndex();}
+// Data is pulled ~6x/day in batch, so rather than re-download the whole
+// table on a blind timer we just poll a tiny watermark — max(updated_at),
+// ~30 bytes — and only rebuild when it advances past what we loaded with.
+// Every 3h is ample for that cadence; tab re-focus (below) covers the gap
+// — it catches a pull the moment you return, so the interval only bounds
+// staleness while the tab stays continuously focused.
+async function checkAddrIndexFresh(){
+  if(!_addrIndex)return; // nothing cached yet (or a rebuild is already in flight)
+  const{data,error}=await sb.from('properties').select('updated_at')
+    .not('mls','like','OFFMKT-%')
+    .order('updated_at',{ascending:false,nullsFirst:false}).limit(1);
+  if(error||!data||!data.length)return;
+  const latest=data[0].updated_at;
+  if(latest&&_addrWatermark&&latest>_addrWatermark)reloadAddrIndex();
+}
+// Start the poller once: every 3h while open, plus on tab re-focus so a
+// pull that landed while you were away is picked up the moment you return.
+function startAddrFreshPoll(){
+  if(_addrFreshTimer)return;
+  _addrFreshTimer=setInterval(checkAddrIndexFresh,10800000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkAddrIndexFresh();});
+}
+// Substring match over the in-memory index, prefix (address-start) matches
+// ranked first so house-number searches surface the obvious hit. Top 10.
+function searchAddrIndex(lc){
+  const starts=[],contains=[];
+  for(const r of _addrIndex){
+    const i=r._lc.indexOf(lc);
+    if(i<0)continue;
+    (i===0?starts:contains).push(r);
+  }
+  return starts.concat(contains).slice(0,10);
+}
+function renderAddrResults(drop,rows){
+  drop.style.display='block';
+  if(!rows.length){drop.innerHTML=`<div style="padding:8px 12px;font-size:12px;color:var(--text-4)">No matches.</div>`;return;}
+  drop.innerHTML=rows.map(r=>{
+    const status=r.change_type?escapeHtml(r.change_type):'';
+    return `<div onclick="onAddrSearchPick('${r.mls}')" style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--row-hover,rgba(0,0,0,0.03))'" onmouseout="this.style.background=''"><div style="font-weight:600">${escapeHtml(r.address||'(no address)')}</div><div style="font-size:11px;color:var(--text-4)">${escapeHtml(r.city||'')} · ${r.mls} · ${FK(r.list_price||0)}${status?` · <span style="color:var(--accent)">${status}</span>`:''}</div></div>`;
+  }).join('');
+}
+function onAddrSearch(q){
+  loadAddrIndex();           // warm the index on focus / first keystroke (dedup'd)
+  clearTimeout(_addrSearchTimer);
+  // Index-warm path needs no debounce (no network); cold path debounces the
+  // fallback round-trip. Use a short delay either way to coalesce keystrokes.
+  _addrSearchTimer=setTimeout(()=>doAddrSearch(q),_addrIndex?0:120);
+}
 async function doAddrSearch(q){
   const drop=document.getElementById('addr-search-drop');if(!drop)return;
   const query=(q||'').trim();
@@ -2302,17 +2398,15 @@ async function doAddrSearch(q){
   // Sequence guard: stale responses (slower keystroke fires) shouldn't
   // overwrite the most recent result.
   const mySeq=++_addrSearchSeq;
-  // ilike does case-insensitive substring match. We need to escape any
-  // % or _ in the user's query so they're treated literally.
+  const lc=query.toLowerCase();
+  // Fast path: filter the in-memory index synchronously.
+  if(_addrIndex){renderAddrResults(drop,searchAddrIndex(lc));return;}
+  // Cold path (index still loading): one-off server query so the first
+  // search before warmup still returns results. ilike does case-insensitive
+  // substring match; escape % and _ so they're treated literally.
   const escaped=query.replace(/[%_]/g,c=>`\\${c}`);
-  // Brief BO: filter OFFMKT- rows (off-market acquisitions belong in
-  // off-market.html when BM ships, not in mls-deals search).
-  // No status filter: MLS Deals is the canonical place to look up any
-  // listing's details, so search spans every status — sold, in escrow,
-  // hold, etc. (Listings tied to an in-flight deal are *also* tracked on
-  // pipeline.html / project-detail.html, but should still be findable here.)
-  let{data,error}=await sb.from('properties')
-    .select('mls,address,city,list_price,change_type,stage')
+  const{data,error}=await sb.from('properties')
+    .select('mls,address,city,list_price,change_type')
     .not('mls','like','OFFMKT-%')
     .ilike('address',`%${escaped}%`)
     .limit(10);
@@ -2322,16 +2416,7 @@ async function doAddrSearch(q){
     drop.innerHTML=`<div style="padding:8px 12px;font-size:12px;color:var(--red)">Search error: ${escapeHtml(error.message)}</div>`;
     return;
   }
-  if(!data||data.length===0){
-    drop.style.display='block';
-    drop.innerHTML=`<div style="padding:8px 12px;font-size:12px;color:var(--text-4)">No matches.</div>`;
-    return;
-  }
-  drop.style.display='block';
-  drop.innerHTML=data.map(r=>{
-    const status=r.change_type?escapeHtml(r.change_type):'';
-    return `<div onclick="onAddrSearchPick('${r.mls}')" style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--row-hover,rgba(0,0,0,0.03))'" onmouseout="this.style.background=''"><div style="font-weight:600">${escapeHtml(r.address||'(no address)')}</div><div style="font-size:11px;color:var(--text-4)">${escapeHtml(r.city||'')} · ${r.mls} · ${FK(r.list_price||0)}${status?` · <span style="color:var(--accent)">${status}</span>`:''}</div></div>`;
-  }).join('');
+  renderAddrResults(drop,data||[]);
 }
 async function onAddrSearchPick(mls){
   const drop=document.getElementById('addr-search-drop');if(drop)drop.style.display='none';
