@@ -1710,8 +1710,15 @@ function wireSpendingTree(){
 
 // Which Selling-breakdown rows are collapsed, keyed by data-key. Persists across
 // re-renders (recalc rebuilds the tree's innerHTML on every input change) so the
-// collapsed state survives editing list price / days-to-close.
+// collapsed state survives editing list price / days-to-close. Seeded once with
+// the four section headers so the tree DEFAULTS to a collapsed 4-bucket summary.
 const sellCollapsed=new Set();
+let sellCollapseSeeded=false;
+function seedSellCollapse(){
+  if(sellCollapseSeeded)return;
+  ['Acquisition','Rehab','Carry','Disposition'].forEach(k=>sellCollapsed.add(k));
+  sellCollapseSeeded=true;
+}
 
 // Collapse/expand for the Selling-phase 4-bucket breakdown tree. Each row carries
 // data-depth (section 0, then nested deeper); clicking a collapsible row hides
@@ -2578,6 +2585,7 @@ function renderListPriceCalc(){
 function wireListPriceCalc(){
   const slList=document.getElementById('slList');
   if(!slList)return;
+  seedSellCollapse();   // default the breakdown to a collapsed 4-bucket summary
   const d=currentDeal||{};
   const p=primaryProperty();
 
