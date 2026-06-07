@@ -689,6 +689,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .off-termsin:focus { outline:none; border-color:var(--accent); color:var(--text); background:#fff; }
 .off-del { border:none; background:transparent; color:var(--text-4); cursor:pointer; font-size:12px; line-height:1; padding:3px; border-radius:4px; justify-self:center; }
 .off-del:hover { color:var(--red); background:var(--bg-inset); }
+.off-empty { padding:18px 12px; text-align:center; color:var(--text-4); font-size:12px; }
 .off-in { width:100%; padding:4px 7px; border:1px solid var(--border); border-radius:5px; font:11.5px var(--sans); font-weight:600; text-align:right; background:#fff; color:var(--text); font-variant-numeric:tabular-nums; }
 .off-in:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim); }
 .off-net { text-align:right; }
@@ -1070,6 +1071,7 @@ let dealLoans=[];
 let capitalSources=[];
 let dealExpenses=[];
 let dealPnl=null;
+let dealOffers=[];        // persisted seller_offers rows for this deal
 let bucketByAccount={};   // qbo_account_name → bucket (acquisition/rehab_*/financing/holding/disposition)
 let saving=false;
 let uwCtx=null;
@@ -1221,6 +1223,16 @@ async function loadProject(){
 
   // 10. Deal documents (Brief BW). Graceful fallback if migration not applied.
   await loadDealDocs();
+
+  // 11. Seller offers (persisted offer-comparison rows). Owner-only; empty for
+  // workers / if none saved yet. Graceful fallback if table unavailable.
+  try {
+    const {data:offers}=await sb.from('seller_offers')
+      .select('id, buyer, financing, offer_price, commission_pct, close_days, concession, display_order')
+      .eq('deal_id', dealRow.id)
+      .order('display_order',{ascending:true}).order('created_at',{ascending:true});
+    dealOffers=offers||[];
+  } catch(e){ dealOffers=[]; }
 
   renderPage();
 }
@@ -2661,14 +2673,28 @@ function wireListPriceCalc(){
   const num = el => Number((el.value||'').replace(/[^\d.-]/g,''))||0;
   const v = id => Number(document.getElementById(id).value)||0;
 
-  // TODO(offers-backend): OFFERS is LOCAL editable state only — edits are not
-  // persisted. Wire this to a real seller_offers table (deal_id, buyer_name,
-  // financing_terms, offer_price, commission_pct, close_days, buyer_concession)
-  // when the backend exists: load on the selling phase and replace this seed.
-  const OFFERS=[
-    {buyer:'Offer 1', fin:'—', price:Math.round(num(slList)*1.01), comm:2.85, days:33, concess:0},
-    {buyer:'Offer 2', fin:'—', price:num(slList),                  comm:2.85, days:24, concess:0},
-  ];
+  // OFFERS — backed by the seller_offers table (persists across sessions). Maps
+  // the loaded rows to the local edit shape; each carries its DB `id` so edits
+  // update, add inserts, delete removes. Empty until the user adds one.
+  const OFFERS=dealOffers.map(o=>({
+    id:o.id, buyer:o.buyer||'', fin:o.financing||'',
+    price:Number(o.offer_price)||0, comm:Number(o.commission_pct)||0,
+    days:Number(o.close_days)||0, concess:Number(o.concession)||0,
+  }));
+  // Debounced per-row persistence (typing-friendly).
+  const _offerSaveTimers={};
+  function persistOffer(o){
+    if(!o||!o.id)return;
+    sb.from('seller_offers').update({
+      buyer:o.buyer, financing:o.fin, offer_price:o.price, commission_pct:o.comm,
+      close_days:o.days, concession:o.concess, updated_at:new Date().toISOString(),
+    }).eq('id',o.id).then(({error})=>{ if(error)console.warn('[offers] save failed',error.message); });
+  }
+  function scheduleOfferSave(o){
+    if(!o||!o.id)return;
+    clearTimeout(_offerSaveTimers[o.id]);
+    _offerSaveTimers[o.id]=setTimeout(()=>persistOffer(o),600);
+  }
 
   // 4-bucket breakdown — same buckets + QBO drill-down as money.html, so the
   // numbers reconcile everywhere. ACQ + REHAB are actuals from deal_expenses
@@ -2780,7 +2806,9 @@ function wireListPriceCalc(){
         <div class="off-net" data-net></div>
         <button class="off-del" data-del title="Delete offer" aria-label="Delete offer">✕</button>
       </div>`).join('');
-    document.getElementById('offerList').innerHTML=`${head}${rows}`;
+    document.getElementById('offerList').innerHTML = OFFERS.length
+      ? `${head}${rows}`
+      : `<div class="off-empty">No offers yet — click <b>+ Add offer</b> as they come in.</div>`;
     recomputeOffers();
   }
   function recomputeOffers(){
@@ -2827,7 +2855,8 @@ function wireListPriceCalc(){
   // List price is a free input (comp/market driven); everything else re-derives the report.
   ['slList','slComm','slClose','slConc','slDays'].forEach(id=>document.getElementById(id).addEventListener('input',recalc));
   // Offer comparison — every field (buyer/terms text + the 4 numbers) is editable;
-  // edits flow back into OFFERS so add/delete preserve them. Numbers recompute net.
+  // edits flow back into OFFERS and persist (debounced) to seller_offers. Numbers
+  // also recompute profit. Add inserts a row; delete removes it.
   const offerListEl=document.getElementById('offerList');
   offerListEl.addEventListener('input',e=>{
     const inp=e.target.closest('[data-f]'); if(!inp)return;
@@ -2836,18 +2865,28 @@ function wireListPriceCalc(){
     const f=inp.dataset.f;
     if(f==='buyer'||f==='fin'){ OFFERS[i][f]=inp.value; }
     else { OFFERS[i][f]=Number(inp.value)||0; recomputeOffers(); }
+    scheduleOfferSave(OFFERS[i]);
   });
-  offerListEl.addEventListener('click',e=>{
+  offerListEl.addEventListener('click',async e=>{
     const del=e.target.closest('[data-del]'); if(!del)return;
     const row=del.closest('.off-row'); if(!row)return;
+    const o=OFFERS[+row.dataset.i]; if(!o)return;
     OFFERS.splice(+row.dataset.i,1);
     renderOfferTable();
+    if(o.id){ const {error}=await sb.from('seller_offers').delete().eq('id',o.id); if(error)console.warn('[offers] delete failed',error.message); }
   });
   const addEl=document.getElementById('addOffer');
-  if(addEl) addEl.addEventListener('click',e=>{
+  if(addEl) addEl.addEventListener('click',async e=>{
     e.preventDefault();
-    OFFERS.push({buyer:'Offer '+(OFFERS.length+1), fin:'', price:num(slList), comm:2.85, days:30, concess:0});
-    renderOfferTable();
+    if(!currentDeal||!currentDeal.id)return;
+    const o={buyer:'Offer '+(OFFERS.length+1), fin:'', price:num(slList), comm:2.85, days:30, concess:0};
+    OFFERS.push(o); renderOfferTable();   // optimistic
+    const {data,error}=await sb.from('seller_offers').insert({
+      deal_id:currentDeal.id, buyer:o.buyer, financing:'', offer_price:o.price,
+      commission_pct:o.comm, close_days:o.days, concession:0, display_order:OFFERS.length-1,
+    }).select('id').single();
+    if(error){ console.warn('[offers] add failed',error.message); }
+    else { o.id=data.id; persistOffer(o); }   // tag + sync any edits typed during insert
   });
   renderOfferTable();
   recalc();
