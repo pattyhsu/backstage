@@ -2600,7 +2600,7 @@ function renderOfferComparison(){
     <div class="sect phase-hide" id="offerSect">
       <div class="sect-h">
         <h2>Offer comparison</h2>
-        <span class="sub">net to you after selling costs + carry-to-close</span>
+        <span class="sub">net profit at each offer — after all costs (acq + rehab + carry + selling)</span>
         <span class="right"><a href="#" id="addOffer" style="font-weight:600;color:var(--accent)">+ Add offer</a></span>
       </div>
       <div class="off-list" id="offerList"></div>
@@ -2766,7 +2766,7 @@ function wireListPriceCalc(){
   }
   // Editable table — price / commission / escrow days / credit per offer; net recomputes live.
   function renderOfferTable(){
-    const head=`<div class="off-hrow off-cols"><span>Buyer</span><span>Offer $</span><span>Comm %</span><span>Esc days</span><span>Credit $</span><span>Net to you</span><span></span></div>`;
+    const head=`<div class="off-hrow off-cols"><span>Buyer</span><span>Offer $</span><span>Comm %</span><span>Esc days</span><span>Credit $</span><span>Profit</span><span></span></div>`;
     const rows=OFFERS.map((o,i)=>`
       <div class="off-row off-cols" data-i="${i}">
         <div class="off-buyer-cell">
@@ -2786,18 +2786,24 @@ function wireListPriceCalc(){
   function recomputeOffers(){
     const rows=[...document.querySelectorAll('#offerList .off-row')]; if(!rows.length)return;
     const clo=v('slClose');
-    const nets=rows.map(row=>{
+    // PROFIT per offer = offer price − all-in cost, mirroring the main P&L:
+    //   all-in = FIXED (acq+rehab) + carry-to-THIS-offer's-close + this offer's
+    //   disposition (its commission + closing% + buyer credit). Carry uses the
+    //   offer's own escrow days, so a faster close carries less.
+    const profits=rows.map(row=>{
       const g=f=>Number(row.querySelector(`[data-f="${f}"]`).value)||0;
       const price=g('price');
-      return price - price*g('comm')/100 - price*clo/100 - g('concess') - g('days')*DAILY_CARRY;
+      const dispo=price*g('comm')/100 + price*clo/100 + g('concess');
+      const carry=(daysHeld+Math.max(0,g('days')))*DAILY_CARRY + holdActual;
+      return price - (FIXED + carry + dispo);
     });
-    const best=Math.max(...nets);
+    const best=Math.max(...profits);
     rows.forEach((row,i)=>{
-      const isBest=nets[i]===best;
+      const p=profits[i], isBest=p===best;
       row.classList.toggle('best',isBest);
       row.querySelector('[data-net]').innerHTML=
-        `<div class="v" style="color:${nets[i]<0?'var(--red)':'var(--green)'}">${F(nets[i])}</div>`+
-        (isBest?'<div class="b">✓ best net</div>':`<div class="d">−${F(best-nets[i])}</div>`);
+        `<div class="v" style="color:${p<0?'var(--red)':'var(--green)'}">${FS(p)}</div>`+
+        (isBest?'<div class="b">✓ best</div>':`<div class="d">−${F(best-p)}</div>`);
     });
   }
   function recalc(){
