@@ -676,13 +676,19 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .qbo-line.total.net-neg .cat, .qbo-line.total.net-neg .amt, .qbo-line.total.net-neg .pct { color:var(--red); }
 
 /* ── Selling: editable offer-comparison table (local state; net-to-you live) ── */
-.off-cols { grid-template-columns:1.5fr 120px 74px 74px 96px 126px; gap:10px; }
+.off-cols { grid-template-columns:1.5fr 120px 74px 74px 96px 126px 24px; gap:10px; }
 .off-hrow { display:grid; align-items:end; padding:0 10px 5px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--text-4); }
 .off-hrow span:not(:first-child) { text-align:right; }
 .off-row { display:grid; align-items:center; padding:6px 10px; border:1px solid var(--border); border-radius:7px; margin-bottom:5px; }
 .off-row.best { border-color:var(--green); background:var(--green-bg); }
-.off-buyer { font-weight:700; font-size:12px; }
-.off-terms { font-size:10.5px; color:var(--text-4); margin-top:1px; }
+.off-name { width:100%; padding:2px 5px; border:1px solid transparent; border-radius:4px; font:700 12px var(--sans); color:var(--text); background:transparent; }
+.off-name:hover { border-color:var(--border); }
+.off-name:focus { outline:none; border-color:var(--accent); background:#fff; }
+.off-termsin { width:100%; padding:1px 5px; margin-top:1px; border:1px solid transparent; border-radius:4px; font:10.5px var(--sans); color:var(--text-4); background:transparent; }
+.off-termsin:hover { border-color:var(--border); }
+.off-termsin:focus { outline:none; border-color:var(--accent); color:var(--text); background:#fff; }
+.off-del { border:none; background:transparent; color:var(--text-4); cursor:pointer; font-size:12px; line-height:1; padding:3px; border-radius:4px; justify-self:center; }
+.off-del:hover { color:var(--red); background:var(--bg-inset); }
 .off-in { width:100%; padding:4px 7px; border:1px solid var(--border); border-radius:5px; font:11.5px var(--sans); font-weight:600; text-align:right; background:#fff; color:var(--text); font-variant-numeric:tabular-nums; }
 .off-in:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim); }
 .off-net { text-align:right; }
@@ -2760,15 +2766,19 @@ function wireListPriceCalc(){
   }
   // Editable table — price / commission / escrow days / credit per offer; net recomputes live.
   function renderOfferTable(){
-    const head=`<div class="off-hrow off-cols"><span>Buyer</span><span>Offer $</span><span>Comm %</span><span>Esc days</span><span>Credit $</span><span>Net to you</span></div>`;
+    const head=`<div class="off-hrow off-cols"><span>Buyer</span><span>Offer $</span><span>Comm %</span><span>Esc days</span><span>Credit $</span><span>Net to you</span><span></span></div>`;
     const rows=OFFERS.map((o,i)=>`
       <div class="off-row off-cols" data-i="${i}">
-        <div><div class="off-buyer">${escapeHtml(o.buyer)}</div><div class="off-terms">${escapeHtml(o.fin)}</div></div>
+        <div class="off-buyer-cell">
+          <input class="off-name" data-f="buyer" value="${escapeHtml(o.buyer)}" placeholder="Buyer">
+          <input class="off-termsin" data-f="fin" value="${escapeHtml(o.fin==='—'?'':(o.fin||''))}" placeholder="financing / notes">
+        </div>
         <input class="off-in" type="number" step="5000" data-f="price"   value="${o.price}">
         <input class="off-in" type="number" step="0.05" data-f="comm"    value="${o.comm}">
         <input class="off-in" type="number" step="1"    data-f="days"    value="${o.days}">
         <input class="off-in" type="number" step="1000" data-f="concess" value="${o.concess}">
         <div class="off-net" data-net></div>
+        <button class="off-del" data-del title="Delete offer" aria-label="Delete offer">✕</button>
       </div>`).join('');
     document.getElementById('offerList').innerHTML=`${head}${rows}`;
     recomputeOffers();
@@ -2810,13 +2820,27 @@ function wireListPriceCalc(){
   }
   // List price is a free input (comp/market driven); everything else re-derives the report.
   ['slList','slComm','slClose','slConc','slDays'].forEach(id=>document.getElementById(id).addEventListener('input',recalc));
-  // Offer comparison — each row's price / commission / escrow days / credit is editable.
-  document.getElementById('offerList').addEventListener('input',e=>{ if(e.target.classList.contains('off-in'))recomputeOffers(); });
+  // Offer comparison — every field (buyer/terms text + the 4 numbers) is editable;
+  // edits flow back into OFFERS so add/delete preserve them. Numbers recompute net.
+  const offerListEl=document.getElementById('offerList');
+  offerListEl.addEventListener('input',e=>{
+    const inp=e.target.closest('[data-f]'); if(!inp)return;
+    const row=inp.closest('.off-row'); if(!row)return;
+    const i=+row.dataset.i; if(!OFFERS[i])return;
+    const f=inp.dataset.f;
+    if(f==='buyer'||f==='fin'){ OFFERS[i][f]=inp.value; }
+    else { OFFERS[i][f]=Number(inp.value)||0; recomputeOffers(); }
+  });
+  offerListEl.addEventListener('click',e=>{
+    const del=e.target.closest('[data-del]'); if(!del)return;
+    const row=del.closest('.off-row'); if(!row)return;
+    OFFERS.splice(+row.dataset.i,1);
+    renderOfferTable();
+  });
   const addEl=document.getElementById('addOffer');
   if(addEl) addEl.addEventListener('click',e=>{
     e.preventDefault();
-    const name=prompt('Buyer name:'); if(!name)return;
-    OFFERS.push({buyer:name, fin:'—', price:num(slList), comm:2.85, days:30, concess:0});
+    OFFERS.push({buyer:'Offer '+(OFFERS.length+1), fin:'', price:num(slList), comm:2.85, days:30, concess:0});
     renderOfferTable();
   });
   renderOfferTable();
