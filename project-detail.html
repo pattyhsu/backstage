@@ -651,6 +651,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .qbo-line.hidden { display:none; }
 .qbo-line.collapsible { cursor:pointer; }
 .qbo-line.collapsible:hover { background:var(--bg-inset); }
+.qbo-line.muted .cat { color:var(--text-4); font-style:italic; }
 .qbo-line .cat { color:var(--text-2); text-align:left; min-width:0; }
 .qbo-line .caret { display:inline-block; width:6px; height:8px; margin-right:6px; position:relative; vertical-align:middle; flex:none; }
 .qbo-line.collapsible .caret::before { content:''; position:absolute; top:0; left:0; width:0; height:0; border-left:5px solid var(--text-4); border-top:3.5px solid transparent; border-bottom:3.5px solid transparent; transition:transform .12s; transform-origin:2px 4px; }
@@ -2619,7 +2620,12 @@ function wireListPriceCalc(){
   function bucketIs(e, set){ return set.indexOf(bucketByAccount[e.qbo_account_name])>=0; }
   // Nest expenses (matching `set` of QBO buckets) by account path, reconcile the
   // mapped sum to the authoritative deal_pnl bucket total, and emit qbo-line rows.
-  function actualTree(label, color, total, set, pctBase){
+  function actualTree(label, color, total, set, pctBase, detailLoaded){
+    // When the owner-only deal_expenses / qbo_account_categories tables aren't
+    // readable (worker session or lapsed token), show the bucket TOTAL alone —
+    // never a misleading "Other = full total" child. The caller adds one hint
+    // row explaining why the itemization is missing.
+    if(!detailLoaded) return sectionRow(label,color,total,pctBase,false);
     const nodes={}; let mapped=0;
     for(const e of (dealExpenses||[])){
       if(!bucketIs(e,set))continue;
@@ -2646,9 +2652,10 @@ function wireListPriceCalc(){
     Object.values(nodes).sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount)).forEach(t=>emit(t,0));
     return out.join('');
   }
-  function sectionRow(label,color,total,pctBase){
+  function sectionRow(label,color,total,pctBase,collapsible){
+    if(collapsible===undefined)collapsible=true;
     const pct=pctBase>0?(total/pctBase*100).toFixed(1)+'%':'';
-    return `<div class="qbo-line section collapsible" data-depth="0"><span class="cat"><span class="caret"></span><span class="sw" style="background:${color}"></span>${escapeHtml(label)}</span><span class="amt">${F(total)}</span><span class="pct">${pct}</span></div>`;
+    return `<div class="qbo-line section${collapsible?' collapsible':''}" data-depth="0"><span class="cat"><span class="caret"></span><span class="sw" style="background:${color}"></span>${escapeHtml(label)}</span><span class="amt">${F(total)}</span><span class="pct">${pct}</span></div>`;
   }
   function leafRow(name,det,amt,pctBase){
     const pct=pctBase>0?amt/pctBase*100:0;
@@ -2657,6 +2664,9 @@ function wireListPriceCalc(){
   function renderSellBd(c){
     const COL={acq:'#6B7280', rehab:'#9CA3AF', carry:'#C7C7CC', disp:'#D8D7D2'};
     const list=c.list;
+    // Detail is itemizable only when BOTH owner-only tables loaded. If either is
+    // empty (worker / lapsed session), ACQ + REHAB render as totals-only + hint.
+    const detailLoaded=!!(dealExpenses && dealExpenses.length && Object.keys(bucketByAccount).length);
     // Composition bar — one segment per bucket + green net.
     const seg=(amt,color,round)=>`<div class="om-bd-seg" style="background:${color};flex:${Math.max(amt,1)}${round?';border-radius:0 7px 7px 0':''}"></div>`;
     const bar=seg(purchase,COL.acq)+seg(rehab,COL.rehab)+seg(c.financing+c.holding,COL.carry)+seg(c.disposition,COL.disp)
@@ -2673,8 +2683,9 @@ function wireListPriceCalc(){
       <div class="om-bd-top"><span class="lbl">Sale price</span><span class="val">${F(list)}</span></div>
       <div class="om-bd-bar">${bar}</div>
       <div class="qbo-list">
-        ${actualTree('Acquisition',COL.acq,purchase,['acquisition'],list)}
-        ${actualTree('Rehab',COL.rehab,rehab,['rehab_labor','rehab_materials','rehab_soft','rehab_other'],list)}
+        ${actualTree('Acquisition',COL.acq,purchase,['acquisition'],list,detailLoaded)}
+        ${actualTree('Rehab',COL.rehab,rehab,['rehab_labor','rehab_materials','rehab_soft','rehab_other'],list,detailLoaded)}
+        ${detailLoaded?'':`<div class="qbo-line muted" data-depth="0"><span class="cat"><span class="caret"></span>Acquisition & Rehab itemization needs owner sign-in — totals shown</span><span class="amt"></span><span class="pct"></span></div>`}
         ${carryTree}
         ${dispTree}
         <div class="qbo-line total" data-depth="0"><span class="cat"><span class="caret"></span>All-in cost</span><span class="amt">${F(c.allOut)}</span><span class="pct">${list>0?(c.allOut/list*100).toFixed(1)+'%':''}</span></div>
