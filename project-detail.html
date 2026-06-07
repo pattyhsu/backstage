@@ -229,6 +229,51 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .doc-dl:hover { color:var(--text-2); }
 .doc-add { font-size:12px; color:var(--accent); cursor:pointer; }
 .doc-empty { font-size:12px; color:var(--text-4); font-style:italic; padding:8px 0; }
+.doc-row { cursor:pointer; }
+.doc-view, .doc-del { font-size:12px; cursor:pointer; text-decoration:none; white-space:nowrap; }
+.doc-view { color:var(--text-4); }
+.doc-view:hover { color:var(--text-2); }
+.doc-del { color:var(--red); margin-left:10px; }
+.doc-del:hover { text-decoration:underline; }
+/* Drag-to-upload state on the Documents section */
+.doc-sect { position:relative; transition:background .12s; }
+.doc-sect.drag-over { background:var(--accent-dim); }
+.doc-sect.drag-over::after {
+  content:'Drop file to upload'; position:absolute; inset:0;
+  border:2px dashed var(--accent); border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  color:var(--accent); font-weight:700; font-size:14px;
+  pointer-events:none; z-index:5; background:rgba(255,255,255,.85);
+}
+/* Document upload modal (mirrors re-portfolio, adapted to backstage tokens) */
+.dm-backdrop {
+  position:fixed; inset:0; background:rgba(15,23,42,.45);
+  display:flex; align-items:center; justify-content:center; z-index:1000;
+}
+.dm-card {
+  background:#fff; border-radius:10px; padding:22px;
+  width:100%; max-width:440px; box-shadow:0 16px 48px rgba(0,0,0,.18);
+}
+.dm-card h2 { margin:0 0 16px; font-size:17px; font-weight:700; color:var(--text); }
+.dm-field { margin-bottom:14px; }
+.dm-field label { display:block; font-size:12px; font-weight:600; color:var(--text-2); margin-bottom:5px; }
+.dm-card input[type=file], .dm-card select {
+  width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:7px;
+  font-family:inherit; font-size:13px; color:var(--text); outline:none; box-sizing:border-box; background:#fff;
+}
+.dm-actions {
+  display:flex; gap:10px; justify-content:flex-end; margin-top:18px;
+  padding-top:14px; border-top:1px solid var(--border);
+}
+.dm-btn { padding:7px 16px; border-radius:6px; font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; }
+.dm-btn-primary { background:var(--accent); color:#fff; border:1px solid var(--accent); }
+.dm-btn-primary:hover { filter:brightness(1.05); }
+.dm-btn-primary:disabled { opacity:.55; cursor:not-allowed; }
+.dm-btn-secondary { background:var(--bg); color:var(--text-3); border:1px solid var(--border); }
+.dm-error {
+  display:none; background:var(--red-bg); border:1px solid var(--red);
+  color:var(--red); padding:9px 12px; border-radius:7px; font-size:13px; margin-bottom:12px;
+}
 
 /* Cash position panel */
 .cash-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:12px; }
@@ -1164,7 +1209,26 @@ async function loadProject(){
     dealPnl=null;
   }
 
+  // 10. Deal documents (Brief BW). Graceful fallback if migration not applied.
+  await loadDealDocs();
+
   renderPage();
+}
+
+async function loadDealDocs(){
+  if(!currentDeal){dealDocs=[];return;}
+  try {
+    const {data, error}=await sb.from('deal_documents')
+      .select('id, deal_id, storage_path, original_filename, doc_type, file_size, mime_type, uploaded_at, uploaded_by')
+      .eq('deal_id', currentDeal.id)
+      .order('uploaded_at', {ascending:false});
+    if(error){console.warn('[project-detail] deal_documents load failed:', error.message);dealDocs=[];return;}
+    dealDocs=data||[];
+    await loadUserNames(dealDocs.map(d=>d.uploaded_by));
+  } catch(e){
+    console.warn('[project-detail] deal_documents load threw:', e);
+    dealDocs=[];
+  }
 }
 
 async function loadDealLoans(){
@@ -1768,32 +1832,223 @@ function renderCashNeeded(){
   `;
 }
 
-// Documents — shared list mounted in both Escrow (and later Construction) panels.
+// ============================================================
+// DOCUMENTS (Brief BW) — Supabase Storage (deal_docs bucket) +
+// deal_documents table. Drag→modal upload + signed-URL view +
+// hard delete. Shared per-deal list mounted in both the Escrow and
+// Construction panels. Mirrors re-portfolio's Documents tab; owner-
+// only writes (gate on window.CURRENT_USER_ROLE).
+// ============================================================
 const DOC_TYPES={design:{label:'Design plan',ic:'📐'},permit:{label:'Permit',ic:'🏛️'},contract:{label:'Contract',ic:'📝'},inspect:{label:'Inspection',ic:'🔍'},other:{label:'Doc',ic:'📄'}};
-let dealDocs=[];  // TODO(Brief BW): back with a real deal_documents table + Storage upload.
+const DOC_MIMES=['application/pdf','image/jpeg','image/png','image/heic','image/webp'];
+const DOC_MAX_BYTES=26214400;  // 25 MB
+let dealDocs=[];
+let pendingDropFile=null;
+let docModalEscHandler=null;
+
+function docIsOwner(){ return window.CURRENT_USER_ROLE==='owner'; }
+
+function fmtBytes(n){
+  n=Number(n||0);
+  if(!isFinite(n)||n<=0)return '—';
+  if(n<1024)return n+' B';
+  if(n<1048576)return (n/1024).toFixed(0)+' KB';
+  return (n/1048576).toFixed(n<10485760?1:0)+' MB';
+}
+function fmtDocDate(iso){
+  if(!iso)return '—';
+  const d=new Date(iso);
+  if(!isFinite(d.getTime()))return '—';
+  return d.toISOString().slice(0,10);
+}
+
 function renderDealDocs(){
+  const owner=docIsOwner();
   const html=dealDocs.length?dealDocs.map(doc=>{
-    const t=DOC_TYPES[doc.type]||DOC_TYPES.other;
-    return `<div class="doc-row"><span class="doc-ic ${doc.type}">${t.ic}</span><div class="doc-main"><div class="doc-name">${escapeHtml(doc.name)}</div><div class="doc-meta"><span class="doc-tag ${doc.type}">${t.label}</span> · ${escapeHtml(doc.by||'—')} · ${escapeHtml(doc.date||'—')} · ${escapeHtml(doc.size||'—')}</div></div><a class="doc-dl">Download</a></div>`;
+    const t=DOC_TYPES[doc.doc_type]||DOC_TYPES.other;
+    const by=resolvedUserName(doc.uploaded_by);
+    const meta=`<span class="doc-tag ${doc.doc_type}">${escapeHtml(t.label)}</span> · ${escapeHtml(by)} · ${escapeHtml(fmtDocDate(doc.uploaded_at))} · ${escapeHtml(fmtBytes(doc.file_size))}`;
+    const del=owner?`<a class="doc-del" data-docdel="${escapeHtml(doc.id)}">Delete</a>`:'';
+    return `<div class="doc-row" data-docpath="${escapeHtml(doc.storage_path)}">`
+      +`<span class="doc-ic ${doc.doc_type}">${t.ic}</span>`
+      +`<div class="doc-main"><div class="doc-name">${escapeHtml(doc.original_filename)}</div><div class="doc-meta">${meta}</div></div>`
+      +`<span><a class="doc-view" data-docview="${escapeHtml(doc.storage_path)}">View</a>${del}</span>`
+      +`</div>`;
   }).join(''):'<div class="doc-empty">No documents yet — design plans, bids, and permits live here.</div>';
   ['docs-in_escrow','docs-under_construction'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=html;});
 }
+
+function closeDocModal(){
+  const bd=document.getElementById('doc-modal-backdrop');
+  if(bd)bd.remove();
+  if(docModalEscHandler){document.removeEventListener('keydown', docModalEscHandler);docModalEscHandler=null;}
+}
+
+function openDocModal(){
+  if(!docIsOwner())return;
+  closeDocModal();
+  const bd=document.createElement('div');
+  bd.className='dm-backdrop';
+  bd.id='doc-modal-backdrop';
+  bd.innerHTML=`
+    <div class="dm-card">
+      <h2>Upload document</h2>
+      <div class="dm-error" id="doc-up-error"></div>
+      <form id="doc-up-form">
+        <div class="dm-field">
+          <label>File <span style="color:var(--red)">*</span></label>
+          <input type="file" id="doc-up-file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,application/pdf,image/jpeg,image/png,image/heic,image/webp" required>
+        </div>
+        <div class="dm-field">
+          <label>Kind <span style="color:var(--red)">*</span></label>
+          <select id="doc-up-kind" required>
+            <option value="">Select…</option>
+            <option value="design">Design plan</option>
+            <option value="permit">Permit</option>
+            <option value="contract">Contract</option>
+            <option value="inspect">Inspection</option>
+            <option value="other">Doc</option>
+          </select>
+        </div>
+        <div class="dm-actions">
+          <button type="button" class="dm-btn dm-btn-secondary" id="doc-up-cancel">Cancel</button>
+          <button type="submit" class="dm-btn dm-btn-primary" id="doc-up-submit">Upload</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(bd);
+
+  if(pendingDropFile){
+    try { const dt=new DataTransfer(); dt.items.add(pendingDropFile); document.getElementById('doc-up-file').files=dt.files; } catch(_){}
+    pendingDropFile=null;
+  }
+
+  bd.addEventListener('click', e=>{ if(e.target===bd)closeDocModal(); });
+  document.getElementById('doc-up-cancel').addEventListener('click', closeDocModal);
+  docModalEscHandler=e=>{ if(e.key==='Escape')closeDocModal(); };
+  document.addEventListener('keydown', docModalEscHandler);
+
+  document.getElementById('doc-up-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    if(!currentDeal)return;
+    const fileInput=document.getElementById('doc-up-file');
+    const file=fileInput.files[0];
+    const kind=document.getElementById('doc-up-kind').value;
+    const errBox=document.getElementById('doc-up-error');
+    const submitBtn=document.getElementById('doc-up-submit');
+    const showErr=msg=>{ errBox.textContent=msg; errBox.style.display='block'; };
+    errBox.style.display='none';
+    if(!file||!kind)return;
+    if(!DOC_MIMES.includes(file.type)){ showErr('Unsupported file type (PDF or image only).'); return; }
+    if(file.size>DOC_MAX_BYTES){ showErr('File too large (max 25 MB).'); return; }
+
+    submitBtn.disabled=true; submitBtn.textContent='Uploading…';
+    const path=`${currentDeal.id}/${crypto.randomUUID()}_${file.name}`;
+    const {error:upErr}=await sb.storage.from('deal_docs').upload(path, file, {contentType:file.type, upsert:false});
+    if(upErr){ showErr('Upload failed: '+(upErr.message||'unknown error')); submitBtn.disabled=false; submitBtn.textContent='Upload'; return; }
+
+    const uid=(window.CURRENT_USER && window.CURRENT_USER.id)||null;
+    const {data:row, error:insErr}=await sb.from('deal_documents').insert({
+      deal_id: currentDeal.id,
+      storage_path: path,
+      original_filename: file.name,
+      doc_type: kind,
+      file_size: file.size,
+      mime_type: file.type,
+      uploaded_by: uid,
+    }).select().single();
+    if(insErr){
+      await sb.storage.from('deal_docs').remove([path]);
+      showErr('Could not save document record: '+(insErr.message||'unknown error'));
+      submitBtn.disabled=false; submitBtn.textContent='Upload';
+      return;
+    }
+    await loadUserNames([row.uploaded_by]);
+    dealDocs.unshift(row);
+    closeDocModal();
+    renderDealDocs();
+  });
+}
+
+async function openDocSignedUrl(path){
+  const {data, error}=await sb.storage.from('deal_docs').createSignedUrl(path, 3600);
+  if(error||!data||!data.signedUrl){ alert('Could not generate view link: '+((error&&error.message)||'unknown error')); return; }
+  window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+}
+
+async function deleteDealDoc(id){
+  const doc=dealDocs.find(d=>d.id===id);
+  if(!doc)return;
+  if(!confirm('Delete this document? The file will be removed from storage.'))return;
+  const {error:stErr}=await sb.storage.from('deal_docs').remove([doc.storage_path]);
+  if(stErr && !(stErr.message||'').toLowerCase().includes('not found')){
+    alert('Storage delete failed: '+stErr.message); return;
+  }
+  const {error:dbErr}=await sb.from('deal_documents').delete().eq('id', id);
+  if(dbErr){ alert('Could not remove record: '+dbErr.message); return; }
+  const idx=dealDocs.findIndex(d=>d.id===id);
+  if(idx>=0)dealDocs.splice(idx,1);
+  renderDealDocs();
+}
+
 function wireDealDocs(){
   renderDealDocs();
+  const owner=docIsOwner();
+
+  // + Upload buttons (hidden for non-owners).
   document.querySelectorAll('[data-docadd]').forEach(el=>{
-    el.addEventListener('click', ()=>{
-      const name=prompt('Document name (e.g. Floor plan v3.pdf):'); if(!name)return;
-      const l=name.toLowerCase();
-      let type='other';
-      if(/plan|design|render|elevation|floor/.test(l))type='design';
-      else if(/permit|city|zoning/.test(l))type='permit';
-      else if(/bid|contract|agreement|rpa|escrow/.test(l))type='contract';
-      else if(/inspect|report/.test(l))type='inspect';
-      dealDocs.unshift({name,type,by:'You',date:todayStr(),size:'—'});
-      renderDealDocs();
+    if(!owner){ el.style.display='none'; return; }
+    el.addEventListener('click', ()=>openDocModal());
+  });
+
+  // Drag-to-upload on each Documents section (owner only).
+  if(owner){
+    document.querySelectorAll('.doc-sect').forEach(sect=>{
+      sect.addEventListener('dragover', e=>{ e.preventDefault(); if(e.dataTransfer)e.dataTransfer.dropEffect='copy'; sect.classList.add('drag-over'); });
+      sect.addEventListener('dragleave', e=>{ if(!sect.contains(e.relatedTarget))sect.classList.remove('drag-over'); });
+      sect.addEventListener('drop', e=>{
+        e.preventDefault();
+        sect.classList.remove('drag-over');
+        const file=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+        if(!file)return;
+        pendingDropFile=file;
+        openDocModal();
+      });
+    });
+  }
+
+  // View links.
+  document.querySelectorAll('[data-docview]').forEach(el=>{
+    el.addEventListener('click', async e=>{
+      e.stopPropagation();
+      const path=el.getAttribute('data-docview');
+      el.textContent='…';
+      await openDocSignedUrl(path);
+      el.textContent='View';
+    });
+  });
+
+  // Delete links (owner only — rendered only when owner).
+  document.querySelectorAll('[data-docdel]').forEach(el=>{
+    el.addEventListener('click', async e=>{
+      e.stopPropagation();
+      await deleteDealDoc(el.getAttribute('data-docdel'));
+    });
+  });
+
+  // Row-tap opens the signed URL (phone affordance).
+  document.querySelectorAll('.doc-row[data-docpath]').forEach(row=>{
+    row.addEventListener('click', e=>{
+      if(e.target.closest('a'))return;
+      const path=row.getAttribute('data-docpath');
+      if(path)openDocSignedUrl(path);
     });
   });
 }
+
+// Prevent missed drops elsewhere on the page from navigating away.
+window.addEventListener('dragover', e=>{ e.preventDefault(); }, false);
+window.addEventListener('drop', e=>{ e.preventDefault(); }, false);
 
 function wireEscrowEdits(){
   document.querySelectorAll('.et-val[data-escrow-field]').forEach(el=>{
