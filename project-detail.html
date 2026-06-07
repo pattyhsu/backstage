@@ -1943,7 +1943,11 @@ function openDocModal(){
     if(file.size>DOC_MAX_BYTES){ showErr('File too large (max 25 MB).'); return; }
 
     submitBtn.disabled=true; submitBtn.textContent='Uploading…';
-    const path=`${currentDeal.id}/${crypto.randomUUID()}_${file.name}`;
+    // Storage keys must be URL-safe — sanitize the filename for the path
+    // (spaces/specials trigger "Invalid key"). original_filename keeps the
+    // real name for display + download.
+    const safeName=file.name.replace(/[^A-Za-z0-9._-]+/g,'_').replace(/^_+|_+$/g,'')||'file';
+    const path=`${currentDeal.id}/${crypto.randomUUID()}_${safeName}`;
     const {error:upErr}=await sb.storage.from('deal_docs').upload(path, file, {contentType:file.type, upsert:false});
     if(upErr){ showErr('Upload failed: '+(upErr.message||'unknown error')); submitBtn.disabled=false; submitBtn.textContent='Upload'; return; }
 
