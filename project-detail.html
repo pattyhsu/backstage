@@ -108,8 +108,11 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .stage-tab.next { color:var(--amber); }                                                    /* immediate next stage — openable */
 .stage-tab.next .next-ic { font-size:11px; opacity:.85; }
 .stage-tab.next:hover { background:var(--amber-bg); }
+.stage-tab.preview { color:var(--blue); }                                                  /* Selling, viewable early while under construction */
+.stage-tab.preview .prev-ic { font-size:10px; opacity:.8; }
+.stage-tab.preview:hover { background:var(--blue-bg); }
 
-/* Advance modal (Open escrow / Start construction / List it) */
+/* Advance modal (Open escrow / Start construction) */
 .adv-overlay { position:fixed; inset:0; background:rgba(26,26,24,.35); display:none; align-items:center; justify-content:center; z-index:100; }
 .adv-overlay.open { display:flex; }
 .adv-modal { background:#fff; border-radius:12px; box-shadow:var(--shadow-md,0 4px 16px rgba(0,0,0,.08)); width:430px; max-width:92vw; padding:22px 22px 18px; }
@@ -400,6 +403,14 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .sold-banner { background:#ECECEA; border:1px solid var(--border); border-radius:8px; padding:10px 16px; font-size:13px; color:var(--text-2); margin-bottom:14px; }
 .sold-banner a { color:var(--accent); }
 
+/* Selling-preview banner — shown when viewing the Selling stage on a deal that's
+   still Under Construction. The deal stays in construction (in the kanban too)
+   until the owner actually lists it via this banner's button. */
+.preview-banner { display:flex; align-items:center; gap:12px; background:var(--blue-bg); border:1px solid var(--blue); border-radius:8px; padding:10px 16px; font-size:13px; color:var(--text-2); margin-bottom:14px; }
+.preview-banner .pb-txt { flex:1; }
+.preview-banner .pb-txt b { color:var(--text); }
+.preview-banner .pb-txt a { color:var(--blue); font-weight:600; }
+
 /* Lightbox */
 .acq-lb-overlay { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.92); align-items:center; justify-content:center; padding:32px; }
 .acq-lb-overlay.open { display:flex; }
@@ -636,7 +647,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 <!-- Backstage toast (used by RPA generator + future surfaces) -->
 <div class="bs-toast" id="bsToast"></div>
 
-<!-- Advance modal (Open escrow / Start construction / List it) — feeds the existing movePhase() pathway.
+<!-- Advance modal (Open escrow / Start construction) — feeds the existing movePhase() pathway.
      id="phaseStack" is intentional: movePhase() closes the dialog via phaseStack.classList.remove('open'),
      and .adv-overlay.open is the visible state — so the existing pathway closes this modal unchanged. -->
 <div class="adv-overlay" id="phaseStack" onclick="if(event.target===this)closeAdvance()">
@@ -1315,6 +1326,11 @@ function renderPage(){
   const pageHtml=`
     ${soldBannerHtml}
 
+    <!-- Selling preview banner (shown only when previewing Selling while still under construction) -->
+    <div class="preview-banner phase-hide" id="sellPreviewBanner">
+      <div class="pb-txt"><b>Previewing the Selling stage.</b> This deal is still under construction — listing costs and net are projected. It moves to Selling automatically once its listing is matched in <a href="mls-deals.html">MLS Deals</a>.</div>
+    </div>
+
     <!-- ACQUISITION CARD -->
     <div class="acq">
       ${thumbHtml}
@@ -1420,6 +1436,13 @@ function applyPhase(phase){
   if(subEl)subEl.textContent=cfg.cashSub||'owner only';
   // Acq card MLS#/agent follow the viewed stage.
   updateAcqCard(phase);
+  // Selling-preview banner: shown only when viewing Selling on a deal whose real
+  // phase is still under_construction (i.e. peeking ahead, not yet listed).
+  const previewBanner=document.getElementById('sellPreviewBanner');
+  if(previewBanner){
+    const previewing=(phase==='selling' && currentDeal && currentDeal.phase==='under_construction');
+    previewBanner.classList.toggle('phase-hide', !previewing);
+  }
 }
 
 // Phase-aware acquisition-card chrome. Driven by the *viewed* stage so clicking a
@@ -2489,8 +2512,9 @@ const ADVANCE_CFG={
     ], preview:true },
   in_escrow:{ to:'under_construction', label:'Start construction',
     blurb:'Closed and funded — start the build clock.', fields:[] },
-  under_construction:{ to:'selling', label:'List it',
-    blurb:'Build done — take it to market.', fields:[] },
+  // No under_construction → selling advance: the move to Selling is governed by
+  // the MLS match (markAsListing in MLS Deals sets relist_mls + list_date + flips
+  // the phase). There's no manual "List it" step.
 };
 
 function renderStageTabs(phase, aux, optionsHtml){
@@ -2509,12 +2533,19 @@ function renderStageTabs(phase, aux, optionsHtml){
   const vi=STAGE_ORDER.indexOf(stageViewing);
   if(vi<0 || (ci>=0 && vi>ci))stageViewing=phase;
   wrap.innerHTML=STAGE_ORDER.map((ph,i)=>{
-    const isCur=ph===phase, isNext=(ci>=0 && i===ci+1), isFut=(ci>=0 && i>ci+1), isView=ph===stageViewing;
-    const cls=['stage-tab',isCur?'current':'',isNext?'next':'',isFut?'locked':'',isView?'on':''].filter(Boolean).join(' ');
-    const auxHtml='';   // status aux removed from the tab strip (per redesign)
+    const isCur=ph===phase;
+    // Selling is previewable (viewable, not an advance) while under construction —
+    // lets the owner glance at projected listing costs / spend without listing yet.
+    const isSellPreview=(phase==='under_construction' && ph==='selling');
+    const isNext=(ci>=0 && i===ci+1) && !isSellPreview;
+    const isFut=(ci>=0 && i>ci+1);
+    const isView=ph===stageViewing;
+    const cls=['stage-tab',isCur?'current':'',isNext?'next':'',isSellPreview?'preview':'',isFut?'locked':'',isView?'on':''].filter(Boolean).join(' ');
     const inner=(isCur?'<span class="here-dot"></span> ':'')+escapeHtml(phaseLabel(ph))
-      +(isNext?' <span class="next-ic">→</span>':'')+(isFut?' <span class="lock-ic">🔒</span>':'')+auxHtml;
-    const title=isNext?('Open '+phaseLabel(ph)+' — advance this deal'):(isFut?'Locked until earlier stages finish':'');
+      +(isNext?' <span class="next-ic">→</span>':'')+(isSellPreview?' <span class="prev-ic">👁</span>':'')+(isFut?' <span class="lock-ic">🔒</span>':'');
+    const title=isNext?('Open '+phaseLabel(ph)+' — advance this deal')
+      :isSellPreview?('Preview the Selling stage — deal stays in construction until listed')
+      :(isFut?'Locked until earlier stages finish':'');
     return `<button class="${cls}" data-phase="${ph}" title="${escapeHtml(title)}">${inner}</button>`;
   }).join('');
 

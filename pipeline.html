@@ -303,12 +303,24 @@ function rehabBarHtml(cost){
   </div>`;
 }
 
+// Column placement is governed by the MLS match, not a manual advance. A deal
+// sits in Selling only once its relist listing is matched on the MLS (relist_mls
+// linked via "mark as our listing" in MLS Deals). Until then a construction/selling
+// deal shows under Under Construction; a matched one shows under Selling.
+function columnPhase(d){
+  if(d.phase==='under_construction' || d.phase==='selling'){
+    return d.relist_mls ? 'selling' : 'under_construction';
+  }
+  return d.phase;
+}
+
 function renderBoard(deals, propsByMls, latestByDeal, costByDeal){
   costByDeal=costByDeal||{};
   const byPhase={};
   for(const s of PHASES)byPhase[s]=[];
   for(const d of deals){
-    if(byPhase[d.phase])byPhase[d.phase].push(d);
+    const ph=columnPhase(d);
+    if(byPhase[ph])byPhase[ph].push(d);
   }
 
   let html='';
