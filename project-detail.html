@@ -219,6 +219,9 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .doc-ic.other { background:var(--bg-inset); }
 .doc-main { min-width:0; }
 .doc-name { font-weight:600; font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.doc-name.editable { cursor:text; }
+.doc-name.editable:hover { text-decoration:underline dotted; text-underline-offset:2px; }
+.doc-name-input { font:inherit; font-weight:600; font-size:13px; color:var(--text); width:100%; border:1px solid var(--accent); border-radius:4px; padding:1px 4px; box-sizing:border-box; }
 .doc-meta { font-size:11px; color:var(--text-4); margin-top:1px; }
 .doc-tag { font-weight:600; }
 .doc-tag.design { color:#3A5C8A; }
@@ -1869,9 +1872,12 @@ function renderDealDocs(){
     const by=resolvedUserName(doc.uploaded_by);
     const meta=`<span class="doc-tag ${doc.doc_type}">${escapeHtml(t.label)}</span> · ${escapeHtml(by)} · ${escapeHtml(fmtDocDate(doc.uploaded_at))} · ${escapeHtml(fmtBytes(doc.file_size))}`;
     const del=owner?`<a class="doc-del" data-docdel="${escapeHtml(doc.id)}">Delete</a>`:'';
+    const nameEl=owner
+      ? `<div class="doc-name editable" data-docname="${escapeHtml(doc.id)}" title="Click to rename">${escapeHtml(doc.original_filename)}</div>`
+      : `<div class="doc-name">${escapeHtml(doc.original_filename)}</div>`;
     return `<div class="doc-row" data-docpath="${escapeHtml(doc.storage_path)}">`
       +`<span class="doc-ic ${doc.doc_type}">${t.ic}</span>`
-      +`<div class="doc-main"><div class="doc-name">${escapeHtml(doc.original_filename)}</div><div class="doc-meta">${meta}</div></div>`
+      +`<div class="doc-main">${nameEl}<div class="doc-meta">${meta}</div></div>`
       +`<span><a class="doc-view" data-docview="${escapeHtml(doc.storage_path)}">View</a>${del}</span>`
       +`</div>`;
   }).join(''):'<div class="doc-empty">No documents yet — design plans, bids, and permits live here.</div>';
@@ -1897,10 +1903,18 @@ function bindDocRowHandlers(){
       await deleteDealDoc(el.getAttribute('data-docdel'));
     });
   });
-  // Row-tap opens the signed URL (phone affordance).
+  // Click the name to rename (owner only — editable rows carry data-docname).
+  document.querySelectorAll('.doc-name[data-docname]').forEach(el=>{
+    el.addEventListener('click', e=>{
+      e.stopPropagation();
+      _beginDocNameEdit(el, el.getAttribute('data-docname'));
+    });
+  });
+  // Row-tap opens the signed URL (phone affordance). Skip clicks on the
+  // action links, the editable name, or its input.
   document.querySelectorAll('.doc-row[data-docpath]').forEach(row=>{
     row.addEventListener('click', e=>{
-      if(e.target.closest('a'))return;
+      if(e.target.closest('a, .doc-name, input'))return;
       const path=row.getAttribute('data-docpath');
       if(path)openDocSignedUrl(path);
     });
@@ -2021,6 +2035,43 @@ async function deleteDealDoc(id){
   if(dbErr){ alert('Could not remove record: '+dbErr.message); return; }
   const idx=dealDocs.findIndex(d=>d.id===id);
   if(idx>=0)dealDocs.splice(idx,1);
+  renderDealDocs();
+}
+
+// Click-to-rename the displayed filename (owner only). Updates
+// deal_documents.original_filename in place — the storage_path is opaque, so
+// renaming never touches the bytes.
+function _beginDocNameEdit(el, id){
+  if(el.classList.contains('editing'))return;
+  const doc=dealDocs.find(d=>d.id===id);
+  if(!doc)return;
+  el.classList.add('editing');
+  const input=document.createElement('input');
+  input.type='text';
+  input.className='doc-name-input';
+  input.value=doc.original_filename||'';
+  el.textContent='';
+  el.appendChild(input);
+  input.focus(); input.select();
+  let done=false;
+  const finish=async (commit)=>{
+    if(done)return; done=true;
+    if(commit) await _commitDocNameEdit(id, input.value);
+    else renderDealDocs();
+  };
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ e.preventDefault(); finish(true); }
+    else if(e.key==='Escape'){ finish(false); }
+  });
+  input.addEventListener('blur', ()=>finish(true));
+}
+async function _commitDocNameEdit(id, val){
+  const doc=dealDocs.find(d=>d.id===id);
+  const newName=(val||'').trim();
+  if(!doc || !newName || newName===doc.original_filename){ renderDealDocs(); return; }
+  const {error}=await sb.from('deal_documents').update({original_filename:newName}).eq('id', id);
+  if(error){ alert('Rename failed: '+error.message); renderDealDocs(); return; }
+  doc.original_filename=newName;
   renderDealDocs();
 }
 
