@@ -1476,6 +1476,9 @@ function renderPage(){
     <!-- CASH POSITION / OFFER MATH / LIST PRICE -->
     ${renderCashSection(role, cfg)}
 
+    <!-- OFFER COMPARISON (Selling only) -->
+    ${renderOfferComparison()}
+
     <!-- LISTING -->
     ${renderListingSection()}
 
@@ -1553,6 +1556,9 @@ function applyPhase(phase){
     const previewing=(phase==='selling' && currentDeal && currentDeal.phase==='under_construction');
     previewBanner.classList.toggle('phase-hide', !previewing);
   }
+  // Offer comparison is its own card — shown only on the Selling stage, like lpCalc.
+  const offerSect=document.getElementById('offerSect');
+  if(offerSect)offerSect.classList.toggle('phase-hide', phase!=='selling');
 }
 
 // Phase-aware acquisition-card chrome. Driven by the *viewed* stage so clicking a
@@ -2577,7 +2583,20 @@ function renderListPriceCalc(){
           </div>
         </div>
       </div>
-      <div class="lp-calc-head" style="margin-top:18px">Offer comparison · net to you after selling costs + carry-to-close <a href="#" id="addOffer" style="float:right;font-weight:600;text-transform:none;letter-spacing:0;color:var(--accent)">+ Add offer</a></div>
+    </div>
+  `;
+}
+// Offer comparison — its OWN card (separate from the List Price card). Same
+// offerList / addOffer ids so wireListPriceCalc keeps driving it. Shown only in
+// the Selling stage (toggled in applyPhase).
+function renderOfferComparison(){
+  return `
+    <div class="sect phase-hide" id="offerSect">
+      <div class="sect-h">
+        <h2>Offer comparison</h2>
+        <span class="sub">net to you after selling costs + carry-to-close</span>
+        <span class="right"><a href="#" id="addOffer" style="font-weight:600;color:var(--accent)">+ Add offer</a></span>
+      </div>
       <div class="off-list" id="offerList"></div>
     </div>
   `;
