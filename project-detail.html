@@ -1485,7 +1485,7 @@ function renderConstructionSection(){
         <!-- LEFT · status bars + documents -->
         <div class="esc-col">
           <div class="sect">
-            <div class="sect-h"><h2>Construction</h2><span class="sub">how far in · how much spent</span><span class="right"><a href="money.html">Money page →</a></span></div>
+            <div class="sect-h"><h2>Construction</h2><span class="sub">how far in · how much spent</span></div>
             <div class="cn-bars">
               <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Schedule</span><span class="pct">${schedLabel}</span></div><div class="track"><div class="fill ${schedPct>100?'over':'blue'}" style="width:${Math.min(100,schedPct)}%"></div></div></div>
               <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Budget</span><span class="pct">${budgetLabel}</span></div><div class="track"><div class="fill ${budgetPct>100?'over':'gold'}" style="width:${Math.min(100,budgetPct)}%"></div></div></div>
@@ -1535,7 +1535,7 @@ function renderSpendingTree(){
     {key:'rehab_soft',      pnlKey:'rehab_soft_actual',      name:'Soft costs', color:'#A9C4F5'},
     {key:'rehab_other',     pnlKey:'rehab_other_actual',     name:'Other',      color:'#D3E1FA'},
   ];
-  const hdr=(sub)=>`<div class="sect-h"><h2>Spent to date</h2><span class="sub">cost breakdown · ${sub}</span><span class="right"><a href="money.html">Money page →</a></span></div>`;
+  const hdr=(sub)=>`<div class="sect-h"><h2>Spent to date</h2><span class="sub">cost breakdown · ${sub}</span></div>`;
   BUCKETS.forEach(b=>{ b.total=Number(pnl[b.pnlKey]||0); });
   const total=BUCKETS.reduce((s,b)=>s+b.total,0);
   if(total<=0){
@@ -1646,7 +1646,7 @@ function renderEscrowSection(){
             ${ckHtml}
           </div>
           <div class="sect">
-            <div class="sect-h"><h2>Cash needed</h2><span class="sub">what you wire to close + fund the rehab</span><span class="right"><a href="money.html">Money page →</a></span></div>
+            <div class="sect-h"><h2>Cash needed</h2><span class="sub">what you wire to close + fund the rehab</span></div>
             ${renderCashNeeded()}
           </div>
         </div>
@@ -1879,7 +1879,7 @@ function renderCashSection(role, cfg){
       <div class="sect-h">
         <h2 id="cashSectTitle">${escapeHtml(cfg.cashTitle||'Cash position')}</h2>
         <span class="sub" id="cashSectSub">${escapeHtml(cfg.cashSub||'')}</span>
-        <span class="right">${rpaBtnHtml}<a href="money.html">Money page →</a></span>
+        ${rpaBtnHtml ? '<span class="right">'+rpaBtnHtml+'</span>' : ''}
       </div>
       ${cashGridHtml}
       ${renderOfferCalc()}
