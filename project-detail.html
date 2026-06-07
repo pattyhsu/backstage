@@ -1455,12 +1455,10 @@ function renderConstructionSection(){
   const d=currentDeal;
   const pnl=dealPnl||{};
   const today=todayStr();
-  // Schedule: start = construction_start_date (or close); completion target =
-  // construction_complete_date, else the latest build-milestone due date.
-  const start=d.construction_start_date||d.actual_close_date;
-  const msDates=(dealMilestones||[]).map(m=>m.due_date).filter(Boolean).sort();
-  const complete=d.construction_complete_date||(msDates.length?msDates[msDates.length-1]:null);
-  const totalDays=(start && complete)?daysBetween(start, complete):null;
+  // Schedule: construction runs a fixed 40-day window from the escrow close date.
+  const CONSTR_DAYS=40;
+  const start=d.actual_close_date||d.construction_start_date;
+  const totalDays=start?CONSTR_DAYS:null;
   const elapsed=start?daysBetween(start, today):null;
   const schedPct=(elapsed!=null && totalDays && totalDays>0)?Math.round(Math.max(0,elapsed)/totalDays*100):0;
   const schedLabel=(elapsed!=null && totalDays)
