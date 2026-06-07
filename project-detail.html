@@ -1708,6 +1708,11 @@ function wireSpendingTree(){
   document.addEventListener('click', _spTreeClick);
 }
 
+// Which Selling-breakdown rows are collapsed, keyed by data-key. Persists across
+// re-renders (recalc rebuilds the tree's innerHTML on every input change) so the
+// collapsed state survives editing list price / days-to-close.
+const sellCollapsed=new Set();
+
 // Collapse/expand for the Selling-phase 4-bucket breakdown tree. Each row carries
 // data-depth (section 0, then nested deeper); clicking a collapsible row hides
 // every following row deeper than it until the next same-or-shallower row.
@@ -1720,10 +1725,14 @@ function _sellTreeToggle(e){
   const depth=+row.dataset.depth;
   const collapsing=!row.classList.contains('collapsed');
   row.classList.toggle('collapsed', collapsing);
+  if(collapsing)sellCollapsed.add(row.dataset.key); else sellCollapsed.delete(row.dataset.key);
   for(let j=i+1;j<rows.length;j++){
     if((+rows[j].dataset.depth)<=depth)break;
     if(collapsing){ rows[j].classList.add('hidden'); }
-    else { rows[j].classList.remove('hidden'); rows[j].classList.remove('collapsed'); }
+    else {
+      rows[j].classList.remove('hidden'); rows[j].classList.remove('collapsed');
+      if(rows[j].dataset.key)sellCollapsed.delete(rows[j].dataset.key);   // expand fully resets the subtree
+    }
   }
 }
 function _spTreeClick(e){
@@ -2657,24 +2666,28 @@ function wireListPriceCalc(){
       }
     }
     if(total-mapped>1){ nodes['Other']=nodes['Other']||{name:'Other',amount:0,children:{}}; nodes['Other'].amount+=(total-mapped); }
-    const out=[sectionRow(label,color,total,pctBase)];
-    const emit=(n,depth)=>{
+    const secCollapsed=sellCollapsed.has(label);
+    const out=[sectionRow(label,color,total,pctBase,true,secCollapsed)];
+    const emit=(n,depth,keyPrefix,hidden)=>{
       const hasKids=Object.keys(n.children).length>0;
+      const key=keyPrefix+'/'+n.name;
+      const collapsed=hasKids && sellCollapsed.has(key);
       const pct=pctBase>0?n.amount/pctBase*100:0;
-      out.push(`<div class="qbo-line l${Math.min(depth,2)}${hasKids?' collapsible':''}${n.amount<0?' neg-line':''}" data-depth="${depth+1}"><span class="cat"><span class="caret"></span>${escapeHtml(n.name)}</span><span class="amt">${F(n.amount)}</span><span class="pct">${Math.abs(pct)<0.05?'—':pct.toFixed(1)+'%'}</span></div>`);
-      Object.values(n.children).sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount)).forEach(k=>emit(k,depth+1));
+      out.push(`<div class="qbo-line l${Math.min(depth,2)}${hasKids?' collapsible':''}${collapsed?' collapsed':''}${hidden?' hidden':''}${n.amount<0?' neg-line':''}" data-depth="${depth+1}" data-key="${escapeHtml(key)}"><span class="cat"><span class="caret"></span>${escapeHtml(n.name)}</span><span class="amt">${F(n.amount)}</span><span class="pct">${Math.abs(pct)<0.05?'—':pct.toFixed(1)+'%'}</span></div>`);
+      const childHidden=hidden||collapsed;
+      Object.values(n.children).sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount)).forEach(k=>emit(k,depth+1,key,childHidden));
     };
-    Object.values(nodes).sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount)).forEach(t=>emit(t,0));
+    Object.values(nodes).sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount)).forEach(t=>emit(t,0,label,secCollapsed));
     return out.join('');
   }
-  function sectionRow(label,color,total,pctBase,collapsible){
+  function sectionRow(label,color,total,pctBase,collapsible,collapsed){
     if(collapsible===undefined)collapsible=true;
     const pct=pctBase>0?(total/pctBase*100).toFixed(1)+'%':'';
-    return `<div class="qbo-line section${collapsible?' collapsible':''}" data-depth="0"><span class="cat"><span class="caret"></span><span class="sw" style="background:${color}"></span>${escapeHtml(label)}</span><span class="amt">${F(total)}</span><span class="pct">${pct}</span></div>`;
+    return `<div class="qbo-line section${collapsible?' collapsible':''}${collapsed?' collapsed':''}" data-depth="0" data-key="${escapeHtml(label)}"><span class="cat"><span class="caret"></span><span class="sw" style="background:${color}"></span>${escapeHtml(label)}</span><span class="amt">${F(total)}</span><span class="pct">${pct}</span></div>`;
   }
-  function leafRow(name,det,amt,pctBase){
+  function leafRow(name,det,amt,pctBase,hidden){
     const pct=pctBase>0?amt/pctBase*100:0;
-    return `<div class="qbo-line l0" data-depth="1"><span class="cat"><span class="caret"></span>${escapeHtml(name)}${det?` <span class="det">· ${escapeHtml(det)}</span>`:''}</span><span class="amt">${F(amt)}</span><span class="pct">${Math.abs(pct)<0.05?'—':pct.toFixed(1)+'%'}</span></div>`;
+    return `<div class="qbo-line l0${hidden?' hidden':''}" data-depth="1"><span class="cat"><span class="caret"></span>${escapeHtml(name)}${det?` <span class="det">· ${escapeHtml(det)}</span>`:''}</span><span class="amt">${F(amt)}</span><span class="pct">${Math.abs(pct)<0.05?'—':pct.toFixed(1)+'%'}</span></div>`;
   }
   function renderSellBd(c){
     const COL={acq:'#6B7280', rehab:'#9CA3AF', carry:'#C7C7CC', disp:'#D8D7D2'};
@@ -2688,18 +2701,20 @@ function wireListPriceCalc(){
             +seg(Math.abs(c.profit),'var(--green)',true);
     // Carry: HM interest + property tax are PROJECTED (accrue daily, not cleanly
     // booked); insurance / utilities / HOA are pulled from QBO ACTUALS.
-    let carryTree=sectionRow('Carry',COL.carry,c.carry,list)
-      +leafRow('Hard money interest', c.totalDays+' days @ '+F(DAILY_INTEREST)+'/day · projected', c.financing, list);
+    const carryCol=sellCollapsed.has('Carry');
+    let carryTree=sectionRow('Carry',COL.carry,c.carry,list,true,carryCol)
+      +leafRow('Hard money interest', c.totalDays+' days @ '+F(DAILY_INTEREST)+'/day · projected', c.financing, list, carryCol);
     if(detailLoaded){
       Object.keys(holdCats).sort((a,b)=>holdCats[b]-holdCats[a]).forEach(k=>{
-        carryTree+=leafRow(k, 'actual', holdCats[k], list);
+        carryTree+=leafRow(k, 'actual', holdCats[k], list, carryCol);
       });
     }
-    carryTree+=leafRow('Property taxes', c.totalDays+' days @ '+F(DAILY_TAX)+'/day · projected', c.propTax, list);
-    const dispTree=sectionRow('Disposition (projected)',COL.disp,c.disposition,list)
-      +leafRow('Commission', c.comm+'%', list*c.comm/100, list)
-      +leafRow('Closing costs', c.clo+'%', list*c.clo/100, list)
-      +(c.conc>0?leafRow('Concessions','buyer credit', c.conc, list):'');
+    carryTree+=leafRow('Property taxes', c.totalDays+' days @ '+F(DAILY_TAX)+'/day · projected', c.propTax, list, carryCol);
+    const dispCol=sellCollapsed.has('Disposition');
+    const dispTree=sectionRow('Disposition',COL.disp,c.disposition,list,true,dispCol)
+      +leafRow('Commission', c.comm+'%', list*c.comm/100, list, dispCol)
+      +leafRow('Closing costs', c.clo+'%', list*c.clo/100, list, dispCol)
+      +(c.conc>0?leafRow('Concessions','buyer credit', c.conc, list, dispCol):'');
     document.getElementById('slBd').innerHTML=`
       <div class="om-bd-top"><span class="lbl">Sale price</span><span class="val">${F(list)}</span></div>
       <div class="om-bd-bar">${bar}</div>
