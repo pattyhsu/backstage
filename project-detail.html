@@ -2531,7 +2531,11 @@ function renderStageTabs(phase, aux, optionsHtml){
   // (future) stage — after an advance the user should land on the new current.
   if(stageViewing===null)stageViewing=phase;
   const vi=STAGE_ORDER.indexOf(stageViewing);
-  if(vi<0 || (ci>=0 && vi>ci))stageViewing=phase;
+  // Selling is previewable while under construction, so don't snap it back even
+  // though it's "ahead" of the current stage. Otherwise never park on a future
+  // (locked) stage.
+  const sellPreviewOk=(phase==='under_construction' && stageViewing==='selling');
+  if(vi<0 || (ci>=0 && vi>ci && !sellPreviewOk))stageViewing=phase;
   wrap.innerHTML=STAGE_ORDER.map((ph,i)=>{
     const isCur=ph===phase;
     // Selling is previewable (viewable, not an advance) while under construction —
