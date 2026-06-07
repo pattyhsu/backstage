@@ -2585,7 +2585,7 @@ function wireListPriceCalc(){
                        : (d.rehab_actual || (p&&p.locked_construction) || 0);
   // Selling-stage carry is a TRUE PROJECTION over the whole hold — NOT the QBO
   // booked-to-date figures (which lag actual accrual). Mirrors deal_pnl_v1
-  // carry_accrued: days × (hard-money interest/day + property carry/day), where
+  // carry_accrued: days × (hard-money interest/day + property tax/day), where
   // days = ownership (actual close) → projected sale close.
   const FIXED = purchase + rehab;   // ACQ + REHAB actuals (already spent)
 
@@ -2593,9 +2593,12 @@ function wireListPriceCalc(){
   const LOAN_BALANCE=loan?(loan.loan_amount||0):0;
   const LOAN_RATE=loan?(loan.rate_apr||0):0;
   const DAILY_INTEREST=LOAN_BALANCE*LOAN_RATE/365;             // hard-money interest / day
-  const DAILY_HOLDING=(d.purchase_price||0)*0.012/365          // property tax ~1.2%/yr
-                     +(d.monthly_property_carry||400)*12/365;  // insurance / utilities / etc
-  const DAILY_CARRY=DAILY_INTEREST+DAILY_HOLDING;              // combined, for per-offer net
+  // Carry estimates ONLY the two costs that accrue continuously and aren't
+  // cleanly booked: hard-money interest + property tax (~1.2%/yr). Insurance,
+  // utilities, etc. are their own QBO categories (booked as actuals) — never
+  // estimated here, so they're not double-counted.
+  const DAILY_TAX=(d.purchase_price||0)*0.012/365;            // property tax ~1.2%/yr
+  const DAILY_CARRY=DAILY_INTEREST+DAILY_TAX;                 // combined, for per-offer net
   const carryAnchor=d.actual_close_date||d.escrow_start_date||(loan&&loan.funded_date)||null;
   const daysHeld=carryAnchor?Math.max(0, daysBetween(carryAnchor, todayStr())||0):0;
 
@@ -2674,7 +2677,7 @@ function wireListPriceCalc(){
     // Carry + Disposition sub-lines (projected).
     const carryTree=sectionRow('Carry (projected)',COL.carry,c.financing+c.holding,list)
       +leafRow('Loan interest', c.totalDays+' days @ '+F(DAILY_INTEREST)+'/day', c.financing, list)
-      +leafRow('Property tax + carry', c.totalDays+' days @ '+F(DAILY_HOLDING)+'/day', c.holding, list);
+      +leafRow('Property tax', c.totalDays+' days @ '+F(DAILY_TAX)+'/day', c.holding, list);
     const dispTree=sectionRow('Disposition (projected)',COL.disp,c.disposition,list)
       +leafRow('Commission', c.comm+'%', list*c.comm/100, list)
       +leafRow('Closing costs', c.clo+'%', list*c.clo/100, list)
@@ -2731,13 +2734,13 @@ function wireListPriceCalc(){
     const list=num(slList), comm=v('slComm'), clo=v('slClose'), conc=v('slConc'), days=v('slDays');
     const totalDays=daysHeld+Math.max(0,days);            // ownership → projected close
     const financing=totalDays*DAILY_INTEREST;             // projected full-hold interest
-    const holding  =totalDays*DAILY_HOLDING;              // projected full-hold property carry
+    const holding  =totalDays*DAILY_TAX;                  // projected full-hold property tax
     const commission=list*comm/100, closing=list*clo/100;
     const disposition=commission+closing+conc;
     const allOut=FIXED+financing+holding+disposition, profit=list-allOut;
     const basis=allOut;                                   // all-in projected cost basis
     document.getElementById('slBasisHelp').textContent=
-      `${F(FIXED+financing+holding)} all-in before sale costs · ${totalDays} days held @ ${F(DAILY_INTEREST)} interest + ${F(DAILY_HOLDING)} carry /day →`;
+      `${F(FIXED+financing+holding)} all-in before sale costs · ${totalDays} days held @ ${F(DAILY_INTEREST)} interest + ${F(DAILY_TAX)} tax /day →`;
     renderSellBd({list,comm,clo,conc,days,totalDays,financing,holding,disposition,allOut,profit,basis});
     document.getElementById('slFoot').innerHTML=
       `<span><b>Net proceeds</b> ${F(list-disposition)} <span class="dim">at close, before loan payoff</span></span>`+
