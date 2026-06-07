@@ -109,7 +109,6 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .stage-tab.next .next-ic { font-size:11px; opacity:.85; }
 .stage-tab.next:hover { background:var(--amber-bg); }
 .stage-tab.preview { color:var(--blue); }                                                  /* Selling, viewable early while under construction */
-.stage-tab.preview .prev-ic { font-size:10px; opacity:.8; }
 .stage-tab.preview:hover { background:var(--blue-bg); }
 
 /* Advance modal (Open escrow / Start construction) */
@@ -3118,7 +3117,7 @@ function renderStageTabs(phase, aux, optionsHtml){
     const isView=ph===stageViewing;
     const cls=['stage-tab',isCur?'current':'',isNext?'next':'',isSellPreview?'preview':'',isFut?'locked':'',isView?'on':''].filter(Boolean).join(' ');
     const inner=(isCur?'<span class="here-dot"></span> ':'')+escapeHtml(phaseLabel(ph))
-      +(isNext?' <span class="next-ic">→</span>':'')+(isSellPreview?' <span class="prev-ic">👁</span>':'')+(isFut?' <span class="lock-ic">🔒</span>':'');
+      +(isNext?' <span class="next-ic">→</span>':'')+(isFut?' <span class="lock-ic">🔒</span>':'');
     const title=isNext?('Open '+phaseLabel(ph)+' — advance this deal')
       :isSellPreview?('Preview the Selling stage — deal stays in construction until listed')
       :(isFut?'Locked until earlier stages finish':'');
