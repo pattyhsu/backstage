@@ -2175,7 +2175,7 @@ function renderListPriceCalc(){
               </div>
             </div>
             <div class="om-fin">
-              <div class="om-grp">Cost basis (actual · already spent)</div>
+              <div class="om-grp">Cost basis (projected to close)</div>
               <div class="om-help" id="slBasisHelp"></div>
             </div>
           </div>
@@ -2208,16 +2208,21 @@ function wireListPriceCalc(){
                        : Math.round(purchase*0.01);
   const rehab      = (typeof pnl.rehab_actual==='number' && pnl.rehab_actual>0) ? pnl.rehab_actual
                        : (d.rehab_actual || (p&&p.locked_construction) || 0);
-  const financing  = (typeof pnl.financing_actual==='number') ? pnl.financing_actual : 0;
-  const HOLD_BASE  = (typeof pnl.holding_actual==='number') ? pnl.holding_actual : 0; // pre-listing carry
-  const FIXED_EX_HOLDING = purchase + purchExp + rehab + financing;
-  const COST_BASIS = listPriceCostBasis() || (FIXED_EX_HOLDING + HOLD_BASE) || 1;
+  // Selling-stage carry is a TRUE PROJECTION over the whole hold — NOT the QBO
+  // booked-to-date figures (which lag actual accrual). Mirrors deal_pnl_v1
+  // carry_accrued: days × (hard-money interest/day + property carry/day), where
+  // days = ownership (actual close) → projected sale close.
+  const FIXED = purchase + purchExp + rehab;   // already-spent, not time-based
 
-  // Daily carry comes from the ACTUAL loan ($/day), not a guess.
   const loan=dealLoans.find(l=>l.status==='funded'||l.status==='pending')||dealLoans[0];
   const LOAN_BALANCE=loan?(loan.loan_amount||0):0;
   const LOAN_RATE=loan?(loan.rate_apr||0):0;
-  const DAILY_CARRY=LOAN_BALANCE*LOAN_RATE/365;
+  const DAILY_INTEREST=LOAN_BALANCE*LOAN_RATE/365;             // hard-money interest / day
+  const DAILY_HOLDING=(d.purchase_price||0)*0.012/365          // property tax ~1.2%/yr
+                     +(d.monthly_property_carry||400)*12/365;  // insurance / utilities / etc
+  const DAILY_CARRY=DAILY_INTEREST+DAILY_HOLDING;              // combined, for per-offer net
+  const carryAnchor=d.actual_close_date||d.escrow_start_date||(loan&&loan.funded_date)||null;
+  const daysHeld=carryAnchor?Math.max(0, daysBetween(carryAnchor, todayStr())||0):0;
 
   const F  = n => (n<0?'-$':'$') + Math.abs(Math.round(n)).toLocaleString();
   const FS = n => (n>=0?'+$':'-$') + Math.abs(Math.round(n)).toLocaleString();
@@ -2239,9 +2244,9 @@ function wireListPriceCalc(){
       {name:'Purchase price',    color:'#6B7280', det:'',                                                              amt:purchase},
       {name:'Purchase expenses', color:'#868E99', det:'1% of purchase',                                                amt:purchExp},
       {name:'Rehab',             color:'#9CA3AF', det:'actual',                                                        amt:rehab},
-      {name:'Financing',         color:'#C7C7CC', det:'loan interest, build + hold',                                   amt:financing},
+      {name:'Financing',         color:'#C7C7CC', det:c.totalDays+' days @ '+F(DAILY_INTEREST)+'/day (projected)',     amt:c.financing},
       {name:'Disposition',       color:'#D8D7D2', det:c.comm+'% comm + '+c.clo+'% closing'+(c.conc?' + '+F(c.conc)+' credit':''), amt:c.disposition},
-      {name:'Holding',           color:'#E1E0DC', det:c.days+' days to close @ '+F(DAILY_CARRY)+'/day',                amt:c.holding},
+      {name:'Holding',           color:'#E1E0DC', det:c.totalDays+' days @ '+F(DAILY_HOLDING)+'/day (tax + carry)',    amt:c.holding},
     ];
     const segs=lines.map(l=>`<div class="om-bd-seg" style="background:${l.color};flex:${Math.max(l.amt,1)}"></div>`).join('');
     const netSeg=`<div class="om-bd-seg" style="background:var(--green);flex:${Math.max(Math.abs(c.profit),1)};border-radius:0 7px 7px 0"></div>`;
@@ -2257,7 +2262,7 @@ function wireListPriceCalc(){
       <div class="om-bd-bar">${segs}${netSeg}</div>
       ${rowsHtml}
       <div class="om-bd-total"><span class="om-bd-name">All-in cost</span><span class="om-bd-pct">${c.list>0?(c.allOut/c.list*100).toFixed(1):'0.0'}%</span><span class="om-bd-amt">${F(c.allOut)}</span></div>
-      <div class="om-bd-net ${c.profit>=0?'pos':'neg'}"><span class="om-bd-name">Net profit <span class="det" style="font-weight:400">· ${(c.profit/COST_BASIS*100).toFixed(1)}% on cost</span></span><span class="om-bd-pct">${c.list>0?(c.profit/c.list*100).toFixed(1):'0.0'}%</span><span class="om-bd-amt">${FS(c.profit)}</span></div>
+      <div class="om-bd-net ${c.profit>=0?'pos':'neg'}"><span class="om-bd-name">Net profit <span class="det" style="font-weight:400">· ${(c.profit/c.basis*100).toFixed(1)}% on cost</span></span><span class="om-bd-pct">${c.list>0?(c.profit/c.list*100).toFixed(1):'0.0'}%</span><span class="om-bd-amt">${FS(c.profit)}</span></div>
     `;
   }
   // Editable table — price / commission / escrow days / credit per offer; net recomputes live.
@@ -2294,15 +2299,19 @@ function wireListPriceCalc(){
   }
   function recalc(){
     const list=num(slList), comm=v('slComm'), clo=v('slClose'), conc=v('slConc'), days=v('slDays');
-    const commission=list*comm/100, closing=list*clo/100, carry=days*DAILY_CARRY;
-    const disposition=commission+closing+conc, holding=HOLD_BASE+carry;
-    const allOut=FIXED_EX_HOLDING+disposition+holding, profit=list-allOut;
+    const totalDays=daysHeld+Math.max(0,days);            // ownership → projected close
+    const financing=totalDays*DAILY_INTEREST;             // projected full-hold interest
+    const holding  =totalDays*DAILY_HOLDING;              // projected full-hold property carry
+    const commission=list*comm/100, closing=list*clo/100;
+    const disposition=commission+closing+conc;
+    const allOut=FIXED+financing+holding+disposition, profit=list-allOut;
+    const basis=allOut;                                   // all-in projected cost basis
     document.getElementById('slBasisHelp').textContent=
-      `${F(COST_BASIS)} already spent (purchase, rehab, financing, holding) — itemized at right →`;
-    renderSellBd({list,comm,clo,conc,days,disposition,holding,allOut,profit});
+      `${F(FIXED+financing+holding)} all-in before sale costs · ${totalDays} days held @ ${F(DAILY_INTEREST)} interest + ${F(DAILY_HOLDING)} carry /day →`;
+    renderSellBd({list,comm,clo,conc,days,totalDays,financing,holding,disposition,allOut,profit,basis});
     document.getElementById('slFoot').innerHTML=
       `<span><b>Net proceeds</b> ${F(list-disposition)} <span class="dim">at close, before loan payoff</span></span>`+
-      `<span style="margin-left:auto;font-weight:600;color:${profit>=0?'var(--green)':'var(--red)'}">Profit ${FS(profit)} · ${Math.round(profit/COST_BASIS*100)}% on cost</span>`;
+      `<span style="margin-left:auto;font-weight:600;color:${profit>=0?'var(--green)':'var(--red)'}">Profit ${FS(profit)} · ${Math.round(profit/basis*100)}% on cost</span>`;
     recomputeOffers();   // closing % is shared, so list-calc edits flow into the offers
   }
   // List price is a free input (comp/market driven); everything else re-derives the report.
