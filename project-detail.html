@@ -1090,7 +1090,7 @@ async function loadProject(){
   // 8. Deal expenses (spending tree — under_construction phase). Graceful fallback.
   try {
     const {data:exps}=await sb.from('deal_expenses')
-      .select('id, deal_id, qbo_account_name, qbo_account_id, bucket, amount, txn_date')
+      .select('id, deal_id, qbo_account_name, qbo_account_path, amount, expense_recognition_date')
       .eq('deal_id', dealRow.id);
     dealExpenses=exps||[];
   } catch(e){
@@ -1102,7 +1102,7 @@ async function loadProject(){
   // Calculator on the Selling phase. Graceful fallback if view unavailable.
   try {
     const {data:pnlRow, error:pnlErr}=await sb.from('deal_pnl_v1')
-      .select('deal_id, acquisition_actual, rehab_actual, financing_actual, holding_actual, disposition_actual, total_costs_actual')
+      .select('deal_id, acquisition_actual, rehab_actual, rehab_budget, rehab_labor_actual, rehab_materials_actual, rehab_soft_actual, rehab_other_actual, financing_actual, holding_actual, disposition_actual, total_costs_actual')
       .eq('deal_id', dealRow.id)
       .maybeSingle();
     if(pnlErr){console.warn('[project-detail] deal_pnl_v1 load failed:', pnlErr.message);dealPnl=null;}
@@ -1453,19 +1453,29 @@ function updateAcqCard(viewing){
 // ============================================================
 function renderConstructionSection(){
   const d=currentDeal;
-  const start=d.construction_start_date||d.actual_close_date;
-  const complete=d.construction_complete_date;
-  const totalDays=(start && complete)?daysBetween(start, complete):null;
+  const pnl=dealPnl||{};
   const today=todayStr();
+  // Schedule: start = construction_start_date (or close); completion target =
+  // construction_complete_date, else the latest build-milestone due date.
+  const start=d.construction_start_date||d.actual_close_date;
+  const msDates=(dealMilestones||[]).map(m=>m.due_date).filter(Boolean).sort();
+  const complete=d.construction_complete_date||(msDates.length?msDates[msDates.length-1]:null);
+  const totalDays=(start && complete)?daysBetween(start, complete):null;
   const elapsed=start?daysBetween(start, today):null;
-  // Schedule bar: elapsed days / total construction days (real construction dates).
   const schedPct=(elapsed!=null && totalDays && totalDays>0)?Math.round(Math.max(0,elapsed)/totalDays*100):0;
-  const schedLabel=(elapsed!=null && totalDays)?`day ${Math.max(0,elapsed)} of ${totalDays} · ${schedPct}%`:'dates not set';
-  // Budget bar: rehab_actual / rehab_budget (real spend vs budget).
-  const budgetPct=(d.rehab_actual!=null && d.rehab_budget && d.rehab_budget>0)
-    ? Math.round((d.rehab_actual/d.rehab_budget)*100)
+  const schedLabel=(elapsed!=null && totalDays)
+    ? (elapsed<=totalDays
+        ? `day ${Math.max(0,elapsed)} of ${totalDays} · ${schedPct}%`
+        : `day ${elapsed} of ${totalDays} · ${elapsed-totalDays}d over`)
+    : 'dates not set';
+  // Budget bar: rehab spend vs budget. Prefer the canonical deal_pnl_v1 rollup
+  // (acquisition/rehab/financing/holding actuals from QBO); fall back to the deals row.
+  const rehabActual=(pnl.rehab_actual!=null)?pnl.rehab_actual:d.rehab_actual;
+  const rehabBudget=(pnl.rehab_budget!=null)?pnl.rehab_budget:d.rehab_budget;
+  const budgetPct=(rehabActual!=null && rehabBudget && rehabBudget>0)
+    ? Math.round((rehabActual/rehabBudget)*100)
     : 0;
-  const budgetLabel=`${d.rehab_actual!=null?FD(d.rehab_actual):'$0'} / ${d.rehab_budget!=null?FD(d.rehab_budget):'—'} · ${budgetPct}%`;
+  const budgetLabel=`${rehabActual!=null?FD(rehabActual):'$0'} / ${rehabBudget!=null?FD(rehabBudget):'—'} · ${budgetPct}%`;
 
   // Spent-to-date breakdown (composition bar + grouped ledger)
   const spendHtml=renderSpendingTree();
@@ -1479,7 +1489,7 @@ function renderConstructionSection(){
           <div class="sect">
             <div class="sect-h"><h2>Construction</h2><span class="sub">how far in · how much spent</span><span class="right"><a href="money.html">Money page →</a></span></div>
             <div class="cn-bars">
-              <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Schedule</span><span class="pct">${schedLabel}</span></div><div class="track"><div class="fill blue" style="width:${Math.min(100,schedPct)}%"></div></div></div>
+              <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Schedule</span><span class="pct">${schedLabel}</span></div><div class="track"><div class="fill ${schedPct>100?'over':'blue'}" style="width:${Math.min(100,schedPct)}%"></div></div></div>
               <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Budget</span><span class="pct">${budgetLabel}</span></div><div class="track"><div class="fill ${budgetPct>100?'over':'gold'}" style="width:${Math.min(100,budgetPct)}%"></div></div></div>
             </div>
           </div>
@@ -1499,44 +1509,62 @@ function renderConstructionSection(){
   `;
 }
 
-// Spent-to-date: iOS composition bar (blue gradient) + grouped ledger over the
-// REAL 4 rehab buckets (Labor / Materials / Soft costs / Other) from dealExpenses.
-// Line items within each bucket = qbo_account_name subtotals.
+// Map a deal_expenses row to one of the 4 rehab buckets by its QBO account path.
+// Mirrors the deal_pnl_v1 view's bucketing; non-rehab accounts (acquisition /
+// financing / holding) return null and are excluded from the rehab breakdown.
+function rehabBucketOf(e){
+  const p=e.qbo_account_path||[];
+  const top=(p[0]||'').toLowerCase();
+  const sub=(p[1]||'').toLowerCase();
+  if(top==='construction costs'){
+    if(sub.includes('labor'))return 'rehab_labor';
+    if(sub.includes('material'))return 'rehab_materials';
+    return 'rehab_materials';
+  }
+  if(top==='legal & soft services')return 'rehab_soft';
+  if(top==='employee meals'||top==='employee gas')return 'rehab_other';
+  return null;
+}
+// Spent-to-date: iOS composition bar (blue gradient) + grouped ledger over the 4
+// rehab buckets. Bucket TOTALS are the canonical deal_pnl_v1 rollup (QBO actuals);
+// line items are the QBO accounts under each bucket, from deal_expenses, labelled
+// by the deepest account-path segment (e.g. "Crew Labor", "General Materials").
 function renderSpendingTree(){
-  // Blue-gradient buckets, dark→light, in fixed display order.
+  const pnl=dealPnl||{};
   const BUCKETS=[
-    {key:'rehab_labor',     name:'Labor',      color:'#1D4ED8'},
-    {key:'rehab_materials', name:'Materials',  color:'#5B8DEF'},
-    {key:'rehab_soft',      name:'Soft costs', color:'#A9C4F5'},
-    {key:'rehab_other',     name:'Other',      color:'#D3E1FA'},
+    {key:'rehab_labor',     pnlKey:'rehab_labor_actual',     name:'Labor',      color:'#1D4ED8'},
+    {key:'rehab_materials', pnlKey:'rehab_materials_actual', name:'Materials',  color:'#5B8DEF'},
+    {key:'rehab_soft',      pnlKey:'rehab_soft_actual',      name:'Soft costs', color:'#A9C4F5'},
+    {key:'rehab_other',     pnlKey:'rehab_other_actual',     name:'Other',      color:'#D3E1FA'},
   ];
-  const keys=BUCKETS.map(b=>b.key);
-  const rehab=dealExpenses.filter(e=>keys.includes(e.bucket||''));
   const hdr=(sub)=>`<div class="sect-h"><h2>Spent to date</h2><span class="sub">cost breakdown · ${sub}</span><span class="right"><a href="money.html">Money page →</a></span></div>`;
-  if(!rehab.length){
+  BUCKETS.forEach(b=>{ b.total=Number(pnl[b.pnlKey]||0); });
+  const total=BUCKETS.reduce((s,b)=>s+b.total,0);
+  if(total<=0){
     return `${hdr('no expenses yet')}<div class="sp-empty">No rehab expenses synced yet. Run QBO sync from <a href="money.html" style="color:var(--accent)">Money</a>.</div>`;
   }
-  // Group by bucket → qbo_account_name (line items).
-  const byBucket={};
-  for(const e of rehab){
-    const b=e.bucket||'rehab_other';
-    if(!byBucket[b])byBucket[b]={total:0, accts:{}};
-    const amt=Number(e.amount||0);
-    byBucket[b].total+=amt;
-    const acct=e.qbo_account_name||'(unmapped)';
-    byBucket[b].accts[acct]=(byBucket[b].accts[acct]||0)+amt;
+  // Group line items by bucket → deepest account-path segment.
+  const lines={};
+  for(const e of (dealExpenses||[])){
+    const bk=rehabBucketOf(e); if(!bk)continue;
+    const p=e.qbo_account_path||[];
+    const acct=p.length?p[p.length-1]:(e.qbo_account_name||'(unmapped)');
+    (lines[bk]=lines[bk]||{})[acct]=(lines[bk][acct]||0)+Number(e.amount||0);
   }
-  let total=0, lineCount=0;
-  for(const k of keys){ if(byBucket[k]){ total+=byBucket[k].total; lineCount+=Object.keys(byBucket[k].accts).length; } }
   const fmtD=n=>'$'+Math.round(n).toLocaleString();
-  const comp=BUCKETS.filter(b=>byBucket[b.key] && byBucket[b.key].total>0)
-    .map(b=>`<div class="comp-seg" style="background:${b.color};flex:${Math.max(1,Math.round(byBucket[b.key].total))}"></div>`).join('');
-  const ledger=BUCKETS.filter(b=>byBucket[b.key]).map(b=>{
-    const grp=byBucket[b.key];
-    const pct=total>0?Math.round(grp.total/total*100):0;
-    const lines=Object.entries(grp.accts).sort((x,y)=>y[1]-x[1])
-      .map(([acct,amt])=>`<div class="led-row"><span class="nm">${escapeHtml(acct)}</span><span class="amt">${fmtD(amt)}</span></div>`).join('');
-    return `<div class="led-grp"><div class="led-head"><span class="led-sw" style="background:${b.color}"></span><span class="led-name">${b.name}</span><span class="led-pct">${pct}%</span><span class="led-sub">${fmtD(grp.total)}</span></div>${lines}</div>`;
+  let lineCount=0;
+  const comp=BUCKETS.filter(b=>b.total>0)
+    .map(b=>`<div class="comp-seg" style="background:${b.color};flex:${Math.max(1,Math.round(b.total))}"></div>`).join('');
+  const ledger=BUCKETS.filter(b=>b.total>0).map(b=>{
+    const pct=Math.round(b.total/total*100);
+    const accts={...(lines[b.key]||{})};
+    // Reconcile mapped line items to the authoritative P&L bucket total.
+    const mapped=Object.values(accts).reduce((s,v)=>s+v,0);
+    if(b.total-mapped>1)accts['Misc']=(accts['Misc']||0)+(b.total-mapped);
+    const entries=Object.entries(accts).sort((x,y)=>y[1]-x[1]);
+    lineCount+=entries.length;
+    const rows=entries.map(([acct,amt])=>`<div class="led-row"><span class="nm">${escapeHtml(acct)}</span><span class="amt">${fmtD(amt)}</span></div>`).join('');
+    return `<div class="led-grp"><div class="led-head"><span class="led-sw" style="background:${b.color}"></span><span class="led-name">${b.name}</span><span class="led-pct">${pct}%</span><span class="led-sub">${fmtD(b.total)}</span></div>${rows}</div>`;
   }).join('');
   return `
     ${hdr(lineCount+' line items')}
