@@ -596,6 +596,30 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .om-foot b { color:var(--text); }
 .om-foot .dim { color:var(--text-4); }
 
+/* ── Selling: 4-bucket cost breakdown (mirrors money.html QBO category tree) ── */
+.qbo-list { margin-top:12px; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.qbo-line { display:grid; grid-template-columns:1fr auto 46px; align-items:center; gap:10px; padding:6px 12px; font-size:12px; font-variant-numeric:tabular-nums; }
+.qbo-line + .qbo-line { border-top:1px solid var(--border); }
+.qbo-line .cat { color:var(--text-2); text-align:left; min-width:0; }
+.qbo-line .cat .det { color:var(--text-4); font-weight:400; }
+.qbo-line .amt { font-weight:600; font-size:11.5px; text-align:right; color:var(--text); }
+.qbo-line .pct { font-size:10px; color:var(--text-4); text-align:right; }
+.qbo-line.section { background:var(--bg-alt); font-weight:700; }
+.qbo-line.section .cat { color:var(--text); display:flex; align-items:center; gap:7px; }
+.qbo-line.section .sw { width:9px; height:9px; border-radius:2px; flex:none; }
+.qbo-line.section .amt { font-size:12px; }
+.qbo-line.l0 .cat { font-weight:500; }
+.qbo-line.l1 { background:rgba(0,0,0,.015); }
+.qbo-line.l1 .cat { padding-left:20px; font-size:11.5px; color:var(--text-3); }
+.qbo-line.l2 .cat { padding-left:38px; font-size:11px; color:var(--text-4); }
+.qbo-line.l2 .amt { font-size:10.5px; color:var(--text-3); font-weight:500; }
+.qbo-line.neg-line .amt { color:var(--red); }
+.qbo-line.total { background:var(--bg-inset); font-weight:800; }
+.qbo-line.total .cat { color:var(--text); }
+.qbo-line.total .amt { font-size:14px; }
+.qbo-line.total.net-pos .cat, .qbo-line.total.net-pos .amt, .qbo-line.total.net-pos .pct { color:var(--green); }
+.qbo-line.total.net-neg .cat, .qbo-line.total.net-neg .amt, .qbo-line.total.net-neg .pct { color:var(--red); }
+
 /* ── Selling: editable offer-comparison table (local state; net-to-you live) ── */
 .off-cols { grid-template-columns:1.5fr 120px 74px 74px 96px 126px; gap:12px; }
 .off-hrow { display:grid; align-items:end; padding:0 12px 8px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--text-4); }
@@ -985,6 +1009,7 @@ let dealLoans=[];
 let capitalSources=[];
 let dealExpenses=[];
 let dealPnl=null;
+let bucketByAccount={};   // qbo_account_name → bucket (acquisition/rehab_*/financing/holding/disposition)
 let saving=false;
 let uwCtx=null;
 let lastArvRow=null;
@@ -1106,6 +1131,17 @@ async function loadProject(){
     dealExpenses=exps||[];
   } catch(e){
     dealExpenses=[];
+  }
+
+  // 8b. QBO account → bucket map (acquisition / rehab_* / financing / holding /
+  // disposition). Drives the 4-bucket Selling breakdown so it sections expenses
+  // identically to money.html. Graceful fallback → bucket totals still render.
+  try {
+    const {data:cats}=await sb.from('qbo_account_categories').select('qbo_account_name, bucket');
+    bucketByAccount={};
+    for(const c of (cats||[])){ if(c.qbo_account_name)bucketByAccount[c.qbo_account_name]=c.bucket; }
+  } catch(e){
+    bucketByAccount={};
   }
 
   // 9. Deal P&L rollup (canonical money-layer cost basis: acquisition + rehab
@@ -2196,23 +2232,22 @@ function wireListPriceCalc(){
   const d=currentDeal||{};
   const p=primaryProperty();
 
-  // ── Real cost-basis line items (actual · already spent) ───────────────────
-  // Prefer deal_pnl_v1 actuals; fall back to the deals row. These six are the
-  // grey-gradient "Closed" buckets — purchase + purchase expenses + rehab +
-  // financing are fixed (already spent); disposition + holding move with the
-  // selling assumptions on the left.
+  // ── Actual cost buckets (already spent) ───────────────────────────────────
+  // ACQ + REHAB come straight from the canonical deal_pnl_v1 rollup. ACQUISITION
+  // already includes ALL purchase-side costs (wholesaler fee, escrow/title/loan
+  // charges, inspection) — there is NO separate "purchase expenses" line, so we
+  // never add one (that was a double-count). Fall back to the deals row if the
+  // P&L view hasn't synced.
   const pnl=dealPnl||{};
   const purchase   = (typeof pnl.acquisition_actual==='number' && pnl.acquisition_actual>0)
                        ? pnl.acquisition_actual : (d.purchase_price||0);
-  const purchExp   = (typeof pnl.purchase_expenses_actual==='number') ? pnl.purchase_expenses_actual
-                       : Math.round(purchase*0.01);
   const rehab      = (typeof pnl.rehab_actual==='number' && pnl.rehab_actual>0) ? pnl.rehab_actual
                        : (d.rehab_actual || (p&&p.locked_construction) || 0);
   // Selling-stage carry is a TRUE PROJECTION over the whole hold — NOT the QBO
   // booked-to-date figures (which lag actual accrual). Mirrors deal_pnl_v1
   // carry_accrued: days × (hard-money interest/day + property carry/day), where
   // days = ownership (actual close) → projected sale close.
-  const FIXED = purchase + purchExp + rehab;   // already-spent, not time-based
+  const FIXED = purchase + rehab;   // ACQ + REHAB actuals (already spent)
 
   const loan=dealLoans.find(l=>l.status==='funded'||l.status==='pending')||dealLoans[0];
   const LOAN_BALANCE=loan?(loan.loan_amount||0):0;
@@ -2238,31 +2273,73 @@ function wireListPriceCalc(){
     {buyer:'Offer 2', fin:'—', price:num(slList),                  comm:2.85, days:24, concess:0},
   ];
 
-  // 6 "Closed"-bucket cost lines (grey gradient) + green profit.
+  // 4-bucket breakdown — same buckets + QBO drill-down as money.html, so the
+  // numbers reconcile everywhere. ACQ + REHAB are actuals from deal_expenses
+  // (nested by qbo_account_path); CARRY + DISP are projected (this is a forward
+  // P&L, not booked actuals), shown with their formula sub-lines.
+  function bucketIs(e, set){ return set.indexOf(bucketByAccount[e.qbo_account_name])>=0; }
+  // Nest expenses (matching `set` of QBO buckets) by account path, reconcile the
+  // mapped sum to the authoritative deal_pnl bucket total, and emit qbo-line rows.
+  function actualTree(label, color, total, set, pctBase){
+    const nodes={}; let mapped=0;
+    for(const e of (dealExpenses||[])){
+      if(!bucketIs(e,set))continue;
+      const amt=Number(e.amount||0); mapped+=amt;
+      const path=(Array.isArray(e.qbo_account_path)&&e.qbo_account_path.length)
+        ? e.qbo_account_path : String(e.qbo_account_name||'').split(':');
+      let lvl=nodes;
+      for(let i=0;i<path.length;i++){
+        const k=path[i];
+        if(!lvl[k])lvl[k]={name:k,amount:0,children:{}};
+        lvl[k].amount+=amt;
+        if(i===path.length-1)break;
+        lvl=lvl[k].children;
+      }
+    }
+    if(total-mapped>1){ nodes['Other']=nodes['Other']||{name:'Other',amount:0,children:{}}; nodes['Other'].amount+=(total-mapped); }
+    const out=[sectionRow(label,color,total,pctBase)];
+    const emit=(n,depth)=>{
+      const pct=pctBase>0?n.amount/pctBase*100:0;
+      out.push(`<div class="qbo-line l${Math.min(depth,2)}${n.amount<0?' neg-line':''}"><span class="cat">${escapeHtml(n.name)}</span><span class="amt">${F(n.amount)}</span><span class="pct">${Math.abs(pct)<0.05?'—':pct.toFixed(1)+'%'}</span></div>`);
+      Object.values(n.children).sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount)).forEach(k=>emit(k,depth+1));
+    };
+    Object.values(nodes).sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount)).forEach(t=>emit(t,0));
+    return out.join('');
+  }
+  function sectionRow(label,color,total,pctBase){
+    const pct=pctBase>0?(total/pctBase*100).toFixed(1)+'%':'';
+    return `<div class="qbo-line section"><span class="cat"><span class="sw" style="background:${color}"></span>${escapeHtml(label)}</span><span class="amt">${F(total)}</span><span class="pct">${pct}</span></div>`;
+  }
+  function leafRow(name,det,amt,pctBase){
+    const pct=pctBase>0?amt/pctBase*100:0;
+    return `<div class="qbo-line l0"><span class="cat">${escapeHtml(name)}${det?` <span class="det">· ${escapeHtml(det)}</span>`:''}</span><span class="amt">${F(amt)}</span><span class="pct">${Math.abs(pct)<0.05?'—':pct.toFixed(1)+'%'}</span></div>`;
+  }
   function renderSellBd(c){
-    const lines=[
-      {name:'Purchase price',    color:'#6B7280', det:'',                                                              amt:purchase},
-      {name:'Purchase expenses', color:'#868E99', det:'1% of purchase',                                                amt:purchExp},
-      {name:'Rehab',             color:'#9CA3AF', det:'actual',                                                        amt:rehab},
-      {name:'Financing',         color:'#C7C7CC', det:c.totalDays+' days @ '+F(DAILY_INTEREST)+'/day (projected)',     amt:c.financing},
-      {name:'Disposition',       color:'#D8D7D2', det:c.comm+'% comm + '+c.clo+'% closing'+(c.conc?' + '+F(c.conc)+' credit':''), amt:c.disposition},
-      {name:'Holding',           color:'#E1E0DC', det:c.totalDays+' days @ '+F(DAILY_HOLDING)+'/day (tax + carry)',    amt:c.holding},
-    ];
-    const segs=lines.map(l=>`<div class="om-bd-seg" style="background:${l.color};flex:${Math.max(l.amt,1)}"></div>`).join('');
-    const netSeg=`<div class="om-bd-seg" style="background:var(--green);flex:${Math.max(Math.abs(c.profit),1)};border-radius:0 7px 7px 0"></div>`;
-    const rowsHtml=lines.map(l=>`
-      <div class="om-bd-row">
-        <span class="om-bd-sw" style="background:${l.color}"></span>
-        <span class="om-bd-name">${l.name} ${l.det?`<span class="det">· ${l.det}</span>`:''}</span>
-        <span class="om-bd-pct">${c.list>0?(l.amt/c.list*100).toFixed(1):'0.0'}%</span>
-        <span class="om-bd-amt">${F(l.amt)}</span>
-      </div>`).join('');
+    const COL={acq:'#6B7280', rehab:'#9CA3AF', carry:'#C7C7CC', disp:'#D8D7D2'};
+    const list=c.list;
+    // Composition bar — one segment per bucket + green net.
+    const seg=(amt,color,round)=>`<div class="om-bd-seg" style="background:${color};flex:${Math.max(amt,1)}${round?';border-radius:0 7px 7px 0':''}"></div>`;
+    const bar=seg(purchase,COL.acq)+seg(rehab,COL.rehab)+seg(c.financing+c.holding,COL.carry)+seg(c.disposition,COL.disp)
+            +seg(Math.abs(c.profit),'var(--green)',true);
+    // Carry + Disposition sub-lines (projected).
+    const carryTree=sectionRow('Carry (projected)',COL.carry,c.financing+c.holding,list)
+      +leafRow('Loan interest', c.totalDays+' days @ '+F(DAILY_INTEREST)+'/day', c.financing, list)
+      +leafRow('Property tax + carry', c.totalDays+' days @ '+F(DAILY_HOLDING)+'/day', c.holding, list);
+    const dispTree=sectionRow('Disposition (projected)',COL.disp,c.disposition,list)
+      +leafRow('Commission', c.comm+'%', list*c.comm/100, list)
+      +leafRow('Closing costs', c.clo+'%', list*c.clo/100, list)
+      +(c.conc>0?leafRow('Concessions','buyer credit', c.conc, list):'');
     document.getElementById('slBd').innerHTML=`
-      <div class="om-bd-top"><span class="lbl">Sale price</span><span class="val">${F(c.list)}</span></div>
-      <div class="om-bd-bar">${segs}${netSeg}</div>
-      ${rowsHtml}
-      <div class="om-bd-total"><span class="om-bd-name">All-in cost</span><span class="om-bd-pct">${c.list>0?(c.allOut/c.list*100).toFixed(1):'0.0'}%</span><span class="om-bd-amt">${F(c.allOut)}</span></div>
-      <div class="om-bd-net ${c.profit>=0?'pos':'neg'}"><span class="om-bd-name">Net profit <span class="det" style="font-weight:400">· ${(c.profit/c.basis*100).toFixed(1)}% on cost</span></span><span class="om-bd-pct">${c.list>0?(c.profit/c.list*100).toFixed(1):'0.0'}%</span><span class="om-bd-amt">${FS(c.profit)}</span></div>
+      <div class="om-bd-top"><span class="lbl">Sale price</span><span class="val">${F(list)}</span></div>
+      <div class="om-bd-bar">${bar}</div>
+      <div class="qbo-list">
+        ${actualTree('Acquisition',COL.acq,purchase,['acquisition'],list)}
+        ${actualTree('Rehab',COL.rehab,rehab,['rehab_labor','rehab_materials','rehab_soft','rehab_other'],list)}
+        ${carryTree}
+        ${dispTree}
+        <div class="qbo-line total"><span class="cat">All-in cost</span><span class="amt">${F(c.allOut)}</span><span class="pct">${list>0?(c.allOut/list*100).toFixed(1)+'%':''}</span></div>
+        <div class="qbo-line total ${c.profit>=0?'net-pos':'net-neg'}"><span class="cat">Net profit <span class="det" style="font-weight:400">· ${(c.profit/c.basis*100).toFixed(1)}% on cost</span></span><span class="amt">${FS(c.profit)}</span><span class="pct">${list>0?(c.profit/list*100).toFixed(1)+'%':''}</span></div>
+      </div>
     `;
   }
   // Editable table — price / commission / escrow days / credit per offer; net recomputes live.
