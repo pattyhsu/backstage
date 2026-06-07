@@ -2602,6 +2602,18 @@ function wireListPriceCalc(){
   const carryAnchor=d.actual_close_date||d.escrow_start_date||(loan&&loan.funded_date)||null;
   const daysHeld=carryAnchor?Math.max(0, daysBetween(carryAnchor, todayStr())||0):0;
 
+  // Booked holding-bucket actuals EXCEPT property tax (which we project): property
+  // insurance, utilities, HOA, etc. Each is its own QBO category, so it's pulled
+  // as an ACTUAL — never estimated. Grouped by top-level account for display.
+  const holdCats={}; let holdActual=0;
+  for(const e of (dealExpenses||[])){
+    if(bucketByAccount[e.qbo_account_name]!=='holding')continue;
+    if(/propert\w*\s*tax/i.test(e.qbo_account_name||''))continue;   // tax is projected, skip actual
+    const amt=Number(e.amount||0); holdActual+=amt;
+    const top=(Array.isArray(e.qbo_account_path)&&e.qbo_account_path.length)?e.qbo_account_path[0]:String(e.qbo_account_name||'').split(':')[0];
+    holdCats[top]=(holdCats[top]||0)+amt;
+  }
+
   const F  = n => (n<0?'-$':'$') + Math.abs(Math.round(n)).toLocaleString();
   const FS = n => (n>=0?'+$':'-$') + Math.abs(Math.round(n)).toLocaleString();
   const num = el => Number((el.value||'').replace(/[^\d.-]/g,''))||0;
@@ -2672,12 +2684,18 @@ function wireListPriceCalc(){
     const detailLoaded=!!(dealExpenses && dealExpenses.length && Object.keys(bucketByAccount).length);
     // Composition bar — one segment per bucket + green net.
     const seg=(amt,color,round)=>`<div class="om-bd-seg" style="background:${color};flex:${Math.max(amt,1)}${round?';border-radius:0 7px 7px 0':''}"></div>`;
-    const bar=seg(purchase,COL.acq)+seg(rehab,COL.rehab)+seg(c.financing+c.holding,COL.carry)+seg(c.disposition,COL.disp)
+    const bar=seg(purchase,COL.acq)+seg(rehab,COL.rehab)+seg(c.carry,COL.carry)+seg(c.disposition,COL.disp)
             +seg(Math.abs(c.profit),'var(--green)',true);
-    // Carry + Disposition sub-lines (projected).
-    const carryTree=sectionRow('Carry (projected)',COL.carry,c.financing+c.holding,list)
-      +leafRow('Loan interest', c.totalDays+' days @ '+F(DAILY_INTEREST)+'/day', c.financing, list)
-      +leafRow('Property tax', c.totalDays+' days @ '+F(DAILY_TAX)+'/day', c.holding, list);
+    // Carry: HM interest + property tax are PROJECTED (accrue daily, not cleanly
+    // booked); insurance / utilities / HOA are pulled from QBO ACTUALS.
+    let carryTree=sectionRow('Carry',COL.carry,c.carry,list)
+      +leafRow('Hard money interest', c.totalDays+' days @ '+F(DAILY_INTEREST)+'/day · projected', c.financing, list);
+    if(detailLoaded){
+      Object.keys(holdCats).sort((a,b)=>holdCats[b]-holdCats[a]).forEach(k=>{
+        carryTree+=leafRow(k, 'actual', holdCats[k], list);
+      });
+    }
+    carryTree+=leafRow('Property taxes', c.totalDays+' days @ '+F(DAILY_TAX)+'/day · projected', c.propTax, list);
     const dispTree=sectionRow('Disposition (projected)',COL.disp,c.disposition,list)
       +leafRow('Commission', c.comm+'%', list*c.comm/100, list)
       +leafRow('Closing costs', c.clo+'%', list*c.clo/100, list)
@@ -2733,15 +2751,16 @@ function wireListPriceCalc(){
   function recalc(){
     const list=num(slList), comm=v('slComm'), clo=v('slClose'), conc=v('slConc'), days=v('slDays');
     const totalDays=daysHeld+Math.max(0,days);            // ownership → projected close
-    const financing=totalDays*DAILY_INTEREST;             // projected full-hold interest
-    const holding  =totalDays*DAILY_TAX;                  // projected full-hold property tax
+    const financing=totalDays*DAILY_INTEREST;             // HM interest — projected
+    const propTax  =totalDays*DAILY_TAX;                  // property tax — projected
+    const carry=financing+holdActual+propTax;             // + insurance/utilities (actual)
     const commission=list*comm/100, closing=list*clo/100;
     const disposition=commission+closing+conc;
-    const allOut=FIXED+financing+holding+disposition, profit=list-allOut;
+    const allOut=FIXED+carry+disposition, profit=list-allOut;
     const basis=allOut;                                   // all-in projected cost basis
     document.getElementById('slBasisHelp').textContent=
-      `${F(FIXED+financing+holding)} all-in before sale costs · ${totalDays} days held @ ${F(DAILY_INTEREST)} interest + ${F(DAILY_TAX)} tax /day →`;
-    renderSellBd({list,comm,clo,conc,days,totalDays,financing,holding,disposition,allOut,profit,basis});
+      `${F(FIXED+carry)} all-in before sale costs · ${totalDays} days held @ ${F(DAILY_INTEREST)} interest + ${F(DAILY_TAX)} tax /day${holdActual>0?' + '+F(holdActual)+' booked insurance':''} →`;
+    renderSellBd({list,comm,clo,conc,days,totalDays,financing,propTax,carry,disposition,allOut,profit,basis});
     document.getElementById('slFoot').innerHTML=
       `<span><b>Net proceeds</b> ${F(list-disposition)} <span class="dim">at close, before loan payoff</span></span>`+
       `<span style="margin-left:auto;font-weight:600;color:${profit>=0?'var(--green)':'var(--red)'}">Profit ${FS(profit)} · ${Math.round(profit/basis*100)}% on cost</span>`;
