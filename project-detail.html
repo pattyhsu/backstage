@@ -1876,6 +1876,35 @@ function renderDealDocs(){
       +`</div>`;
   }).join(''):'<div class="doc-empty">No documents yet — design plans, bids, and permits live here.</div>';
   ['docs-in_escrow','docs-under_construction'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=html;});
+  bindDocRowHandlers();  // re-bind after every render (innerHTML swap drops listeners)
+}
+
+// View / Delete / row-tap handlers — must run after each renderDealDocs() since
+// the innerHTML swap above replaces the rows (and their listeners).
+function bindDocRowHandlers(){
+  document.querySelectorAll('[data-docview]').forEach(el=>{
+    el.addEventListener('click', async e=>{
+      e.stopPropagation();
+      const path=el.getAttribute('data-docview');
+      el.textContent='…';
+      await openDocSignedUrl(path);
+      el.textContent='View';
+    });
+  });
+  document.querySelectorAll('[data-docdel]').forEach(el=>{
+    el.addEventListener('click', async e=>{
+      e.stopPropagation();
+      await deleteDealDoc(el.getAttribute('data-docdel'));
+    });
+  });
+  // Row-tap opens the signed URL (phone affordance).
+  document.querySelectorAll('.doc-row[data-docpath]').forEach(row=>{
+    row.addEventListener('click', e=>{
+      if(e.target.closest('a'))return;
+      const path=row.getAttribute('data-docpath');
+      if(path)openDocSignedUrl(path);
+    });
+  });
 }
 
 function closeDocModal(){
@@ -2021,33 +2050,8 @@ function wireDealDocs(){
     });
   }
 
-  // View links.
-  document.querySelectorAll('[data-docview]').forEach(el=>{
-    el.addEventListener('click', async e=>{
-      e.stopPropagation();
-      const path=el.getAttribute('data-docview');
-      el.textContent='…';
-      await openDocSignedUrl(path);
-      el.textContent='View';
-    });
-  });
-
-  // Delete links (owner only — rendered only when owner).
-  document.querySelectorAll('[data-docdel]').forEach(el=>{
-    el.addEventListener('click', async e=>{
-      e.stopPropagation();
-      await deleteDealDoc(el.getAttribute('data-docdel'));
-    });
-  });
-
-  // Row-tap opens the signed URL (phone affordance).
-  document.querySelectorAll('.doc-row[data-docpath]').forEach(row=>{
-    row.addEventListener('click', e=>{
-      if(e.target.closest('a'))return;
-      const path=row.getAttribute('data-docpath');
-      if(path)openDocSignedUrl(path);
-    });
-  });
+  // View / Delete / row-tap handlers are bound inside renderDealDocs() (called
+  // above) so they survive every re-render, not just the initial wire.
 }
 
 // Prevent missed drops elsewhere on the page from navigating away.
