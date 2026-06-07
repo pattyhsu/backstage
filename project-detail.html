@@ -600,7 +600,13 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .qbo-list { margin-top:12px; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
 .qbo-line { display:grid; grid-template-columns:1fr auto 46px; align-items:center; gap:10px; padding:6px 12px; font-size:12px; font-variant-numeric:tabular-nums; }
 .qbo-line + .qbo-line { border-top:1px solid var(--border); }
+.qbo-line.hidden { display:none; }
+.qbo-line.collapsible { cursor:pointer; }
+.qbo-line.collapsible:hover { background:var(--bg-inset); }
 .qbo-line .cat { color:var(--text-2); text-align:left; min-width:0; }
+.qbo-line .caret { display:inline-block; width:6px; height:8px; margin-right:6px; position:relative; vertical-align:middle; flex:none; }
+.qbo-line.collapsible .caret::before { content:''; position:absolute; top:0; left:0; width:0; height:0; border-left:5px solid var(--text-4); border-top:3.5px solid transparent; border-bottom:3.5px solid transparent; transition:transform .12s; transform-origin:2px 4px; }
+.qbo-line.collapsible:not(.collapsed) .caret::before { transform:rotate(90deg); }
 .qbo-line .cat .det { color:var(--text-4); font-weight:400; }
 .qbo-line .amt { font-weight:600; font-size:11.5px; text-align:right; color:var(--text); }
 .qbo-line .pct { font-size:10px; color:var(--text-4); text-align:right; }
@@ -1633,6 +1639,25 @@ function renderSpendingTree(){
 function wireSpendingTree(){
   document.addEventListener('click', _spTreeClick);
 }
+
+// Collapse/expand for the Selling-phase 4-bucket breakdown tree. Each row carries
+// data-depth (section 0, then nested deeper); clicking a collapsible row hides
+// every following row deeper than it until the next same-or-shallower row.
+// Re-attached fresh on each render via listEl.onclick (no listener buildup).
+function _sellTreeToggle(e){
+  const row=e.target.closest('.qbo-line.collapsible');
+  if(!row)return;
+  const rows=Array.from(row.parentElement.children);
+  const i=rows.indexOf(row);
+  const depth=+row.dataset.depth;
+  const collapsing=!row.classList.contains('collapsed');
+  row.classList.toggle('collapsed', collapsing);
+  for(let j=i+1;j<rows.length;j++){
+    if((+rows[j].dataset.depth)<=depth)break;
+    if(collapsing){ rows[j].classList.add('hidden'); }
+    else { rows[j].classList.remove('hidden'); rows[j].classList.remove('collapsed'); }
+  }
+}
 function _spTreeClick(e){
   const caret=e.target.closest('.sp-tree .caret');
   if(!caret)return;
@@ -2299,8 +2324,9 @@ function wireListPriceCalc(){
     if(total-mapped>1){ nodes['Other']=nodes['Other']||{name:'Other',amount:0,children:{}}; nodes['Other'].amount+=(total-mapped); }
     const out=[sectionRow(label,color,total,pctBase)];
     const emit=(n,depth)=>{
+      const hasKids=Object.keys(n.children).length>0;
       const pct=pctBase>0?n.amount/pctBase*100:0;
-      out.push(`<div class="qbo-line l${Math.min(depth,2)}${n.amount<0?' neg-line':''}"><span class="cat">${escapeHtml(n.name)}</span><span class="amt">${F(n.amount)}</span><span class="pct">${Math.abs(pct)<0.05?'—':pct.toFixed(1)+'%'}</span></div>`);
+      out.push(`<div class="qbo-line l${Math.min(depth,2)}${hasKids?' collapsible':''}${n.amount<0?' neg-line':''}" data-depth="${depth+1}"><span class="cat"><span class="caret"></span>${escapeHtml(n.name)}</span><span class="amt">${F(n.amount)}</span><span class="pct">${Math.abs(pct)<0.05?'—':pct.toFixed(1)+'%'}</span></div>`);
       Object.values(n.children).sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount)).forEach(k=>emit(k,depth+1));
     };
     Object.values(nodes).sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount)).forEach(t=>emit(t,0));
@@ -2308,11 +2334,11 @@ function wireListPriceCalc(){
   }
   function sectionRow(label,color,total,pctBase){
     const pct=pctBase>0?(total/pctBase*100).toFixed(1)+'%':'';
-    return `<div class="qbo-line section"><span class="cat"><span class="sw" style="background:${color}"></span>${escapeHtml(label)}</span><span class="amt">${F(total)}</span><span class="pct">${pct}</span></div>`;
+    return `<div class="qbo-line section collapsible" data-depth="0"><span class="cat"><span class="caret"></span><span class="sw" style="background:${color}"></span>${escapeHtml(label)}</span><span class="amt">${F(total)}</span><span class="pct">${pct}</span></div>`;
   }
   function leafRow(name,det,amt,pctBase){
     const pct=pctBase>0?amt/pctBase*100:0;
-    return `<div class="qbo-line l0"><span class="cat">${escapeHtml(name)}${det?` <span class="det">· ${escapeHtml(det)}</span>`:''}</span><span class="amt">${F(amt)}</span><span class="pct">${Math.abs(pct)<0.05?'—':pct.toFixed(1)+'%'}</span></div>`;
+    return `<div class="qbo-line l0" data-depth="1"><span class="cat"><span class="caret"></span>${escapeHtml(name)}${det?` <span class="det">· ${escapeHtml(det)}</span>`:''}</span><span class="amt">${F(amt)}</span><span class="pct">${Math.abs(pct)<0.05?'—':pct.toFixed(1)+'%'}</span></div>`;
   }
   function renderSellBd(c){
     const COL={acq:'#6B7280', rehab:'#9CA3AF', carry:'#C7C7CC', disp:'#D8D7D2'};
@@ -2337,10 +2363,12 @@ function wireListPriceCalc(){
         ${actualTree('Rehab',COL.rehab,rehab,['rehab_labor','rehab_materials','rehab_soft','rehab_other'],list)}
         ${carryTree}
         ${dispTree}
-        <div class="qbo-line total"><span class="cat">All-in cost</span><span class="amt">${F(c.allOut)}</span><span class="pct">${list>0?(c.allOut/list*100).toFixed(1)+'%':''}</span></div>
-        <div class="qbo-line total ${c.profit>=0?'net-pos':'net-neg'}"><span class="cat">Net profit <span class="det" style="font-weight:400">· ${(c.profit/c.basis*100).toFixed(1)}% on cost</span></span><span class="amt">${FS(c.profit)}</span><span class="pct">${list>0?(c.profit/list*100).toFixed(1)+'%':''}</span></div>
+        <div class="qbo-line total" data-depth="0"><span class="cat"><span class="caret"></span>All-in cost</span><span class="amt">${F(c.allOut)}</span><span class="pct">${list>0?(c.allOut/list*100).toFixed(1)+'%':''}</span></div>
+        <div class="qbo-line total ${c.profit>=0?'net-pos':'net-neg'}" data-depth="0"><span class="cat"><span class="caret"></span>Net profit <span class="det" style="font-weight:400">· ${(c.profit/c.basis*100).toFixed(1)}% on cost</span></span><span class="amt">${FS(c.profit)}</span><span class="pct">${list>0?(c.profit/list*100).toFixed(1)+'%':''}</span></div>
       </div>
     `;
+    const listEl=document.querySelector('#slBd .qbo-list');
+    if(listEl)listEl.onclick=_sellTreeToggle;
   }
   // Editable table — price / commission / escrow days / credit per offer; net recomputes live.
   function renderOfferTable(){
