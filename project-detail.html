@@ -135,8 +135,10 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .topbar-lost { background:#fff; border:1px solid var(--border); border-radius:6px; padding:6px 12px; font:12px var(--sans,inherit); font-weight:600; color:var(--text-3); cursor:pointer; white-space:nowrap; transition:all .12s; }
 .topbar-lost:hover { border-color:var(--red); color:var(--red); }
 .topbar-reopen:hover { border-color:var(--accent); color:var(--accent); }
-.lost-note { width:100%; box-sizing:border-box; min-height:64px; resize:vertical; padding:9px 11px; border:1px solid var(--border); border-radius:7px; font:13px var(--sans,inherit); color:var(--text); margin-bottom:2px; }
-.lost-note:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim); }
+.lost-reasons { display:flex; flex-wrap:wrap; gap:8px; margin:2px 0 4px; }
+.lost-chip { border:1px solid var(--border); background:#fff; color:var(--text-2); border-radius:999px; padding:7px 14px; font:12.5px var(--sans,inherit); font-weight:600; cursor:pointer; transition:all .12s; }
+.lost-chip:hover { border-color:var(--border-hover); color:var(--text); }
+.lost-chip.sel { border-color:var(--red); background:var(--red-bg); color:var(--red); }
 .adv-btn-primary.lost-confirm { background:var(--red); border-color:var(--red); }
 .adv-btn-primary.lost-confirm:hover { background:var(--red); filter:brightness(.93); }
 
@@ -766,7 +768,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
   <div class="adv-modal">
     <h3>Mark deal lost</h3>
     <div class="adv-blurb">This deal moves to <b>Lost</b> and drops out of the active pipeline. It stays on file (visible under “Lost” on the Pipeline) and you can reopen it later.</div>
-    <textarea id="lostNote" class="lost-note" placeholder="Optional — why? (outbid · inspection killed it · seller relisted · couldn’t agree on price …)"></textarea>
+    <div class="lost-reasons" id="lostReasons"></div>
     <div class="adv-actions">
       <button class="adv-btn-ghost" onclick="closeMarkLost()">Cancel</button>
       <button class="adv-btn-primary lost-confirm" id="lostConfirmBtn" onclick="markDealLost()">Mark lost</button>
@@ -3352,13 +3354,29 @@ window.movePhase=movePhase;
 // Mark-lost is allowed only from pursuing or in_escrow (the two stages where a
 // deal can still fall out). Reopen sends a lost deal back to pursuing. Both reuse
 // the same deals + deals_phase_history write the linear advance path uses.
+// Reasons are phase-specific — pursuing falls out pre-contract (lost the bid or
+// the numbers didn't pencil); in-escrow falls out when the post-inspection price
+// renegotiation breaks down. The picked label is saved as the phase-history note.
+const LOST_REASONS={
+  pursuing: ['Outbid', "Numbers don't work"],
+  in_escrow: ["Couldn't agree on price"],
+};
+let lostReasonSel=null;
 function openMarkLost(){
   const ph=currentDeal&&currentDeal.phase;
   if(ph!=='pursuing'&&ph!=='in_escrow')return;
-  document.getElementById('lostNote').value='';
+  lostReasonSel=null;
+  const reasons=LOST_REASONS[ph]||[];
+  document.getElementById('lostReasons').innerHTML=reasons.map(r=>
+    `<button type="button" class="lost-chip" data-reason="${escapeHtml(r)}" onclick="selectLostReason(this)">${escapeHtml(r)}</button>`).join('');
   const msg=document.getElementById('lostMsg'); msg.className='adv-msg'; msg.textContent='';
-  const btn=document.getElementById('lostConfirmBtn'); if(btn)btn.disabled=false;
+  const btn=document.getElementById('lostConfirmBtn'); if(btn)btn.disabled=true;
   document.getElementById('markLostModal').classList.add('open');
+}
+function selectLostReason(el){
+  lostReasonSel=el.dataset.reason;
+  document.querySelectorAll('#lostReasons .lost-chip').forEach(c=>c.classList.toggle('sel', c===el));
+  const btn=document.getElementById('lostConfirmBtn'); if(btn)btn.disabled=false;
 }
 function closeMarkLost(){ document.getElementById('markLostModal').classList.remove('open'); }
 async function markDealLost(){
@@ -3367,7 +3385,8 @@ async function markDealLost(){
   const btn=document.getElementById('lostConfirmBtn');
   const msg=document.getElementById('lostMsg');
   if(fromPhase!=='pursuing'&&fromPhase!=='in_escrow'){msg.className='adv-msg err';msg.textContent='Only a pursuing or in-escrow deal can be marked lost.';return;}
-  const note=(document.getElementById('lostNote').value||'').trim()||null;
+  if(!lostReasonSel){msg.className='adv-msg err';msg.textContent='Pick a reason.';return;}
+  const note=lostReasonSel;
   const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
   saving=true; btn.disabled=true; msg.className='adv-msg'; msg.textContent='Saving...';
   const {error:dErr}=await sb.from('deals').update({phase:'lost', updated_at:new Date().toISOString()}).eq('id', currentDeal.id);
@@ -3395,6 +3414,7 @@ async function reopenDeal(){
   await loadProject();
 }
 window.openMarkLost=openMarkLost;
+window.selectLostReason=selectLostReason;
 window.closeMarkLost=closeMarkLost;
 window.markDealLost=markDealLost;
 window.reopenDeal=reopenDeal;
