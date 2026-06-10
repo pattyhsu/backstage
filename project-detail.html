@@ -2400,6 +2400,8 @@ function renderOfferCalc(){
   const p=primaryProperty();
   const arvLocked=!!(p && p.locked_arv!=null);
   const arv=arvLocked?p.locked_arv:(lastArvRow?lastArvRow.headline_arv:1200000);
+  const constLocked=!!(p && p.locked_construction!=null);
+  const construction=constLocked?p.locked_construction:(lastGradeRow?lastGradeRow.rehab_estimate:132000);
   const offer=d.offer_price||Math.round(arv*0.68);
   return `
     <div class="lp-calc phase-hide" id="offerCalc">
@@ -2410,6 +2412,13 @@ function renderOfferCalc(){
             <div class="om-arv-row">
               <input id="ocArv" value="$${Math.round(arv).toLocaleString()}" ${arvLocked?'readonly':''}>
               <button type="button" id="ocArvLock" class="om-lockbtn${arvLocked?' on':''}">${arvLocked?'🔒 Locked':'Lock ARV'}</button>
+            </div>
+          </div>
+          <div>
+            <div class="om-grp">Construction / rehab</div>
+            <div class="om-arv-row">
+              <input id="ocConst" value="$${Math.round(construction).toLocaleString()}" ${constLocked?'readonly':''}>
+              <button type="button" id="ocConstLock" class="om-lockbtn${constLocked?' on':''}">${constLocked?'🔒 Locked':'Lock cost'}</button>
             </div>
           </div>
           <div>
@@ -2444,7 +2453,7 @@ function wireOfferCalc(){
   if(!offerEl)return;
   const p=primaryProperty();
   const arvLocked=!!(p && p.locked_arv!=null);
-  const construction=(p && p.locked_construction!=null)?p.locked_construction:(lastGradeRow?lastGradeRow.rehab_estimate:132000);
+  const constLocked=!!(p && p.locked_construction!=null);
   // Full-dollar formatting (precise, comma-grouped) for the waterfall breakdown.
   const F  = n => (n<0?'-$':'$') + Math.abs(Math.round(n)).toLocaleString();
   const FS = n => (n>=0?'+$':'-$') + Math.abs(Math.round(n)).toLocaleString();
@@ -2453,6 +2462,10 @@ function wireOfferCalc(){
   // you type. Only "Lock ARV" persists it to properties.locked_arv.
   const arvEl=document.getElementById('ocArv');
   const curArv=()=>Number((arvEl.value||'').replace(/[^\d.-]/g,''))||0;
+  // Construction read live from its (editable) input so the breakdown recomputes
+  // as you type. Only "Lock cost" persists it to properties.locked_construction.
+  const constEl=document.getElementById('ocConst');
+  const curConst=()=>Number((constEl.value||'').replace(/[^\d.-]/g,''))||0;
   // Unified 6-bucket waterfall. purchase = effective acquisition cost.
   function compute(arv, purchase, months, rate, ltv){
     const loan=purchase*(ltv/100);
@@ -2464,7 +2477,7 @@ function wireOfferCalc(){
     const rows=[
       {key:'purchase',    name:'Purchase price',       det:'',                                      amt:purchase},
       {key:'purchexp',    name:'Purchase expenses',    det:'1% of purchase',                        amt:purchexp},
-      {key:'rehab',       name:'Construction / rehab', det:'',                                      amt:construction},
+      {key:'rehab',       name:'Construction / rehab', det:'',                                      amt:curConst()},
       {key:'financing',   name:'Financing',            det:rate+'% · '+ltv+'% LTV · '+months+'mo',  amt:financing},
       {key:'holding',     name:'Holding',              det:'0.3% of ARV',                           amt:holding},
       {key:'disposition', name:'Disposition',          det:'4% sell',                               amt:disposition},
@@ -2510,7 +2523,7 @@ function wireOfferCalc(){
       `Loan <b>${F(c.loan)}</b> (${ltv}% of ${F(purchase)}) · cash down <b>${F(c.cashDown)}</b> · interest <b>${F(carry)}</b> over ${months}mo`;
     const meets=Math.round(margin*10)/10>=target;
     document.getElementById('ocFoot').innerHTML=
-      `<span><b>Cash needed</b> ${F(c.cashDown+construction+carry)} <span class="dim">· ${F(c.cashDown)} down + ${F(construction)} rehab + ${F(carry)} carry</span></span>`+
+      `<span><b>Cash needed</b> ${F(c.cashDown+curConst()+carry)} <span class="dim">· ${F(c.cashDown)} down + ${F(curConst())} rehab + ${F(carry)} carry</span></span>`+
       `<span style="margin-left:auto;font-weight:600;color:${meets?'var(--green)':'var(--red)'}">${meets?`✓ meets ${target}% target margin`:`▼ below ${target}% target margin`}</span>`;
   }
   // Lock / unlock ARV → persists to properties.locked_arv (same column the
@@ -2539,7 +2552,32 @@ function wireOfferCalc(){
       }
     });
   }
-  ['ocArv','ocOffer','ocReduction','ocCommission','ocTargetSpread','ocMonths','ocRate','ocLtv']
+  // Lock / unlock construction → persists to properties.locked_construction (same
+  // column the underwriting bar and Cash-needed panel read). Mirrors the ARV lock.
+  const constLockBtn=document.getElementById('ocConstLock');
+  if(constLockBtn){
+    constLockBtn.addEventListener('click', async ()=>{
+      const mls=(p && p.mls) || (uwCtx && uwCtx.activeMls);
+      if(!mls){alert('No property is linked to this deal yet — construction cost can’t be saved.');return;}
+      let val=null;
+      if(!constLocked){
+        val=curConst();
+        if(!val){alert('Enter a construction cost before locking.');return;}
+      }
+      constLockBtn.disabled=true;
+      try{
+        const {error}=await sb.from('properties')
+          .update({locked_construction:val, updated_at:new Date().toISOString()}).eq('mls', mls);
+        if(error)throw error;
+        await loadProject();
+      }catch(e){
+        console.warn('construction lock toggle failed',e);
+        alert('Construction '+(constLocked?'unlock':'lock')+' failed: '+(e&&e.message?e.message:String(e)));
+        constLockBtn.disabled=false;
+      }
+    });
+  }
+  ['ocArv','ocConst','ocOffer','ocReduction','ocCommission','ocTargetSpread','ocMonths','ocRate','ocLtv']
     .forEach(id=>document.getElementById(id).addEventListener('input', recalc));
   recalc();
 }

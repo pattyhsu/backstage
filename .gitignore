@@ -12,3 +12,6 @@ _tmp_*
 # Local dev tooling & backups
 .claude/
 .backups/
+_pd-local.html
+HANDOFF.md
+make-pd-local.sh
