@@ -131,6 +131,14 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .adv-btn-primary { background:var(--accent); border:1px solid var(--accent); border-radius:6px; padding:7px 16px; font:13px var(--sans,inherit); font-weight:700; color:#fff; cursor:pointer; }
 .adv-btn-primary:hover { background:var(--accent-hover); }
 .adv-btn-primary:disabled { opacity:.55; cursor:not-allowed; }
+/* Mark-lost / reopen controls (topbar) + lost modal */
+.topbar-lost { background:#fff; border:1px solid var(--border); border-radius:6px; padding:6px 12px; font:12px var(--sans,inherit); font-weight:600; color:var(--text-3); cursor:pointer; white-space:nowrap; transition:all .12s; }
+.topbar-lost:hover { border-color:var(--red); color:var(--red); }
+.topbar-reopen:hover { border-color:var(--accent); color:var(--accent); }
+.lost-note { width:100%; box-sizing:border-box; min-height:64px; resize:vertical; padding:9px 11px; border:1px solid var(--border); border-radius:7px; font:13px var(--sans,inherit); color:var(--text); margin-bottom:2px; }
+.lost-note:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim); }
+.adv-btn-primary.lost-confirm { background:var(--red); border-color:var(--red); }
+.adv-btn-primary.lost-confirm:hover { background:var(--red); filter:brightness(.93); }
 
 /* === Underwriting bar === */
 .uw-bar { margin-top:16px; padding:14px 18px; background:var(--accent-dim); border:1px solid var(--accent-dim2); border-radius:8px; display:flex; align-items:center; gap:28px; flex-wrap:wrap; }
@@ -709,6 +717,8 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
   <a class="back-btn" href="pipeline.html">← Pipeline</a>
   <div class="topbar-right">
     <div class="stage-tabs" id="stageTabs"></div>
+    <button class="topbar-lost" id="markLostBtn" style="display:none" onclick="openMarkLost()">Mark lost</button>
+    <button class="topbar-lost topbar-reopen" id="reopenBtn" style="display:none" onclick="reopenDeal()">Reopen → Pursuing</button>
     <a class="topbar-link" id="topbarListingLink" href="#" style="display:none">View full listing →</a>
   </div>
 </div>
@@ -748,6 +758,20 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
       <button class="adv-btn-primary" id="ppMoveBtn" onclick="movePhase()">Advance</button>
     </div>
     <div class="adv-msg" id="ppMsg"></div>
+  </div>
+</div>
+
+<!-- Mark-lost modal — moves a pursuing/in-escrow deal to phase='lost' with an optional reason note. -->
+<div class="adv-overlay" id="markLostModal" onclick="if(event.target===this)closeMarkLost()">
+  <div class="adv-modal">
+    <h3>Mark deal lost</h3>
+    <div class="adv-blurb">This deal moves to <b>Lost</b> and drops out of the active pipeline. It stays on file (visible under “Lost” on the Pipeline) and you can reopen it later.</div>
+    <textarea id="lostNote" class="lost-note" placeholder="Optional — why? (outbid · inspection killed it · seller relisted · couldn’t agree on price …)"></textarea>
+    <div class="adv-actions">
+      <button class="adv-btn-ghost" onclick="closeMarkLost()">Cancel</button>
+      <button class="adv-btn-primary lost-confirm" id="lostConfirmBtn" onclick="markDealLost()">Mark lost</button>
+    </div>
+    <div class="adv-msg" id="lostMsg"></div>
   </div>
 </div>
 
@@ -3162,6 +3186,12 @@ function renderStageTabs(phase, aux, optionsHtml){
     return `<button class="${cls}" data-phase="${ph}" title="${escapeHtml(title)}">${inner}</button>`;
   }).join('');
 
+  // Mark-lost shows only where a deal can still fall out (pursuing / in_escrow);
+  // Reopen shows only on an already-lost deal. `phase` is the deal's real phase.
+  const mlBtn=document.getElementById('markLostBtn');
+  if(mlBtn)mlBtn.style.display=(phase==='pursuing'||phase==='in_escrow')?'':'none';
+  const roBtn=document.getElementById('reopenBtn');
+  if(roBtn)roBtn.style.display=(phase==='lost')?'':'none';
   // Topbar "View full listing" link — to the active MLS listing.
   const link=document.getElementById('topbarListingLink');
   if(link){
@@ -3317,6 +3347,57 @@ async function movePhase(){
   }
 }
 window.movePhase=movePhase;
+
+// ── Mark lost / reopen ─────────────────────────────────────────────
+// Mark-lost is allowed only from pursuing or in_escrow (the two stages where a
+// deal can still fall out). Reopen sends a lost deal back to pursuing. Both reuse
+// the same deals + deals_phase_history write the linear advance path uses.
+function openMarkLost(){
+  const ph=currentDeal&&currentDeal.phase;
+  if(ph!=='pursuing'&&ph!=='in_escrow')return;
+  document.getElementById('lostNote').value='';
+  const msg=document.getElementById('lostMsg'); msg.className='adv-msg'; msg.textContent='';
+  const btn=document.getElementById('lostConfirmBtn'); if(btn)btn.disabled=false;
+  document.getElementById('markLostModal').classList.add('open');
+}
+function closeMarkLost(){ document.getElementById('markLostModal').classList.remove('open'); }
+async function markDealLost(){
+  if(saving)return;
+  const fromPhase=currentDeal.phase;
+  const btn=document.getElementById('lostConfirmBtn');
+  const msg=document.getElementById('lostMsg');
+  if(fromPhase!=='pursuing'&&fromPhase!=='in_escrow'){msg.className='adv-msg err';msg.textContent='Only a pursuing or in-escrow deal can be marked lost.';return;}
+  const note=(document.getElementById('lostNote').value||'').trim()||null;
+  const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
+  saving=true; btn.disabled=true; msg.className='adv-msg'; msg.textContent='Saving...';
+  const {error:dErr}=await sb.from('deals').update({phase:'lost', updated_at:new Date().toISOString()}).eq('id', currentDeal.id);
+  if(dErr){saving=false;btn.disabled=false;msg.className='adv-msg err';msg.textContent='Update failed: '+dErr.message;return;}
+  const {error:hErr}=await sb.from('deals_phase_history').insert({deal_id:currentDeal.id, from_phase:fromPhase, to_phase:'lost', transitioned_by:userId, note});
+  if(hErr){saving=false;btn.disabled=false;msg.className='adv-msg err';msg.textContent='History insert failed: '+hErr.message;return;}
+  saving=false; btn.disabled=false;
+  closeMarkLost();
+  stageViewing=null;
+  await loadProject();
+}
+async function reopenDeal(){
+  if(saving)return;
+  const fromPhase=currentDeal.phase;
+  if(fromPhase!=='lost')return;
+  if(!confirm('Reopen this deal and move it back to Pursuing?'))return;
+  const userId=(window.CURRENT_USER&&window.CURRENT_USER.id)||null;
+  saving=true;
+  const {error:dErr}=await sb.from('deals').update({phase:'pursuing', updated_at:new Date().toISOString()}).eq('id', currentDeal.id);
+  if(dErr){saving=false;alert('Reopen failed: '+dErr.message);return;}
+  const {error:hErr}=await sb.from('deals_phase_history').insert({deal_id:currentDeal.id, from_phase:fromPhase, to_phase:'pursuing', transitioned_by:userId, note:'reopened'});
+  if(hErr){saving=false;alert('Reopen logged history failed: '+hErr.message);return;}
+  saving=false;
+  stageViewing=null;
+  await loadProject();
+}
+window.openMarkLost=openMarkLost;
+window.closeMarkLost=closeMarkLost;
+window.markDealLost=markDealLost;
+window.reopenDeal=reopenDeal;
 
 // ============================================================
 // UW BAR INLINE EDITS (preserved from prior + × clear)
