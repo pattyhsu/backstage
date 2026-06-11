@@ -276,6 +276,10 @@
     <input type="checkbox" id="fUnreviewed" onchange="resetAndLoad()">
     Unreviewed only
   </label>
+  <label class="filter-toggle">
+    <input type="checkbox" id="fStarred" onchange="resetAndLoad()">
+    ★ Starred only
+  </label>
 </div>
 
 <div id="cardContainer" class="card-grid"></div>
@@ -536,6 +540,7 @@ function applyCardFilters(query){
   if(city) query=query.eq('city',city);
   if(conf) query=query.eq('condition_confidence',conf);
   if(unreviewed) query=query.or('condition_overridden.is.null,condition_overridden.eq.false');
+  if(document.getElementById('fStarred').checked) query=query.eq('design_starred',true);
   if(filters.search){
     // Strip commas/quotes/parens — PostgREST .or() splits on commas and
     // treats quotes/parens as syntax, so unsanitized input would break the filter.
