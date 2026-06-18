@@ -1499,12 +1499,22 @@ function _tierCurrentKey(tier,vdru,isDotty,overridden){
   if(tier)return tier;
   return overridden?'null':null;
 }
-// Gradient red→green across tiers 1-6. DOTTY gets purple.
-function _tierColors(tier,isDotty){
+// 3 color buckets anchored on the old T1/T4/T6 gradient stops. DOTTY purple.
+//   low  (T1 red,   gradient tier 1): T1, T2
+//   mid  (T4 olive, gradient tier 4): T3, T5-B, T5-C
+//   high (T6 green, gradient tier 6): T4, T5-A, T6
+function _tierBucket(tier,vdru){
+  if(tier===5)return vdru===2?6:4; // 5A->high, 5B/5C->mid
+  if(tier===1||tier===2)return 1;  // low
+  if(tier===3)return 4;            // mid
+  if(tier===4||tier===6)return 6;  // high
+  return tier;
+}
+function _tierColors(tier,vdru,isDotty){
   if(isDotty)return{bg:'var(--purple-bg)',col:'var(--purple)'};
   if(!tier||tier<1||tier>6)return{bg:'var(--bg-alt)',col:'var(--text-4)'};
-  // Lerp red(192,57,43) → green(45,138,78) across t∈[0,1]
-  const t=(tier-1)/5;
+  // Lerp red(192,57,43) → green(45,138,78) across the bucketed t∈[0,1]
+  const t=(_tierBucket(tier,vdru)-1)/5;
   const r=Math.round(192+(45-192)*t);
   const g=Math.round(57+(138-57)*t);
   const b=Math.round(43+(78-43)*t);
@@ -1523,9 +1533,8 @@ function condTierBadge(l){
     return'';
   }
   // ONE chip per row: T5 shows its sub-tier (T5-A/B/C), not a redundant T5 +
-  // T5-B pair. T5-C (both original) is the flip opportunity — highlight green.
-  let{bg,col}=_tierColors(tier,isDotty);
-  if(tier===5&&SUBTIER5_LABEL[vdru]==='C'){bg='rgba(45,138,78,0.15)';col='var(--green)';}
+  // T5-B pair. Color follows the 3-bucket scheme (5A=high, 5B/5C=mid).
+  const{bg,col}=_tierColors(tier,vdru,isDotty);
   const lbl=_tierChipLabel(tier,vdru,isDotty,ov);
   const title=isDotty?'Condition tier — DOTTY (our property)':(tier===5?(SUBTIER5_TITLE[SUBTIER5_LABEL[vdru]]||'Condition tier 5 — Half-flip'):`Condition tier ${tier} — ${TIER_LABELS[tier]||''}`);
   return`<span class="tag" style="background:${bg};color:${col};border:none" title="${title}">${lbl}</span>`;
@@ -1548,11 +1557,11 @@ function subjectTierEditor(l){
   const id=l.mls.replace(/[^a-zA-Z0-9]/g,'');
   const isDotty=l.isDotty===true,tier=l.conditionTier,vdru=l.valueDriverRooms,ov=l.conditionOverridden===true;
   const currentKey=_tierCurrentKey(tier,vdru,isDotty,ov);
-  const{bg,col}=_tierColors(tier,isDotty);
+  const{bg,col}=_tierColors(tier,vdru,isDotty);
   const chip=_tierChipLabel(tier,vdru,isDotty,ov);
   const dropId=`subj-retag-${id}`;
   const opts=TIER_OPTS.map(([v,_chip,full])=>{
-    const oc=_tierColors(_keyTier(v),v==='dotty');
+    const oc=_tierColors(_keyTier(v),({'5A':2,'5B':1,'5C':0}[v]??null),v==='dotty');
     const isCur=v===currentKey;
     return`<button onclick="event.stopPropagation();setSubjectTier('${l.mls}','${v}')" style="background:${oc.bg};color:${oc.col};${isCur?'font-weight:800;':''}padding:5px 10px;font-size:10px;text-transform:none;letter-spacing:0">${full}${isCur?' ✓':''}</button>`;
   }).join('');
@@ -1590,12 +1599,12 @@ function compTypeSelectHtml(c,subjectMid){
   const isDotty=c.isDotty===true;
   const tier=c.conditionTier,vdru=c.valueDriverRooms,ov=c.conditionOverridden===true;
   const currentKey=_tierCurrentKey(tier,vdru,isDotty,ov);
-  const{bg,col}=_tierColors(tier,isDotty);
+  const{bg,col}=_tierColors(tier,vdru,isDotty);
   const currentChipLbl=_tierChipLabel(tier,vdru,isDotty,ov);
   const compIdSafe=String(c.mls).replace(/[^a-zA-Z0-9]/g,'');
   const dropId=`retag-drop-${subjectMid}-${compIdSafe}`;
   const optsHtml=TIER_OPTS.map(([v,_chip,full])=>{
-    const oc=_tierColors(_keyTier(v), v==='dotty');
+    const oc=_tierColors(_keyTier(v),({'5A':2,'5B':1,'5C':0}[v]??null),v==='dotty');
     const isCur=v===currentKey;
     return`<button onclick="event.stopPropagation();setTierFromDrop('${c.mls}','${subjectMid}','${v}')" style="background:${oc.bg};color:${oc.col};${isCur?'font-weight:800;':''}padding:5px 10px;font-size:10px;text-transform:none;letter-spacing:0">${full}${isCur?' ✓':''}</button>`;
   }).join('');
@@ -1641,7 +1650,7 @@ function compH(c,idx,mls){
   const tier=c.conditionTier;
   const hasTier=isDotty||(tier&&tier>=1&&tier<=6);
   const lbl=hasTier?(isDotty?'DOTTY':'T'+tier):(c.type==='dotty'?'DOTTY':c.type==='flip'||c.type==='flips'?'FLIP':c.type==='halfflips'?'HALF':'SOLD');
-  const col=hasTier?_tierColors(tier,isDotty).col:(c.type==='dotty'?'var(--purple)':c.type==='flip'||c.type==='flips'?'var(--green)':c.type==='halfflips'?'var(--amber)':'var(--text-4)');
+  const col=hasTier?_tierColors(tier,c.valueDriverRooms,isDotty).col:(c.type==='dotty'?'var(--purple)':c.type==='flip'||c.type==='flips'?'var(--green)':c.type==='halfflips'?'var(--amber)':'var(--text-4)');
   // Row class drives subtle row-bg tinting (cd/cf/ch existing CSS rules).
   // Map tier-based to the closest legacy class for visual continuity:
   // dotty→cd, tier 6→cf, tier 4-5→ch, tier 1-3→none.
