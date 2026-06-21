@@ -267,13 +267,17 @@ function todayISO(){
   const p=x=>String(x).padStart(2,'0');
   return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
 }
-function plusDaysISO(iso,days){
+// Add N calendar months, clamping the day to the target month's length
+// (e.g. Jan 31 + 1mo -> Feb 28/29, not a roll-over into March).
+function plusMonthsISO(iso,months){
   const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if(!m)return '';
-  const d=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));
-  d.setDate(d.getDate()+days);
+  const y=Number(m[1]), mo=Number(m[2])-1, day=Number(m[3]);
+  const target=new Date(y, mo+months, 1);
+  const lastDay=new Date(target.getFullYear(), target.getMonth()+1, 0).getDate();
+  target.setDate(Math.min(day, lastDay));
   const p=x=>String(x).padStart(2,'0');
-  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+  return target.getFullYear()+'-'+p(target.getMonth()+1)+'-'+p(target.getDate());
 }
 
 // ========== LINE ITEMS ==========
@@ -405,7 +409,7 @@ function resetForm(){
 function initDates(){
   const t=todayISO();
   document.getElementById('f-date').value=t;
-  document.getElementById('f-valid').value=plusDaysISO(t,30);
+  document.getElementById('f-valid').value=plusMonthsISO(t,1);
 }
 
 // ========== INIT ==========
