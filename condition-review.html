@@ -249,7 +249,6 @@
       <button onclick="setTierFilter('5A')" style="padding-left:26px">└ T5-A · both updated</button>
       <button onclick="setTierFilter('5B')" style="padding-left:26px">└ T5-B · half-flip</button>
       <button onclick="setTierFilter('5C')" style="padding-left:26px">└ T5-C · opportunity</button>
-      <button onclick="setTierFilter('5U')" style="padding-left:26px">└ T5-U · unclassified</button>
       <button onclick="setTierFilter('6')">T6 · Full flip</button>
       <button onclick="setTierFilter('uncat')" style="border-top:1px solid var(--border);margin-top:4px;padding-top:9px">⊘ Uncategorized · no tier</button>
     </div>
@@ -324,7 +323,6 @@
         <div class="def-srow"><span class="def-schip">T5-A</span><span class="def-stext">Kitchen <b>and</b> bath both updated — nicest of the half-flips.</span></div>
         <div class="def-srow"><span class="def-schip">T5-B</span><span class="def-stext">One of kitchen / bath updated — the true half-flip.</span></div>
         <div class="def-srow"><span class="def-schip">T5-C</span><span class="def-stext">Both kitchen and bath original — flip opportunity.</span></div>
-        <div class="def-srow"><span class="def-schip">T5-U</span><span class="def-stext">Unclassified — sub-tier not yet set.</span></div>
       </div>
     </div>
 
@@ -361,7 +359,6 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;  // expose for auth.js
 
 const SUBTIER={2:{l:'A',t:'Kitchen + bath both updated (nicest)'},1:{l:'B',t:'One of kitchen/bath updated (half-flip)'},0:{l:'C',t:'Both original — flip opportunity'}};
-const SUBTIER_U={l:'U',t:'Unclassified — sub-tier not yet set'};
 
 // Last loaded page of rows, keyed by id — lets override handlers re-render a
 // single card in place without a full reload.
@@ -432,10 +429,10 @@ function setCityFilter(value){
 }
 
 function setTierFilter(value){
-  const SUB={'5A':'2','5B':'1','5C':'0','5U':'null'};
+  const SUB={'5A':'2','5B':'1','5C':'0'};
   if(value in SUB){ filters.tier='5'; filters.subtier=SUB[value]; }
   else { filters.tier=value; filters.subtier=''; }
-  const labels={'':'All Conditions','1':'T1 · Distressed','2':'T2 · Dated (livable)','3':'T3 · Modern (owner-grade)','4':'T4 · Lived-in flip-quality','5':'T5 · Half-flip','6':'T6 · Full flip','5A':'T5-A · both updated','5B':'T5-B · half-flip','5C':'T5-C · opportunity','5U':'T5-U · unclassified','uncat':'Uncategorized · no tier'};
+  const labels={'':'All Conditions','1':'T1 · Distressed','2':'T2 · Dated (livable)','3':'T3 · Modern (owner-grade)','4':'T4 · Lived-in flip-quality','5':'T5 · Half-flip','6':'T6 · Full flip','5A':'T5-A · both updated','5B':'T5-B · half-flip','5C':'T5-C · opportunity','uncat':'Uncategorized · no tier'};
   document.getElementById('fTier-label').textContent=labels[value]||'All Conditions';
   const drop=document.getElementById('fTier-drop');
   drop.querySelectorAll('button').forEach(b=>b.classList.remove('selected'));
@@ -533,8 +530,7 @@ function applyCardFilters(query){
   } else {
     query=query.not('condition_tier','is',null);
     if(tier) query=query.eq('condition_tier',parseInt(tier));
-    if(filters.subtier==='null') query=query.is('value_driver_rooms_updated',null);
-    else if(filters.subtier!=='') query=query.eq('value_driver_rooms_updated',parseInt(filters.subtier));
+    if(filters.subtier!=='') query=query.eq('value_driver_rooms_updated',parseInt(filters.subtier));
   }
 
   if(city) query=query.eq('city',city);
@@ -660,10 +656,12 @@ function renderCard(p){
       }).join('')
     : `<div style="padding:20px;color:var(--text-4);font-size:13px">No photos available (photo_count=${totalPhotos})</div>`;
 
-  // Tier buttons: T1–T4 and T6 are single-action; T5's four sub-tiers (A/B/C/U)
+  // Tier buttons: T1–T4 and T6 are single-action; T5's three sub-tiers (A/B/C)
   // are clustered into one tinted group. Clicking a sub-tier sets condition_tier=5
   // AND value_driver_rooms_updated in a single override. Clicking the ALREADY-active
-  // button de-selects it → condition_tier=null (uncategorized).
+  // button de-selects it → condition_tier=null (uncategorized). There is no bare
+  // "T5-U" sub-tier — an ungradeable listing uses the ⊘ Uncat control (tier=null),
+  // not a T5 with a null sub-tier.
   const t=p.condition_tier, sub=p.value_driver_rooms_updated;
   const mainBtn=(n)=>{
     const on=t===n;
@@ -673,15 +671,14 @@ function renderCard(p){
     return `<button class="${cls}" title="${title}" onclick="${click}">T${n}</button>`;
   };
   const subBtn=(v,label)=>{
-    const on=t===5 && (v===null ? (sub===null||sub===undefined) : sub===v);
+    const on=t===5 && sub===v;
     const cls=on?(isOverridden?'tier-btn sub overridden':'tier-btn sub active'):'tier-btn sub';
-    const baseTitle=v===null?SUBTIER_U.t:SUBTIER[v].t;
-    const title=on?'Click again to de-select (uncategorize)':baseTitle;
-    const click=on?`clearTier('${p.id}')`:`setT5('${p.id}',${v===null?'null':v})`;
+    const title=on?'Click again to de-select (uncategorize)':SUBTIER[v].t;
+    const click=on?`clearTier('${p.id}')`:`setT5('${p.id}',${v})`;
     return `<button class="${cls}" title="${esc(title)}" onclick="${click}">${label}</button>`;
   };
   const tierBtns=`${mainBtn(1)}${mainBtn(2)}${mainBtn(3)}${mainBtn(4)}`
-    +`<span class="t5-group"><span class="t5-tag">T5</span>${subBtn(2,'A')}${subBtn(1,'B')}${subBtn(0,'C')}${subBtn(null,'U')}</span>`
+    +`<span class="t5-group"><span class="t5-tag">T5</span>${subBtn(2,'A')}${subBtn(1,'B')}${subBtn(0,'C')}</span>`
     +`${mainBtn(6)}`;
   // Uncategorized — explicit "no gradeable tier" control (e.g. exterior-only or too
   // few photos). Sets condition_tier=null and marks reviewed. Active when t is null.
