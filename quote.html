@@ -130,9 +130,9 @@ table.doc-table thead th { background:var(--doc-navy); color:#fff; font-size:11.
 table.doc-table thead th.num { text-align:right; }
 table.doc-table thead th.ctr { text-align:center; }
 table.doc-table tbody td { border:1px solid #dde1e6; padding:12px; vertical-align:top; }
-table.doc-table td.li-desc .t { font-weight:700; font-size:13px; margin-bottom:6px; }
-table.doc-table td.li-desc ul { margin:0; padding-left:17px; }
-table.doc-table td.li-desc li { font-size:12px; color:#41505c; line-height:1.5; margin-bottom:2px; }
+table.doc-table td.li-desc ul { margin:0; padding-left:18px; }
+table.doc-table td.li-desc li { font-size:12.5px; color:var(--doc-ink); line-height:1.55; margin-bottom:3px; }
+table.doc-table td.li-desc li:last-child { margin-bottom:0; }
 table.doc-table td.ctr { text-align:center; white-space:nowrap; width:64px; }
 table.doc-table td.num { text-align:right; white-space:nowrap; width:104px; }
 
@@ -282,19 +282,15 @@ function plusMonthsISO(iso,months){
 
 // ========== LINE ITEMS ==========
 // Source of truth for rows lives in the DOM (the editor cards). We read
-// them on each render. Each card: description, scope (bullets), qty, unit, amount.
+// them on each render. Each card: scope (bullets), qty, unit, amount.
 let LI_SEQ=0;
 function itemCardHtml(id){
   return `<div class="li-card" data-li="${id}">
     <span class="li-num">ITEM</span>
     <button class="li-x" title="Remove" onclick="removeItem(${id})">✕</button>
     <div class="fld">
-      <label>Description</label>
-      <input type="text" data-k="desc" oninput="render()" placeholder="Concrete Driveway Installation — 21 ft × 8 ft (168 sq ft)">
-    </div>
-    <div class="fld">
       <label>Scope — one bullet per line</label>
-      <textarea data-k="scope" rows="3" oninput="render()" placeholder="Site preparation: demolition of current concrete&#10;Form and pour 168 sq ft of concrete&#10;Cleanup and removal of debris from work area"></textarea>
+      <textarea data-k="scope" rows="4" oninput="render()" placeholder="Concrete driveway installation — 21 ft × 8 ft (168 sq ft)&#10;Site preparation: demolition of current concrete&#10;Form and pour 168 sq ft of concrete&#10;Cleanup and removal of debris from work area"></textarea>
     </div>
     <div class="fld-row">
       <div class="fld"><label>Qty</label><input type="text" data-k="qty" oninput="render()" placeholder="168"></div>
@@ -317,7 +313,7 @@ function readItems(){
   const out=[];
   document.querySelectorAll('#li-list .li-card').forEach(card=>{
     const get=k=>{const e=card.querySelector(`[data-k="${k}"]`);return e?e.value:'';};
-    out.push({desc:get('desc'),scope:get('scope'),qty:get('qty'),unit:get('unit'),amount:get('amount')});
+    out.push({scope:get('scope'),qty:get('qty'),unit:get('unit'),amount:get('amount')});
   });
   return out;
 }
@@ -339,10 +335,11 @@ function render(){
   const rowsHtml=items.map(it=>{
     subtotal+=numOrZero(it.amount);
     const bullets=(it.scope||'').split('\n').map(s=>s.trim()).filter(Boolean);
-    const bulletsHtml=bullets.length?`<ul>${bullets.map(b=>`<li>${escapeHtml(b)}</li>`).join('')}</ul>`:'';
-    const title=it.desc?escapeHtml(it.desc):'<span style="color:#9aa3ac">Description</span>';
+    const bulletsHtml=bullets.length
+      ? `<ul>${bullets.map(b=>`<li>${escapeHtml(b)}</li>`).join('')}</ul>`
+      : '<span style="color:#9aa3ac">Scope — one bullet per line</span>';
     return `<tr>
-      <td class="li-desc"><div class="t">${title}</div>${bulletsHtml}</td>
+      <td class="li-desc">${bulletsHtml}</td>
       <td class="ctr">${escapeHtml(it.qty||'')}</td>
       <td class="ctr">${escapeHtml(it.unit||'')}</td>
       <td class="num">${money(it.amount)}</td>
