@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quote Generator — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js"></script>
+<style>
+/* === QUOTE GENERATOR — local layout only ===
+   Shared shell + sidebar tokens come from backstage.css / pipeline.html.
+   This page is a print-only tool: a form on the left edits a live "paper"
+   preview on the right; the browser's Print / Save-as-PDF reproduces the
+   document exactly. Nothing is persisted. */
+
+:root {
+  --doc-navy: #2c3e54;       /* header band + table head + Total Due */
+  --doc-navy-tint: #e9eef4;  /* Total Due row background */
+  --doc-ink: #1f2933;
+  --doc-muted: #5c5c55;
+}
+
+body { overflow:hidden; height:100vh; }
+
+.app-shell { display:flex; height:100vh; }
+
+/* --- Sidebar (identical token block to pipeline.html) --- */
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+.bs-sidebar.collapsed { width:56px; }
+.bs-sidebar.collapsed .side-brand span, .bs-sidebar.collapsed .side-section-label, .bs-sidebar.collapsed .side-label, .bs-sidebar.collapsed .side-user-name, .bs-sidebar.collapsed .lock-btn { display:none; }
+.bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+.bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+.bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+.bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+.bs-sidebar.collapsed .side-user { justify-content:center; }
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.lock-btn:hover { color:var(--text); }
+.collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
+.collapse-btn:hover { color:var(--text); }
+.main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
+
+/* --- Top header bar --- */
+.q-hdr { padding:14px 20px 12px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.92); backdrop-filter:blur(20px); display:flex; align-items:center; justify-content:space-between; gap:16px; flex-shrink:0; }
+.q-hdr h1 { font-size:14px; font-weight:700; letter-spacing:-.3px; color:var(--accent); margin:0; }
+.q-hdr h1 span { color:var(--text-3); font-weight:400; margin-left:6px; }
+.q-actions { display:flex; gap:8px; }
+.btn { font-size:12.5px; font-weight:600; padding:7px 14px; border-radius:var(--radius); border:1px solid var(--border-strong); background:var(--bg); color:var(--text-2); cursor:pointer; transition:all .12s; }
+.btn:hover { border-color:var(--border-hover); background:var(--bg-page); }
+.btn-primary { background:var(--doc-navy); border-color:var(--doc-navy); color:#fff; }
+.btn-primary:hover { background:#22303f; }
+
+/* --- Work area: editor (left) + preview (right) --- */
+.q-work { flex:1; display:flex; min-height:0; }
+.q-editor { width:430px; flex-shrink:0; border-right:1px solid var(--border); overflow-y:auto; padding:18px 20px 60px; background:var(--bg-page); }
+.q-preview-wrap { flex:1; overflow-y:auto; background:var(--bg-inset); padding:28px; display:flex; justify-content:center; align-items:flex-start; }
+
+/* --- Editor form --- */
+.fld { margin-bottom:13px; }
+.fld label { display:block; font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--text-4); margin-bottom:4px; }
+.fld input, .fld textarea { width:100%; box-sizing:border-box; font-family:var(--sans); font-size:13px; color:var(--text); padding:7px 9px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); }
+.fld input:focus, .fld textarea:focus { outline:none; border-color:var(--accent); }
+.fld textarea { resize:vertical; line-height:1.45; }
+.fld-row { display:flex; gap:10px; }
+.fld-row .fld { flex:1; }
+.hint { font-size:10.5px; color:var(--text-4); margin-top:3px; line-height:1.35; }
+
+.sec-label { font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-3); margin:22px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--border); }
+
+/* Line-item editor cards */
+.li-card { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:12px 12px 8px; margin-bottom:11px; position:relative; }
+.li-card .li-num { position:absolute; top:-8px; left:11px; background:var(--doc-navy); color:#fff; font-size:9.5px; font-weight:700; letter-spacing:.4px; padding:2px 7px; border-radius:9px; }
+.li-x { position:absolute; top:9px; right:9px; border:none; background:none; cursor:pointer; color:var(--text-4); font-size:15px; line-height:1; padding:2px; }
+.li-x:hover { color:var(--red); }
+.li-card .fld:last-child { margin-bottom:9px; }
+.btn-add { width:100%; font-size:12.5px; font-weight:600; padding:9px; border-radius:var(--radius); border:1px dashed var(--border-strong); background:var(--bg); color:var(--text-3); cursor:pointer; }
+.btn-add:hover { border-color:var(--accent); color:var(--accent); }
+
+/* === THE PAPER (also the print surface) === */
+.paper {
+  width:760px; min-height:983px;            /* ~8.5×11 at 96dpi minus margins */
+  background:#fff; color:var(--doc-ink);
+  box-shadow:0 4px 24px rgba(0,0,0,.14);
+  padding:0 0 48px;
+  font-size:13px; line-height:1.5;
+}
+.doc-band { background:var(--doc-navy); color:#fff; padding:22px 40px; display:flex; align-items:flex-start; justify-content:space-between; }
+.doc-band .co-name { font-size:26px; font-weight:700; letter-spacing:.5px; line-height:1; }
+.doc-band .co-sub { font-size:12px; font-weight:400; color:rgba(255,255,255,.72); margin-top:6px; }
+.doc-band .doc-type { font-size:28px; font-weight:700; letter-spacing:1px; }
+.doc-lic { padding:12px 40px; font-size:11.5px; color:var(--doc-muted); border-bottom:1px solid #d8dde3; }
+.doc-lic b { color:var(--doc-ink); font-weight:600; }
+
+.doc-meta { padding:20px 40px 4px; display:flex; justify-content:space-between; gap:24px; }
+.dm-to .dm-cap { font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--doc-navy); margin-bottom:5px; }
+.dm-to .to-line { font-size:13px; line-height:1.5; }
+.dm-to .to-line:first-of-type { font-weight:700; font-size:13.5px; }
+.dm-dates { text-align:right; font-size:12.5px; white-space:nowrap; }
+.dm-dates .dm-pair { display:flex; gap:14px; justify-content:flex-end; margin-bottom:3px; }
+.dm-dates .dm-k { color:var(--doc-muted); }
+.dm-dates .dm-v { font-weight:600; min-width:96px; text-align:right; }
+
+.doc-intro { padding:14px 40px 4px; font-size:13px; color:#33414d; line-height:1.55; }
+
+.doc-table-wrap { padding:18px 40px 0; }
+table.doc-table { width:100%; border-collapse:collapse; }
+table.doc-table thead th { background:var(--doc-navy); color:#fff; font-size:11.5px; font-weight:600; text-align:left; padding:8px 12px; }
+table.doc-table thead th.num { text-align:right; }
+table.doc-table thead th.ctr { text-align:center; }
+table.doc-table tbody td { border:1px solid #dde1e6; padding:12px; vertical-align:top; }
+table.doc-table td.li-desc .t { font-weight:700; font-size:13px; margin-bottom:6px; }
+table.doc-table td.li-desc ul { margin:0; padding-left:17px; }
+table.doc-table td.li-desc li { font-size:12px; color:#41505c; line-height:1.5; margin-bottom:2px; }
+table.doc-table td.ctr { text-align:center; white-space:nowrap; width:64px; }
+table.doc-table td.num { text-align:right; white-space:nowrap; width:104px; }
+
+.doc-totals { padding:0 40px; margin-top:2px; display:flex; flex-direction:column; align-items:flex-end; }
+.doc-totals .tot-row { display:flex; justify-content:space-between; gap:48px; padding:9px 12px; min-width:260px; box-sizing:border-box; }
+.doc-totals .tot-row .tk { color:var(--doc-muted); }
+.doc-totals .tot-row .tv { font-weight:600; }
+.doc-totals .tot-row.grand { background:var(--doc-navy-tint); }
+.doc-totals .tot-row.grand .tk { color:var(--doc-navy); font-weight:700; font-size:14px; }
+.doc-totals .tot-row.grand .tv { color:var(--doc-navy); font-weight:700; font-size:16px; }
+
+.doc-foot { padding:30px 40px 0; font-size:11.5px; color:var(--doc-muted); line-height:1.55; }
+.doc-foot .ft-note { white-space:pre-wrap; }
+
+/* === PRINT === */
+@media print {
+  @page { size:letter; margin:0.5in; }
+  html, body { height:auto; overflow:visible; background:#fff; }
+  .app-shell { display:block; height:auto; }
+  .bs-sidebar, .q-hdr, .q-editor, .main-content > .q-hdr { display:none !important; }
+  .main-content { overflow:visible; display:block; }
+  .q-work { display:block; }
+  .q-preview-wrap { display:block; padding:0; background:#fff; overflow:visible; }
+  .paper { width:auto; min-height:0; box-shadow:none; margin:0; }
+  /* Force the navy band + table head + total tint to actually print. */
+  .doc-band, table.doc-table thead th { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .doc-totals .tot-row.grand { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  table.doc-table tbody tr { page-break-inside:avoid; }
+}
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+<!-- Sidebar (rendered by sidebar.js) -->
+<div class="bs-sidebar" id="bsSidebar"></div>
+
+<div class="main-content">
+
+  <div class="q-hdr">
+    <h1>Quote Generator <span>fill in &amp; print to PDF</span></h1>
+    <div class="q-actions">
+      <button class="btn" onclick="resetForm()">Clear</button>
+      <button class="btn btn-primary" onclick="window.print()">Print / Save PDF</button>
+    </div>
+  </div>
+
+  <div class="q-work">
+
+    <!-- ===== EDITOR ===== -->
+    <div class="q-editor">
+
+      <div class="sec-label" style="margin-top:0">Prepared For</div>
+      <div class="fld">
+        <label>Client / property address</label>
+        <textarea id="f-to" rows="3" oninput="render()" placeholder="13434 Lucas Pl&#10;Cerritos, CA 90703"></textarea>
+        <div class="hint">One line per row. The first line prints bold.</div>
+      </div>
+
+      <div class="fld-row">
+        <div class="fld">
+          <label>Date</label>
+          <input type="date" id="f-date" oninput="render()">
+        </div>
+        <div class="fld">
+          <label>Valid Until</label>
+          <input type="date" id="f-valid" oninput="render()">
+        </div>
+      </div>
+
+      <div class="fld">
+        <label>Intro line</label>
+        <textarea id="f-intro" rows="2" oninput="render()">We are pleased to provide the following quote for the work described below. Thank you for the opportunity to earn your business.</textarea>
+      </div>
+
+      <div class="sec-label">Line Items</div>
+      <div id="li-list"></div>
+      <button class="btn-add" onclick="addItem()">+ Add line item</button>
+
+      <div class="sec-label">Footer note <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-4)">(optional)</span></div>
+      <div class="fld">
+        <textarea id="f-foot" rows="2" oninput="render()" placeholder="e.g. 50% deposit due on acceptance, balance on completion. Quote valid 30 days."></textarea>
+      </div>
+
+    </div>
+
+    <!-- ===== LIVE PAPER PREVIEW ===== -->
+    <div class="q-preview-wrap">
+      <div class="paper" id="paper"><!-- rendered by render() --></div>
+    </div>
+
+  </div><!-- /q-work -->
+</div><!-- /main-content -->
+</div><!-- /app-shell -->
+
+<script>
+// ========== SUPABASE CLIENT (auth gate only; no data reads) ==========
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+
+// Fixed company identity — prints in the header band + license line.
+const CO = {
+  name: 'DOTTY HOMES',
+  sub:  'General Contractor',
+  lic:  'CSLB Lic. #1137668',
+  cls:  'Class B — General Building Contractor',
+};
+
+// ========== HELPERS ==========
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
+// $2,500.00 — always 2 decimals, thousands separators. Blank for empty.
+function money(n){
+  if(n==null||n==='')return '';
+  const v=Number(String(n).replace(/[^0-9.\-]/g,''));
+  if(!isFinite(v))return '';
+  return '$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function numOrZero(n){const v=Number(String(n==null?'':n).replace(/[^0-9.\-]/g,''));return isFinite(v)?v:0;}
+// yyyy-mm-dd -> "June 6, 2026" (parsed as LOCAL date to avoid TZ off-by-one).
+function longDate(iso){
+  if(!iso)return '';
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if(!m)return '';
+  const d=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));
+  return d.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+}
+function todayISO(){
+  const d=new Date();
+  const p=x=>String(x).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
+function plusDaysISO(iso,days){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if(!m)return '';
+  const d=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));
+  d.setDate(d.getDate()+days);
+  const p=x=>String(x).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
+
+// ========== LINE ITEMS ==========
+// Source of truth for rows lives in the DOM (the editor cards). We read
+// them on each render. Each card: description, scope (bullets), qty, unit, amount.
+let LI_SEQ=0;
+function itemCardHtml(id){
+  return `<div class="li-card" data-li="${id}">
+    <span class="li-num">ITEM</span>
+    <button class="li-x" title="Remove" onclick="removeItem(${id})">✕</button>
+    <div class="fld">
+      <label>Description</label>
+      <input type="text" data-k="desc" oninput="render()" placeholder="Concrete Driveway Installation — 21 ft × 8 ft (168 sq ft)">
+    </div>
+    <div class="fld">
+      <label>Scope — one bullet per line</label>
+      <textarea data-k="scope" rows="3" oninput="render()" placeholder="Site preparation: demolition of current concrete&#10;Form and pour 168 sq ft of concrete&#10;Cleanup and removal of debris from work area"></textarea>
+    </div>
+    <div class="fld-row">
+      <div class="fld"><label>Qty</label><input type="text" data-k="qty" oninput="render()" placeholder="168"></div>
+      <div class="fld"><label>Unit</label><input type="text" data-k="unit" oninput="render()" placeholder="sq ft"></div>
+      <div class="fld"><label>Amount</label><input type="text" data-k="amount" oninput="render()" placeholder="2500"></div>
+    </div>
+  </div>`;
+}
+function addItem(){
+  const id=++LI_SEQ;
+  document.getElementById('li-list').insertAdjacentHTML('beforeend', itemCardHtml(id));
+  render();
+}
+function removeItem(id){
+  const el=document.querySelector(`.li-card[data-li="${id}"]`);
+  if(el)el.remove();
+  render();
+}
+function readItems(){
+  const out=[];
+  document.querySelectorAll('#li-list .li-card').forEach(card=>{
+    const get=k=>{const e=card.querySelector(`[data-k="${k}"]`);return e?e.value:'';};
+    out.push({desc:get('desc'),scope:get('scope'),qty:get('qty'),unit:get('unit'),amount:get('amount')});
+  });
+  return out;
+}
+
+// ========== RENDER PAPER ==========
+function render(){
+  const toLines=(document.getElementById('f-to').value||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const dateISO=document.getElementById('f-date').value;
+  const validISO=document.getElementById('f-valid').value;
+  const intro=document.getElementById('f-intro').value||'';
+  const foot=document.getElementById('f-foot').value||'';
+  const items=readItems();
+
+  const toHtml=toLines.length
+    ? toLines.map(l=>`<div class="to-line">${escapeHtml(l)}</div>`).join('')
+    : `<div class="to-line" style="color:#9aa3ac;font-weight:400">Client / property address</div>`;
+
+  let subtotal=0;
+  const rowsHtml=items.map(it=>{
+    subtotal+=numOrZero(it.amount);
+    const bullets=(it.scope||'').split('\n').map(s=>s.trim()).filter(Boolean);
+    const bulletsHtml=bullets.length?`<ul>${bullets.map(b=>`<li>${escapeHtml(b)}</li>`).join('')}</ul>`:'';
+    const title=it.desc?escapeHtml(it.desc):'<span style="color:#9aa3ac">Description</span>';
+    return `<tr>
+      <td class="li-desc"><div class="t">${title}</div>${bulletsHtml}</td>
+      <td class="ctr">${escapeHtml(it.qty||'')}</td>
+      <td class="ctr">${escapeHtml(it.unit||'')}</td>
+      <td class="num">${money(it.amount)}</td>
+    </tr>`;
+  }).join('');
+
+  const emptyRow=`<tr><td class="li-desc" colspan="4" style="color:#9aa3ac;text-align:center;padding:26px">Add a line item to begin.</td></tr>`;
+
+  document.getElementById('paper').innerHTML = `
+    <div class="doc-band">
+      <div>
+        <div class="co-name">${escapeHtml(CO.name)}</div>
+        <div class="co-sub">${escapeHtml(CO.sub)}</div>
+      </div>
+      <div class="doc-type">QUOTE</div>
+    </div>
+
+    <div class="doc-lic"><b>${escapeHtml(CO.lic)}</b> &nbsp;·&nbsp; ${escapeHtml(CO.cls)}</div>
+
+    <div class="doc-meta">
+      <div class="dm-to">
+        <div class="dm-cap">Prepared For</div>
+        ${toHtml}
+      </div>
+      <div class="dm-dates">
+        <div class="dm-pair"><span class="dm-k">Date</span><span class="dm-v">${escapeHtml(longDate(dateISO))}</span></div>
+        <div class="dm-pair"><span class="dm-k">Valid Until</span><span class="dm-v">${escapeHtml(longDate(validISO))}</span></div>
+      </div>
+    </div>
+
+    ${intro.trim()?`<div class="doc-intro">${escapeHtml(intro)}</div>`:''}
+
+    <div class="doc-table-wrap">
+      <table class="doc-table">
+        <thead><tr>
+          <th>Description</th>
+          <th class="ctr" style="width:64px">Qty</th>
+          <th class="ctr" style="width:64px">Unit</th>
+          <th class="num" style="width:104px">Amount</th>
+        </tr></thead>
+        <tbody>${rowsHtml||emptyRow}</tbody>
+      </table>
+    </div>
+
+    <div class="doc-totals">
+      <div class="tot-row"><span class="tk">Subtotal</span><span class="tv">${money(subtotal)||'$0.00'}</span></div>
+      <div class="tot-row grand"><span class="tk">Total Due</span><span class="tv">${money(subtotal)||'$0.00'}</span></div>
+    </div>
+
+    ${foot.trim()?`<div class="doc-foot"><div class="ft-note">${escapeHtml(foot)}</div></div>`:''}
+  `;
+}
+
+// ========== RESET ==========
+function resetForm(){
+  if(!confirm('Clear this quote and start over?'))return;
+  document.getElementById('f-to').value='';
+  document.getElementById('f-intro').value='We are pleased to provide the following quote for the work described below. Thank you for the opportunity to earn your business.';
+  document.getElementById('f-foot').value='';
+  document.getElementById('li-list').innerHTML='';
+  initDates();
+  addItem(); // also calls render()
+}
+function initDates(){
+  const t=todayISO();
+  document.getElementById('f-date').value=t;
+  document.getElementById('f-valid').value=plusDaysISO(t,30);
+}
+
+// ========== INIT ==========
+(async()=>{
+  await window.authGate();
+  if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
+  window.renderSidebar('quote');
+  initDates();
+  addItem();  // start with one empty line item; calls render()
+})();
+</script>
+</body>
+</html>
