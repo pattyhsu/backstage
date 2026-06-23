@@ -232,7 +232,7 @@
 </div>
 
 <div class="filter-bar">
-  <input type="text" class="search-input" id="fSearch" placeholder="Search MLS# or address…" oninput="setSearchFilter(this.value)" autocomplete="off">
+  <input type="text" class="search-input" id="fSearch" placeholder="Search MLS# / address — or paste a comma-separated list…" oninput="setSearchFilter(this.value)" autocomplete="off">
   <div class="chip-wrap" id="fCity-wrap">
     <button class="chip-btn" id="fCity-btn" onclick="event.stopPropagation();toggleChipDrop('fCity-drop')"><span id="fCity-label">All Cities</span></button>
     <div class="chip-drop" id="fCity-drop"></div>
@@ -372,8 +372,15 @@ let totalCount=0;
 let loadSeq=0;
 
 // Filter state (replaces native <select> .value reads — Tesla-friendly).
-let filters={city:'',tier:'',confidence:'',search:'',window:'',subtier:''};
+// mlsList = "review this exact set" mode (a comma/newline-separated paste in the
+// search box, or the ?mls= deep-link) — shows exactly those MLS#s, ignoring the
+// other filters. Used to review an ARV re-tag shortlist all at once.
+let filters={city:'',tier:'',confidence:'',search:'',window:'',subtier:'',mlsList:[]};
 let searchDebounce=null;
+
+// Effective page size: a pasted MLS-list review shows the whole set on one page
+// (so you don't have to page through a 22-row shortlist); normal browsing pages.
+function curPageSize(){ return filters.mlsList.length ? 500 : PAGE_SIZE; }
 
 // ========== INIT ==========
 async function init(){
@@ -445,7 +452,16 @@ function setTierFilter(value){
 }
 
 function setSearchFilter(value){
-  filters.search=(value||'').trim();
+  const raw=(value||'').trim();
+  // A comma/newline-separated paste switches to MLS-list review mode: show
+  // exactly that set of listings. A single token is a normal MLS/address search.
+  if(/[,\n]/.test(raw)){
+    filters.mlsList=raw.split(/[,\n]+/).map(s=>s.trim().toUpperCase()).filter(Boolean);
+    filters.search='';
+  } else {
+    filters.mlsList=[];
+    filters.search=raw;
+  }
   if(searchDebounce) clearTimeout(searchDebounce);
   searchDebounce=setTimeout(()=>{resetAndLoad();},250);
 }
@@ -516,6 +532,13 @@ function resetAndLoad(){currentPage=0;loadCards();}
 // window) to a query. Shared by the data fetch and the count fetch so the two
 // can't drift apart.
 function applyCardFilters(query){
+  // MLS-list review mode short-circuits every other filter: show EXACTLY the
+  // pasted set, whatever their tier (a row cleared mid-review still shows on
+  // reload). Lets a re-tag shortlist be reviewed as one batch.
+  if(filters.mlsList.length){
+    return query.in('mls',filters.mlsList);
+  }
+
   const city=filters.city;
   const tier=filters.tier;
   const conf=filters.confidence;
@@ -557,7 +580,8 @@ function applyCardFilters(query){
 
 async function loadCards(){
   const seq=++loadSeq;
-  const from=currentPage*PAGE_SIZE;
+  const ps=curPageSize();
+  const from=currentPage*ps;
 
   // The data query drops the two big text columns (remarks + condition_reasoning
   // were ~80% of each row's bytes) so the cards paint as soon as it lands. Count
@@ -571,7 +595,7 @@ async function loadCards(){
     sb.from('properties')
       .select('id,mls,address,city,sqft,beds,baths,sale_price,list_price,photo_count,condition_tier,condition_confidence,condition_sample_photos,condition_overridden,value_driver_rooms_updated,design_starred')
       .order('condition_scored_at',{ascending:false}).order('id',{ascending:false})
-  ).range(from,from+PAGE_SIZE-1));
+  ).range(from,from+ps-1));
   const countReq=Promise.resolve(applyCardFilters(
     sb.from('properties').select('id',{count:'exact',head:true})
   ));
@@ -807,7 +831,7 @@ async function toggleStar(id){
 
 // ========== PAGINATION ==========
 function renderPagination(){
-  const totalPages=Math.ceil(totalCount/PAGE_SIZE);
+  const totalPages=Math.ceil(totalCount/curPageSize());
   if(totalPages<=1){document.getElementById('pagination').innerHTML='';return;}
 
   let html='';
@@ -826,7 +850,7 @@ function renderPagination(){
 }
 
 function goPage(n){
-  const totalPages=Math.ceil(totalCount/PAGE_SIZE);
+  const totalPages=Math.ceil(totalCount/curPageSize());
   if(n<0||n>=totalPages)return;
   currentPage=n;
   loadCards();
@@ -914,6 +938,13 @@ function evenSample(total,count){
   await window.authGate();
   if(!window.CURRENT_USER_ROLE) return;  // authGate redirected; abort
   window.renderSidebar('data');
+  // Deep-link: ?mls=A,B,C pre-loads a review set (e.g. an ARV re-tag shortlist)
+  // into MLS-list mode. Set state before init() so its first load is filtered.
+  const mlsParam=new URLSearchParams(location.search).get('mls');
+  if(mlsParam){
+    document.getElementById('fSearch').value=mlsParam;
+    filters.mlsList=mlsParam.split(/[,\n]+/).map(s=>s.trim().toUpperCase()).filter(Boolean);
+  }
   init();
 })();
 </script>
