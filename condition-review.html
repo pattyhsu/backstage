@@ -70,6 +70,19 @@
   .star-btn:hover { color:#e0a400; border-color:var(--border-hover); transform:scale(1.1); }
   .star-btn.starred { color:#f5b301; border-color:#f5b301; }
 
+  /* Designer-custom star — top-LEFT corner, distinct (blue ◆) from the gold
+     design-reference star. Marks architect/designer customs (Paul Tay, Kenneth
+     Wing, Killingsworth, …) whose price reflects design, not the market — the
+     ARV model EXCLUDES these from comps + the per-city regression
+     (properties.designer_starred). NOT the same as the design-reference star. */
+  .designer-star-btn { position:absolute; top:10px; left:10px; z-index:2; width:32px; height:32px;
+    display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1;
+    border:1px solid var(--border); border-radius:50%; background:var(--bg);
+    color:var(--text-4); cursor:pointer; transition:transform .08s ease, color .12s ease, border-color .12s ease;
+    box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .designer-star-btn:hover { color:#3b82f6; border-color:var(--border-hover); transform:scale(1.1); }
+  .designer-star-btn.starred { color:#3b82f6; border-color:#3b82f6; }
+
   .card-top { display:grid; grid-template-columns:1fr 1fr; gap:0; }
 
   /* Photo strip */
@@ -278,6 +291,10 @@
   <label class="filter-toggle">
     <input type="checkbox" id="fStarred" onchange="resetAndLoad()">
     ★ Starred only
+  </label>
+  <label class="filter-toggle">
+    <input type="checkbox" id="fDesigner" onchange="resetAndLoad()">
+    ◆ Designer only
   </label>
 </div>
 
@@ -560,6 +577,7 @@ function applyCardFilters(query){
   if(conf) query=query.eq('condition_confidence',conf);
   if(unreviewed) query=query.or('condition_overridden.is.null,condition_overridden.eq.false');
   if(document.getElementById('fStarred').checked) query=query.eq('design_starred',true);
+  if(document.getElementById('fDesigner').checked) query=query.eq('designer_starred',true);
   if(filters.search){
     // Strip commas/quotes/parens — PostgREST .or() splits on commas and
     // treats quotes/parens as syntax, so unsanitized input would break the filter.
@@ -593,7 +611,7 @@ async function loadCards(){
   // actually run concurrently instead of one-after-another.
   const dataReq=Promise.resolve(applyCardFilters(
     sb.from('properties')
-      .select('id,mls,address,city,sqft,beds,baths,sale_price,list_price,photo_count,condition_tier,condition_confidence,condition_sample_photos,condition_overridden,value_driver_rooms_updated,design_starred')
+      .select('id,mls,address,city,sqft,beds,baths,sale_price,list_price,photo_count,condition_tier,condition_confidence,condition_sample_photos,condition_overridden,value_driver_rooms_updated,design_starred,designer_starred')
       .order('condition_scored_at',{ascending:false}).order('id',{ascending:false})
   ).range(from,from+ps-1));
   const countReq=Promise.resolve(applyCardFilters(
@@ -715,9 +733,13 @@ function renderCard(p){
   const starred=p.design_starred===true;
   const starBtn=`<button class="star-btn${starred?' starred':''}" onclick="toggleStar('${p.id}')" title="${starred?'Starred design reference — click to unstar':'Star as a design reference for our flips'}">${starred?'★':'☆'}</button>`;
 
+  const designer=p.designer_starred===true;
+  const designerBtn=`<button class="designer-star-btn${designer?' starred':''}" onclick="toggleDesignerStar('${p.id}')" title="${designer?'Designer/architect custom — excluded from the ARV comps + regression. Click to unmark':'Mark as an architect/designer custom (price reflects design, not the market) — excludes it from the ARV comps + regression'}">${designer?'◆':'◇'}</button>`;
+
   return `
     <div class="prop-card" data-id="${p.id}">
       ${starBtn}
+      ${designerBtn}
       <div class="card-top">
         <div class="photo-strip">${photoHtml}</div>
         <div class="card-details">
@@ -825,6 +847,25 @@ async function toggleStar(id){
   if(error){
     console.error('Star toggle failed:',error);
     p.design_starred=!next;              // revert
+    refreshCard(id);
+  }
+}
+
+// Designer-custom star — a COMP/MODEL signal (distinct from the design-reference
+// star above): marks an architect/designer custom whose price reflects design,
+// not the market, so the ARV pipeline excludes it from the per-city regression
+// + bars it from a normal subject's smart-comps. Optimistic toggle; revert on a
+// failed write. Independent of condition_overridden / the tiering.
+async function toggleDesignerStar(id){
+  const p=cardData[id];
+  if(!p) return;
+  const next=!(p.designer_starred===true);
+  p.designer_starred=next;               // optimistic
+  refreshCard(id);
+  const{error}=await sb.from('properties').update({designer_starred:next}).eq('id',id);
+  if(error){
+    console.error('Designer-star toggle failed:',error);
+    p.designer_starred=!next;            // revert
     refreshCard(id);
   }
 }
