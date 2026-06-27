@@ -933,7 +933,7 @@ function renderArvScoreCard(l,mid,src,av,active){
     else if(cacheMissing||cacheErr||av.perCityArv==null)body=cardSubText('14px','—');
     else{
       body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(av.perCityArv)}</div>
-        <div style="font-size:10px;color:var(--text-4);margin-top:2px">OLS regression</div>`;
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">per-city regression</div>`;
     }
   }
   else if(src==='smart-comps'){
