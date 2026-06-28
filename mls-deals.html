@@ -313,6 +313,19 @@ body{overflow:hidden;height:100vh}
         <label><input type="checkbox" value="untiered" onchange="toggleTierFilter(this.value)">Untiered <span id="tcnt-untiered"></span></label>
       </div>
     </div>
+    <div style="position:relative;display:inline-block" id="gf-wrap">
+      <button class="btn" id="gf-btn" onclick="document.getElementById('gf-drop').classList.toggle('open')" style="padding:4px 10px;min-width:110px;text-align:left">All Grades ▾</button>
+      <div id="gf-drop" style="position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:160px;padding:4px 0">
+        <div style="padding:4px 10px;border-bottom:1px solid var(--border)">
+          <button onclick="gfClear()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">Clear</button>
+        </div>
+        <label><input type="checkbox" value="A" onchange="toggleGradeFilter(this.value)">A <span id="gcnt-A"></span></label>
+        <label><input type="checkbox" value="B" onchange="toggleGradeFilter(this.value)">B <span id="gcnt-B"></span></label>
+        <label><input type="checkbox" value="C" onchange="toggleGradeFilter(this.value)">C <span id="gcnt-C"></span></label>
+        <label><input type="checkbox" value="D" onchange="toggleGradeFilter(this.value)">D <span id="gcnt-D"></span></label>
+        <label><input type="checkbox" value="ungraded" onchange="toggleGradeFilter(this.value)">Ungraded <span id="gcnt-ungraded"></span></label>
+      </div>
+    </div>
     <div style="position:relative;display:inline-block" id="addr-search-wrap">
       <input type="text" id="addr-search" placeholder="Search address…"
              oninput="onAddrSearch(this.value)"
@@ -332,19 +345,6 @@ body{overflow:hidden;height:100vh}
         <button class="btn" id="bf-unsold_flip" onclick="setFilter('unsold_flip');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">Unsold Flips <span id="cnt-unsold_flip"></span></button>
         <button class="btn" id="bf-archived" onclick="setFilter('archived');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">Archive <span id="cnt-archived"></span></button>
         <button class="btn" id="bf-all" onclick="setFilter('all');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">All <span id="cnt-all"></span></button>
-      </div>
-    </div>
-    <div style="position:relative;display:inline-block;margin-left:6px" id="gf-wrap">
-      <button class="btn" id="gf-btn" onclick="document.getElementById('gf-drop').classList.toggle('open')" style="padding:4px 10px;min-width:110px;text-align:left">All Grades ▾</button>
-      <div id="gf-drop" style="position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:160px;padding:4px 0">
-        <div style="padding:4px 10px;border-bottom:1px solid var(--border)">
-          <button onclick="gfClear()" style="font-size:10px;font-weight:600;font-family:inherit;background:none;border:none;color:var(--accent);cursor:pointer;padding:2px 4px">Clear</button>
-        </div>
-        <label><input type="checkbox" value="A" onchange="toggleGradeFilter(this.value)">A <span id="gcnt-A"></span></label>
-        <label><input type="checkbox" value="B" onchange="toggleGradeFilter(this.value)">B <span id="gcnt-B"></span></label>
-        <label><input type="checkbox" value="C" onchange="toggleGradeFilter(this.value)">C <span id="gcnt-C"></span></label>
-        <label><input type="checkbox" value="D" onchange="toggleGradeFilter(this.value)">D <span id="gcnt-D"></span></label>
-        <label><input type="checkbox" value="ungraded" onchange="toggleGradeFilter(this.value)">Ungraded <span id="gcnt-ungraded"></span></label>
       </div>
     </div>
   </div>
