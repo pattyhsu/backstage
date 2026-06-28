@@ -151,7 +151,7 @@ body{overflow:hidden;height:100vh}
 .rw.act,.rw.sel{background:var(--accent-dim)}
 .rw.archived{display:none}
 .rm-p{display:grid;grid-template-columns:32px 56px 52px minmax(160px,1fr) 85px 100px 220px 70px 110px 100px 70px 70px;min-width:1210px;align-items:center;padding:8px 20px;font-size:13px;font-weight:500;gap:4px}
-/* NOTES column shown only in the Potential tab; drop its 220px track elsewhere. */
+/* NOTES column shown only in the Pursue tab; drop its 220px track elsewhere. */
 #ls.no-notes .th-p,#ls.no-notes .rm-p{grid-template-columns:32px 56px 52px minmax(160px,1fr) 85px 100px 70px 110px 100px 70px 70px;min-width:966px}
 
 /* Address + subtext */
@@ -324,7 +324,7 @@ body{overflow:hidden;height:100vh}
   </div>
   <div class="hr">
     <button class="btn btn-on" id="bf-unread" onclick="setFilter('unread')">Unread <span id="cnt-unread"></span></button>
-    <button class="btn" id="bf-potential" onclick="setFilter('potential')">Potential <span id="cnt-potential"></span></button>
+    <button class="btn" id="bf-potential" onclick="setFilter('potential')">Pursue <span id="cnt-potential"></span></button>
     <div style="position:relative;display:inline-block" id="more-filters-wrap">
       <button class="btn" id="more-filters-btn" onclick="document.getElementById('more-filters-drop').classList.toggle('open')" title="More views" style="padding:4px 10px">⋮</button>
       <div id="more-filters-drop" style="position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:160px;padding:4px 0">
@@ -2082,7 +2082,7 @@ function detHTML(l){
         <div class="da-foot" id="foot-${id}"></div>
       </div>
     </div>
-    ${!l.dealId?`<div style="margin-top:16px"><button id="open-offer-${id}" onclick="event.stopPropagation();openOffer('${l.mls}')" style="padding:6px 12px;border-radius:5px;border:1px solid var(--accent);font-size:12px;font-weight:700;font-family:inherit;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap" title="Open Pipeline tracking at the Pursuing phase (acquisition lead)">📤 Open offer</button></div>`:''}</div>`;
+    </div>`;
 }
 
 function calcDeal(id,listPrice,sqft){
@@ -2164,7 +2164,7 @@ function getSorted(){
 function render(){
   const data=getSorted();
   const sa=c=>sort_===c+'-asc'?'↑':sort_===c+'-desc'?'↓':'';
-  // NOTES column is only useful while triaging the Potential tab; hide it (and
+  // NOTES column is only useful while triaging the Pursue tab; hide it (and
   // collapse its grid track via #ls.no-notes) in every other view.
   const showNotes=currentFilter==='potential';
   document.getElementById('ls').classList.toggle('no-notes',!showNotes);
@@ -2235,7 +2235,7 @@ function renderDetailPage(l){
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <button onclick="cls()" style="background:none;border:1px solid var(--border);border-radius:5px;padding:4px 10px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-3)">← Back</button>
       <div style="display:flex;gap:6px">
-        <button title="Click again to clear status" onclick="updateListingStatus('${l.mls}','potential')" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='potential'?'var(--green)':'var(--bg)'};color:${l.status==='potential'?'#fff':'var(--green)'};cursor:pointer">Potential</button>
+        <button title="Mark as Pursue — adds it to the Pipeline's Pursuing section. Click again to clear (removes the pipeline deal)." onclick="updateListingStatus('${l.mls}','potential')" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='potential'?'var(--green)':'var(--bg)'};color:${l.status==='potential'?'#fff':'var(--green)'};cursor:pointer">Pursue</button>
         <button title="Click again to clear status" onclick="updateListingStatus('${l.mls}','unsold_flip')" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${l.status==='unsold_flip'?'var(--blue)':'var(--bg)'};color:${l.status==='unsold_flip'?'#fff':'var(--blue)'};cursor:pointer">Unsold Flip</button>
         <button title="Click again to clear status" onclick="updateListingStatus('${l.mls}','archived');cls()" style="padding:4px 14px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:600;font-family:inherit;background:${(l.status==='archived'||l.price>MAX_LIST_PRICE)?'var(--red)':'var(--bg)'};color:${(l.status==='archived'||l.price>MAX_LIST_PRICE)?'#fff':'var(--red)'};cursor:pointer">Archive</button></div></div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -2543,6 +2543,12 @@ async function updateListingStatus(mls,s){
   // Use the already-loaded stage for toggle behavior instead of a SELECT round-trip.
   const curStage=li?li.status:undefined;
   const newStage=(curStage===s)?'unread':s;
+  // Pursue (stage='potential') is now tied to a Pursuing pipeline deal:
+  // turning it ON creates/links the deal so the listing shows in pipeline.html's
+  // Pursuing section + the iOS Pursue tab; turning it OFF hard-deletes the deal.
+  const pursueOn=(s==='potential'&&newStage==='potential');
+  const pursueOff=(s==='potential'&&newStage==='unread');
+  if(_openOfferInFlight.has(mls))return; // guard re-entry while a deal write is in flight
   // Optimistic UI: reflect the new stage and drop the row from the current view
   // immediately, so it disappears on click rather than after a full reload.
   if(li){li.status=newStage;if(!listingMatchesFilter(li,currentFilter))listings=listings.filter(x=>x.mls!==mls);}
@@ -2550,8 +2556,22 @@ async function updateListingStatus(mls,s){
   const d={stage:newStage,updated_at:new Date().toISOString()};
   if(newStage==='archived')d.archived_at=new Date().toISOString();
   if(newStage==='unsold_flip')d.comp_type='flips';
-  const{error}=await sb.from('properties').update(d).eq('mls',mls);
-  if(error){alert('Status update failed: '+error.message);await loadListings(currentFilter);return;}
+  if(pursueOn||pursueOff)_openOfferInFlight.add(mls);
+  try{
+    const{error}=await sb.from('properties').update(d).eq('mls',mls);
+    if(error){alert('Status update failed: '+error.message);await loadListings(currentFilter);return;}
+    // Sync the pipeline deal AFTER the stage write. On Pursue-on the insert
+    // re-fires deals_sync_stage (harmless: re-affirms stage='potential'); on
+    // Pursue-off there's no deals DELETE trigger, so the 'unread' stage sticks.
+    if(pursueOn){if(li)li.dealId=null;await ensurePursuingDeal(mls);}
+    else if(pursueOff)await removeDealForMls(mls);
+  }catch(e){
+    console.warn('Pursue pipeline sync failed',e);
+    alert((pursueOff?'Removing the pipeline deal':'Adding to the pipeline')+' failed: '+(e&&e.message?e.message:String(e)));
+    await loadListings(currentFilter);return;
+  }finally{
+    _openOfferInFlight.delete(mls);
+  }
   updateStageCounts();
 }
 async function updateNotes(mls){const mid=mls.replace(/[^a-zA-Z0-9]/g,'');const el=document.getElementById('notes2-'+mid);if(!el)return;await sb.from('properties').update({notes:el.value,updated_at:new Date().toISOString()}).eq('mls',mls);const r=document.getElementById('rownotes-'+mid);if(r&&r.value!==el.value)r.value=el.value;const li=listings.find(x=>x.mls===mls);if(li)li.notes=el.value;}
@@ -2573,48 +2593,36 @@ async function saveRowNotes(el){const mls=el.dataset.mls;const val=el.value;cons
 // second insert → duplicate pipeline deal. This Set blocks re-entry per MLS,
 // and the SELECT below makes the create idempotent across tabs/sessions.
 const _openOfferInFlight=new Set();
-async function openOffer(mls){
-  const l=listings.find(x=>x.mls===mls);if(!l)return;
-  if(l.dealId){console.warn('openOffer: listing already linked to deal',mls);return;}
-  if(_openOfferInFlight.has(mls)){console.warn('openOffer: already in flight',mls);return;}
-  _openOfferInFlight.add(mls);
-  const id=mls.replace(/[^a-zA-Z0-9]/g,'');
-  const btn=document.getElementById('open-offer-'+id);
-  if(btn){btn.disabled=true;btn.style.opacity='0.6';btn.style.cursor='wait';btn.textContent='Opening…';}
-  try{
-    // Never create a second deal for an MLS that already has one (another tab,
-    // a prior attempt, or a concurrent open). Link to the existing row instead.
-    const{data:existing,error:selErr}=await sb.from('deals')
-      .select('id, phase').eq('buy_side_mls', mls).limit(1);
-    if(selErr)throw selErr;
-    let dealId, dealPhase;
-    if(existing && existing.length){
-      dealId=existing[0].id; dealPhase=existing[0].phase;
-    }else{
-      const{data:newDeal,error:insErr}=await sb.from('deals')
-        .insert({buy_side_mls: mls, phase: 'pursuing'})
-        .select('id').single();
-      if(insErr)throw insErr;
-      dealId=newDeal.id; dealPhase='pursuing';
-      const{error:hErr}=await sb.from('deals_phase_history').insert({
-        deal_id: dealId,
-        from_phase: null,
-        to_phase: 'pursuing',
-        note: 'Pipeline opened from MLS Deals',
-      });
-      if(hErr)throw hErr;
-    }
-    l.dealId=dealId;
-    l.dealPhase=dealPhase;
-    renderDetailPage(l);
-    refreshRowDealPill(mls);
-  }catch(e){
-    console.warn('openOffer failed',e);
-    alert('Open offer failed: '+(e&&e.message?e.message:String(e)));
-    if(btn){btn.disabled=false;btn.style.opacity='';btn.style.cursor='pointer';btn.textContent='📤 Open offer';}
-  }finally{
-    _openOfferInFlight.delete(mls);
-  }
+// Idempotent: ensure a Pursuing pipeline deal exists for this MLS. Returns
+// {dealId, dealPhase}. Links to an existing deal (another tab / prior click)
+// instead of creating a duplicate; only a brand-new insert writes a
+// deals_phase_history row. Invoked when a listing is marked Pursue (the
+// deals_sync_stage trigger keeps properties.stage='potential' in step).
+async function ensurePursuingDeal(mls){
+  const{data:existing,error:selErr}=await sb.from('deals')
+    .select('id, phase').eq('buy_side_mls', mls).limit(1);
+  if(selErr)throw selErr;
+  if(existing && existing.length)return{dealId:existing[0].id, dealPhase:existing[0].phase};
+  const{data:newDeal,error:insErr}=await sb.from('deals')
+    .insert({buy_side_mls: mls, phase: 'pursuing'})
+    .select('id').single();
+  if(insErr)throw insErr;
+  const{error:hErr}=await sb.from('deals_phase_history').insert({
+    deal_id: newDeal.id,
+    from_phase: null,
+    to_phase: 'pursuing',
+    note: 'Pipeline opened from MLS Deals (Pursue)',
+  });
+  if(hErr)throw hErr;
+  return{dealId:newDeal.id, dealPhase:'pursuing'};
+}
+// Remove the pipeline deal linked to this MLS (used when un-marking Pursue).
+// FK cascade clears deals_phase_history / milestones / loans / expenses /
+// documents / checklist / budgets / seller_offers. No deals DELETE trigger
+// exists, so properties.stage is left for the caller to reset.
+async function removeDealForMls(mls){
+  const{error}=await sb.from('deals').delete().eq('buy_side_mls', mls);
+  if(error)throw error;
 }
 
 // Brief BX: undo an accidental Open Offer click. Only invokable when the
@@ -2644,7 +2652,8 @@ async function undoOpenOffer(dealId, mls){
 // Brief BK: batch-fetch deal rows that reference any visible MLS# (either
 // buy_side_mls or relist_mls). Decorate each listing with l.dealId +
 // l.dealPhase so the "🏗 In project" pill renders the deal phase, and the
-// "Open offer" / "Mark as listing" buttons disappear when a deal exists.
+// "Mark as listing" link disappears when a deal exists. (Pursue now creates
+// the Pursuing deal directly — there's no separate "Open offer" button.)
 async function decorateListingsWithDeals(){
   if(!listings.length)return;
   const listingMls=new Set(listings.map(l=>l.mls).filter(Boolean));
@@ -2751,20 +2760,20 @@ async function decorateListingsWithDeals(){
   }
   // Brief BO: filter out listings linked to deals past pursuing/lost.
   // Those are tracked on pipeline.html / project-detail.html — not
-  // browsed here. Pursuing + lost stay visible (in the Potential group
+  // browsed here. Pursuing + lost stay visible (in the Pursue group
   // per the sync trigger setting stage='potential') so Patty can keep
   // eyes on them. in_escrow / under_construction / listed / sold /
   // archived disappear entirely from mls-deals.
   const before=listings.length;
   listings=listings.filter(l=>!l.dealPhase||l.dealPhase==='pursuing'||l.dealPhase==='lost');
   if(listings.length!==before)render();
-  // Re-render detail page if open — the "🏗 In project" pill / Open offer
-  // button visibility may have changed.
+  // Re-render detail page if open — the "🏗 In project" pill visibility
+  // may have changed.
   if(active){const l=listings.find(x=>x.mls===active);if(l)renderDetailPage(l);}
 }
 
 // Brief BK: surgical update of the "🏗 In project" pill for one row,
-// invoked after openOffer/markAsListing or after the bulk decorate pass.
+// invoked after Pursue/markAsListing or after the bulk decorate pass.
 // Mirrors refreshRowDePill / refreshRowComps; no full re-render.
 function refreshRowDealPill(mls){
   // Currently rendered inside the detail pane only (next to MLS# in the
