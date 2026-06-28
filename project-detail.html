@@ -1096,6 +1096,7 @@ let dealLoans=[];
 let capitalSources=[];
 let dealExpenses=[];
 let dealPnl=null;
+let dealCost=null;        // v_deal_cost_breakdown row (same rehab_budget source as Pipeline)
 let dealOffers=[];        // persisted seller_offers rows for this deal
 let bucketByAccount={};   // qbo_account_name → bucket (acquisition/rehab_*/financing/holding/disposition)
 let saving=false;
@@ -1244,6 +1245,20 @@ async function loadProject(){
     else {dealPnl=pnlRow||null;}
   } catch(e){
     dealPnl=null;
+  }
+
+  // 9b. Cost breakdown (owner-only RLS). Source of the rehab_budget shown on the
+  // Pipeline board; the Construction Budget bar reads it so both pages agree.
+  // Graceful: non-owner / missing view -> null -> budget shows "—".
+  try {
+    const {data:costRow, error:costErr}=await sb.from('v_deal_cost_breakdown')
+      .select('deal_id, rehab_budget, rehab_actual')
+      .eq('deal_id', dealRow.id)
+      .maybeSingle();
+    if(costErr){console.warn('[project-detail] v_deal_cost_breakdown load failed:', costErr.message);dealCost=null;}
+    else {dealCost=costRow||null;}
+  } catch(e){
+    dealCost=null;
   }
 
   // 10. Deal documents (Brief BW). Graceful fallback if migration not applied.
@@ -1648,10 +1663,14 @@ function renderConstructionSection(){
         ? `day ${Math.max(0,elapsed)} of ${totalDays} · ${schedPct}%`
         : `day ${elapsed} of ${totalDays} · ${elapsed-totalDays}d over`)
     : 'dates not set';
-  // Budget bar: rehab spend vs budget. Prefer the canonical deal_pnl_v1 rollup
-  // (acquisition/rehab/financing/holding actuals from QBO); fall back to the deals row.
+  // Budget bar: rehab spend vs budget. Actual prefers the canonical deal_pnl_v1
+  // rollup (QBO actuals). Budget reads v_deal_cost_breakdown.rehab_budget first —
+  // the same source the Pipeline board uses — so the two pages always agree; then
+  // falls back to deal_pnl_v1, then the legacy deals row.
+  const cost=dealCost||{};
   const rehabActual=(pnl.rehab_actual!=null)?pnl.rehab_actual:d.rehab_actual;
-  const rehabBudget=(pnl.rehab_budget!=null)?pnl.rehab_budget:d.rehab_budget;
+  const rehabBudget=(cost.rehab_budget!=null)?cost.rehab_budget
+    :(pnl.rehab_budget!=null)?pnl.rehab_budget:d.rehab_budget;
   const budgetPct=(rehabActual!=null && rehabBudget && rehabBudget>0)
     ? Math.round((rehabActual/rehabBudget)*100)
     : 0;
