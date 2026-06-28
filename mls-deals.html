@@ -331,7 +331,7 @@ body{overflow:hidden;height:100vh}
              oninput="onAddrSearch(this.value)"
              onfocus="onAddrSearch(this.value)"
              autocomplete="off"
-             style="padding:7px 14px;line-height:1;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;min-width:200px;font-family:inherit;background:var(--bg);color:var(--text-1)" />
+             style="height:28px;padding:0 14px;line-height:1;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;min-width:200px;font-family:inherit;background:var(--bg);color:var(--text-1)" />
       <div id="addr-search-drop" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:280px;max-height:300px;overflow-y:auto;padding:4px 0"></div>
     </div>
   </div>
@@ -339,7 +339,7 @@ body{overflow:hidden;height:100vh}
     <button class="btn btn-on" id="bf-unread" onclick="setFilter('unread')">Unread <span id="cnt-unread"></span></button>
     <button class="btn" id="bf-potential" onclick="setFilter('potential')">Pursue <span id="cnt-potential"></span></button>
     <div style="position:relative;display:inline-block" id="more-filters-wrap">
-      <button class="btn" id="more-filters-btn" onclick="document.getElementById('more-filters-drop').classList.toggle('open')" title="More views" style="padding:4px 10px">⋮</button>
+      <button class="btn" id="more-filters-btn" onclick="document.getElementById('more-filters-drop').classList.toggle('open')" title="More views" style="padding:7px 12px">⋮</button>
       <div id="more-filters-drop" style="position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:160px;padding:4px 0">
         <button class="btn" id="bf-off_market_lead" onclick="setFilter('off_market_lead');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">Off-Market <span id="cnt-off_market_lead"></span></button>
         <button class="btn" id="bf-unsold_flip" onclick="setFilter('unsold_flip');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">Unsold Flips <span id="cnt-unsold_flip"></span></button>
