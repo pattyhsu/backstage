@@ -881,8 +881,13 @@ function renderArvScoreRow(l,mid){
   const slots=isPerCity?['comp-avg','per-city','smart-comps','deal-score']:['comp-avg','deal-score'];
   const cardsHtml=slots.map(src=>renderArvScoreCard(l,mid,src,av,active)).join('');
   const detail=renderArvScoreDetail(l,mid,av);
+  // On-demand smart-comps recompute (per-city cities only — they're the ones
+  // with a smart-comps model). Re-runs the model with the comps' current tiers
+  // instead of waiting for the nightly batch.
+  const recomputeBtn=isPerCity?`<button id="recompute-btn-${mid}" onclick="recomputeSmartComps('${l.mls}','${mid}')" title="Re-run smart comps with the comps' current tiers" style="margin-top:6px;font-size:11px;font-weight:600;color:var(--accent);background:var(--bg-alt);border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer">↻ Recompute smart comps</button>`:'';
   return `<div id="arv-score-row-${mid}" style="margin-top:8px">
     <div style="display:grid;grid-template-columns:repeat(${slots.length},1fr);gap:6px">${cardsHtml}</div>
+    ${recomputeBtn}
     ${detail}
   </div>`;
 }
@@ -1229,6 +1234,43 @@ async function ensureArvEstimate(mls,mid){
     const srcEl=document.getElementById('arv-source-'+mid);
     if(srcEl)srcEl.textContent=arvSourceLabel(listing,pref.source,pref.arv);
     calcDeal(mid,listing.price,listing.sqft);
+  }
+}
+// On-demand smart-comps recompute. After re-tiering comps (or the subject),
+// POST {mls} to the recompute service (same Supabase-JWT auth as the chat
+// endpoint), then invalidate + re-fetch arv_estimates + deal_scores so the ARV
+// cards and grade pill repaint. Mirrors the iOS ⟲ button. The recompute
+// service re-scores the smart-comps ARV AND the deal score off the comps'
+// current tiers; thin-pool cities may legitimately decline (smart_comps_arv
+// null) and fall back to the per-city baseline.
+async function recomputeSmartComps(mls,mid){
+  const btn=document.getElementById('recompute-btn-'+mid);
+  if(btn){btn.disabled=true;btn.textContent='Recomputing…';}
+  try{
+    const sess=await sb.auth.getSession();
+    const token=sess?.data?.session?.access_token;
+    if(!token){alert('Not signed in — reload and sign in again.');return;}
+    const resp=await fetch('https://recompute.dottyhomes.com/score',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({mls:mls}),
+    });
+    if(!resp.ok){
+      let detail='';try{detail=(await resp.json()).detail||'';}catch(e){}
+      alert('Recompute failed'+(detail?': '+detail:' (HTTP '+resp.status+')'));
+      return;
+    }
+    // Both caches short-circuit when populated — drop them to force a refetch,
+    // then the ensure* helpers re-fetch and re-render the cards row in place.
+    delete arvEstimateCache[mls];
+    delete dealScoreCache[mls];
+    await ensureArvEstimate(mls,mid);
+    await ensureDealScore(mls,mid);
+  }catch(e){
+    alert('Recompute error: '+((e&&e.message)?e.message:e));
+  }finally{
+    const b=document.getElementById('recompute-btn-'+mid);
+    if(b){b.disabled=false;b.textContent='↻ Recompute smart comps';}
   }
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
