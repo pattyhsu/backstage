@@ -105,6 +105,13 @@ body { overflow:hidden; height:100vh; }
 .out-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
 .out-head h2 { font-size:13px; font-weight:700; color:var(--text); margin:0; }
 .out-empty { color:var(--text-4); font-size:13px; text-align:center; padding:60px 20px; line-height:1.5; }
+.out-progress { text-align:center; padding:70px 20px; }
+.out-progress .big-spin { width:26px; height:26px; border:3px solid var(--border-strong); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; margin:0 auto 18px; }
+.out-progress .op-phase { font-size:14px; font-weight:600; color:var(--text); }
+.out-progress .op-sub { font-size:12px; color:var(--text-4); margin-top:7px; line-height:1.5; }
+.out-progress .op-timer { font-size:12px; color:var(--text-3); margin-top:12px; font-variant-numeric:tabular-nums; }
+.out-progress.err .big-spin { display:none; }
+.out-progress.err .op-phase { color:var(--red); font-weight:500; max-width:460px; margin:0 auto; }
 #letter-text { width:100%; box-sizing:border-box; min-height:520px; font-family:var(--sans); font-size:13.5px; line-height:1.6; color:var(--text); padding:14px 16px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg-page); resize:vertical; white-space:pre-wrap; }
 </style>
 </head>
@@ -147,7 +154,7 @@ body { overflow:hidden; height:100vh; }
           <input type="text" id="f-target" inputmode="decimal" placeholder="100000">
         </div>
       </div>
-      <div class="hint">Target reduction = what you're asking the seller to drop. The letter states the resulting price (current − reduction).</div>
+      <div class="hint">Target reduction = the amount you want off the price (your negotiation ask) — typically well below the total repair cost the letter itemizes from the bids.</div>
 
       <div class="sec-label">Inspection reports &amp; bids</div>
       <div class="drop" id="drop">
@@ -167,7 +174,13 @@ body { overflow:hidden; height:100vh; }
         <div class="out-empty" id="out-empty">
           Fill in the deal, drop the inspection report + specialist bids, and click
           <b>Generate letter</b>.<br>The mini writes the letter and it appears here
-          (usually under a minute).
+          (usually 1–2 minutes).
+        </div>
+        <div class="out-progress" id="out-progress" style="display:none">
+          <div class="big-spin"></div>
+          <div class="op-phase" id="op-phase">Writing your letter…</div>
+          <div class="op-sub">This usually takes 1–2 minutes<br>(longer for very large inspection reports).</div>
+          <div class="op-timer" id="op-timer">Elapsed 0:00</div>
         </div>
         <div id="out-body" style="display:none">
           <div class="out-head">
@@ -272,6 +285,34 @@ function setStatus(msg, isErr, spin){
   el.innerHTML=(spin?'<span class="spinner"></span>':'')+escapeHtml(msg);
 }
 
+// ========== RIGHT-PANEL PROGRESS (shown while the letter generates) ==========
+let progressTimer=null, progressStart=0;
+function _tick(){
+  const s=Math.floor((Date.now()-progressStart)/1000);
+  const m=Math.floor(s/60), ss=String(s%60).padStart(2,'0');
+  document.getElementById('op-timer').textContent=`Elapsed ${m}:${ss}`;
+}
+function showProgress(phase){
+  document.getElementById('out-empty').style.display='none';
+  document.getElementById('out-body').style.display='none';
+  const box=document.getElementById('out-progress');
+  box.classList.remove('err');
+  box.style.display='block';
+  document.getElementById('op-phase').textContent=phase;
+  document.getElementById('op-timer').style.display='';
+  if(!progressTimer){ progressStart=Date.now(); _tick(); progressTimer=setInterval(_tick,1000); }
+}
+function setPhase(phase){ document.getElementById('op-phase').textContent=phase; }
+function stopProgress(){ if(progressTimer){ clearInterval(progressTimer); progressTimer=null; } }
+function showProgressError(msg){
+  stopProgress();
+  const box=document.getElementById('out-progress');
+  box.style.display='block';
+  box.classList.add('err');
+  document.getElementById('op-phase').textContent=msg;
+  document.getElementById('op-timer').style.display='none';
+}
+
 // ========== SUBMIT ==========
 async function submitJob(){
   if(submitting)return;
@@ -285,8 +326,8 @@ async function submitJob(){
 
   submitting=true;
   document.getElementById('gen-btn').disabled=true;
-  document.getElementById('out-body').style.display='none';
-  document.getElementById('out-empty').style.display='block';
+  setStatus('');
+  showProgress('Uploading files…');
 
   const jobId=crypto.randomUUID();
   const fileKeys=[];
@@ -294,7 +335,7 @@ async function submitJob(){
     // 1. Upload each PDF to the bucket, namespaced by jobId.
     for(let i=0;i<FILES.length;i++){
       const it=FILES[i];
-      setStatus(`Uploading ${i+1}/${FILES.length}…`, false, true);
+      setPhase(`Uploading ${i+1}/${FILES.length}…`);
       const path=`${jobId}/${i}_${safeName(it.file.name)}`;
       const {error:upErr}=await sb.storage.from(BUCKET).upload(path, it.file, {contentType:'application/pdf', upsert:false});
       if(upErr)throw new Error('Upload failed for "'+it.file.name+'": '+(upErr.message||'unknown'));
@@ -302,7 +343,7 @@ async function submitJob(){
     }
 
     // 2. Insert the job row (id = jobId, so it matches the storage path prefix).
-    setStatus('Queuing job…', false, true);
+    setPhase('Queuing job…');
     const {error:insErr}=await sb.from('reduction_letter_jobs').insert({
       id: jobId,
       property_address: addr,
@@ -315,10 +356,10 @@ async function submitJob(){
     if(insErr)throw new Error('Could not queue the job: '+(insErr.message||'unknown'));
 
     // 3. Poll for the letter (the mini daemon does the work).
-    setStatus('Reading reports…', false, true);
+    setPhase('Reading the reports…');
     pollJob(jobId);
   }catch(err){
-    setStatus(err.message||String(err), true);
+    showProgressError((err.message||String(err))+' — please retry.');
     submitting=false;
     document.getElementById('gen-btn').disabled=false;
   }
@@ -332,13 +373,13 @@ function pollJob(jobId){
     const {data, error}=await sb.from('reduction_letter_jobs').select('status,letter_text,error').eq('id',jobId).single();
     if(error){ /* transient — keep polling */ return; }
     if(!data)return;
-    if(data.status==='processing'){ setStatus('Writing letter…', false, true); return; }
-    if(data.status==='pending'){ setStatus('Queued — reading reports…', false, true); return; }
+    if(data.status==='processing'){ setPhase('Writing your letter…'); return; }
+    if(data.status==='pending'){ setPhase('Reading the reports…'); return; }
     if(data.status==='done'){
       clearInterval(polling); polling=null;
       submitting=false;
       document.getElementById('gen-btn').disabled=false;
-      setStatus('Done.', false);
+      stopProgress();
       showLetter(data.letter_text||'');
       return;
     }
@@ -346,7 +387,7 @@ function pollJob(jobId){
       clearInterval(polling); polling=null;
       submitting=false;
       document.getElementById('gen-btn').disabled=false;
-      setStatus('Generation failed: '+(data.error||'unknown error')+' — check the mini logs and retry.', true);
+      showProgressError('Generation failed: '+(data.error||'unknown error')+' — check the mini logs and retry.');
       return;
     }
   }, 5000);
@@ -354,6 +395,7 @@ function pollJob(jobId){
 
 function showLetter(text){
   document.getElementById('out-empty').style.display='none';
+  document.getElementById('out-progress').style.display='none';
   document.getElementById('out-body').style.display='block';
   document.getElementById('letter-text').value=text;
 }
@@ -373,6 +415,7 @@ async function copyLetter(){
 // ========== RESET ==========
 function resetForm(){
   if(polling){ clearInterval(polling); polling=null; }
+  stopProgress();
   submitting=false;
   document.getElementById('gen-btn').disabled=false;
   document.getElementById('f-addr').value='';
@@ -380,6 +423,7 @@ function resetForm(){
   document.getElementById('f-price').value='';
   FILES=[]; renderFiles();
   setStatus('');
+  document.getElementById('out-progress').style.display='none';
   document.getElementById('out-body').style.display='none';
   document.getElementById('out-empty').style.display='block';
 }
