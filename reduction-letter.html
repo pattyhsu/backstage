@@ -139,15 +139,15 @@ body { overflow:hidden; height:100vh; }
       <div class="sec-label">The ask</div>
       <div class="fld-row">
         <div class="fld">
-          <label>Current price $</label>
-          <input type="text" id="f-price" inputmode="decimal" placeholder="1000000 (optional)">
+          <label>Current price $ <span class="req">*</span></label>
+          <input type="text" id="f-price" inputmode="decimal" placeholder="1000000">
         </div>
         <div class="fld">
           <label>Target reduction $ <span class="req">*</span></label>
-          <input type="text" id="f-target" inputmode="decimal" placeholder="31000">
+          <input type="text" id="f-target" inputmode="decimal" placeholder="100000">
         </div>
       </div>
-      <div class="hint">Target reduction = the dollar amount you're asking the seller to drop.</div>
+      <div class="hint">Target reduction = what you're asking the seller to drop. The letter states the resulting price (current − reduction).</div>
 
       <div class="sec-label">Inspection reports &amp; bids</div>
       <div class="drop" id="drop">
@@ -276,8 +276,10 @@ function setStatus(msg, isErr, spin){
 async function submitJob(){
   if(submitting)return;
   const addr=(document.getElementById('f-addr').value||'').trim();
+  const price=numOrNull('f-price');
   const target=numOrNull('f-target');
   if(!addr){ setStatus('Property address is required.', true); return; }
+  if(price==null){ setStatus('Current price $ is required.', true); return; }
   if(target==null){ setStatus('Target reduction $ is required.', true); return; }
   if(!FILES.length){ setStatus('Add at least one inspection report or bid PDF.', true); return; }
 
@@ -307,7 +309,7 @@ async function submitJob(){
       // buyer_name / brokerage default to 'Donald Tsai' / 'Dotty Homes' in the
       // DB; realtor_name stays null → letter opens "Hi,".
       target_reduction: target,
-      current_price: numOrNull('f-price'),
+      current_price: price,
       file_keys: fileKeys,
     }).select();
     if(insErr)throw new Error('Could not queue the job: '+(insErr.message||'unknown'));
