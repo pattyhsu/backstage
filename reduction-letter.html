@@ -135,21 +135,6 @@ body { overflow:hidden; height:100vh; }
         <label>Property address <span class="req">*</span></label>
         <input type="text" id="f-addr" placeholder="13538 Darvalle St, Cerritos, CA 90703">
       </div>
-      <div class="fld">
-        <label>Listing agent name</label>
-        <input type="text" id="f-realtor" placeholder="Teresa (optional — greeting)">
-        <div class="hint">Used for "Hi {name},". Leave blank for "Hi,".</div>
-      </div>
-      <div class="fld-row">
-        <div class="fld">
-          <label>Buyer / signer</label>
-          <input type="text" id="f-buyer" value="Donald Tsai">
-        </div>
-        <div class="fld">
-          <label>Brokerage</label>
-          <input type="text" id="f-broker" value="Dotty Homes">
-        </div>
-      </div>
 
       <div class="sec-label">The ask</div>
       <div class="fld">
@@ -323,9 +308,8 @@ async function submitJob(){
     const {error:insErr}=await sb.from('reduction_letter_jobs').insert({
       id: jobId,
       property_address: addr,
-      realtor_name: (document.getElementById('f-realtor').value||'').trim()||null,
-      buyer_name: (document.getElementById('f-buyer').value||'').trim()||'Donald Tsai',
-      brokerage: (document.getElementById('f-broker').value||'').trim()||'Dotty Homes',
+      // buyer_name / brokerage default to 'Donald Tsai' / 'Dotty Homes' in the
+      // DB; realtor_name stays null → letter opens "Hi,".
       target_reduction: target,
       current_price: numOrNull('f-price'),
       commission: numOrNull('f-comm'),
@@ -395,9 +379,6 @@ function resetForm(){
   submitting=false;
   document.getElementById('gen-btn').disabled=false;
   document.getElementById('f-addr').value='';
-  document.getElementById('f-realtor').value='';
-  document.getElementById('f-buyer').value='Donald Tsai';
-  document.getElementById('f-broker').value='Dotty Homes';
   document.getElementById('f-target').value='';
   document.getElementById('f-price').value='';
   document.getElementById('f-comm').value='';
