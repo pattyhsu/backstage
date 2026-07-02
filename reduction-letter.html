@@ -137,21 +137,17 @@ body { overflow:hidden; height:100vh; }
       </div>
 
       <div class="sec-label">The ask</div>
-      <div class="fld">
-        <label>Target reduction $ <span class="req">*</span></label>
-        <input type="text" id="f-target" inputmode="decimal" placeholder="31000">
-        <div class="hint">The dollar amount you're asking the seller to drop.</div>
-      </div>
       <div class="fld-row">
         <div class="fld">
           <label>Current price $</label>
           <input type="text" id="f-price" inputmode="decimal" placeholder="1000000 (optional)">
         </div>
         <div class="fld">
-          <label>Commission $</label>
-          <input type="text" id="f-comm" inputmode="decimal" placeholder="optional">
+          <label>Target reduction $ <span class="req">*</span></label>
+          <input type="text" id="f-target" inputmode="decimal" placeholder="31000">
         </div>
       </div>
+      <div class="hint">Target reduction = the dollar amount you're asking the seller to drop.</div>
 
       <div class="sec-label">Inspection reports &amp; bids</div>
       <div class="drop" id="drop">
@@ -312,7 +308,6 @@ async function submitJob(){
       // DB; realtor_name stays null → letter opens "Hi,".
       target_reduction: target,
       current_price: numOrNull('f-price'),
-      commission: numOrNull('f-comm'),
       file_keys: fileKeys,
     }).select();
     if(insErr)throw new Error('Could not queue the job: '+(insErr.message||'unknown'));
@@ -381,7 +376,6 @@ function resetForm(){
   document.getElementById('f-addr').value='';
   document.getElementById('f-target').value='';
   document.getElementById('f-price').value='';
-  document.getElementById('f-comm').value='';
   FILES=[]; renderFiles();
   setStatus('');
   document.getElementById('out-body').style.display='none';
