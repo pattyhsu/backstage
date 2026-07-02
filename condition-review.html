@@ -84,6 +84,21 @@
   .designer-star-btn:hover { color:#3b82f6; border-color:var(--border-hover); transform:scale(1.1); }
   .designer-star-btn.starred { color:#3b82f6; border-color:#3b82f6; }
 
+  /* Multi-unit flag — sits just LEFT of the designer star (third badge in the
+     top-right row). Distinct purple ▦. Marks a listing that's actually 2+
+     separate dwellings on one lot (main house + ADU/guest house, duplex,
+     "two houses on one lot") — Dotty doesn't flip these, and such sales price
+     as an income property, not a condition-graded SFR — the ARV model
+     EXCLUDES these from comps + the per-city regression + declines them as a
+     subject (properties.multi_unit). No MLS field captures unit count. */
+  .multiunit-btn { position:absolute; top:10px; right:86px; z-index:2; width:32px; height:32px;
+    display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1;
+    border:1px solid var(--border); border-radius:50%; background:var(--bg);
+    color:var(--text-4); cursor:pointer; transition:transform .08s ease, color .12s ease, border-color .12s ease;
+    box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .multiunit-btn:hover { color:#8b5cf6; border-color:var(--border-hover); transform:scale(1.1); }
+  .multiunit-btn.starred { color:#8b5cf6; border-color:#8b5cf6; }
+
   .card-top { display:grid; grid-template-columns:1fr 1fr; gap:0; }
 
   /* Photo strip */
@@ -296,6 +311,10 @@
   <label class="filter-toggle">
     <input type="checkbox" id="fDesigner" onchange="resetAndLoad()">
     ◆ Designer only
+  </label>
+  <label class="filter-toggle">
+    <input type="checkbox" id="fMultiUnit" onchange="resetAndLoad()">
+    ▦ Multi-unit only
   </label>
 </div>
 
@@ -579,6 +598,7 @@ function applyCardFilters(query){
   if(unreviewed) query=query.or('condition_overridden.is.null,condition_overridden.eq.false');
   if(document.getElementById('fStarred').checked) query=query.eq('design_starred',true);
   if(document.getElementById('fDesigner').checked) query=query.eq('designer_starred',true);
+  if(document.getElementById('fMultiUnit').checked) query=query.eq('multi_unit',true);
   if(filters.search){
     // Strip commas/quotes/parens — PostgREST .or() splits on commas and
     // treats quotes/parens as syntax, so unsanitized input would break the filter.
@@ -612,7 +632,7 @@ async function loadCards(){
   // actually run concurrently instead of one-after-another.
   const dataReq=Promise.resolve(applyCardFilters(
     sb.from('properties')
-      .select('id,mls,address,city,sqft,beds,baths,sale_price,list_price,photo_count,condition_tier,condition_confidence,condition_sample_photos,condition_overridden,value_driver_rooms_updated,design_starred,designer_starred')
+      .select('id,mls,address,city,sqft,beds,baths,sale_price,list_price,photo_count,condition_tier,condition_confidence,condition_sample_photos,condition_overridden,value_driver_rooms_updated,design_starred,designer_starred,multi_unit')
       .order('condition_scored_at',{ascending:false}).order('id',{ascending:false})
   ).range(from,from+ps-1));
   const countReq=Promise.resolve(applyCardFilters(
@@ -737,10 +757,14 @@ function renderCard(p){
   const designer=p.designer_starred===true;
   const designerBtn=`<button class="designer-star-btn${designer?' starred':''}" onclick="toggleDesignerStar('${p.id}')" title="${designer?'Designer/architect custom — excluded from the ARV comps + regression. Click to unmark':'Mark as an architect/designer custom (price reflects design, not the market) — excludes it from the ARV comps + regression'}">${designer?'◆':'◇'}</button>`;
 
+  const multiUnit=p.multi_unit===true;
+  const multiUnitBtn=`<button class="multiunit-btn${multiUnit?' starred':''}" onclick="toggleMultiUnit('${p.id}')" title="${multiUnit?'Multi-unit (2+ dwellings on one lot) — excluded from the ARV comps + regression. Click to unmark':'Mark as multi-unit (main house + ADU/guest house, duplex, etc) — excludes it from the ARV comps + regression'}">${multiUnit?'▦':'▧'}</button>`;
+
   return `
     <div class="prop-card" data-id="${p.id}">
       ${starBtn}
       ${designerBtn}
+      ${multiUnitBtn}
       <div class="card-top">
         <div class="photo-strip">${photoHtml}</div>
         <div class="card-details">
@@ -867,6 +891,26 @@ async function toggleDesignerStar(id){
   if(error){
     console.error('Designer-star toggle failed:',error);
     p.designer_starred=!next;            // revert
+    refreshCard(id);
+  }
+}
+
+// Multi-unit flag — a COMP/MODEL signal (mirrors the designer star above):
+// marks a listing that's actually 2+ separate dwellings on one lot, which
+// Dotty doesn't flip and which prices as an income property, not a
+// condition-graded SFR — so the ARV pipeline excludes it from the per-city
+// regression + bars it from a normal subject's smart-comps. Optimistic
+// toggle; revert on a failed write. Independent of condition_overridden.
+async function toggleMultiUnit(id){
+  const p=cardData[id];
+  if(!p) return;
+  const next=!(p.multi_unit===true);
+  p.multi_unit=next;                     // optimistic
+  refreshCard(id);
+  const{error}=await sb.from('properties').update({multi_unit:next}).eq('id',id);
+  if(error){
+    console.error('Multi-unit toggle failed:',error);
+    p.multi_unit=!next;                  // revert
     refreshCard(id);
   }
 }
