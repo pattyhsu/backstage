@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reduction Letter — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js"></script>
+<style>
+/* === REDUCTION LETTER — local layout only ===
+   Shared shell + sidebar tokens come from backstage.css. This is a job-queue
+   tool: a form on the left uploads a property's inspection reports + specialist
+   bids, inserts a reduction_letter_jobs row, then polls until the mini daemon
+   writes back the generated letter (rendered on the right). Sidebar token block
+   is identical to quote.html. */
+
+body { overflow:hidden; height:100vh; }
+.app-shell { display:flex; height:100vh; }
+
+/* --- Sidebar (identical token block to quote.html) --- */
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+.bs-sidebar.collapsed { width:56px; }
+.bs-sidebar.collapsed .side-brand span, .bs-sidebar.collapsed .side-section-label, .bs-sidebar.collapsed .side-label, .bs-sidebar.collapsed .side-user-name, .bs-sidebar.collapsed .lock-btn { display:none; }
+.bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+.bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+.bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+.bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+.bs-sidebar.collapsed .side-user { justify-content:center; }
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.lock-btn:hover { color:var(--text); }
+.collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
+.collapse-btn:hover { color:var(--text); }
+.main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
+
+/* --- Top header bar --- */
+.q-hdr { padding:14px 20px 12px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.92); backdrop-filter:blur(20px); display:flex; align-items:center; justify-content:space-between; gap:16px; flex-shrink:0; }
+.q-hdr h1 { font-size:14px; font-weight:700; letter-spacing:-.3px; color:var(--accent); margin:0; }
+.q-hdr h1 span { color:var(--text-3); font-weight:400; margin-left:6px; }
+.q-actions { display:flex; gap:8px; }
+.btn { font-size:12.5px; font-weight:600; padding:7px 14px; border-radius:var(--radius); border:1px solid var(--border-strong); background:var(--bg); color:var(--text-2); cursor:pointer; transition:all .12s; }
+.btn:hover { border-color:var(--border-hover); background:var(--bg-page); }
+.btn:disabled { opacity:.5; cursor:not-allowed; }
+.btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.btn-primary:hover { filter:brightness(1.05); }
+
+/* --- Work area: editor (left) + output (right) --- */
+.q-work { flex:1; display:flex; min-height:0; }
+.q-editor { width:440px; flex-shrink:0; border-right:1px solid var(--border); overflow-y:auto; padding:18px 20px 60px; background:var(--bg-page); }
+.q-out-wrap { flex:1; overflow-y:auto; background:var(--bg-inset); padding:28px; display:flex; justify-content:center; align-items:flex-start; }
+
+/* --- Editor form --- */
+.fld { margin-bottom:13px; }
+.fld label { display:block; font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--text-4); margin-bottom:4px; }
+.fld input, .fld select { width:100%; box-sizing:border-box; font-family:var(--sans); font-size:13px; color:var(--text); padding:7px 9px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); }
+.fld input:focus, .fld select:focus { outline:none; border-color:var(--accent); }
+.fld-row { display:flex; gap:10px; }
+.fld-row .fld { flex:1; }
+.hint { font-size:10.5px; color:var(--text-4); margin-top:3px; line-height:1.35; }
+.req { color:var(--red); }
+.sec-label { font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-3); margin:22px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--border); }
+
+/* --- Drag-drop zone --- */
+.drop { border:1.5px dashed var(--border-strong); border-radius:var(--radius); padding:22px 14px; text-align:center; color:var(--text-4); font-size:12.5px; cursor:pointer; background:var(--bg); transition:all .12s; }
+.drop:hover, .drop.drag { border-color:var(--accent); color:var(--accent); background:var(--bg-page); }
+.drop b { color:var(--text-2); font-weight:600; }
+
+/* File cards (one per uploaded PDF) */
+.file-card { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:10px 11px; margin-top:9px; position:relative; }
+.file-card .fc-name { font-size:12px; font-weight:600; color:var(--text-2); word-break:break-all; padding-right:20px; line-height:1.3; }
+.file-card .fc-size { font-size:10.5px; color:var(--text-4); margin-top:2px; }
+.file-card .fc-x { position:absolute; top:8px; right:8px; border:none; background:none; cursor:pointer; color:var(--text-4); font-size:14px; line-height:1; padding:2px; }
+.file-card .fc-x:hover { color:var(--red); }
+.file-card select { width:100%; margin-top:7px; box-sizing:border-box; font-family:var(--sans); font-size:12px; color:var(--text); padding:5px 7px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg-page); }
+
+/* --- Status + output --- */
+.status-line { font-size:12.5px; color:var(--text-3); margin-top:14px; display:flex; align-items:center; gap:8px; min-height:18px; }
+.spinner { width:13px; height:13px; border:2px solid var(--border-strong); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.status-err { color:var(--red); }
+
+.out-paper { width:720px; max-width:100%; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,.14); border-radius:var(--radius); padding:26px 30px; }
+.out-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+.out-head h2 { font-size:13px; font-weight:700; color:var(--text); margin:0; }
+.out-empty { color:var(--text-4); font-size:13px; text-align:center; padding:60px 20px; line-height:1.5; }
+#letter-text { width:100%; box-sizing:border-box; min-height:520px; font-family:var(--sans); font-size:13.5px; line-height:1.6; color:var(--text); padding:14px 16px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg-page); resize:vertical; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+<!-- Sidebar (rendered by sidebar.js) -->
+<div class="bs-sidebar" id="bsSidebar"></div>
+
+<div class="main-content">
+
+  <div class="q-hdr">
+    <h1>Reduction Letter <span>inspection reports &amp; bids → letter</span></h1>
+    <div class="q-actions">
+      <button class="btn" onclick="resetForm()">Clear</button>
+      <button class="btn btn-primary" id="gen-btn" onclick="submitJob()">Generate letter</button>
+    </div>
+  </div>
+
+  <div class="q-work">
+
+    <!-- ===== EDITOR ===== -->
+    <div class="q-editor">
+
+      <div class="sec-label" style="margin-top:0">Deal</div>
+      <div class="fld">
+        <label>Property address <span class="req">*</span></label>
+        <input type="text" id="f-addr" placeholder="13538 Darvalle St, Cerritos, CA 90703">
+      </div>
+      <div class="fld">
+        <label>Listing agent name</label>
+        <input type="text" id="f-realtor" placeholder="Teresa (optional — greeting)">
+        <div class="hint">Used for "Hi {name},". Leave blank for "Hi,".</div>
+      </div>
+      <div class="fld-row">
+        <div class="fld">
+          <label>Buyer / signer</label>
+          <input type="text" id="f-buyer" value="Donald Tsai">
+        </div>
+        <div class="fld">
+          <label>Brokerage</label>
+          <input type="text" id="f-broker" value="Dotty Homes">
+        </div>
+      </div>
+
+      <div class="sec-label">The ask</div>
+      <div class="fld">
+        <label>Target reduction $ <span class="req">*</span></label>
+        <input type="text" id="f-target" inputmode="decimal" placeholder="31000">
+        <div class="hint">The dollar amount you're asking the seller to drop.</div>
+      </div>
+      <div class="fld-row">
+        <div class="fld">
+          <label>Current price $</label>
+          <input type="text" id="f-price" inputmode="decimal" placeholder="1000000 (optional)">
+        </div>
+        <div class="fld">
+          <label>Commission $</label>
+          <input type="text" id="f-comm" inputmode="decimal" placeholder="optional">
+        </div>
+      </div>
+
+      <div class="sec-label">Inspection reports &amp; bids</div>
+      <div class="drop" id="drop">
+        <b>Drop PDFs here</b> or click to choose<br>
+        <span style="font-size:11px">PDF only · up to 50 MB each</span>
+      </div>
+      <input type="file" id="file-input" accept="application/pdf" multiple style="display:none">
+      <div id="file-list"></div>
+
+      <div class="status-line" id="status"></div>
+
+    </div>
+
+    <!-- ===== OUTPUT ===== -->
+    <div class="q-out-wrap">
+      <div class="out-paper" id="out-paper">
+        <div class="out-empty" id="out-empty">
+          Fill in the deal, drop the inspection report + specialist bids, and click
+          <b>Generate letter</b>.<br>The mini writes the letter and it appears here
+          (usually under a minute).
+        </div>
+        <div id="out-body" style="display:none">
+          <div class="out-head">
+            <h2>Reduction letter</h2>
+            <button class="btn btn-primary" onclick="copyLetter()" id="copy-btn">Copy</button>
+          </div>
+          <textarea id="letter-text" spellcheck="false"></textarea>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /q-work -->
+</div><!-- /main-content -->
+</div><!-- /app-shell -->
+
+<script>
+// ========== SUPABASE CLIENT ==========
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+
+const BUCKET='reduction_docs';
+const MAX_BYTES=52428800;  // 50 MB — matches the bucket file_size_limit.
+
+// The label options for each uploaded doc (must match the worker's expectations).
+const LABELS=['Foundation','HVAC','Roof','Termite','Sewer','Electrical','Mold','Plumbing','General Inspection','Other'];
+
+// ========== FILE STATE ==========
+// Source of truth for the chosen files. Each: {id, file, label}.
+let FILES=[];
+let FILE_SEQ=0;
+let polling=null;     // setInterval handle
+let submitting=false;
+
+// Auto-guess a label from the filename (Patty can correct it).
+function guessLabel(name){
+  const n=(name||'').toLowerCase();
+  if(/foundation/.test(n))return 'Foundation';
+  if(/hvac|\bac\b|furnace|condenser|air.?condition/.test(n))return 'HVAC';
+  if(/roof/.test(n))return 'Roof';
+  if(/termite|pest|wood.?destroy|wdo/.test(n))return 'Termite';
+  if(/sewer|drain|lateral/.test(n))return 'Sewer';
+  if(/electric/.test(n))return 'Electrical';
+  if(/mold/.test(n))return 'Mold';
+  if(/plumb/.test(n))return 'Plumbing';
+  if(/general|inspection|home.?insp/.test(n))return 'General Inspection';
+  return 'Other';
+}
+
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
+function prettySize(b){ if(b<1024)return b+' B'; if(b<1048576)return (b/1024).toFixed(0)+' KB'; return (b/1048576).toFixed(1)+' MB'; }
+// Strip a number field to a plain numeric string (or null if blank/invalid).
+function numOrNull(id){
+  const raw=(document.getElementById(id).value||'').replace(/[^0-9.\-]/g,'');
+  if(raw==='')return null;
+  const v=Number(raw);
+  return isFinite(v)?v:null;
+}
+// Storage keys must be URL-safe — sanitize for the path; name is kept in file_keys.
+function safeName(name){ return (name||'file').replace(/[^A-Za-z0-9._-]+/g,'_').replace(/^_+|_+$/g,'')||'file'; }
+
+// ========== FILE PICKER + DRAG-DROP ==========
+function addFiles(fileList){
+  for(const f of fileList){
+    if(f.type!=='application/pdf'){ setStatus('Skipped "'+f.name+'" — PDF only.', true); continue; }
+    if(f.size>MAX_BYTES){ setStatus('Skipped "'+f.name+'" — over 50 MB.', true); continue; }
+    FILES.push({id:++FILE_SEQ, file:f, label:guessLabel(f.name)});
+  }
+  renderFiles();
+}
+function removeFile(id){ FILES=FILES.filter(x=>x.id!==id); renderFiles(); }
+function setLabel(id,val){ const it=FILES.find(x=>x.id===id); if(it)it.label=val; }
+function renderFiles(){
+  const box=document.getElementById('file-list');
+  box.innerHTML=FILES.map(it=>{
+    const opts=LABELS.map(l=>`<option value="${l}"${l===it.label?' selected':''}>${l}</option>`).join('');
+    return `<div class="file-card">
+      <button class="fc-x" title="Remove" onclick="removeFile(${it.id})">✕</button>
+      <div class="fc-name">${escapeHtml(it.file.name)}</div>
+      <div class="fc-size">${prettySize(it.file.size)}</div>
+      <select onchange="setLabel(${it.id}, this.value)">${opts}</select>
+    </div>`;
+  }).join('');
+}
+
+function wireDrop(){
+  const drop=document.getElementById('drop');
+  const input=document.getElementById('file-input');
+  drop.addEventListener('click', ()=>input.click());
+  input.addEventListener('change', e=>{ addFiles(e.target.files); input.value=''; });
+  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev, e=>{ e.preventDefault(); drop.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev, e=>{ e.preventDefault(); drop.classList.remove('drag'); }));
+  drop.addEventListener('drop', e=>{ if(e.dataTransfer&&e.dataTransfer.files)addFiles(e.dataTransfer.files); });
+}
+
+// ========== STATUS ==========
+function setStatus(msg, isErr, spin){
+  const el=document.getElementById('status');
+  if(!msg){ el.innerHTML=''; return; }
+  el.className='status-line'+(isErr?' status-err':'');
+  el.innerHTML=(spin?'<span class="spinner"></span>':'')+escapeHtml(msg);
+}
+
+// ========== SUBMIT ==========
+async function submitJob(){
+  if(submitting)return;
+  const addr=(document.getElementById('f-addr').value||'').trim();
+  const target=numOrNull('f-target');
+  if(!addr){ setStatus('Property address is required.', true); return; }
+  if(target==null){ setStatus('Target reduction $ is required.', true); return; }
+  if(!FILES.length){ setStatus('Add at least one inspection report or bid PDF.', true); return; }
+
+  submitting=true;
+  document.getElementById('gen-btn').disabled=true;
+  document.getElementById('out-body').style.display='none';
+  document.getElementById('out-empty').style.display='block';
+
+  const jobId=crypto.randomUUID();
+  const fileKeys=[];
+  try{
+    // 1. Upload each PDF to the bucket, namespaced by jobId.
+    for(let i=0;i<FILES.length;i++){
+      const it=FILES[i];
+      setStatus(`Uploading ${i+1}/${FILES.length}…`, false, true);
+      const path=`${jobId}/${i}_${safeName(it.file.name)}`;
+      const {error:upErr}=await sb.storage.from(BUCKET).upload(path, it.file, {contentType:'application/pdf', upsert:false});
+      if(upErr)throw new Error('Upload failed for "'+it.file.name+'": '+(upErr.message||'unknown'));
+      fileKeys.push({name:it.file.name, storage_path:path, label:it.label});
+    }
+
+    // 2. Insert the job row (id = jobId, so it matches the storage path prefix).
+    setStatus('Queuing job…', false, true);
+    const {error:insErr}=await sb.from('reduction_letter_jobs').insert({
+      id: jobId,
+      property_address: addr,
+      realtor_name: (document.getElementById('f-realtor').value||'').trim()||null,
+      buyer_name: (document.getElementById('f-buyer').value||'').trim()||'Donald Tsai',
+      brokerage: (document.getElementById('f-broker').value||'').trim()||'Dotty Homes',
+      target_reduction: target,
+      current_price: numOrNull('f-price'),
+      commission: numOrNull('f-comm'),
+      file_keys: fileKeys,
+    }).select();
+    if(insErr)throw new Error('Could not queue the job: '+(insErr.message||'unknown'));
+
+    // 3. Poll for the letter (the mini daemon does the work).
+    setStatus('Reading reports…', false, true);
+    pollJob(jobId);
+  }catch(err){
+    setStatus(err.message||String(err), true);
+    submitting=false;
+    document.getElementById('gen-btn').disabled=false;
+  }
+}
+
+function pollJob(jobId){
+  if(polling)clearInterval(polling);
+  let ticks=0;
+  polling=setInterval(async ()=>{
+    ticks++;
+    const {data, error}=await sb.from('reduction_letter_jobs').select('status,letter_text,error').eq('id',jobId).single();
+    if(error){ /* transient — keep polling */ return; }
+    if(!data)return;
+    if(data.status==='processing'){ setStatus('Writing letter…', false, true); return; }
+    if(data.status==='pending'){ setStatus('Queued — reading reports…', false, true); return; }
+    if(data.status==='done'){
+      clearInterval(polling); polling=null;
+      submitting=false;
+      document.getElementById('gen-btn').disabled=false;
+      setStatus('Done.', false);
+      showLetter(data.letter_text||'');
+      return;
+    }
+    if(data.status==='error'){
+      clearInterval(polling); polling=null;
+      submitting=false;
+      document.getElementById('gen-btn').disabled=false;
+      setStatus('Generation failed: '+(data.error||'unknown error')+' — check the mini logs and retry.', true);
+      return;
+    }
+  }, 5000);
+}
+
+function showLetter(text){
+  document.getElementById('out-empty').style.display='none';
+  document.getElementById('out-body').style.display='block';
+  document.getElementById('letter-text').value=text;
+}
+
+async function copyLetter(){
+  const ta=document.getElementById('letter-text');
+  try{
+    await navigator.clipboard.writeText(ta.value);
+  }catch(_){
+    ta.select(); document.execCommand('copy');
+  }
+  const btn=document.getElementById('copy-btn');
+  const prev=btn.textContent; btn.textContent='Copied ✓';
+  setTimeout(()=>{ btn.textContent=prev; }, 1400);
+}
+
+// ========== RESET ==========
+function resetForm(){
+  if(polling){ clearInterval(polling); polling=null; }
+  submitting=false;
+  document.getElementById('gen-btn').disabled=false;
+  document.getElementById('f-addr').value='';
+  document.getElementById('f-realtor').value='';
+  document.getElementById('f-buyer').value='Donald Tsai';
+  document.getElementById('f-broker').value='Dotty Homes';
+  document.getElementById('f-target').value='';
+  document.getElementById('f-price').value='';
+  document.getElementById('f-comm').value='';
+  FILES=[]; renderFiles();
+  setStatus('');
+  document.getElementById('out-body').style.display='none';
+  document.getElementById('out-empty').style.display='block';
+}
+
+// ========== INIT ==========
+(async()=>{
+  await window.authGate();
+  if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
+  window.renderSidebar('reduction');
+  wireDrop();
+})();
+</script>
+</body>
+</html>
