@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="backstage.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
-<script src="sidebar.js"></script>
+<script src="sidebar.js?v=20260703"></script>
 <!-- Markdown → sanitized HTML. marked parses; DOMPurify strips anything unsafe
      before it touches the DOM (the markdown is owner-authored, but sanitize
      anyway — defense in depth, and the content is served through the DB). -->
@@ -19,10 +19,10 @@
 <style>
 /* === AREA INSIGHTS — local layout only ===
    Shared shell + sidebar tokens come from backstage.css. A doc reader: a left
-   rail of cities, a scrolling rendered-markdown pane on the right. The Data-hub
-   tab strip (Condition / Import CSV / Geocode / Missing Schools / Area Insights)
-   pins to the top, mirroring condition-review.html + import.html. Sidebar token
-   block is identical to reduction-letter.html / quote.html. */
+   rail of cities, a scrolling rendered-markdown pane on the right, under a
+   standalone page header. Its own sidebar destination (key 'areainsights'),
+   not part of the Condition/Import tab cluster. Sidebar token block is
+   identical to reduction-letter.html / quote.html. */
 
 body { overflow:hidden; height:100vh; }
 .app-shell { display:flex; height:100vh; }
