@@ -1165,7 +1165,7 @@ async function loadProject(){
   let arvRow=null, gradeRow=null, deCount=0;
   if(primary){
     try {
-      const {data:arvData}=await sb.from('arv_estimates').select('headline_arv,confidence,confidence_score').eq('mls',primary.mls).order('computed_at',{ascending:false}).limit(1);
+      const {data:arvData}=await sb.from('arv_estimates').select('headline_arv,confidence,confidence_score,claude_generic_low,claude_generic_point,claude_generic_high,claude_dotty_point,claude_premium_pct,claude_premium_n,claude_confidence,claude_data,claude_model_version,claude_scored_at').eq('mls',primary.mls).order('computed_at',{ascending:false}).limit(1);
       arvRow=(arvData&&arvData[0])||null;
     } catch(e){}
     try {
@@ -2440,6 +2440,78 @@ function computeCashCells(){
   ];
 }
 
+// Advisory Claude ARV panel (third ARV method — alongside per-city regression +
+// smart-comps). Read-only / informational: does NOT feed headline_arv, the grade,
+// or the offer-maker math. NULL-safe — caller renders it only when
+// claude_generic_point != null, so an unscored row emits nothing.
+// Mirrors mls-deals.html renderClaudeArvDetail(r) content, styled to
+// project-detail's own CSS idiom (sect-h / om-* vars, backstage.css tokens).
+function renderClaudeArvPanel(r){
+  if(!r || r.claude_generic_point==null) return '';
+  const CF=n=>n==null?'—':'$'+Math.round(n).toLocaleString();
+  const lo=r.claude_generic_low,pt=r.claude_generic_point,hi=r.claude_generic_high;
+  const rangeStr=[CF(lo),CF(pt),CF(hi)].join(' – ');
+  // "If Dotty flipped it" point + premium tag. Low flip count = less certain
+  // (premium shrunk toward 0) → render the tag muted + italic when n<=1.
+  const dp=r.claude_dotty_point, pct=r.claude_premium_pct, n=r.claude_premium_n;
+  let dottyLine='';
+  if(dp!=null){
+    let tag='';
+    if(pct!=null){
+      const lowN=(n!=null&&n<=1);
+      const pctStr=(pct>=0?'+':'')+Number(pct).toFixed(1)+'%';
+      const nStr=(n!=null)?` · ${n} flip${n===1?'':'s'}`:'';
+      const tagStyle=lowN
+        ?'font-size:10px;color:var(--text-4);font-style:italic;margin-left:6px'
+        :'font-size:10px;color:var(--text-3);margin-left:6px';
+      tag=`<span style="${tagStyle}">${pctStr}${nStr}</span>`;
+    }
+    dottyLine=`<div style="margin-top:4px;font-size:11px;color:var(--text-2)">
+      <span style="color:var(--text-4)">If Dotty flipped it:</span>
+      <span style="font-weight:700;color:var(--accent);margin-left:6px">${CF(dp)}</span>${tag}</div>`;
+  }
+  // Confidence pill — green/amber/grey by level.
+  const conf=String(r.claude_confidence||'').toLowerCase();
+  let confPill='';
+  if(conf==='high'||conf==='medium'||conf==='low'){
+    const cCol=conf==='high'?'var(--green)':conf==='medium'?'var(--amber)':'var(--text-4)';
+    confPill=`<span style="font-size:9px;font-weight:700;color:${cCol};border:1px solid ${cCol};border-radius:8px;padding:1px 7px;letter-spacing:.4px;text-transform:uppercase;margin-left:8px">${escapeHtml(conf)}</span>`;
+  }
+  // Reasoning (the auditable "why"). All fields optional.
+  const data=r.claude_data||{};
+  const reasoning=data.reasoning||{};
+  const nComps=data.n_comps;
+  const marketRead=reasoning.market_read;
+  const adjustments=reasoning.adjustments;
+  const anchors=Array.isArray(reasoning.anchor_comps)?reasoning.anchor_comps:[];
+  let reasoningHtml='';
+  if(marketRead||adjustments||anchors.length){
+    const marketHtml=marketRead
+      ?`<div style="margin-top:6px;font-size:11px;color:var(--text-2)"><span style="color:var(--text-4)">Market read:</span> ${escapeHtml(String(marketRead))}</div>`:'';
+    const adjHtml=adjustments
+      ?`<div style="margin-top:4px;font-size:11px;color:var(--text-2)"><span style="color:var(--text-4)">Adjustments:</span> ${escapeHtml(String(adjustments))}</div>`:'';
+    let anchorHtml='';
+    if(anchors.length){
+      const items=anchors.map(a=>`<li style="margin:1px 0">${escapeHtml(typeof a==='string'?a:JSON.stringify(a))}</li>`).join('');
+      anchorHtml=`<div style="margin-top:4px;font-size:11px;color:var(--text-2)"><span style="color:var(--text-4)">Anchor comps:</span>
+        <ul style="margin:2px 0 0 0;padding-left:16px;color:var(--text-3)">${items}</ul></div>`;
+    }
+    reasoningHtml=marketHtml+adjHtml+anchorHtml;
+  }
+  const ver=r.claude_model_version?escapeHtml(String(r.claude_model_version)):'';
+  const scoredAt=r.claude_scored_at?new Date(r.claude_scored_at).toLocaleString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(',','')+' PT':'';
+  const metaBits=[nComps!=null?`${nComps} comps`:'',ver,scoredAt].filter(Boolean).join(' · ');
+  const metaHtml=metaBits?`<div style="margin-top:6px;font-size:10px;color:var(--text-4)">${metaBits}</div>`:'';
+  return `<details class="claude-arv-panel" style="margin-top:10px;padding:9px 11px;border:1px solid var(--border);border-radius:6px;background:var(--bg-alt)">
+    <summary style="cursor:pointer;font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.02em;text-transform:uppercase">Claude ARV <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-4)">(advisory · not the underwriting ARV)</span>${confPill}</summary>
+    <div style="margin-top:8px;font-size:11px;color:var(--text-2)">
+      <span style="color:var(--text-4)">Generic flip range:</span>
+      <span style="font-weight:700;color:var(--text-2);margin-left:6px">${rangeStr}</span></div>
+    ${dottyLine}
+    ${reasoningHtml}
+    ${metaHtml}</details>`;
+}
+
 function renderOfferCalc(){
   const d=currentDeal;
   const p=primaryProperty();
@@ -2458,6 +2530,7 @@ function renderOfferCalc(){
               <input id="ocArv" value="$${Math.round(arv).toLocaleString()}" ${arvLocked?'readonly':''}>
               <button type="button" id="ocArvLock" class="om-lockbtn${arvLocked?' on':''}">${arvLocked?'🔒 Locked':'Lock ARV'}</button>
             </div>
+            ${renderClaudeArvPanel(lastArvRow)}
           </div>
           <div>
             <div class="om-grp">Construction / rehab</div>
