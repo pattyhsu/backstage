@@ -1049,6 +1049,10 @@ function renderArvScoreDetail(l,mid,av){
   const dsOk=dc&&dc.state==='ok'&&dc.row&&dc.row.grade;
   const parts=[];
   if(cacheOk&&av.isPerCity&&av.smartArv!=null)parts.push(renderSmartCompsDetail(l,av));
+  // Claude ARV (advisory third method). NULL-safe: renders only when the
+  // nightly mini job has written a generic point. Display-only — does NOT
+  // feed arvSourceVal / the ARV column / GAP / grade.
+  if(cacheOk&&av.r&&av.r.claude_generic_point!=null)parts.push(renderClaudeArvDetail(av.r));
   if(dsOk)parts.push(renderDealScoreDetail(dc.row));
   if(!parts.length)return'';
   return `<div style="margin-top:6px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:5px">${parts.join('<div style=\"height:6px\"></div>')}</div>`;
@@ -1152,6 +1156,82 @@ function renderSmartCompsDetail(l,av){
     compsRows=`<div style="padding:6px;color:var(--text-4);font-size:11px;font-style:italic">No anchor comps</div>`;
   }
   return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Smart comps anchors (${n} within ${radius}mi · ${monthsBack}mo · $${ppsf}/sf median T6-eq)</summary>${flagsHtml}${skipNote}${compsRows}</details>`;
+}
+
+// Claude ARV detail — the advisory third ARV method (regression + smart
+// comps being the other two). Written nightly by a mini `claude -p` job:
+// a GENERIC quality-flip range (low/point/high) + an "if Dotty flipped it"
+// point (generic × a shrunk, bias-low per-city Dotty premium, tagged with
+// the flip count) + confidence + auditable reasoning. DISPLAY-ONLY /
+// ADVISORY — it never feeds the ARV column, GAP, sort, or grade. NULL-safe:
+// the caller only invokes this when claude_generic_point is present.
+function renderClaudeArvDetail(r){
+  const lo=r.claude_generic_low,pt=r.claude_generic_point,hi=r.claude_generic_high;
+  const rangeStr=[lo!=null?F(lo):null,pt!=null?F(pt):null,hi!=null?F(hi):null]
+    .map(x=>x==null?'—':x).join(' – ');
+  // "If Dotty flipped it" point + premium tag. Low flip count = less certain
+  // (the premium is shrunk toward 0 with little data) → render the tag muted
+  // + italic when n<=1.
+  const dp=r.claude_dotty_point;
+  const pct=r.claude_premium_pct;
+  const n=r.claude_premium_n;
+  let dottyLine='';
+  if(dp!=null){
+    let tag='';
+    if(pct!=null){
+      const lowN=(n!=null&&n<=1);
+      const pctStr=(pct>=0?'+':'')+Number(pct).toFixed(1)+'%';
+      const nStr=(n!=null)?` · ${n} flip${n===1?'':'s'}`:'';
+      const tagStyle=lowN
+        ?'font-size:10px;color:var(--text-4);font-style:italic;margin-left:6px'
+        :'font-size:10px;color:var(--text-3);margin-left:6px';
+      tag=`<span style="${tagStyle}">${pctStr}${nStr}</span>`;
+    }
+    dottyLine=`<div style="margin-top:4px;font-size:11px;color:var(--text-2)">
+      <span style="color:var(--text-4)">If Dotty flipped it:</span>
+      <span style="font-weight:700;color:var(--accent);margin-left:6px">${F(dp)}</span>${tag}</div>`;
+  }
+  // Confidence pill — mirror the deal-score/tier pill idiom (rounded, muted
+  // bg). Green/amber/grey by level.
+  const conf=String(r.claude_confidence||'').toLowerCase();
+  let confPill='';
+  if(conf==='high'||conf==='medium'||conf==='low'){
+    const cCol=conf==='high'?'var(--green)':conf==='medium'?'var(--amber)':'var(--text-4)';
+    confPill=`<span style="font-size:9px;font-weight:700;color:${cCol};border:1px solid ${cCol};border-radius:8px;padding:1px 7px;letter-spacing:.4px;text-transform:uppercase;margin-left:8px">${escapeHtml(conf)}</span>`;
+  }
+  // Reasoning (the auditable "why"). All fields optional.
+  const data=r.claude_data||{};
+  const reasoning=data.reasoning||{};
+  const nComps=data.n_comps;
+  const marketRead=reasoning.market_read;
+  const adjustments=reasoning.adjustments;
+  const anchors=Array.isArray(reasoning.anchor_comps)?reasoning.anchor_comps:[];
+  let reasoningHtml='';
+  if(marketRead||adjustments||anchors.length){
+    const marketHtml=marketRead
+      ?`<div style="margin-top:6px;font-size:11px;color:var(--text-2)"><span style="color:var(--text-4)">Market read:</span> ${escapeHtml(String(marketRead))}</div>`:'';
+    const adjHtml=adjustments
+      ?`<div style="margin-top:4px;font-size:11px;color:var(--text-2)"><span style="color:var(--text-4)">Adjustments:</span> ${escapeHtml(String(adjustments))}</div>`:'';
+    let anchorHtml='';
+    if(anchors.length){
+      const items=anchors.map(a=>`<li style="margin:1px 0">${escapeHtml(typeof a==='string'?a:JSON.stringify(a))}</li>`).join('');
+      anchorHtml=`<div style="margin-top:4px;font-size:11px;color:var(--text-2)"><span style="color:var(--text-4)">Anchor comps:</span>
+        <ul style="margin:2px 0 0 0;padding-left:16px;color:var(--text-3)">${items}</ul></div>`;
+    }
+    reasoningHtml=marketHtml+adjHtml+anchorHtml;
+  }
+  const ver=r.claude_model_version?escapeHtml(String(r.claude_model_version)):'';
+  const scoredAt=r.claude_scored_at?new Date(r.claude_scored_at).toLocaleString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(',','')+' PT':'';
+  const metaBits=[nComps!=null?`${nComps} comps`:'',ver,scoredAt].filter(Boolean).join(' · ');
+  const metaHtml=metaBits?`<div style="margin-top:6px;font-size:10px;color:var(--text-4)">${metaBits}</div>`:'';
+  const summaryConf=(conf==='high'||conf==='medium'||conf==='low')?confPill:'';
+  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Claude ARV <span style="font-weight:400;color:var(--text-4)">(advisory · not the underwriting ARV)</span>${summaryConf}</summary>
+    <div style="margin-top:6px;font-size:11px;color:var(--text-2)">
+      <span style="color:var(--text-4)">Generic flip range:</span>
+      <span style="font-weight:700;color:var(--text-2);margin-left:6px">${rangeStr}</span></div>
+    ${dottyLine}
+    ${reasoningHtml}
+    ${metaHtml}</details>`;
 }
 
 function renderDealScoreDetail(r){
