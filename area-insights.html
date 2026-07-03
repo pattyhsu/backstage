@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Area Insights — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js"></script>
+<!-- Markdown → sanitized HTML. marked parses; DOMPurify strips anything unsafe
+     before it touches the DOM (the markdown is owner-authored, but sanitize
+     anyway — defense in depth, and the content is served through the DB). -->
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+<style>
+/* === AREA INSIGHTS — local layout only ===
+   Shared shell + sidebar tokens come from backstage.css. A doc reader: a left
+   rail of cities, a scrolling rendered-markdown pane on the right. The Data-hub
+   tab strip (Condition / Import CSV / Geocode / Missing Schools / Area Insights)
+   pins to the top, mirroring condition-review.html + import.html. Sidebar token
+   block is identical to reduction-letter.html / quote.html. */
+
+body { overflow:hidden; height:100vh; }
+.app-shell { display:flex; height:100vh; }
+
+/* --- Sidebar (identical token block to reduction-letter.html) --- */
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+.bs-sidebar.collapsed { width:56px; }
+.bs-sidebar.collapsed .side-brand span, .bs-sidebar.collapsed .side-section-label, .bs-sidebar.collapsed .side-label, .bs-sidebar.collapsed .side-user-name, .bs-sidebar.collapsed .lock-btn { display:none; }
+.bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+.bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+.bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+.bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+.bs-sidebar.collapsed .side-user { justify-content:center; }
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.lock-btn:hover { color:var(--text); }
+.collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
+.collapse-btn:hover { color:var(--text); }
+.main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
+
+/* --- Tab strip (pinned; anchor-styled tabs drop the global underline) --- */
+a.tab, a.tab:hover { text-decoration:none; }
+.ai-tabs { flex-shrink:0; }
+.tab-meta { margin-left:auto; padding-right:24px; display:flex; align-items:center; gap:6px; color:var(--text-4); font-size:12px; }
+
+/* --- Body: city rail + doc pane --- */
+.ai-body { flex:1; display:flex; min-height:0; }
+
+.ai-nav { width:210px; flex-shrink:0; border-right:1px solid var(--border); background:var(--bg-page); overflow-y:auto; padding:12px 10px; }
+.ai-nav-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px 6px; }
+.ai-city { display:block; width:100%; text-align:left; padding:7px 10px; border:none; background:none; border-radius:var(--radius-sm); cursor:pointer; font-family:var(--sans); font-size:13px; font-weight:500; color:var(--text-3); transition:all .12s; }
+.ai-city:hover { background:var(--bg-alt); color:var(--text-2); }
+.ai-city.active { background:var(--accent-dim2); color:var(--accent); font-weight:600; }
+
+.ai-doc-wrap { flex:1; overflow-y:auto; min-width:0; }
+.ai-doc { max-width:820px; margin:0 auto; padding:32px 44px 80px; }
+.ai-empty { display:grid; place-items:center; height:100%; color:var(--text-4); font-size:14px; }
+
+/* --- Rendered-markdown prose (scoped to .ai-doc so it never touches the
+       global data-grid <table> styling) --- */
+.ai-doc h1 { font-size:24px; font-weight:700; letter-spacing:-.4px; color:var(--text); margin:0 0 4px; line-height:1.25; }
+.ai-doc h2 { font-size:17px; font-weight:700; color:var(--text); margin:30px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--border); }
+.ai-doc h3 { font-size:14px; font-weight:700; color:var(--text-2); margin:22px 0 8px; }
+.ai-doc h4 { font-size:13px; font-weight:700; color:var(--text-3); margin:18px 0 6px; text-transform:uppercase; letter-spacing:.4px; }
+.ai-doc p { font-size:14px; line-height:1.7; color:var(--text-2); margin:0 0 12px; }
+.ai-doc ul, .ai-doc ol { margin:0 0 14px; padding-left:22px; }
+.ai-doc li { font-size:14px; line-height:1.65; color:var(--text-2); margin-bottom:5px; }
+.ai-doc a { color:var(--accent); text-decoration:underline; text-underline-offset:2px; }
+.ai-doc strong { color:var(--text); font-weight:600; }
+.ai-doc em { color:var(--text-2); }
+.ai-doc hr { border:none; border-top:1px solid var(--border); margin:26px 0; }
+.ai-doc blockquote { margin:0 0 14px; padding:2px 16px; border-left:3px solid var(--border-strong); color:var(--text-3); font-style:italic; }
+.ai-doc code { font-family:var(--mono); font-size:12.5px; background:var(--bg-alt); padding:1px 5px; border-radius:4px; color:var(--text); }
+.ai-doc pre { background:var(--bg-alt); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; overflow-x:auto; margin:0 0 14px; }
+.ai-doc pre code { background:none; padding:0; font-size:12.5px; line-height:1.6; }
+.ai-doc table { border-collapse:collapse; width:auto; margin:4px 0 18px; font-size:13px; display:block; overflow-x:auto; }
+.ai-doc thead { position:static; }
+.ai-doc th, .ai-doc td { border:1px solid var(--border); padding:6px 12px; text-align:left; vertical-align:top; }
+.ai-doc th { background:var(--bg-alt); font-weight:600; color:var(--text-2); white-space:nowrap; }
+.ai-doc td { color:var(--text-2); }
+.ai-doc tbody tr:nth-child(even) td { background:var(--bg-page); }
+.ai-doc img { max-width:100%; border-radius:var(--radius); }
+/* HTML comment markers (QUALITATIVE/GENERATED) are stripped by marked; nothing to hide. */
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+<!-- Sidebar (rendered by sidebar.js after auth) -->
+<div class="bs-sidebar" id="bsSidebar"></div>
+
+<div class="main-content">
+
+  <!-- Data-hub tab strip (Area Insights active; the rest deep-link into the
+       other Data pages) — mirrors condition-review.html + import.html. -->
+  <div class="tabs ai-tabs">
+    <a class="tab" href="condition-review.html">Condition</a>
+    <a class="tab" href="import.html#import">Import CSV</a>
+    <a class="tab" href="import.html#geocode">Geocode</a>
+    <a class="tab" href="import.html#schools">Missing Schools</a>
+    <div class="tab active">Area Insights</div>
+    <div class="tab-meta"><span id="updatedMeta"></span></div>
+  </div>
+
+  <div class="ai-body">
+    <nav class="ai-nav" id="aiNav">
+      <div class="ai-nav-label">Cities</div>
+      <div id="cityList"></div>
+    </nav>
+    <div class="ai-doc-wrap" id="docWrap">
+      <div class="ai-empty" id="docEmpty">Loading area insights…</div>
+      <article class="ai-doc" id="doc" style="display:none"></article>
+    </div>
+  </div>
+
+</div><!-- /main-content -->
+</div><!-- /app-shell -->
+
+<script>
+// ========== SUPABASE CLIENT ==========
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+
+let REPORTS=[];        // [{city, title, markdown, updated_at}]
+let activeCity=null;
+
+const $=id=>document.getElementById(id);
+
+// marked: GitHub-ish flavour (tables, line breaks off — the mds use blank lines).
+marked.setOptions({ gfm:true, breaks:false, headerIds:false, mangle:false });
+// The insight mds use a single ~ for "approximately" (~$530, ~2.5mi, ~120/yr).
+// marked's GFM strikethrough leniently treats ~text~ as <del>, mangling those
+// values. No insight md uses intentional strikethrough, so disable the del
+// inline tokenizer entirely — a lone ~ then renders as a literal tilde.
+marked.use({ tokenizer: { del() { return undefined; } } });
+
+function renderCityList(){
+  const html=REPORTS.map(r=>
+    `<button class="ai-city${r.city===activeCity?' active':''}" data-city="${r.city}" onclick="selectCity('${r.city}')">${escapeHtml(r.title)}</button>`
+  ).join('');
+  $('cityList').innerHTML=html;
+}
+
+function selectCity(city){
+  const r=REPORTS.find(x=>x.city===city);
+  if(!r)return;
+  activeCity=city;
+  // Persist the selection so a reload / deep-link lands on the same city.
+  try{ location.hash='#'+city; }catch(e){}
+  renderCityList();
+  const dirty=marked.parse(r.markdown||'');
+  $('doc').innerHTML=DOMPurify.sanitize(dirty);
+  $('doc').style.display='block';
+  $('docEmpty').style.display='none';
+  $('docWrap').scrollTop=0;
+  $('updatedMeta').textContent = r.updated_at ? 'Updated '+fmtDate(r.updated_at) : '';
+}
+
+function fmtDate(iso){
+  try{ return new Date(iso).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }
+  catch(e){ return iso.slice(0,10); }
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function loadReports(){
+  const {data,error}=await sb.from('area_insights_reports')
+    .select('city,title,markdown,updated_at').order('title');
+  if(error){
+    $('docEmpty').textContent='Could not load area insights: '+error.message;
+    return;
+  }
+  REPORTS=data||[];
+  if(!REPORTS.length){
+    $('docEmpty').textContent='No area insights published yet.';
+    return;
+  }
+  renderCityList();
+  // Deep-link (#city) wins; otherwise land on the first city.
+  const want=(location.hash||'').replace(/^#/,'');
+  const start=REPORTS.find(r=>r.city===want) ? want : REPORTS[0].city;
+  selectCity(start);
+}
+
+// ========== INIT ==========
+(async()=>{
+  await window.authGate();
+  if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
+  window.renderSidebar('data');
+  await loadReports();
+})();
+</script>
+</body>
+</html>
