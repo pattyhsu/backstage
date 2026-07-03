@@ -60,10 +60,10 @@ body { overflow:hidden; height:100vh; }
 .collapse-btn:hover { color:var(--text); }
 .main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
 
-/* --- Tab strip (pinned; anchor-styled tabs drop the global underline) --- */
-a.tab, a.tab:hover { text-decoration:none; }
-.ai-tabs { flex-shrink:0; }
-.tab-meta { margin-left:auto; padding-right:24px; display:flex; align-items:center; gap:6px; color:var(--text-4); font-size:12px; }
+/* --- Page header --- */
+.ai-hdr { flex-shrink:0; height:52px; padding:0 24px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); background:var(--bg-page); }
+.ai-hdr h1 { font-size:14px; font-weight:700; letter-spacing:-.3px; color:var(--accent); margin:0; }
+.ai-hdr-meta { color:var(--text-4); font-size:12px; }
 
 /* --- Body: city rail + doc pane --- */
 .ai-body { flex:1; display:flex; min-height:0; }
@@ -114,15 +114,11 @@ a.tab, a.tab:hover { text-decoration:none; }
 
 <div class="main-content">
 
-  <!-- Data-hub tab strip (Area Insights active; the rest deep-link into the
-       other Data pages) — mirrors condition-review.html + import.html. -->
-  <div class="tabs ai-tabs">
-    <a class="tab" href="condition-review.html">Condition</a>
-    <a class="tab" href="import.html#import">Import CSV</a>
-    <a class="tab" href="import.html#geocode">Geocode</a>
-    <a class="tab" href="import.html#schools">Missing Schools</a>
-    <div class="tab active">Area Insights</div>
-    <div class="tab-meta"><span id="updatedMeta"></span></div>
+  <!-- Page header (Area Insights is its own sidebar destination, not part of
+       the Condition/Import tab cluster). -->
+  <div class="ai-hdr">
+    <h1>Area Insights</h1>
+    <div class="ai-hdr-meta"><span id="updatedMeta"></span></div>
   </div>
 
   <div class="ai-body">
@@ -211,7 +207,7 @@ async function loadReports(){
 (async()=>{
   await window.authGate();
   if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
-  window.renderSidebar('data');
+  window.renderSidebar('areainsights');
   await loadReports();
 })();
 </script>

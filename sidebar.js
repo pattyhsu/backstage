@@ -47,6 +47,9 @@
         // both condition-review.html and import.html; the in-page top tab strip
         // switches between them. Default landing is the Condition tab.
         { key: 'data', label: 'Condition', href: 'condition-review.html', icon: iconCondition() },
+        // Area Insights is its own destination (per-city market writeups),
+        // not part of the Condition/Import tab cluster.
+        { key: 'areainsights', label: 'Area Insights', href: 'area-insights.html', icon: iconInsights() },
       ],
     },
     {
@@ -137,6 +140,7 @@
   function iconListings()     { return '<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>'; }
   function iconComps()        { return '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>'; }
   function iconCondition()    { return '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg>'; }
+  function iconInsights()     { return '<svg viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>'; }
   function iconImport()       { return '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'; }
   function iconMoney()        { return '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><path d="M15.5 9H10.25a1.75 1.75 0 000 3.5h3.5a1.75 1.75 0 010 3.5H8.5"/></svg>'; }
   function iconQuote()        { return '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg>'; }
