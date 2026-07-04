@@ -935,7 +935,7 @@ function renderArvScoreRow(l,mid){
   // On-demand smart-comps recompute (per-city cities only — they're the ones
   // with a smart-comps model). Re-runs the model with the comps' current tiers
   // instead of waiting for the nightly batch.
-  const recomputeBtn=isPerCity?`<button id="recompute-btn-${mid}" onclick="recomputeSmartComps('${l.mls}','${mid}')" title="Re-run smart comps with the comps' current tiers" style="margin-top:6px;font-size:11px;font-weight:600;color:var(--accent);background:var(--bg-alt);border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer">↻ Recompute smart comps</button>`:'';
+  const recomputeBtn=isPerCity?`<button id="recompute-btn-${mid}" onclick="recomputeSmartComps('${l.mls}','${mid}')" title="Re-run Claude ARV + Mechanical ARV with the comps' current tiers (Claude ARV re-reasons on the mini — takes ~15-60s)" style="margin-top:6px;font-size:11px;font-weight:600;color:var(--accent);background:var(--bg-alt);border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer">↻ Recompute Claude ARV &amp; Mechanical ARV</button>`:'';
   return `<div id="arv-score-row-${mid}" style="margin-top:8px">
     <div style="display:grid;grid-template-columns:repeat(${slots.length},1fr);gap:6px">${cardsHtml}</div>
     ${recomputeBtn}
@@ -1363,7 +1363,7 @@ async function ensureArvEstimate(mls,mid){
 // null) and fall back to the per-city baseline.
 async function recomputeSmartComps(mls,mid){
   const btn=document.getElementById('recompute-btn-'+mid);
-  if(btn){btn.disabled=true;btn.textContent='Recomputing…';}
+  if(btn){btn.disabled=true;btn.textContent='Recomputing… (Claude ARV ~15-60s)';}
   try{
     const sess=await sb.auth.getSession();
     const token=sess?.data?.session?.access_token;
@@ -1378,6 +1378,15 @@ async function recomputeSmartComps(mls,mid){
       alert('Recompute failed'+(detail?': '+detail:' (HTTP '+resp.status+')'));
       return;
     }
+    // Partial success: Mechanical ARV always recomputes, but Claude ARV (the
+    // underwriting ARV) can be skipped (non-clean-derived city) or fail
+    // (reasoner error). Surface that so a stale Claude ARV isn't mistaken for
+    // a fresh one. claude_arv_error also fires for the benign "not
+    // clean-derived" skip — only warn when the city could have a Claude ARV.
+    let body=null;try{body=await resp.json();}catch(e){}
+    if(body&&body.claude_arv_updated===false&&body.claude_arv_error&&!/not clean-derived/i.test(body.claude_arv_error)){
+      alert('Mechanical ARV recomputed, but Claude ARV did NOT: '+body.claude_arv_error);
+    }
     // Both caches short-circuit when populated — drop them to force a refetch,
     // then the ensure* helpers re-fetch and re-render the cards row in place.
     delete arvEstimateCache[mls];
@@ -1388,7 +1397,7 @@ async function recomputeSmartComps(mls,mid){
     alert('Recompute error: '+((e&&e.message)?e.message:e));
   }finally{
     const b=document.getElementById('recompute-btn-'+mid);
-    if(b){b.disabled=false;b.textContent='↻ Recompute smart comps';}
+    if(b){b.disabled=false;b.textContent='↻ Recompute Claude ARV & Mechanical ARV';}
   }
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
