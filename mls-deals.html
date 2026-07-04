@@ -978,7 +978,7 @@ function renderArvScoreCard(l,mid,src,av,active){
     else if(cacheMissing||cacheErr||av.claudeArv==null)body=cardSubText('14px','—');
     else{
       const sub=av.claudeIsDotty?'if Dotty flipped it':'generic estimate';
-      body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(av.claudeArv)}</div>
+      body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(Math.round(av.claudeArv/1000)*1000)}</div>
         <div style="font-size:10px;color:var(--text-4);margin-top:2px">${sub}</div>`;
     }
   }
