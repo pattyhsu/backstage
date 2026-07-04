@@ -342,7 +342,6 @@ body{overflow:hidden;height:100vh}
       <button class="btn" id="more-filters-btn" onclick="document.getElementById('more-filters-drop').classList.toggle('open')" title="More views" style="padding:7px 12px">⋮</button>
       <div id="more-filters-drop" style="position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;min-width:160px;padding:4px 0">
         <button class="btn" id="bf-off_market_lead" onclick="setFilter('off_market_lead');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">Off-Market <span id="cnt-off_market_lead"></span></button>
-        <button class="btn" id="bf-unsold_flip" onclick="setFilter('unsold_flip');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">Unsold Flips <span id="cnt-unsold_flip"></span></button>
         <button class="btn" id="bf-archived" onclick="setFilter('archived');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">Archive <span id="cnt-archived"></span></button>
         <button class="btn" id="bf-all" onclick="setFilter('all');document.getElementById('more-filters-drop').classList.remove('open')" style="display:block;width:100%;text-align:left;border:none;background:none;padding:6px 12px">All <span id="cnt-all"></span></button>
       </div>
@@ -2310,22 +2309,21 @@ async function updateStageCounts(){
     // count never disagrees with the rendered listing count.
     // Shared base predicate, mirrors loadListings() L2472.
     const base=()=>sb.from('properties').select('*',{count:'exact',head:true}).not('mls','is',null).not('mls','like','OFFMKT-%').neq('change_type','sold');
-    const[ur,pt,om,uf,ar,al]=await Promise.all([
+    const[ur,pt,om,ar,al]=await Promise.all([
       base().eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`),
       base().eq('stage','potential'),
       base().eq('stage','off_market_lead'),
-      base().eq('stage','unsold_flip'),
       base().or(`stage.eq.archived,list_price.gt.${MAX_LIST_PRICE}`),
       base().not('stage','in','("archived","off_market_lead")').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`),
     ]);
     // off_market_lead count is pre-relist-dedup (loadListings filters relists client-side), so it may read slightly high.
     const setCnt=(id,n)=>{const e=document.getElementById(id);if(e)e.textContent=n?'('+n+')':'';};
     setCnt('cnt-unread',ur.count);setCnt('cnt-potential',pt.count);
-    setCnt('cnt-off_market_lead',om.count);setCnt('cnt-unsold_flip',uf.count);
+    setCnt('cnt-off_market_lead',om.count);
     setCnt('cnt-archived',ar.count);setCnt('cnt-all',al.count);
   }catch(e){
     console.warn('[updateStageCounts] count fetch failed:',e);
-    ['cnt-unread','cnt-potential','cnt-off_market_lead','cnt-unsold_flip','cnt-archived','cnt-all'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='(?)';});
+    ['cnt-unread','cnt-potential','cnt-off_market_lead','cnt-archived','cnt-all'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='(?)';});
   }
 }
 
@@ -2422,7 +2420,7 @@ function opn(m,prefetched){
   }
 }
 function cls(){if(openCompPoll){clearInterval(openCompPoll);openCompPoll=null;}active=null;document.querySelector('.main').classList.remove('detail-view');render();}
-function setFilter(f){if(active){active=null;document.querySelector('.main').classList.remove('detail-view');}currentFilter=f;cityFilters.clear();gradeFilters.clear();tierFilters.clear();subtierFilters.clear();document.querySelectorAll('#gf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);document.querySelectorAll('#ctf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);document.querySelectorAll('#stf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);updateGradeBtn();updateTierBtn();updateSubtierBtn();updateCityBtn();['unread','potential','unsold_flip','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
+function setFilter(f){if(active){active=null;document.querySelector('.main').classList.remove('detail-view');}currentFilter=f;cityFilters.clear();gradeFilters.clear();tierFilters.clear();subtierFilters.clear();document.querySelectorAll('#gf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);document.querySelectorAll('#ctf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);document.querySelectorAll('#stf-drop input[type=checkbox]').forEach(cb=>cb.checked=false);updateGradeBtn();updateTierBtn();updateSubtierBtn();updateCityBtn();['unread','potential','off_market_lead','archived','all'].forEach(k=>{const b=document.getElementById('bf-'+k);if(b)b.className='btn'+(k===f?' btn-on':'');});loadListings(f);}
 function toggleCityFilter(city){if(cityFilters.has(city))cityFilters.delete(city);else cityFilters.add(city);updateCityBtn();render();}
 function cfSelectAll(){const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>{cb.checked=true;cityFilters.add(cb.value);});updateCityBtn();render();}
 function cfSelectNone(){cityFilters.clear();const cbs=document.querySelectorAll('#cf-list input[type=checkbox]');cbs.forEach(cb=>cb.checked=false);updateCityBtn();render();}
@@ -2636,7 +2634,6 @@ function listingMatchesFilter(l,f){
   if(f==='archived')return l.status==='archived'||overCap;
   if(f==='off_market_lead')return l.status==='off_market_lead';
   if(f==='potential')return l.status==='potential';
-  if(f==='unsold_flip')return l.status==='unsold_flip';
   if(!f||f==='all')return l.status!=='archived'&&l.status!=='off_market_lead'&&!overCap;
   return l.status===f;
 }
