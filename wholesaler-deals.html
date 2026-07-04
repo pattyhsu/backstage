@@ -2003,7 +2003,7 @@ async function updateStageCounts(){
     // Two views: Leads (everything not archived) + Archive (stage='archived').
     const base=()=>sb.from('properties').select('*',{count:'exact',head:true}).like('mls','OFFMKT-%').eq('change_type','off_market');
     const[al,ar]=await Promise.all([
-      base().neq('stage','archived'),
+      base().or('stage.is.null,stage.neq.archived'),  // include NULL-stage leads
       base().eq('stage','archived'),
     ]);
     const setCnt=(id,n)=>{const e=document.getElementById(id);if(e)e.textContent=n?'('+n+')':'';};
@@ -2820,7 +2820,10 @@ async function loadListings(status){
   // Two views: 'archived' (stage='archived') and default 'all' (everything else).
   let query=sb.from('properties').select(LIST_COLS).like('mls','OFFMKT-%').eq('change_type','off_market').order('imported_at',{ascending:false}).limit(2000);
   if(status==='archived')query=query.eq('stage','archived');
-  else query=query.neq('stage','archived');
+  // Leads = everything not archived. NOTE: a bare .neq('stage','archived')
+  // drops rows where stage IS NULL (SQL: NULL != 'archived' is NULL, not TRUE),
+  // and fresh wholesaler leads have stage=NULL — so include NULL explicitly.
+  else query=query.or('stage.is.null,stage.neq.archived');
   try{
     let{data,error}=await query;if(error)throw error;
     listings=(data||[]).map(mapRowToListing);
