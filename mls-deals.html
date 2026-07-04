@@ -668,7 +668,7 @@ const dom=d=>{
 
 // ARV source resolution shared by the ARV column (getArvLabel) and the
 // GAP column (getArvVal) so they never disagree. Priority:
-//   locked -> Comp ARV (smart_comps_arv) -> Baseline ARV (per_city_arv).
+//   locked -> Mechanical ARV (smart_comps_arv) -> Baseline ARV (per_city_arv).
 // Listings with neither resolve to 0 and render as "-" (no comp fallback).
 // smart-comps / per-city ARVs come from arvEstimateCache, batch-prefetched
 // for every listing by loadArvEstimates() at load (not just on row expand),
@@ -677,9 +677,9 @@ function arvSourceVal(l){
   if(l.lockedArv)return{arv:l.lockedArv,src:'locked'};
   const c=arvEstimateCache[l.mls];
   const r=(c&&c.state==='ok')?c.row:null;
-  if(r&&r.smart_comps_arv)return{arv:+r.smart_comps_arv,src:'Comp ARV'};
+  if(r&&r.smart_comps_arv)return{arv:+r.smart_comps_arv,src:'Mechanical ARV'};
   if(r&&r.per_city_arv)return{arv:+r.per_city_arv,src:'Baseline ARV'};
-  // No comp-avg fallback: listings with neither Comp ARV nor Baseline ARV
+  // No comp-avg fallback: listings with neither Mechanical ARV nor Baseline ARV
   // resolve to 0, so the ARV/GAP columns render as "-".
   return{arv:0,src:''};
 }
@@ -884,7 +884,7 @@ function preferredArvFor(l,cm){
 }
 function arvSourceLabel(l,source,arv){
   if(l.lockedArv||source==='locked')return`Locked: ${F(arv)}`;
-  if(source==='smart-comps')return`Comp ARV: ${F(arv)}`;
+  if(source==='smart-comps')return`Mechanical ARV: ${F(arv)}`;
   if(source==='per-city')return`Baseline ARV: ${F(arv)}`;
   return`Manual comp avg: ${F(arv)}`;
 }
@@ -901,9 +901,13 @@ function renderArvScoreRow(l,mid){
   const av=cardAvailability(l,cm);
   const active=activeArvSource(l,cm);
   const isPerCity=av.isPerCity;
-  // Per-city: 4 cards (comp-avg, per-city, smart-comps, deal-score).
-  // Non-per-city: 2 cards (comp-avg, deal-score).
-  const slots=isPerCity?['comp-avg','per-city','smart-comps','deal-score']:['comp-avg','deal-score'];
+  // Card order (per-city): Claude ARV (advisory) · Mechanical ARV (smart-comps)
+  // · Manual comp avg. Baseline regression + deal score are no longer cards —
+  // the baseline stays a silent ARV-input fallback (activeArvSource still picks
+  // it when smart-comps declines), and the deal score is a toggle in the detail
+  // strip below (renderArvScoreDetail). Non-per-city cities have no Claude /
+  // mechanical model → just the manual comp-avg card.
+  const slots=isPerCity?['claude-arv','smart-comps','comp-avg']:['comp-avg'];
   const cardsHtml=slots.map(src=>renderArvScoreCard(l,mid,src,av,active)).join('');
   const detail=renderArvScoreDetail(l,mid,av);
   // On-demand smart-comps recompute (per-city cities only — they're the ones
@@ -922,33 +926,46 @@ function renderArvScoreCard(l,mid,src,av,active){
   const cachePending=!c||c.state==='pending';
   const cacheMissing=c&&c.state==='missing';
   const cacheErr=c&&c.state==='error';
-  const dc=dealScoreCache[l.mls];
-  const dsPending=!dc||dc.state==='pending';
-  const dsMissing=dc&&dc.state==='missing';
-  const dsErr=dc&&dc.state==='error';
 
   const isActive=(src===active);
-  const isArvSrc=(src!=='deal-score');
-  // Active marker: top border + "◀ used" badge in the corner. Only on
-  // ARV cards (Deal Score is never active).
+  // Claude ARV is advisory/display-only — never the active source, never
+  // clickable (cardHasValue is false for it), so it can't take the "used"
+  // marker. Every other card here is a real ARV source.
+  const isArvSrc=(src!=='claude-arv');
+  // Active marker: top border + "◀ used" badge in the corner.
   const topBorder=isActive&&isArvSrc?`border-top:3px solid var(--accent)`:`border-top:1px solid var(--border)`;
   const baseBox=`background:var(--bg);border:1px solid var(--border);${topBorder};border-radius:5px;padding:6px 8px;position:relative;min-height:64px`;
   const usedBadge=isActive&&isArvSrc?`<span style="position:absolute;top:3px;right:5px;font-size:9px;font-weight:700;color:var(--accent);letter-spacing:.3px">◀ USED</span>`:'';
 
-  // Click behavior: ARV cards become source-pickers (unless already active
-  // or unavailable). Deal score is never clickable for source-switching.
+  // Click behavior: ARV-source cards become source-pickers (unless already
+  // active or unavailable). Claude ARV is never clickable.
   const canClick=isArvSrc&&!isActive&&cardHasValue(src,av);
   const cursor=canClick?'cursor:pointer':'';
   const onclick=canClick?`onclick="event.stopPropagation();setArvSource('${l.mls}','${mid}','${src}')"`:'';
   const title=canClick?`title="Use this ARV in the deal analyzer"`:'';
 
   // Title row (uppercase, muted) — same for every card.
-  const titleText=({'comp-avg':'Manual comp avg','per-city':'Baseline ARV','smart-comps':'Comp ARV','deal-score':'Deal score'})[src];
+  const titleText=({'comp-avg':'Manual comp avg','claude-arv':'Claude ARV','smart-comps':'Mechanical ARV','per-city':'Baseline ARV','deal-score':'Deal score'})[src];
   const titleHtml=`<div style="font-size:9px;font-weight:700;color:var(--text-4);letter-spacing:.5px;text-transform:uppercase">${titleText}</div>`;
 
   // Per-source body.
   let body='';
-  if(src==='comp-avg'){
+  if(src==='claude-arv'){
+    // Advisory third method — display-only, never feeds the ARV input (so it's
+    // never clickable / "used"). Headline = the "if Dotty flipped it" point,
+    // falling back to the generic-flip point. Full range + reasoning live in
+    // the Claude ARV expander in the detail strip below.
+    if(cachePending)body=cardSubText('14px','pending');
+    else if(cacheMissing||cacheErr)body=cardSubText('14px','—');
+    else{
+      const r=av.r||{};
+      const pt=(r.claude_dotty_point!=null)?r.claude_dotty_point:r.claude_generic_point;
+      if(pt==null)body=cardSubText('14px','—');
+      else body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(pt)}</div>
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">advisory · see below</div>`;
+    }
+  }
+  else if(src==='comp-avg'){
     const psf=av.compPsf,cnt=av.compCount,arv=av.compArv;
     if(!cnt){
       body=`<div style="font-size:14px;font-weight:700;color:var(--text-4);margin-top:2px">—</div>
@@ -985,45 +1002,6 @@ function renderArvScoreCard(l,mid,src,av,active){
       const n=data.n_anchors!=null?data.n_anchors:'?';
       body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(av.smartArv)}</div>
         <div style="font-size:10px;color:var(--text-4);margin-top:2px">${n} anchors · see below</div>`;
-    }
-  }
-  else if(src==='deal-score'){
-    if(dsPending)body=cardSubText('14px','pending');
-    else if(dsErr){
-      // Ungraded buckets (expected, not real errors): listings outside the
-      // 8 per-city ARV markets, or ARV-pipeline lag. Show a neutral grey
-      // "ungraded" pill + a short subtext. Any other message = real problem.
-      const em=(dc.row&&dc.row.error_message)||'';
-      if(em.indexOf('outside per-city coverage')===0||em.indexOf('no ARV available')===0){
-        const sub=em.indexOf('outside per-city coverage')===0?'outside per-city coverage':'ARV pending';
-        const upill=`<span style="${dsGradeStyle('?')};font-size:13px;font-weight:800;padding:2px 10px;border-radius:10px;letter-spacing:.5px">ungraded</span>`;
-        body=`<div style="margin-top:4px">${upill}</div>
-          <div style="font-size:10px;color:var(--text-4);margin-top:4px">${escapeHtml(sub)}</div>`;
-      }else{
-        body=`<div style="font-size:14px;font-weight:700;color:var(--text-4);margin-top:2px">error</div>
-          <div style="font-size:10px;color:var(--text-4);margin-top:2px">${escapeHtml(em||'unknown error')}</div>`;
-      }
-    }
-    else if(dsMissing||!dc.row||!dc.row.grade)body=cardSubText('14px','—');
-    else{
-      const r=dc.row,g=r.grade||'?';
-      const bd=r.breakdown_json||{};
-      const pill=`<span style="${dsGradeStyle(g)};font-size:13px;font-weight:800;padding:2px 10px;border-radius:10px;letter-spacing:.5px">${g}</span>`;
-      let detailLines;
-      if(bd.shave_required_pct!=null&&bd.max_offer!=null){
-        // Negotiation-shave grade driver: % off list needed + the strict
-        // fully-loaded max offer. shave<=0 means it pencils at list.
-        const shaveLine=Number(bd.shave_required_pct)<=0?'works at list':'needs '+Number(bd.shave_required_pct).toFixed(1)+'% off';
-        detailLines=`<div style="font-size:10px;color:var(--text-4);margin-top:4px">${shaveLine}</div>
-          <div style="font-size:10px;color:var(--text-4)">max ${F(bd.max_offer)}</div>`;
-      }else{
-        // Legacy row lacking the new fields → fall back to spread display.
-        const spread=r.spread!=null?F(r.spread):'—';
-        const pct=r.spread_pct!=null?(r.spread_pct>=0?'+':'')+Number(r.spread_pct).toFixed(2)+'%':'—';
-        detailLines=`<div style="font-size:10px;color:var(--text-4);margin-top:4px">spread ${spread}</div>
-          <div style="font-size:10px;color:var(--text-4)">${pct}</div>`;
-      }
-      body=`<div style="margin-top:4px">${pill}</div>${detailLines}`;
     }
   }
 
@@ -1240,7 +1218,11 @@ function renderDealScoreDetail(r){
   const gapStr=gap!=null?(gap>=0?'+':'')+F(gap):'—';
   const spreadPctStr=bd.spread_pct!=null?' · '+(bd.spread_pct>=0?'+':'')+Number(bd.spread_pct).toFixed(2)+'%':'';
   const computed=r.computed_at?new Date(r.computed_at).toLocaleString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(',','')+' PT':'(unknown)';
-  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Deal score breakdown</summary>
+  // Grade pill in the summary — the deal score is no longer a card, so this is
+  // the only glanceable grade in the detail strip. Expand for the breakdown.
+  const g=r.grade||'?';
+  const gPill=`<span style="${dsGradeStyle(g)};font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-left:6px;letter-spacing:.4px;vertical-align:middle">${g}</span>`;
+  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Deal score${gPill}</summary>
     <div style="margin-top:4px;font-size:11px;font-weight:500;color:var(--text-2);display:grid;grid-template-columns:auto 1fr;gap:4px 10px">
       <div style="color:var(--text-4)">Max offer:</div><div>${bd.max_offer!=null?F(bd.max_offer):'—'}</div>
       <div style="color:var(--text-4)">Shave required:</div><div>${bd.shave_required_pct!=null?Number(bd.shave_required_pct).toFixed(1)+'% off list':'—'}</div>
@@ -1537,7 +1519,8 @@ async function ensureDealScore(mls,mid){
     }catch(e){dealScoreCache[mls]={state:'missing'};}
   }
   if(mid){
-    // Re-render the cards row (Deal Score card is the rightmost slot).
+    // Re-render the cards row + detail strip (the deal-score grade now lives in
+    // the Deal score toggle's summary, not a card).
     const listing=listings.find(x=>x.mls===mls);
     const rowEl=document.getElementById('arv-score-row-'+mid);
     if(rowEl&&listing)rowEl.outerHTML=renderArvScoreRow(listing,mid);
