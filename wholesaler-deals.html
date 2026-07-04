@@ -16,6 +16,16 @@
 /* === DEAL MACHINE — local layout only === */
 /* All shared styles (buttons, tags, modals, school pills, toggles, etc.) come from backstage.css */
 
+/* Photo lightbox (mirrors mls-deals.html) */
+.lb-overlay{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.92);overflow-y:auto}
+.lb-overlay.open{display:block}
+.lb-close{position:fixed;top:16px;right:20px;background:rgba(0,0,0,.5);border:none;color:#fff;font-size:24px;cursor:pointer;z-index:10001;padding:4px 12px;line-height:1;border-radius:6px;backdrop-filter:blur(4px)}
+.lb-close:hover{background:rgba(255,255,255,.2)}
+.lb-addr{color:#fff;font-size:14px;font-weight:600;text-align:center;padding:16px 60px 12px;position:sticky;top:0;background:rgba(0,0,0,.8);backdrop-filter:blur(10px);z-index:10000}
+.lb-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px 4px 40px;max-width:1200px;margin:0 auto}
+.lb-grid img{width:100%;display:block;cursor:pointer;border-radius:2px}
+.lb-grid img.lb-full{position:fixed;inset:0;max-width:95vw;max-height:95vh;margin:auto;z-index:10002;border-radius:6px;object-fit:contain;cursor:zoom-out}
+
 body{overflow:hidden;height:100vh}
 #cf-drop{display:none}
 #cf-drop.open{display:block}
@@ -247,6 +257,13 @@ body{overflow:hidden;height:100vh}
 </head>
 <body>
 
+<!-- Photo Lightbox -->
+<div class="lb-overlay" id="photoLightbox">
+  <button class="lb-close" onclick="closeLightbox()">✕</button>
+  <div class="lb-addr" id="lbAddr"></div>
+  <div class="lb-grid" id="lbGrid"></div>
+</div>
+
 <!-- APP SHELL -->
 <div class="app-shell">
 
@@ -338,6 +355,83 @@ const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;  // expose for auth.js
+
+// ========== PHOTO SUPPORT (mirrors mls-deals.html) ==========
+const PHOTO_BASE='https://photos.dottyhomes.com';
+function getThumbUrl(mls){return `${PHOTO_BASE}/${mls}/${mls}_01.jpg`;}
+
+// Lightbox state
+let lbMls='';
+function openLightbox(mls,addr,photoCount){
+  lbMls=mls;
+  const myMls=mls;
+  const addrEl=document.getElementById('lbAddr');
+  const grid=document.getElementById('lbGrid');
+  grid.innerHTML='';
+  document.getElementById('photoLightbox').classList.add('open');
+  document.addEventListener('keydown',lbKeyHandler);
+
+  // Header: show the DB photo_count as a fixed total when known; otherwise
+  // fall back to the live loaded-count as photos probe in.
+  const total=parseInt(photoCount,10)||0;
+  let loaded=0;
+  const setHeader=()=>{const n=total>0?total:loaded;addrEl.textContent=n>0?`${addr} (${n}${n===1?' photo':' photos'})`:addr;};
+  setHeader();
+
+  const makeImg=()=>{
+    const el=document.createElement('img');
+    el.onclick=function(){
+      if(this.classList.contains('lb-full')){this.classList.remove('lb-full');}
+      else{document.querySelectorAll('.lb-grid img.lb-full').forEach(x=>x.classList.remove('lb-full'));this.classList.add('lb-full');}
+    };
+    return el;
+  };
+
+  if(total>0){
+    // Count known — load all slots in order in parallel; tolerate gaps.
+    for(let n=1;n<=total;n++){
+      const num=String(n).padStart(2,'0');
+      const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
+      const el=makeImg();
+      el.onload=function(){if(lbMls!==myMls)return;loaded++;};
+      el.onerror=function(){this.remove();};
+      grid.appendChild(el);
+      el.src=url;
+    }
+  }else{
+    // Unknown count — sequential probe, stop on first 404.
+    let i=1;
+    (function loadNext(){
+      if(lbMls!==myMls)return;
+      const num=String(i).padStart(2,'0');
+      const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
+      const img=new Image();
+      img.onload=function(){
+        if(lbMls!==myMls)return;
+        const el=makeImg();
+        el.src=url;
+        grid.appendChild(el);
+        loaded++;
+        setHeader();
+        i++;
+        loadNext();
+      };
+      img.onerror=function(){/* stop probing */};
+      img.src=url;
+    })();
+  }
+}
+function closeLightbox(){
+  document.getElementById('photoLightbox').classList.remove('open');
+  document.removeEventListener('keydown',lbKeyHandler);
+}
+function lbKeyHandler(e){
+  if(e.key==='Escape'){
+    const full=document.querySelector('.lb-grid img.lb-full');
+    if(full)full.classList.remove('lb-full');
+    else closeLightbox();
+  }
+}
 
 // ========== DEAL PHASE HELPER (mirrors pipeline.html / project-detail.html) ==========
 // Brief BK: deals model uses pursuing/in_escrow/under_construction/selling/sold/archived.
@@ -1566,7 +1660,7 @@ function compH(c,idx,mls){
       <span style="font-size:10px;font-weight:700;color:var(--accent);min-width:14px">${idx+1}</span>
       ${compTypeSelectHtml(c,mid)}
       ${c.doubleEnded?`<span title="Double-end — listing agent also represented the buyer" style="background:var(--amber-bg);color:var(--amber);font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:4px;letter-spacing:.3px;flex-shrink:0">🔁 DE</span>`:''}
-      <span style="color:var(--text-3);font-size:11px">${c.addr}</span>
+      ${c.mls?`<span onclick="event.stopPropagation();openLightbox('${c.mls}','${c.addr.replace(/'/g,"\\'")}',${c.photoCount||0})" title="View photos" style="color:var(--text-3);font-size:11px;cursor:pointer;text-decoration:underline;text-decoration-color:var(--text-4);text-decoration-style:dotted;text-underline-offset:2px">${c.addr}</span>`:`<span style="color:var(--text-3);font-size:11px">${c.addr}</span>`}
       <a href="https://www.zillow.com/homes/${encodeURIComponent(c.addr.replace(/\s+/g,' ').trim()+', CA')}_rb/" target="_blank" onclick="event.stopPropagation()" style="flex-shrink:0"><img src="https://www.zillow.com/favicon.ico" style="width:11px;height:11px;vertical-align:middle;opacity:0.7" onerror="this.style.display='none'"></a></div>
     <div class="cri"><span style="color:var(--text-4);font-size:10px">${c.dist!=null?c.dist+'mi':''}</span><span style="color:var(--text-4);font-size:10px">${c.beds}/${c.baths}</span><span style="color:var(--text-4);font-size:10px">${c.sqft}sf</span><span style="color:var(--text-4);font-size:10px">${c.lot?c.lot+' lot':''}</span><span style="font-weight:600;${c.isAsking?'color:var(--blue)':''}">${F(c.price)}${c.isAsking?' <span style="font-size:9px;font-weight:400">(asking)</span>':''}</span><span style="color:var(--text-4);font-size:10px">$${c.psf}/sf</span><span style="color:var(--text-4);font-size:10px">${c.date||'—'}</span></div>
     ${compSchools(c)?'<div style="width:100%;padding:2px 0 0 24px;display:flex;gap:2px;align-items:center">'+compSchools(c)+'</div>':''}</div>`;
