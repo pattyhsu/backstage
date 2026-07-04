@@ -668,8 +668,9 @@ const dom=d=>{
 
 // ARV source resolution shared by the ARV column (getArvLabel) and the
 // GAP column (getArvVal) so they never disagree. Priority:
-//   locked -> Mechanical ARV (smart_comps_arv) -> Baseline ARV (per_city_arv).
-// Listings with neither resolve to 0 and render as "-" (no comp fallback).
+//   locked -> Claude ARV (claude_dotty_point / claude_generic_point)
+//   -> Mechanical ARV (smart_comps_arv) -> Baseline ARV (per_city_arv).
+// Listings with none resolve to 0 and render as "-" (no comp fallback).
 // smart-comps / per-city ARVs come from arvEstimateCache, batch-prefetched
 // for every listing by loadArvEstimates() at load (not just on row expand),
 // so the list columns can prefer them.
@@ -677,10 +678,12 @@ function arvSourceVal(l){
   if(l.lockedArv)return{arv:l.lockedArv,src:'locked'};
   const c=arvEstimateCache[l.mls];
   const r=(c&&c.state==='ok')?c.row:null;
+  const cp=(r&&r.claude_dotty_point!=null)?r.claude_dotty_point:((r&&r.claude_generic_point!=null)?r.claude_generic_point:null);
+  if(cp!=null)return{arv:+cp,src:'Claude ARV'};
   if(r&&r.smart_comps_arv)return{arv:+r.smart_comps_arv,src:'Mechanical ARV'};
   if(r&&r.per_city_arv)return{arv:+r.per_city_arv,src:'Baseline ARV'};
-  // No comp-avg fallback: listings with neither Mechanical ARV nor Baseline ARV
-  // resolve to 0, so the ARV/GAP columns render as "-".
+  // No comp-avg fallback: listings with no model ARV resolve to 0, so the
+  // ARV/GAP columns render as "-".
   return{arv:0,src:''};
 }
 function getArvLabel(l){
@@ -850,7 +853,11 @@ function cardAvailability(l,cm){
   const smartConf=r?String(r.smart_comps_confidence||'').toLowerCase():'';
   const smartArv=(r&&r.smart_comps_arv)||null;
   const smartDeclined=(smartConf==='none');
-  return {r,isPerCity,compPsf,compCount,compArv,perCityArv,smartArv,smartConf,smartDeclined};
+  // Claude ARV — the underwriting ARV. Prefer the "if Dotty flipped it" point;
+  // fall back to the generic-flip point. claudeIsDotty drives the card subtext.
+  const claudeIsDotty=(r&&r.claude_dotty_point!=null);
+  const claudeArv=claudeIsDotty?r.claude_dotty_point:((r&&r.claude_generic_point!=null)?r.claude_generic_point:null);
+  return {r,isPerCity,compPsf,compCount,compArv,perCityArv,smartArv,smartConf,smartDeclined,claudeArv,claudeIsDotty};
 }
 
 // Source feeding the ARV input. Locked → 'locked' (no active marker).
@@ -859,6 +866,7 @@ function activeArvSource(l,cm){
   if(l.lockedArv)return'locked';
   const av=cardAvailability(l,cm);
   const valid=(src)=>{
+    if(src==='claude-arv')return av.claudeArv!=null;
     if(src==='comp-avg')return av.compArv>0;
     if(src==='per-city')return av.perCityArv!=null;
     if(src==='smart-comps')return av.smartArv!=null;
@@ -866,7 +874,9 @@ function activeArvSource(l,cm){
   };
   const picked=arvSourceMap[l.mls];
   if(picked&&valid(picked))return picked;
-  // Default priority
+  // Default priority: Claude ARV is the underwriting ARV, then mechanical
+  // (smart comps) → baseline regression → manual comp avg.
+  if(valid('claude-arv'))return'claude-arv';
   if(valid('smart-comps'))return'smart-comps';
   if(av.isPerCity&&valid('per-city'))return'per-city';
   return'comp-avg';
@@ -875,6 +885,7 @@ function activeArvSource(l,cm){
 function preferredArvFor(l,cm){
   const av=cardAvailability(l,cm);
   const src=activeArvSource(l,cm);
+  if(src==='claude-arv')return{arv:av.claudeArv,source:'claude-arv'};
   if(src==='smart-comps')return{arv:av.smartArv,source:'smart-comps'};
   if(src==='per-city')return{arv:av.perCityArv,source:'per-city'};
   // 'locked' or 'comp-avg' fall through to comp-avg arv (locked uses
@@ -884,6 +895,7 @@ function preferredArvFor(l,cm){
 }
 function arvSourceLabel(l,source,arv){
   if(l.lockedArv||source==='locked')return`Locked: ${F(arv)}`;
+  if(source==='claude-arv')return`Claude ARV: ${F(arv)}`;
   if(source==='smart-comps')return`Mechanical ARV: ${F(arv)}`;
   if(source==='per-city')return`Baseline ARV: ${F(arv)}`;
   return`Manual comp avg: ${F(arv)}`;
@@ -901,13 +913,12 @@ function renderArvScoreRow(l,mid){
   const av=cardAvailability(l,cm);
   const active=activeArvSource(l,cm);
   const isPerCity=av.isPerCity;
-  // Card order (per-city): Claude ARV (advisory) · Mechanical ARV (smart-comps)
-  // · Manual comp avg. Baseline regression + deal score are no longer cards —
-  // the baseline stays a silent ARV-input fallback (activeArvSource still picks
-  // it when smart-comps declines), and the deal score is a toggle in the detail
-  // strip below (renderArvScoreDetail). Non-per-city cities have no Claude /
-  // mechanical model → just the manual comp-avg card.
-  const slots=isPerCity?['claude-arv','smart-comps','comp-avg']:['comp-avg'];
+  // Same three cards for every listing (so their positions become muscle
+  // memory): Claude ARV (underwriting) · Mechanical ARV (smart comps) · Manual
+  // comp avg. A card with no value for this listing just shows "—". Baseline
+  // regression stays a silent ARV-input fallback (no card); the deal score is a
+  // toggle in the detail strip below (renderArvScoreDetail).
+  const slots=['claude-arv','smart-comps','comp-avg'];
   const cardsHtml=slots.map(src=>renderArvScoreCard(l,mid,src,av,active)).join('');
   const detail=renderArvScoreDetail(l,mid,av);
   // On-demand smart-comps recompute (per-city cities only — they're the ones
@@ -928,41 +939,36 @@ function renderArvScoreCard(l,mid,src,av,active){
   const cacheErr=c&&c.state==='error';
 
   const isActive=(src===active);
-  // Claude ARV is advisory/display-only — never the active source, never
-  // clickable (cardHasValue is false for it), so it can't take the "used"
-  // marker. Every other card here is a real ARV source.
-  const isArvSrc=(src!=='claude-arv');
-  // Active marker: top border + "◀ used" badge in the corner.
-  const topBorder=isActive&&isArvSrc?`border-top:3px solid var(--accent)`:`border-top:1px solid var(--border)`;
+  // Every card is a selectable ARV source (Claude ARV / Mechanical / Manual
+  // comp avg). The active source gets a top border + "◀ used" badge.
+  const topBorder=isActive?`border-top:3px solid var(--accent)`:`border-top:1px solid var(--border)`;
   const baseBox=`background:var(--bg);border:1px solid var(--border);${topBorder};border-radius:5px;padding:6px 8px;position:relative;min-height:64px`;
-  const usedBadge=isActive&&isArvSrc?`<span style="position:absolute;top:3px;right:5px;font-size:9px;font-weight:700;color:var(--accent);letter-spacing:.3px">◀ USED</span>`:'';
+  const usedBadge=isActive?`<span style="position:absolute;top:3px;right:5px;font-size:9px;font-weight:700;color:var(--accent);letter-spacing:.3px">◀ USED</span>`:'';
 
-  // Click behavior: ARV-source cards become source-pickers (unless already
-  // active or unavailable). Claude ARV is never clickable.
-  const canClick=isArvSrc&&!isActive&&cardHasValue(src,av);
+  // Click behavior: click a non-active card that has a value to make it the
+  // ARV feeding the deal analyzer.
+  const canClick=!isActive&&cardHasValue(src,av);
   const cursor=canClick?'cursor:pointer':'';
   const onclick=canClick?`onclick="event.stopPropagation();setArvSource('${l.mls}','${mid}','${src}')"`:'';
   const title=canClick?`title="Use this ARV in the deal analyzer"`:'';
 
   // Title row (uppercase, muted) — same for every card.
-  const titleText=({'comp-avg':'Manual comp avg','claude-arv':'Claude ARV','smart-comps':'Mechanical ARV','per-city':'Baseline ARV','deal-score':'Deal score'})[src];
+  const titleText=({'claude-arv':'Claude ARV','smart-comps':'Mechanical ARV','comp-avg':'Manual comp avg'})[src];
   const titleHtml=`<div style="font-size:9px;font-weight:700;color:var(--text-4);letter-spacing:.5px;text-transform:uppercase">${titleText}</div>`;
 
   // Per-source body.
   let body='';
   if(src==='claude-arv'){
-    // Advisory third method — display-only, never feeds the ARV input (so it's
-    // never clickable / "used"). Headline = the "if Dotty flipped it" point,
-    // falling back to the generic-flip point. Full range + reasoning live in
-    // the Claude ARV expander in the detail strip below.
+    // The underwriting ARV. Headline = the "if Dotty flipped it" point, falling
+    // back to the generic-flip point (claudeArv resolves the two in
+    // cardAvailability). Full range + reasoning live in the Claude ARV expander
+    // in the detail strip below.
     if(cachePending)body=cardSubText('14px','pending');
-    else if(cacheMissing||cacheErr)body=cardSubText('14px','—');
+    else if(cacheMissing||cacheErr||av.claudeArv==null)body=cardSubText('14px','—');
     else{
-      const r=av.r||{};
-      const pt=(r.claude_dotty_point!=null)?r.claude_dotty_point:r.claude_generic_point;
-      if(pt==null)body=cardSubText('14px','—');
-      else body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(pt)}</div>
-        <div style="font-size:10px;color:var(--text-4);margin-top:2px">advisory · see below</div>`;
+      const sub=av.claudeIsDotty?'if Dotty flipped it':'generic estimate';
+      body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(av.claudeArv)}</div>
+        <div style="font-size:10px;color:var(--text-4);margin-top:2px">${sub}</div>`;
     }
   }
   else if(src==='comp-avg'){
@@ -973,14 +979,6 @@ function renderArvScoreCard(l,mid,src,av,active){
     }else{
       body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(arv)}</div>
         <div style="font-size:10px;color:var(--text-4);margin-top:2px">${l.sqft.toLocaleString()}sf × $${psf}</div>`;
-    }
-  }
-  else if(src==='per-city'){
-    if(cachePending)body=cardSubText('14px','pending');
-    else if(cacheMissing||cacheErr||av.perCityArv==null)body=cardSubText('14px','—');
-    else{
-      body=`<div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:2px">${F(av.perCityArv)}</div>
-        <div style="font-size:10px;color:var(--text-4);margin-top:2px">per-city regression</div>`;
     }
   }
   else if(src==='smart-comps'){
@@ -1009,6 +1007,7 @@ function renderArvScoreCard(l,mid,src,av,active){
 }
 
 function cardHasValue(src,av){
+  if(src==='claude-arv')return av.claudeArv!=null;
   if(src==='comp-avg')return av.compArv>0;
   if(src==='per-city')return av.perCityArv!=null;
   if(src==='smart-comps')return av.smartArv!=null;
@@ -1024,14 +1023,15 @@ function renderArvScoreDetail(l,mid,av){
   const c=arvEstimateCache[l.mls];
   const cacheOk=c&&c.state==='ok';
   const dc=dealScoreCache[l.mls];
-  const dsOk=dc&&dc.state==='ok'&&dc.row&&dc.row.grade;
   const parts=[];
   if(cacheOk&&av.isPerCity&&av.smartArv!=null)parts.push(renderSmartCompsDetail(l,av));
-  // Claude ARV (advisory third method). NULL-safe: renders only when the
-  // nightly mini job has written a generic point. Display-only — does NOT
-  // feed arvSourceVal / the ARV column / GAP / grade.
+  // Claude ARV — the underwriting ARV. NULL-safe: renders only when the nightly
+  // mini job has written a generic point.
   if(cacheOk&&av.r&&av.r.claude_generic_point!=null)parts.push(renderClaudeArvDetail(av.r));
-  if(dsOk)parts.push(renderDealScoreDetail(dc.row));
+  // Deal score toggle — shown once the score has resolved (graded OR ungraded),
+  // so the ungraded/outside-coverage state stays visible in the detail. Skipped
+  // only while still pending (it'll appear on the next re-render).
+  if(dc&&dc.state!=='pending')parts.push(renderDealScoreDetail(dc));
   if(!parts.length)return'';
   return `<div style="margin-top:6px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:5px">${parts.join('<div style=\"height:6px\"></div>')}</div>`;
 }
@@ -1136,13 +1136,15 @@ function renderSmartCompsDetail(l,av){
   return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Smart comps anchors (${n} within ${radius}mi · ${monthsBack}mo · $${ppsf}/sf median T6-eq)</summary>${flagsHtml}${skipNote}${compsRows}</details>`;
 }
 
-// Claude ARV detail — the advisory third ARV method (regression + smart
-// comps being the other two). Written nightly by a mini `claude -p` job:
-// a GENERIC quality-flip range (low/point/high) + an "if Dotty flipped it"
-// point (generic × a shrunk, bias-low per-city Dotty premium, tagged with
-// the flip count) + confidence + auditable reasoning. DISPLAY-ONLY /
-// ADVISORY — it never feeds the ARV column, GAP, sort, or grade. NULL-safe:
-// the caller only invokes this when claude_generic_point is present.
+// Claude ARV detail — the underwriting ARV method (regression + smart comps
+// being the other two). Written nightly by a mini `claude -p` job: a GENERIC
+// quality-flip range (low/point/high) + an "if Dotty flipped it" point
+// (generic × a shrunk, bias-low per-city Dotty premium, tagged with the flip
+// count) + confidence + auditable reasoning. The "if Dotty flipped it" point
+// (fallback: generic point) is the default ARV feeding the deal analyzer + the
+// list ARV/GAP columns (see arvSourceVal / activeArvSource). NULL-safe: the
+// caller only invokes this when claude_generic_point is present. NOTE: the
+// server-side deal-score grade is still computed from the mechanical ARV.
 function renderClaudeArvDetail(r){
   const lo=r.claude_generic_low,pt=r.claude_generic_point,hi=r.claude_generic_high;
   const rangeStr=[lo!=null?F(lo):null,pt!=null?F(pt):null,hi!=null?F(hi):null]
@@ -1203,7 +1205,7 @@ function renderClaudeArvDetail(r){
   const metaBits=[nComps!=null?`${nComps} comps`:'',ver,scoredAt].filter(Boolean).join(' · ');
   const metaHtml=metaBits?`<div style="margin-top:6px;font-size:10px;color:var(--text-4)">${metaBits}</div>`:'';
   const summaryConf=(conf==='high'||conf==='medium'||conf==='low')?confPill:'';
-  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Claude ARV <span style="font-weight:400;color:var(--text-4)">(advisory · not the underwriting ARV)</span>${summaryConf}</summary>
+  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Claude ARV <span style="font-weight:400;color:var(--text-4)">(underwriting ARV)</span>${summaryConf}</summary>
     <div style="margin-top:6px;font-size:11px;color:var(--text-2)">
       <span style="color:var(--text-4)">Generic flip range:</span>
       <span style="font-weight:700;color:var(--text-2);margin-left:6px">${rangeStr}</span></div>
@@ -1212,7 +1214,24 @@ function renderClaudeArvDetail(r){
     ${metaHtml}</details>`;
 }
 
-function renderDealScoreDetail(r){
+function renderDealScoreDetail(dc){
+  // Ungraded / error / missing → keep the deal score visible with the reason
+  // (mirrors the old card's ungraded / outside-coverage buckets). Graded rows
+  // fall through to the full breakdown below.
+  const st=dc&&dc.state,row=dc&&dc.row;
+  if(!(st==='ok'&&row&&row.grade)){
+    let pillTxt='ungraded',reason='not scored yet';
+    if(st==='error'&&row&&typeof row.error_message==='string'){
+      const em=row.error_message;
+      if(em.indexOf('outside per-city coverage')===0)reason='outside per-city coverage';
+      else if(em.indexOf('no ARV available')===0)reason='ARV pending';
+      else{pillTxt='error';reason=em;}
+    }
+    const uPill=`<span style="${dsGradeStyle('?')};font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-left:6px;letter-spacing:.4px;vertical-align:middle">${escapeHtml(pillTxt)}</span>`;
+    return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Deal score${uPill}</summary>
+      <div style="margin-top:4px;font-size:11px;color:var(--text-3)">${escapeHtml(reason)}</div></details>`;
+  }
+  const r=row;
   const bd=r.breakdown_json||{};
   const gap=bd.gap_vs_list;
   const gapStr=gap!=null?(gap>=0?'+':'')+F(gap):'—';
@@ -1251,7 +1270,8 @@ function setArvSource(mls,mid,src){
   if(!cardHasValue(src,av))return;
   arvSourceMap[mls]=src;
   let newArv=0;
-  if(src==='comp-avg')newArv=av.compArv;
+  if(src==='claude-arv')newArv=av.claudeArv;
+  else if(src==='comp-avg')newArv=av.compArv;
   else if(src==='per-city')newArv=av.perCityArv;
   else if(src==='smart-comps')newArv=av.smartArv;
   if(newArv){
