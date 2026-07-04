@@ -707,8 +707,19 @@ async function loadComps(l){
     document.getElementById('comp-col').innerHTML=compsPanel(l);
     requestAnimationFrame(()=>{
       const cm=getComps(l);
+      // Re-seed the ARV input via preferredArvFor (Claude ARV is the default
+      // underwriting source) — NOT the raw comp psf, which would clobber the
+      // Claude/mechanical ARV with the manual comp avg once comps land.
       if(l.lockedArv){setNumVal('arv-'+id,l.lockedArv);calcDeal(id,l.price,l.sqft);}
-      else if(cm.hp>0){setNumVal('arv-'+id,cm.hp*l.sqft);calcDeal(id,l.price,l.sqft);}
+      else{
+        const pref=preferredArvFor(l,cm);
+        if(pref.arv>0){
+          setNumVal('arv-'+id,pref.arv);
+          const srcEl=document.getElementById('arv-source-'+id);
+          if(srcEl)srcEl.textContent=arvSourceLabel(l,pref.source,pref.arv);
+        }
+        calcDeal(id,l.price,l.sqft);
+      }
     });
   }
 }
