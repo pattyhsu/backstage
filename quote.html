@@ -107,10 +107,11 @@ body { overflow:hidden; height:100vh; }
   padding:0 0 48px;
   font-size:13px; line-height:1.5;
 }
-.doc-band { background:var(--doc-navy); color:#fff; padding:22px 40px; display:flex; align-items:flex-start; justify-content:space-between; }
-.doc-band .co-name { font-size:26px; font-weight:700; letter-spacing:.5px; line-height:1; }
+.doc-band { background:var(--doc-navy); color:#fff; padding:22px 40px; display:flex; align-items:center; justify-content:space-between; gap:28px; }
+.doc-band .co-block { min-width:0; flex:1; }   /* min-width:0 lets a long name wrap instead of shoving the doc-type off the edge */
+.doc-band .co-name { font-size:23px; font-weight:700; letter-spacing:.3px; line-height:1.1; }
 .doc-band .co-sub { font-size:12px; font-weight:400; color:rgba(255,255,255,.72); margin-top:6px; }
-.doc-band .doc-type { font-size:28px; font-weight:700; letter-spacing:1px; }
+.doc-band .doc-type { font-size:26px; font-weight:700; letter-spacing:1px; flex-shrink:0; white-space:nowrap; }
 .doc-lic { padding:12px 40px; font-size:11.5px; color:var(--doc-muted); border-bottom:1px solid #d8dde3; }
 .doc-lic b { color:var(--doc-ink); font-weight:600; }
 
@@ -218,7 +219,7 @@ table.doc-table td.num { text-align:right; white-space:nowrap; width:104px; }
       <div class="fld-row">
         <div class="fld">
           <label>Date</label>
-          <input type="date" id="f-date" oninput="render()">
+          <input type="date" id="f-date" oninput="onDateChange()">
         </div>
         <div class="fld">
           <label id="f-valid-label">Valid Until</label>
@@ -401,7 +402,7 @@ function render(){
 
   document.getElementById('paper').innerHTML = `
     <div class="doc-band">
-      <div>
+      <div class="co-block">
         <div class="co-name">${escapeHtml(CO.name)}</div>
         <div class="co-sub">${escapeHtml(CO.sub)}</div>
       </div>
@@ -454,7 +455,16 @@ function onTypeChange(){
   const defaults=Object.values(DOC_TYPES).map(d=>d.intro);
   if(defaults.includes(intro.value.trim())) intro.value=currentDocType().intro;
   document.getElementById('f-valid-label').textContent=currentDocType().dateLabel;
+  syncSecondDate();
   render();
+}
+// The second date is derived from Date: invoice → Due = same day;
+// quote → Valid Until = one month out.
+function onDateChange(){ syncSecondDate(); render(); }
+function syncSecondDate(){
+  const dateISO=document.getElementById('f-date').value;
+  document.getElementById('f-valid').value =
+    document.getElementById('f-type').value==='invoice' ? dateISO : plusMonthsISO(dateISO,1);
 }
 
 // ========== RESET ==========
@@ -470,9 +480,8 @@ function resetForm(){
   addItem(); // also calls render()
 }
 function initDates(){
-  const t=todayISO();
-  document.getElementById('f-date').value=t;
-  document.getElementById('f-valid').value=plusMonthsISO(t,1);
+  document.getElementById('f-date').value=todayISO();
+  syncSecondDate();
 }
 
 // ========== INIT ==========
