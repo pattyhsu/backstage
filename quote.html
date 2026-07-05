@@ -80,8 +80,9 @@ body { overflow:hidden; height:100vh; }
 /* --- Editor form --- */
 .fld { margin-bottom:13px; }
 .fld label { display:block; font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--text-4); margin-bottom:4px; }
-.fld input, .fld textarea { width:100%; box-sizing:border-box; font-family:var(--sans); font-size:13px; color:var(--text); padding:7px 9px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); }
-.fld input:focus, .fld textarea:focus { outline:none; border-color:var(--accent); }
+.fld input, .fld textarea, .fld select { width:100%; box-sizing:border-box; font-family:var(--sans); font-size:13px; color:var(--text); padding:7px 9px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); }
+.fld input:focus, .fld textarea:focus, .fld select:focus { outline:none; border-color:var(--accent); }
+.fld select { cursor:pointer; }
 .fld textarea { resize:vertical; line-height:1.45; }
 .fld-row { display:flex; gap:10px; }
 .fld-row .fld { flex:1; }
@@ -189,7 +190,25 @@ table.doc-table td.num { text-align:right; white-space:nowrap; width:104px; }
     <!-- ===== EDITOR ===== -->
     <div class="q-editor">
 
-      <div class="sec-label" style="margin-top:0">Prepared For</div>
+      <div class="sec-label" style="margin-top:0">Document</div>
+      <div class="fld-row">
+        <div class="fld">
+          <label>Company</label>
+          <select id="f-company" onchange="onCompanyChange()">
+            <option value="dotty">Dotty Homes (#1137668)</option>
+            <option value="mci">Metropolitan Commercial Interiors (#736529)</option>
+          </select>
+        </div>
+        <div class="fld">
+          <label>Type</label>
+          <select id="f-type" onchange="onTypeChange()">
+            <option value="quote">Quote</option>
+            <option value="invoice">Invoice</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="sec-label">Prepared For</div>
       <div class="fld">
         <label>Client / property address</label>
         <textarea id="f-to" rows="3" oninput="render()" placeholder="13434 Lucas Pl&#10;Cerritos, CA 90703"></textarea>
@@ -202,7 +221,7 @@ table.doc-table td.num { text-align:right; white-space:nowrap; width:104px; }
           <input type="date" id="f-date" oninput="render()">
         </div>
         <div class="fld">
-          <label>Valid Until</label>
+          <label id="f-valid-label">Valid Until</label>
           <input type="date" id="f-valid" oninput="render()">
         </div>
       </div>
@@ -239,13 +258,40 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;
 
-// Fixed company identity — prints in the header band + license line.
-const CO = {
-  name: 'DOTTY HOMES',
-  sub:  'General Contractor',
-  lic:  'CSLB Lic. #1137668',
-  cls:  'Class B — General Building Contractor',
+// Company identities — selected in the editor, printed in the header band +
+// license line. Keyed by the <select id="f-company"> option values.
+const COMPANIES = {
+  dotty: {
+    name: 'DOTTY HOMES',
+    sub:  'General Contractor',
+    lic:  'CSLB Lic. #1137668',
+    cls:  'Class B — General Building Contractor',
+  },
+  mci: {
+    name: 'METROPOLITAN COMMERCIAL INTERIORS',
+    sub:  'General Contractor',
+    lic:  'CSLB Lic. #736529',
+    cls:  'Class B — General Building Contractor',
+  },
 };
+
+// Document types — selected in the editor. `word` prints in the header band,
+// `dateLabel` relabels the second date field, `intro` is the default blurb.
+const DOC_TYPES = {
+  quote: {
+    word: 'QUOTE',
+    dateLabel: 'Valid Until',
+    intro: 'We are pleased to provide the following quote for the work described below. Thank you for the opportunity to earn your business.',
+  },
+  invoice: {
+    word: 'INVOICE',
+    dateLabel: 'Due',
+    intro: 'Please find below the invoice for the work described. Payment is due by the date shown above. Thank you for your business.',
+  },
+};
+
+function currentCompany(){ return COMPANIES[document.getElementById('f-company').value] || COMPANIES.dotty; }
+function currentDocType(){ return DOC_TYPES[document.getElementById('f-type').value] || DOC_TYPES.quote; }
 
 // ========== HELPERS ==========
 function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
@@ -329,6 +375,8 @@ function render(){
   const intro=document.getElementById('f-intro').value||'';
   const foot=document.getElementById('f-foot').value||'';
   const items=readItems();
+  const CO=currentCompany();
+  const dt=currentDocType();
 
   const toHtml=toLines.length
     ? toLines.map(l=>`<div class="to-line">${escapeHtml(l)}</div>`).join('')
@@ -357,7 +405,7 @@ function render(){
         <div class="co-name">${escapeHtml(CO.name)}</div>
         <div class="co-sub">${escapeHtml(CO.sub)}</div>
       </div>
-      <div class="doc-type">QUOTE</div>
+      <div class="doc-type">${escapeHtml(dt.word)}</div>
     </div>
 
     <div class="doc-lic"><b>${escapeHtml(CO.lic)}</b> &nbsp;·&nbsp; ${escapeHtml(CO.cls)}</div>
@@ -369,7 +417,7 @@ function render(){
       </div>
       <div class="dm-dates">
         <div class="dm-pair"><span class="dm-k">Date</span><span class="dm-v">${escapeHtml(longDate(dateISO))}</span></div>
-        <div class="dm-pair"><span class="dm-k">Valid Until</span><span class="dm-v">${escapeHtml(longDate(validISO))}</span></div>
+        <div class="dm-pair"><span class="dm-k">${escapeHtml(dt.dateLabel)}</span><span class="dm-v">${escapeHtml(longDate(validISO))}</span></div>
       </div>
     </div>
 
@@ -396,11 +444,26 @@ function render(){
   `;
 }
 
+// ========== DOCUMENT SELECTORS ==========
+// Company change only affects the header/license — just re-render.
+function onCompanyChange(){ render(); }
+// Type change swaps the header word + date label, and refreshes the intro
+// blurb IF the user hasn't customised it (still holds a known default).
+function onTypeChange(){
+  const intro=document.getElementById('f-intro');
+  const defaults=Object.values(DOC_TYPES).map(d=>d.intro);
+  if(defaults.includes(intro.value.trim())) intro.value=currentDocType().intro;
+  document.getElementById('f-valid-label').textContent=currentDocType().dateLabel;
+  render();
+}
+
 // ========== RESET ==========
 function resetForm(){
-  if(!confirm('Clear this quote and start over?'))return;
+  if(!confirm('Clear this document and start over?'))return;
   document.getElementById('f-to').value='';
-  document.getElementById('f-intro').value='We are pleased to provide the following quote for the work described below. Thank you for the opportunity to earn your business.';
+  document.getElementById('f-type').value='quote';
+  document.getElementById('f-valid-label').textContent=DOC_TYPES.quote.dateLabel;
+  document.getElementById('f-intro').value=DOC_TYPES.quote.intro;
   document.getElementById('f-foot').value='';
   document.getElementById('li-list').innerHTML='';
   initDates();
