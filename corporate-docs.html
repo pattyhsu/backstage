@@ -78,16 +78,17 @@ body { overflow:hidden; height:100vh; }
 .error-block { padding:18px 22px; background:var(--red-bg); border:1px solid var(--red); border-radius:6px; color:var(--red); font-size:13px; margin-bottom:18px; }
 
 /* === DOC LIST (mirrors project-detail Documents section) === */
+.group-h { font-size:11px; font-weight:700; color:var(--text-4); text-transform:uppercase; letter-spacing:.6px; margin:26px 0 10px; }
+.group-h:first-child { margin-top:0; }
+.group-hint { font-weight:500; text-transform:none; letter-spacing:0; }
 .doc-list { display:flex; flex-direction:column; gap:8px; }
 .doc-row { display:grid; grid-template-columns:32px 1fr auto; gap:12px; align-items:center; padding:9px 12px; border:1px solid var(--border); border-radius:6px; background:#fff; cursor:pointer; }
 .doc-row:hover { border-color:var(--border-hover, var(--accent-dim2)); }
 .doc-ic { width:32px; height:32px; border-radius:6px; display:grid; place-items:center; font-size:15px; }
-.doc-ic.formation { background:#E9EEF6; }
-.doc-ic.tax { background:var(--amber-bg); }
-.doc-ic.insurance { background:var(--green-bg); }
-.doc-ic.banking { background:var(--accent-dim2); }
-.doc-ic.license { background:#F3E9F6; }
-.doc-ic.legal { background:#F6E9E9; }
+.doc-ic.corporate { background:#E9EEF6; }
+.doc-ic.identity { background:var(--amber-bg); }
+.doc-ic.resolution { background:var(--accent-dim2); }
+.doc-ic.pof { background:var(--green-bg); }
 .doc-ic.other { background:var(--bg-inset); }
 .doc-main { min-width:0; }
 .doc-name { font-weight:600; font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -95,13 +96,6 @@ body { overflow:hidden; height:100vh; }
 .doc-name.editable:hover { text-decoration:underline dotted; text-underline-offset:2px; }
 .doc-name-input { font:inherit; font-weight:600; font-size:13px; color:var(--text); width:100%; border:1px solid var(--accent); border-radius:4px; padding:1px 4px; box-sizing:border-box; }
 .doc-meta { font-size:11px; color:var(--text-4); margin-top:1px; }
-.doc-tag { font-weight:600; }
-.doc-tag.formation { color:#3A5C8A; }
-.doc-tag.tax { color:var(--amber); }
-.doc-tag.insurance { color:var(--green); }
-.doc-tag.banking { color:var(--accent); }
-.doc-tag.license { color:#8A3A8A; }
-.doc-tag.legal { color:var(--red); }
 .doc-empty { font-size:12px; color:var(--text-4); font-style:italic; padding:8px 0; }
 .doc-dl, .doc-view, .doc-del { font-size:12px; cursor:pointer; text-decoration:none; white-space:nowrap; }
 .doc-dl { color:var(--accent); font-weight:600; }
@@ -152,7 +146,7 @@ body { overflow:hidden; height:100vh; }
     <div class="page-head">
       <div class="page-head-l">
         <div class="page-title">Corporate Docs</div>
-        <div class="page-sub">Company paperwork — formation, tax, insurance, banking, licenses. Owner only.</div>
+        <div class="page-sub">Company paperwork — corporate docs, identity, resolutions, POF. Owner only.</div>
       </div>
       <div class="page-head-r">
         <button class="upload-btn" id="uploadBtn">+ Upload</button>
@@ -160,7 +154,7 @@ body { overflow:hidden; height:100vh; }
     </div>
 
     <div class="page-body">
-      <div class="doc-list" id="docList"><div class="loading-block">Loading documents…</div></div>
+      <div id="docList"><div class="loading-block">Loading documents…</div></div>
     </div>
 
   </div>
@@ -183,14 +177,22 @@ window.sb=sb;
 // so every visitor here can upload / download / delete.
 // ============================================================
 const DOC_TYPES={
-  formation:{label:'Formation',ic:'🏢'},
-  tax:{label:'Tax',ic:'🧾'},
-  insurance:{label:'Insurance',ic:'🛡️'},
-  banking:{label:'Banking',ic:'🏦'},
-  license:{label:'License',ic:'📜'},
-  legal:{label:'Legal',ic:'⚖️'},
+  corporate:{label:'Corporate',ic:'🏢'},
+  identity:{label:'Identity',ic:'🪪'},
+  resolution:{label:'Resolution',ic:'📝'},
+  pof:{label:'POF',ic:'💰'},
   other:{label:'Doc',ic:'📄'},
 };
+// Display order + section chrome. The first four always render (empty or
+// not) so the grouping is visible before anything's uploaded; Other only
+// appears when something actually falls in it.
+const DOC_GROUPS=[
+  {key:'corporate',  label:'Corporate Docs',        hint:'bylaws, articles of incorporation, SOI, 2553…'},
+  {key:'identity',   label:'Identity Documents',    hint:''},
+  {key:'resolution', label:'Corporate Resolutions', hint:'purchase / sell templates'},
+  {key:'pof',        label:'POF',                   hint:'proof of funds'},
+  {key:'other',      label:'Other',                 hint:''},
+];
 const DOC_MIMES=['application/pdf','image/jpeg','image/png','image/heic','image/webp',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -231,16 +233,35 @@ async function loadDocs(){
   renderDocs();
 }
 
+function docRowHtml(doc){
+  const key=DOC_TYPES[doc.doc_type]?doc.doc_type:'other';
+  const t=DOC_TYPES[key];
+  const meta=`${escapeHtml(fmtDocDate(doc.uploaded_at))} · ${escapeHtml(fmtBytes(doc.file_size))}`;
+  return `<div class="doc-row" data-docpath="${escapeHtml(doc.storage_path)}">`
+    +`<span class="doc-ic ${key}">${t.ic}</span>`
+    +`<div class="doc-main"><div class="doc-name editable" data-docname="${escapeHtml(doc.id)}" title="Click to rename">${escapeHtml(doc.original_filename)}</div><div class="doc-meta">${meta}</div></div>`
+    +`<span><a class="doc-dl" data-docdl="${escapeHtml(doc.id)}">Download</a><a class="doc-view" data-docview="${escapeHtml(doc.storage_path)}">View</a><a class="doc-del" data-docdel="${escapeHtml(doc.id)}">Delete</a></span>`
+    +`</div>`;
+}
+
 function renderDocs(){
-  const html=corpDocs.length?corpDocs.map(doc=>{
-    const t=DOC_TYPES[doc.doc_type]||DOC_TYPES.other;
-    const meta=`<span class="doc-tag ${doc.doc_type}">${escapeHtml(t.label)}</span> · ${escapeHtml(fmtDocDate(doc.uploaded_at))} · ${escapeHtml(fmtBytes(doc.file_size))}`;
-    return `<div class="doc-row" data-docpath="${escapeHtml(doc.storage_path)}">`
-      +`<span class="doc-ic ${doc.doc_type}">${t.ic}</span>`
-      +`<div class="doc-main"><div class="doc-name editable" data-docname="${escapeHtml(doc.id)}" title="Click to rename">${escapeHtml(doc.original_filename)}</div><div class="doc-meta">${meta}</div></div>`
-      +`<span><a class="doc-dl" data-docdl="${escapeHtml(doc.id)}">Download</a><a class="doc-view" data-docview="${escapeHtml(doc.storage_path)}">View</a><a class="doc-del" data-docdel="${escapeHtml(doc.id)}">Delete</a></span>`
-      +`</div>`;
-  }).join(''):'<div class="doc-empty">No documents yet — articles of organization, operating agreements, EIN letters, insurance certs, and bank docs live here.</div>';
+  // Bucket rows by group; anything with an unrecognized doc_type lands in
+  // Other so nothing ever disappears from view.
+  const byGroup={};
+  for(const doc of corpDocs){
+    const key=DOC_TYPES[doc.doc_type]?doc.doc_type:'other';
+    (byGroup[key]=byGroup[key]||[]).push(doc);
+  }
+  let html='';
+  for(const g of DOC_GROUPS){
+    const docs=byGroup[g.key]||[];
+    if(g.key==='other' && !docs.length)continue;
+    const hint=g.hint?` <span class="group-hint">— ${escapeHtml(g.hint)}</span>`:'';
+    html+=`<div class="group-h">${escapeHtml(g.label)}${hint}</div>`;
+    html+=docs.length
+      ? `<div class="doc-list">${docs.map(docRowHtml).join('')}</div>`
+      : '<div class="doc-empty">Nothing here yet — drop files or use + Upload.</div>';
+  }
   document.getElementById('docList').innerHTML=html;
   bindDocRowHandlers();  // re-bind after every render (innerHTML swap drops listeners)
 }
@@ -387,12 +408,10 @@ function openDocModal(){
           <label>Kind <span style="color:var(--red)">*</span></label>
           <select id="doc-up-kind" required>
             <option value="">Select…</option>
-            <option value="formation">Formation (articles, operating agreement)</option>
-            <option value="tax">Tax (EIN, returns)</option>
-            <option value="insurance">Insurance</option>
-            <option value="banking">Banking</option>
-            <option value="license">License</option>
-            <option value="legal">Legal / contract</option>
+            <option value="corporate">Corporate Docs (bylaws, articles, SOI, 2553…)</option>
+            <option value="identity">Identity Documents</option>
+            <option value="resolution">Corporate Resolutions (purchase / sell templates)</option>
+            <option value="pof">POF (proof of funds)</option>
             <option value="other">Other</option>
           </select>
         </div>
