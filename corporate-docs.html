@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Corporate Docs — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js?v=20260707"></script>
+<style>
+/* === CORPORATE DOCS — owner-only company document vault ===
+   Shared shell + sidebar tokens come from backstage.css; the shell
+   block below mirrors money.html / calendar.html. */
+
+body { overflow:hidden; height:100vh; }
+
+/* Standard Backstage shell (mirrors money.html). */
+.app-shell { display:flex; height:100vh; }
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+.bs-sidebar.collapsed { width:56px; }
+.bs-sidebar.collapsed .side-brand span, .bs-sidebar.collapsed .side-section-label, .bs-sidebar.collapsed .side-label, .bs-sidebar.collapsed .side-user-name, .bs-sidebar.collapsed .lock-btn { display:none; }
+.bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+.bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+.bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+.bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+.bs-sidebar.collapsed .side-user { justify-content:center; }
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.lock-btn:hover { color:var(--text); }
+.collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
+.collapse-btn:hover { color:var(--text); }
+
+.main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow-y:auto; background:var(--bg-page); }
+
+/* === PAGE HEADER (matches money.html) === */
+.page-head { padding:18px 28px 14px; border-bottom:1px solid var(--border); background:var(--bg); display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.page-head-l { flex:1; min-width:300px; }
+.page-title { font-size:20px; font-weight:700; color:var(--text); }
+.page-sub { font-size:12px; color:var(--text-4); margin-top:3px; }
+.page-head-r { display:flex; align-items:center; gap:8px; }
+.upload-btn { background:var(--accent); border:1px solid var(--accent); border-radius:6px; padding:7px 14px; font-size:12px; font-weight:600; color:#fff; cursor:pointer; font-family:var(--sans); }
+.upload-btn:hover { filter:brightness(1.05); }
+
+.page-body { padding:22px 28px 60px; max-width:860px; }
+.loading-block { padding:40px 0; text-align:center; color:var(--text-4); font-size:13px; }
+.error-block { padding:18px 22px; background:var(--red-bg); border:1px solid var(--red); border-radius:6px; color:var(--red); font-size:13px; margin-bottom:18px; }
+
+/* === DOC LIST (mirrors project-detail Documents section) === */
+.doc-list { display:flex; flex-direction:column; gap:8px; }
+.doc-row { display:grid; grid-template-columns:32px 1fr auto; gap:12px; align-items:center; padding:9px 12px; border:1px solid var(--border); border-radius:6px; background:#fff; cursor:pointer; }
+.doc-row:hover { border-color:var(--border-hover, var(--accent-dim2)); }
+.doc-ic { width:32px; height:32px; border-radius:6px; display:grid; place-items:center; font-size:15px; }
+.doc-ic.formation { background:#E9EEF6; }
+.doc-ic.tax { background:var(--amber-bg); }
+.doc-ic.insurance { background:var(--green-bg); }
+.doc-ic.banking { background:var(--accent-dim2); }
+.doc-ic.license { background:#F3E9F6; }
+.doc-ic.legal { background:#F6E9E9; }
+.doc-ic.other { background:var(--bg-inset); }
+.doc-main { min-width:0; }
+.doc-name { font-weight:600; font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.doc-name.editable { cursor:text; }
+.doc-name.editable:hover { text-decoration:underline dotted; text-underline-offset:2px; }
+.doc-name-input { font:inherit; font-weight:600; font-size:13px; color:var(--text); width:100%; border:1px solid var(--accent); border-radius:4px; padding:1px 4px; box-sizing:border-box; }
+.doc-meta { font-size:11px; color:var(--text-4); margin-top:1px; }
+.doc-tag { font-weight:600; }
+.doc-tag.formation { color:#3A5C8A; }
+.doc-tag.tax { color:var(--amber); }
+.doc-tag.insurance { color:var(--green); }
+.doc-tag.banking { color:var(--accent); }
+.doc-tag.license { color:#8A3A8A; }
+.doc-tag.legal { color:var(--red); }
+.doc-empty { font-size:12px; color:var(--text-4); font-style:italic; padding:8px 0; }
+.doc-dl, .doc-view, .doc-del { font-size:12px; cursor:pointer; text-decoration:none; white-space:nowrap; }
+.doc-dl { color:var(--accent); font-weight:600; }
+.doc-dl:hover { text-decoration:underline; }
+.doc-view { color:var(--text-4); margin-left:10px; }
+.doc-view:hover { color:var(--text-2); }
+.doc-del { color:var(--red); margin-left:10px; }
+.doc-del:hover { text-decoration:underline; }
+
+/* Document upload modal (mirrors project-detail, backstage tokens) */
+.dm-backdrop {
+  position:fixed; inset:0; background:rgba(15,23,42,.45);
+  display:flex; align-items:center; justify-content:center; z-index:1000;
+}
+.dm-card {
+  background:#fff; border-radius:10px; padding:22px;
+  width:100%; max-width:440px; box-shadow:0 16px 48px rgba(0,0,0,.18);
+}
+.dm-card h2 { margin:0 0 16px; font-size:17px; font-weight:700; color:var(--text); }
+.dm-field { margin-bottom:14px; }
+.dm-field label { display:block; font-size:12px; font-weight:600; color:var(--text-2); margin-bottom:5px; }
+.dm-card input[type=file], .dm-card select {
+  width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:7px;
+  font-family:inherit; font-size:13px; color:var(--text); outline:none; box-sizing:border-box; background:#fff;
+}
+.dm-actions {
+  display:flex; gap:10px; justify-content:flex-end; margin-top:18px;
+  padding-top:14px; border-top:1px solid var(--border);
+}
+.dm-btn { padding:7px 16px; border-radius:6px; font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; }
+.dm-btn-primary { background:var(--accent); color:#fff; border:1px solid var(--accent); }
+.dm-btn-primary:hover { filter:brightness(1.05); }
+.dm-btn-primary:disabled { opacity:.55; cursor:not-allowed; }
+.dm-btn-secondary { background:var(--bg); color:var(--text-3); border:1px solid var(--border); }
+.dm-error {
+  display:none; background:var(--red-bg); border:1px solid var(--red);
+  color:var(--red); padding:9px 12px; border-radius:7px; font-size:13px; margin-bottom:12px;
+}
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <div class="bs-sidebar" id="bsSidebar"></div>
+
+  <div class="main-content">
+
+    <div class="page-head">
+      <div class="page-head-l">
+        <div class="page-title">Corporate Docs</div>
+        <div class="page-sub">Company paperwork — formation, tax, insurance, banking, licenses. Owner only.</div>
+      </div>
+      <div class="page-head-r">
+        <button class="upload-btn" id="uploadBtn">+ Upload</button>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="doc-list" id="docList"><div class="loading-block">Loading documents…</div></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ============================================================
+// SUPABASE CLIENT — same constants Backstage uses everywhere.
+// ============================================================
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+
+// ============================================================
+// CORPORATE DOCS — Supabase Storage (corporate_docs bucket) +
+// corporate_documents table. Same shape as project-detail's
+// Documents section, minus the deal scoping. The whole page is
+// owner-only (redirect below + owner-only RLS on table AND bucket),
+// so every visitor here can upload / download / delete.
+// ============================================================
+const DOC_TYPES={
+  formation:{label:'Formation',ic:'🏢'},
+  tax:{label:'Tax',ic:'🧾'},
+  insurance:{label:'Insurance',ic:'🛡️'},
+  banking:{label:'Banking',ic:'🏦'},
+  license:{label:'License',ic:'📜'},
+  legal:{label:'Legal',ic:'⚖️'},
+  other:{label:'Doc',ic:'📄'},
+};
+const DOC_MIMES=['application/pdf','image/jpeg','image/png','image/heic','image/webp',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/msword','application/vnd.ms-excel','text/csv'];
+const DOC_MAX_BYTES=26214400;  // 25 MB (matches bucket + table CHECK)
+let corpDocs=[];
+let docModalEscHandler=null;
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+function fmtBytes(n){
+  n=Number(n||0);
+  if(!isFinite(n)||n<=0)return '—';
+  if(n<1024)return n+' B';
+  if(n<1048576)return (n/1024).toFixed(0)+' KB';
+  return (n/1048576).toFixed(n<10485760?1:0)+' MB';
+}
+function fmtDocDate(iso){
+  if(!iso)return '—';
+  const d=new Date(iso);
+  if(!isFinite(d.getTime()))return '—';
+  return d.toISOString().slice(0,10);
+}
+
+async function loadDocs(){
+  const {data, error}=await sb.from('corporate_documents')
+    .select('id, storage_path, original_filename, doc_type, file_size, mime_type, uploaded_at, uploaded_by')
+    .order('uploaded_at',{ascending:false});
+  if(error){
+    console.warn('[corp-docs] load failed:', error.message);
+    document.getElementById('docList').innerHTML='<div class="error-block">Could not load documents: '+escapeHtml(error.message)+'</div>';
+    corpDocs=[];
+    return;
+  }
+  corpDocs=data||[];
+  renderDocs();
+}
+
+function renderDocs(){
+  const html=corpDocs.length?corpDocs.map(doc=>{
+    const t=DOC_TYPES[doc.doc_type]||DOC_TYPES.other;
+    const meta=`<span class="doc-tag ${doc.doc_type}">${escapeHtml(t.label)}</span> · ${escapeHtml(fmtDocDate(doc.uploaded_at))} · ${escapeHtml(fmtBytes(doc.file_size))}`;
+    return `<div class="doc-row" data-docpath="${escapeHtml(doc.storage_path)}">`
+      +`<span class="doc-ic ${doc.doc_type}">${t.ic}</span>`
+      +`<div class="doc-main"><div class="doc-name editable" data-docname="${escapeHtml(doc.id)}" title="Click to rename">${escapeHtml(doc.original_filename)}</div><div class="doc-meta">${meta}</div></div>`
+      +`<span><a class="doc-dl" data-docdl="${escapeHtml(doc.id)}">Download</a><a class="doc-view" data-docview="${escapeHtml(doc.storage_path)}">View</a><a class="doc-del" data-docdel="${escapeHtml(doc.id)}">Delete</a></span>`
+      +`</div>`;
+  }).join(''):'<div class="doc-empty">No documents yet — articles of organization, operating agreements, EIN letters, insurance certs, and bank docs live here.</div>';
+  document.getElementById('docList').innerHTML=html;
+  bindDocRowHandlers();  // re-bind after every render (innerHTML swap drops listeners)
+}
+
+// Download / View / Delete / rename / row-tap handlers — must run after each
+// renderDocs() since the innerHTML swap replaces the rows (and listeners).
+function bindDocRowHandlers(){
+  document.querySelectorAll('[data-docdl]').forEach(el=>{
+    el.addEventListener('click', async e=>{
+      e.stopPropagation();
+      const doc=corpDocs.find(d=>d.id===el.getAttribute('data-docdl'));
+      if(!doc)return;
+      el.textContent='…';
+      await downloadDoc(doc);
+      el.textContent='Download';
+    });
+  });
+  document.querySelectorAll('[data-docview]').forEach(el=>{
+    el.addEventListener('click', async e=>{
+      e.stopPropagation();
+      const path=el.getAttribute('data-docview');
+      el.textContent='…';
+      await openDocSignedUrl(path);
+      el.textContent='View';
+    });
+  });
+  document.querySelectorAll('[data-docdel]').forEach(el=>{
+    el.addEventListener('click', async e=>{
+      e.stopPropagation();
+      await deleteDoc(el.getAttribute('data-docdel'));
+    });
+  });
+  // Click the name to rename.
+  document.querySelectorAll('.doc-name[data-docname]').forEach(el=>{
+    el.addEventListener('click', e=>{
+      e.stopPropagation();
+      _beginDocNameEdit(el, el.getAttribute('data-docname'));
+    });
+  });
+  // Row-tap opens the signed URL (phone affordance). Skip clicks on the
+  // action links, the editable name, or its input.
+  document.querySelectorAll('.doc-row[data-docpath]').forEach(row=>{
+    row.addEventListener('click', e=>{
+      if(e.target.closest('a, .doc-name, input'))return;
+      const path=row.getAttribute('data-docpath');
+      if(path)openDocSignedUrl(path);
+    });
+  });
+}
+
+// Download = signed URL with the download disposition set to the display
+// name, so the browser saves the file under its real filename instead of
+// the opaque storage key.
+async function downloadDoc(doc){
+  const {data, error}=await sb.storage.from('corporate_docs').createSignedUrl(doc.storage_path, 3600, {download: doc.original_filename});
+  if(error||!data||!data.signedUrl){ alert('Could not generate download link: '+((error&&error.message)||'unknown error')); return; }
+  const a=document.createElement('a');
+  a.href=data.signedUrl;
+  a.download=doc.original_filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+async function openDocSignedUrl(path){
+  const {data, error}=await sb.storage.from('corporate_docs').createSignedUrl(path, 3600);
+  if(error||!data||!data.signedUrl){ alert('Could not generate view link: '+((error&&error.message)||'unknown error')); return; }
+  window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+}
+
+async function deleteDoc(id){
+  const doc=corpDocs.find(d=>d.id===id);
+  if(!doc)return;
+  if(!confirm('Delete "'+doc.original_filename+'"? The file will be removed from storage.'))return;
+  const {error:stErr}=await sb.storage.from('corporate_docs').remove([doc.storage_path]);
+  if(stErr && !(stErr.message||'').toLowerCase().includes('not found')){
+    alert('Storage delete failed: '+stErr.message); return;
+  }
+  const {error:dbErr}=await sb.from('corporate_documents').delete().eq('id', id);
+  if(dbErr){ alert('Could not remove record: '+dbErr.message); return; }
+  const idx=corpDocs.findIndex(d=>d.id===id);
+  if(idx>=0)corpDocs.splice(idx,1);
+  renderDocs();
+}
+
+// Click-to-rename the displayed filename. Updates original_filename in
+// place — the storage_path is opaque, so renaming never touches the bytes.
+function _beginDocNameEdit(el, id){
+  if(el.classList.contains('editing'))return;
+  const doc=corpDocs.find(d=>d.id===id);
+  if(!doc)return;
+  el.classList.add('editing');
+  const input=document.createElement('input');
+  input.type='text';
+  input.className='doc-name-input';
+  input.value=doc.original_filename||'';
+  el.textContent='';
+  el.appendChild(input);
+  input.focus(); input.select();
+  let done=false;
+  const finish=async (commit)=>{
+    if(done)return; done=true;
+    if(commit) await _commitDocNameEdit(id, input.value);
+    else renderDocs();
+  };
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ e.preventDefault(); finish(true); }
+    else if(e.key==='Escape'){ finish(false); }
+  });
+  input.addEventListener('blur', ()=>finish(true));
+}
+async function _commitDocNameEdit(id, val){
+  const doc=corpDocs.find(d=>d.id===id);
+  const newName=(val||'').trim();
+  if(!doc || !newName || newName===doc.original_filename){ renderDocs(); return; }
+  const {error}=await sb.from('corporate_documents').update({original_filename:newName}).eq('id', id);
+  if(error){ alert('Rename failed: '+error.message); renderDocs(); return; }
+  doc.original_filename=newName;
+  renderDocs();
+}
+
+// ── Upload modal ──
+function closeDocModal(){
+  const bd=document.getElementById('doc-modal-backdrop');
+  if(bd)bd.remove();
+  if(docModalEscHandler){document.removeEventListener('keydown', docModalEscHandler);docModalEscHandler=null;}
+}
+
+function openDocModal(){
+  closeDocModal();
+  const bd=document.createElement('div');
+  bd.className='dm-backdrop';
+  bd.id='doc-modal-backdrop';
+  bd.innerHTML=`
+    <div class="dm-card">
+      <h2>Upload document</h2>
+      <div class="dm-error" id="doc-up-error"></div>
+      <form id="doc-up-form">
+        <div class="dm-field">
+          <label>File <span style="color:var(--red)">*</span></label>
+          <input type="file" id="doc-up-file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx,.xls,.xlsx,.csv" required>
+        </div>
+        <div class="dm-field">
+          <label>Kind <span style="color:var(--red)">*</span></label>
+          <select id="doc-up-kind" required>
+            <option value="">Select…</option>
+            <option value="formation">Formation (articles, operating agreement)</option>
+            <option value="tax">Tax (EIN, returns)</option>
+            <option value="insurance">Insurance</option>
+            <option value="banking">Banking</option>
+            <option value="license">License</option>
+            <option value="legal">Legal / contract</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="dm-actions">
+          <button type="button" class="dm-btn dm-btn-secondary" id="doc-up-cancel">Cancel</button>
+          <button type="submit" class="dm-btn dm-btn-primary" id="doc-up-submit">Upload</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(bd);
+
+  bd.addEventListener('click', e=>{ if(e.target===bd)closeDocModal(); });
+  document.getElementById('doc-up-cancel').addEventListener('click', closeDocModal);
+  docModalEscHandler=e=>{ if(e.key==='Escape')closeDocModal(); };
+  document.addEventListener('keydown', docModalEscHandler);
+
+  document.getElementById('doc-up-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const fileInput=document.getElementById('doc-up-file');
+    const file=fileInput.files[0];
+    const kind=document.getElementById('doc-up-kind').value;
+    const errBox=document.getElementById('doc-up-error');
+    const submitBtn=document.getElementById('doc-up-submit');
+    const showErr=msg=>{ errBox.textContent=msg; errBox.style.display='block'; };
+    errBox.style.display='none';
+    if(!file||!kind)return;
+    if(!DOC_MIMES.includes(file.type)){ showErr('Unsupported file type (PDF, image, Word, Excel, or CSV).'); return; }
+    if(file.size>DOC_MAX_BYTES){ showErr('File too large (max 25 MB).'); return; }
+
+    submitBtn.disabled=true; submitBtn.textContent='Uploading…';
+    // Storage keys must be URL-safe — sanitize the filename for the path
+    // (spaces/specials trigger "Invalid key"). original_filename keeps the
+    // real name for display + download.
+    const safeName=file.name.replace(/[^A-Za-z0-9._-]+/g,'_').replace(/^_+|_+$/g,'')||'file';
+    const path=`${crypto.randomUUID()}_${safeName}`;
+    const {error:upErr}=await sb.storage.from('corporate_docs').upload(path, file, {contentType:file.type, upsert:false});
+    if(upErr){ showErr('Upload failed: '+(upErr.message||'unknown error')); submitBtn.disabled=false; submitBtn.textContent='Upload'; return; }
+
+    const uid=(window.CURRENT_USER && window.CURRENT_USER.id)||null;
+    const {data:row, error:insErr}=await sb.from('corporate_documents').insert({
+      storage_path: path,
+      original_filename: file.name,
+      doc_type: kind,
+      file_size: file.size,
+      mime_type: file.type,
+      uploaded_by: uid,
+    }).select().single();
+    if(insErr){
+      await sb.storage.from('corporate_docs').remove([path]);
+      showErr('Could not save document record: '+(insErr.message||'unknown error'));
+      submitBtn.disabled=false; submitBtn.textContent='Upload';
+      return;
+    }
+    corpDocs.unshift(row);
+    closeDocModal();
+    renderDocs();
+  });
+}
+
+// ── Boot ──
+(async () => {
+  await window.authGate();
+  if (!window.CURRENT_USER_ROLE) return;
+  // Defense in depth — page is owner-only. Table AND bucket RLS are also
+  // owner-only so a worker would see nothing anyway, but we redirect out
+  // of the page entirely for clarity.
+  if (window.CURRENT_USER_ROLE !== 'owner') {
+    location.replace('pipeline.html');
+    return;
+  }
+  window.renderSidebar('corpdocs');
+  document.getElementById('uploadBtn').addEventListener('click', openDocModal);
+  await loadDocs();
+})();
+</script>
+
+</body>
+</html>
