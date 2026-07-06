@@ -428,7 +428,7 @@ function openLightbox(mls,addr,photoCount){
   // post_import, so it's trustworthy. Fall back to the live loaded-count
   // only when photo_count is absent (0/null).
   const total=parseInt(photoCount,10)||0;
-  let loaded=0;
+  let loaded=0,settled=0;
   const setHeader=()=>{const n=total>0?total:loaded;addrEl.textContent=n>0?`${addr} (${n}${n===1?' photo':' photos'})`:addr;};
   setHeader();
 
@@ -446,12 +446,23 @@ function openLightbox(mls,addr,photoCount){
     // slots in order in parallel and tolerate gaps: a missing or undecodable
     // image (e.g. a file with corrupt/wrong-format bytes) drops just itself
     // instead of truncating every photo after it.
+    const finalize=()=>{
+      // All slots have resolved. If R2 came up short of the DB photo_count
+      // (a stale/high count, or a scrape that couldn't paginate the gallery
+      // and only landed a couple photos), the header is still claiming the
+      // full total while the grid shows fewer — so tell the truth about
+      // what actually loaded instead of lying.
+      if(settled<total||lbMls!==myMls)return;
+      if(loaded<total){
+        addrEl.textContent=loaded>0?`${addr} (${loaded} of ${total} photos)`:`${addr} (no photos found)`;
+      }
+    };
     for(let n=1;n<=total;n++){
       const num=String(n).padStart(2,'0');
       const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
       const el=makeImg();
-      el.onload=function(){if(lbMls!==myMls)return;loaded++;};
-      el.onerror=function(){this.remove();};
+      el.onload=function(){settled++;if(lbMls===myMls)loaded++;finalize();};
+      el.onerror=function(){settled++;this.remove();finalize();};
       grid.appendChild(el);
       el.src=url;
     }

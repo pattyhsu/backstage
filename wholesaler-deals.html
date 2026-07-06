@@ -374,7 +374,7 @@ function openLightbox(mls,addr,photoCount){
   // Header: show the DB photo_count as a fixed total when known; otherwise
   // fall back to the live loaded-count as photos probe in.
   const total=parseInt(photoCount,10)||0;
-  let loaded=0;
+  let loaded=0,settled=0;
   const setHeader=()=>{const n=total>0?total:loaded;addrEl.textContent=n>0?`${addr} (${n}${n===1?' photo':' photos'})`:addr;};
   setHeader();
 
@@ -389,12 +389,22 @@ function openLightbox(mls,addr,photoCount){
 
   if(total>0){
     // Count known — load all slots in order in parallel; tolerate gaps.
+    const finalize=()=>{
+      // All slots resolved. If R2 came up short of the DB photo_count (a
+      // stale/high count, or a scrape that only landed a couple photos),
+      // tell the truth about what actually loaded rather than leaving the
+      // header claiming the full total.
+      if(settled<total||lbMls!==myMls)return;
+      if(loaded<total){
+        addrEl.textContent=loaded>0?`${addr} (${loaded} of ${total} photos)`:`${addr} (no photos found)`;
+      }
+    };
     for(let n=1;n<=total;n++){
       const num=String(n).padStart(2,'0');
       const url=`${PHOTO_BASE}/${mls}/${mls}_${num}.jpg`;
       const el=makeImg();
-      el.onload=function(){if(lbMls!==myMls)return;loaded++;};
-      el.onerror=function(){this.remove();};
+      el.onload=function(){settled++;if(lbMls===myMls)loaded++;finalize();};
+      el.onerror=function(){settled++;this.remove();finalize();};
       grid.appendChild(el);
       el.src=url;
     }
