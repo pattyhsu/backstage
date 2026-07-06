@@ -219,6 +219,7 @@ table.doc-table td.num { text-align:right; white-space:nowrap; width:104px; font
     <h1>Quote Generator <span>fill in &amp; print to PDF</span></h1>
     <div class="q-actions">
       <button class="btn" onclick="resetForm()">Clear</button>
+      <button class="btn" onclick="downloadPDF(this)">Download PDF</button>
       <button class="btn btn-primary" onclick="window.print()">Print / Save PDF</button>
     </div>
   </div>
@@ -625,6 +626,51 @@ function syncSecondDate(){
   const dateISO=document.getElementById('f-date').value;
   document.getElementById('f-valid').value =
     document.getElementById('f-type').value==='invoice' ? dateISO : plusMonthsISO(dateISO,1);
+}
+
+// ========== DOWNLOAD PDF (one-click, no print dialog) ==========
+// Rasterises the live "paper" (already Letter-proportioned: 760×983 ≈ 8.5×11)
+// and wraps it in a Letter PDF via html2pdf.js. This is the convenience path;
+// Print / Save PDF stays available for a crisp vector/selectable-text file.
+let _h2pLoading=null;
+function loadHtml2Pdf(){
+  if(window.html2pdf) return Promise.resolve();
+  if(_h2pLoading) return _h2pLoading;
+  _h2pLoading=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.3/dist/html2pdf.bundle.min.js';
+    s.onload=()=>res(); s.onerror=()=>rej(new Error('Could not load the PDF library'));
+    document.head.appendChild(s);
+  });
+  return _h2pLoading;
+}
+function pdfFilename(){
+  const CO=currentCompany(), dt=currentDocType();
+  const name=CO.name.replace(/\w\S*/g,w=>w[0].toUpperCase()+w.slice(1).toLowerCase()); // DOTTY HOMES -> Dotty Homes
+  const word=dt.word[0]+dt.word.slice(1).toLowerCase();                                 // INVOICE -> Invoice
+  const ref=(document.getElementById('f-ref').value||'').trim();
+  return `${name} ${word}${ref?' '+ref:''}`.replace(/[\\/:*?"<>|]+/g,'-')+'.pdf';
+}
+async function downloadPDF(btn){
+  const label=btn.textContent;
+  try{
+    btn.disabled=true; btn.textContent='Generating…';
+    await loadHtml2Pdf();
+    await (document.fonts?document.fonts.ready:Promise.resolve());  // fonts drawn, not fallback
+    const paper=document.getElementById('paper');
+    await html2pdf().set({
+      margin:0,
+      filename:pdfFilename(),
+      image:{type:'png'},
+      html2canvas:{scale:2, backgroundColor:'#ffffff', useCORS:true, letterRendering:true},
+      jsPDF:{unit:'in', format:'letter', orientation:'portrait'},
+      pagebreak:{mode:['css','legacy']},
+    }).from(paper).save();
+  }catch(e){
+    alert('Could not create the PDF: '+(e&&e.message?e.message:e)+'\n\nYou can still use “Print / Save PDF”.');
+  }finally{
+    btn.disabled=false; btn.textContent=label;
+  }
 }
 
 // ========== RESET ==========
