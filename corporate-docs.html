@@ -62,7 +62,7 @@ body { overflow:hidden; height:100vh; }
 .upload-btn { background:var(--accent); border:1px solid var(--accent); border-radius:6px; padding:7px 14px; font-size:12px; font-weight:600; color:#fff; cursor:pointer; font-family:var(--sans); }
 .upload-btn:hover { filter:brightness(1.05); }
 
-.page-body { padding:22px 28px 60px; max-width:860px; }
+.page-body { padding:22px 28px 60px; max-width:1100px; }
 
 /* Drag-to-upload state on the whole content pane (mirrors project-detail) */
 .main-content { position:relative; transition:background .12s; }
@@ -77,27 +77,24 @@ body { overflow:hidden; height:100vh; }
 .loading-block { padding:40px 0; text-align:center; color:var(--text-4); font-size:13px; }
 .error-block { padding:18px 22px; background:var(--red-bg); border:1px solid var(--red); border-radius:6px; color:var(--red); font-size:13px; margin-bottom:18px; }
 
-/* === DOC LIST (mirrors project-detail Documents section) === */
-.group-h { font-size:11px; font-weight:700; color:var(--text-4); text-transform:uppercase; letter-spacing:.6px; margin:26px 0 10px; }
-.group-h:first-child { margin-top:0; }
+/* === DOC GROUPS — compact two-column panels; every row IS a download === */
+.group-grid { columns:2 340px; column-gap:16px; }
+.group-card { background:#fff; border:1px solid var(--border); border-radius:8px; overflow:hidden; break-inside:avoid; margin-bottom:16px; }
+.group-card-h { padding:9px 14px; border-bottom:1px solid var(--border); background:var(--bg); font-size:11px; font-weight:700; color:var(--text-4); text-transform:uppercase; letter-spacing:.6px; display:flex; align-items:baseline; gap:8px; }
 .group-hint { font-weight:500; text-transform:none; letter-spacing:0; }
-.doc-list { display:flex; flex-direction:column; gap:8px; }
-.doc-row { display:grid; grid-template-columns:32px 1fr auto; gap:12px; align-items:center; padding:9px 12px; border:1px solid var(--border); border-radius:6px; background:#fff; cursor:pointer; }
-.doc-row:hover { border-color:var(--border-hover, var(--accent-dim2)); }
-.doc-ic { width:32px; height:32px; border-radius:6px; display:grid; place-items:center; font-size:15px; }
-.doc-ic.corporate { background:#E9EEF6; }
-.doc-ic.identity { background:var(--amber-bg); }
-.doc-ic.resolution { background:var(--accent-dim2); }
-.doc-ic.pof { background:var(--green-bg); }
-.doc-ic.other { background:var(--bg-inset); }
-.doc-main { min-width:0; }
-.doc-name { font-weight:600; font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.doc-name.editable { cursor:text; }
-.doc-name.editable:hover { text-decoration:underline dotted; text-underline-offset:2px; }
-.doc-name-input { font:inherit; font-weight:600; font-size:13px; color:var(--text); width:100%; border:1px solid var(--accent); border-radius:4px; padding:1px 4px; box-sizing:border-box; }
-.doc-empty { font-size:12px; color:var(--text-4); font-style:italic; padding:8px 0; }
-.doc-dl { font-size:12px; cursor:pointer; text-decoration:none; white-space:nowrap; color:var(--accent); font-weight:600; }
-.doc-dl:hover { text-decoration:underline; }
+.doc-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 14px; cursor:pointer; }
+.doc-row + .doc-row { border-top:1px solid var(--border); }
+.doc-row:hover { background:var(--bg-page); }
+.doc-name { min-width:0; font-weight:500; font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.doc-row:hover .doc-name { color:var(--accent); }
+.doc-name-input { font:inherit; font-weight:500; font-size:13px; color:var(--text); width:100%; border:1px solid var(--accent); border-radius:4px; padding:1px 4px; box-sizing:border-box; }
+.doc-acts { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.doc-ren { font-size:12px; color:var(--text-4); text-decoration:none; cursor:pointer; visibility:hidden; }
+.doc-ren:hover { color:var(--text); }
+.doc-arrow { font-size:12px; color:var(--text-4); }
+.doc-row:hover .doc-ren { visibility:visible; }
+.doc-row:hover .doc-arrow { color:var(--accent); }
+.doc-empty { font-size:12px; color:var(--text-4); font-style:italic; padding:8px 14px; }
 
 /* Document upload modal (mirrors project-detail, backstage tokens) */
 .dm-backdrop {
@@ -170,14 +167,7 @@ window.sb=sb;
 // owner-only (redirect below + owner-only RLS on table AND bucket),
 // so every visitor here can upload / download / delete.
 // ============================================================
-const DOC_TYPES={
-  corporate:{label:'Corporate',ic:'🏢'},
-  identity:{label:'Identity',ic:'🪪'},
-  resolution:{label:'Resolution',ic:'📝'},
-  pof:{label:'POF',ic:'💰'},
-  other:{label:'Doc',ic:'📄'},
-};
-// Display order + section chrome. The first four always render (empty or
+// Display order + panel chrome. The first four always render (empty or
 // not) so the grouping is visible before anything's uploaded; Other only
 // appears when something actually falls in it.
 const DOC_GROUPS=[
@@ -187,6 +177,7 @@ const DOC_GROUPS=[
   {key:'pof',        label:'POF',                   hint:'proof of funds'},
   {key:'other',      label:'Other',                 hint:''},
 ];
+const DOC_GROUP_KEYS=new Set(DOC_GROUPS.map(g=>g.key));
 const DOC_MIMES=['application/pdf','image/jpeg','image/png','image/heic','image/webp',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -214,12 +205,9 @@ async function loadDocs(){
 }
 
 function docRowHtml(doc){
-  const key=DOC_TYPES[doc.doc_type]?doc.doc_type:'other';
-  const t=DOC_TYPES[key];
-  return `<div class="doc-row" data-docid="${escapeHtml(doc.id)}">`
-    +`<span class="doc-ic ${key}">${t.ic}</span>`
-    +`<div class="doc-main"><div class="doc-name editable" data-docname="${escapeHtml(doc.id)}" title="Click to rename">${escapeHtml(doc.original_filename)}</div></div>`
-    +`<span><a class="doc-dl" data-docdl="${escapeHtml(doc.id)}">Download</a></span>`
+  return `<div class="doc-row" data-docid="${escapeHtml(doc.id)}" title="Download">`
+    +`<span class="doc-name">${escapeHtml(doc.original_filename)}</span>`
+    +`<span class="doc-acts"><a class="doc-ren" data-docren="${escapeHtml(doc.id)}" title="Rename">✎</a><span class="doc-arrow">↓</span></span>`
     +`</div>`;
 }
 
@@ -228,48 +216,39 @@ function renderDocs(){
   // Other so nothing ever disappears from view.
   const byGroup={};
   for(const doc of corpDocs){
-    const key=DOC_TYPES[doc.doc_type]?doc.doc_type:'other';
+    const key=DOC_GROUP_KEYS.has(doc.doc_type)?doc.doc_type:'other';
     (byGroup[key]=byGroup[key]||[]).push(doc);
   }
-  let html='';
+  let html='<div class="group-grid">';
   for(const g of DOC_GROUPS){
     const docs=byGroup[g.key]||[];
     if(g.key==='other' && !docs.length)continue;
-    const hint=g.hint?` <span class="group-hint">— ${escapeHtml(g.hint)}</span>`:'';
-    html+=`<div class="group-h">${escapeHtml(g.label)}${hint}</div>`;
+    const hint=g.hint?`<span class="group-hint">${escapeHtml(g.hint)}</span>`:'';
+    html+=`<div class="group-card"><div class="group-card-h">${escapeHtml(g.label)}${hint}</div>`;
     html+=docs.length
-      ? `<div class="doc-list">${docs.map(docRowHtml).join('')}</div>`
-      : '<div class="doc-empty">Nothing here yet — drop files or use + Upload.</div>';
+      ? docs.map(docRowHtml).join('')
+      : '<div class="doc-empty">Drop files here or use + Upload.</div>';
+    html+='</div>';
   }
+  html+='</div>';
   document.getElementById('docList').innerHTML=html;
   bindDocRowHandlers();  // re-bind after every render (innerHTML swap drops listeners)
 }
 
-// Download / rename / row-tap handlers — must run after each renderDocs()
+// Row = download; hover pencil = rename. Must run after each renderDocs()
 // since the innerHTML swap replaces the rows (and listeners).
 function bindDocRowHandlers(){
-  document.querySelectorAll('[data-docdl]').forEach(el=>{
-    el.addEventListener('click', async e=>{
-      e.stopPropagation();
-      const doc=corpDocs.find(d=>d.id===el.getAttribute('data-docdl'));
-      if(!doc)return;
-      el.textContent='…';
-      await downloadDoc(doc);
-      el.textContent='Download';
-    });
-  });
-  // Click the name to rename.
-  document.querySelectorAll('.doc-name[data-docname]').forEach(el=>{
+  document.querySelectorAll('[data-docren]').forEach(el=>{
     el.addEventListener('click', e=>{
       e.stopPropagation();
-      _beginDocNameEdit(el, el.getAttribute('data-docname'));
+      const row=el.closest('.doc-row');
+      const nameEl=row&&row.querySelector('.doc-name');
+      if(nameEl)_beginDocNameEdit(nameEl, el.getAttribute('data-docren'));
     });
   });
-  // Row-tap downloads too (phone affordance). Skip clicks on the Download
-  // link, the editable name, or its input.
   document.querySelectorAll('.doc-row[data-docid]').forEach(row=>{
     row.addEventListener('click', e=>{
-      if(e.target.closest('a, .doc-name, input'))return;
+      if(e.target.closest('.doc-ren, input'))return;
       const doc=corpDocs.find(d=>d.id===row.getAttribute('data-docid'));
       if(doc)downloadDoc(doc);
     });
