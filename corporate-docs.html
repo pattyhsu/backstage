@@ -95,15 +95,9 @@ body { overflow:hidden; height:100vh; }
 .doc-name.editable { cursor:text; }
 .doc-name.editable:hover { text-decoration:underline dotted; text-underline-offset:2px; }
 .doc-name-input { font:inherit; font-weight:600; font-size:13px; color:var(--text); width:100%; border:1px solid var(--accent); border-radius:4px; padding:1px 4px; box-sizing:border-box; }
-.doc-meta { font-size:11px; color:var(--text-4); margin-top:1px; }
 .doc-empty { font-size:12px; color:var(--text-4); font-style:italic; padding:8px 0; }
-.doc-dl, .doc-view, .doc-del { font-size:12px; cursor:pointer; text-decoration:none; white-space:nowrap; }
-.doc-dl { color:var(--accent); font-weight:600; }
+.doc-dl { font-size:12px; cursor:pointer; text-decoration:none; white-space:nowrap; color:var(--accent); font-weight:600; }
 .doc-dl:hover { text-decoration:underline; }
-.doc-view { color:var(--text-4); margin-left:10px; }
-.doc-view:hover { color:var(--text-2); }
-.doc-del { color:var(--red); margin-left:10px; }
-.doc-del:hover { text-decoration:underline; }
 
 /* Document upload modal (mirrors project-detail, backstage tokens) */
 .dm-backdrop {
@@ -205,20 +199,6 @@ let docModalEscHandler=null;
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 }
-function fmtBytes(n){
-  n=Number(n||0);
-  if(!isFinite(n)||n<=0)return '—';
-  if(n<1024)return n+' B';
-  if(n<1048576)return (n/1024).toFixed(0)+' KB';
-  return (n/1048576).toFixed(n<10485760?1:0)+' MB';
-}
-function fmtDocDate(iso){
-  if(!iso)return '—';
-  const d=new Date(iso);
-  if(!isFinite(d.getTime()))return '—';
-  return d.toISOString().slice(0,10);
-}
-
 async function loadDocs(){
   const {data, error}=await sb.from('corporate_documents')
     .select('id, storage_path, original_filename, doc_type, file_size, mime_type, uploaded_at, uploaded_by')
@@ -236,11 +216,10 @@ async function loadDocs(){
 function docRowHtml(doc){
   const key=DOC_TYPES[doc.doc_type]?doc.doc_type:'other';
   const t=DOC_TYPES[key];
-  const meta=`${escapeHtml(fmtDocDate(doc.uploaded_at))} · ${escapeHtml(fmtBytes(doc.file_size))}`;
-  return `<div class="doc-row" data-docpath="${escapeHtml(doc.storage_path)}">`
+  return `<div class="doc-row" data-docid="${escapeHtml(doc.id)}">`
     +`<span class="doc-ic ${key}">${t.ic}</span>`
-    +`<div class="doc-main"><div class="doc-name editable" data-docname="${escapeHtml(doc.id)}" title="Click to rename">${escapeHtml(doc.original_filename)}</div><div class="doc-meta">${meta}</div></div>`
-    +`<span><a class="doc-dl" data-docdl="${escapeHtml(doc.id)}">Download</a><a class="doc-view" data-docview="${escapeHtml(doc.storage_path)}">View</a><a class="doc-del" data-docdel="${escapeHtml(doc.id)}">Delete</a></span>`
+    +`<div class="doc-main"><div class="doc-name editable" data-docname="${escapeHtml(doc.id)}" title="Click to rename">${escapeHtml(doc.original_filename)}</div></div>`
+    +`<span><a class="doc-dl" data-docdl="${escapeHtml(doc.id)}">Download</a></span>`
     +`</div>`;
 }
 
@@ -266,8 +245,8 @@ function renderDocs(){
   bindDocRowHandlers();  // re-bind after every render (innerHTML swap drops listeners)
 }
 
-// Download / View / Delete / rename / row-tap handlers — must run after each
-// renderDocs() since the innerHTML swap replaces the rows (and listeners).
+// Download / rename / row-tap handlers — must run after each renderDocs()
+// since the innerHTML swap replaces the rows (and listeners).
 function bindDocRowHandlers(){
   document.querySelectorAll('[data-docdl]').forEach(el=>{
     el.addEventListener('click', async e=>{
@@ -279,21 +258,6 @@ function bindDocRowHandlers(){
       el.textContent='Download';
     });
   });
-  document.querySelectorAll('[data-docview]').forEach(el=>{
-    el.addEventListener('click', async e=>{
-      e.stopPropagation();
-      const path=el.getAttribute('data-docview');
-      el.textContent='…';
-      await openDocSignedUrl(path);
-      el.textContent='View';
-    });
-  });
-  document.querySelectorAll('[data-docdel]').forEach(el=>{
-    el.addEventListener('click', async e=>{
-      e.stopPropagation();
-      await deleteDoc(el.getAttribute('data-docdel'));
-    });
-  });
   // Click the name to rename.
   document.querySelectorAll('.doc-name[data-docname]').forEach(el=>{
     el.addEventListener('click', e=>{
@@ -301,13 +265,13 @@ function bindDocRowHandlers(){
       _beginDocNameEdit(el, el.getAttribute('data-docname'));
     });
   });
-  // Row-tap opens the signed URL (phone affordance). Skip clicks on the
-  // action links, the editable name, or its input.
-  document.querySelectorAll('.doc-row[data-docpath]').forEach(row=>{
+  // Row-tap downloads too (phone affordance). Skip clicks on the Download
+  // link, the editable name, or its input.
+  document.querySelectorAll('.doc-row[data-docid]').forEach(row=>{
     row.addEventListener('click', e=>{
       if(e.target.closest('a, .doc-name, input'))return;
-      const path=row.getAttribute('data-docpath');
-      if(path)openDocSignedUrl(path);
+      const doc=corpDocs.find(d=>d.id===row.getAttribute('data-docid'));
+      if(doc)downloadDoc(doc);
     });
   });
 }
@@ -324,27 +288,6 @@ async function downloadDoc(doc){
   document.body.appendChild(a);
   a.click();
   a.remove();
-}
-
-async function openDocSignedUrl(path){
-  const {data, error}=await sb.storage.from('corporate_docs').createSignedUrl(path, 3600);
-  if(error||!data||!data.signedUrl){ alert('Could not generate view link: '+((error&&error.message)||'unknown error')); return; }
-  window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
-}
-
-async function deleteDoc(id){
-  const doc=corpDocs.find(d=>d.id===id);
-  if(!doc)return;
-  if(!confirm('Delete "'+doc.original_filename+'"? The file will be removed from storage.'))return;
-  const {error:stErr}=await sb.storage.from('corporate_docs').remove([doc.storage_path]);
-  if(stErr && !(stErr.message||'').toLowerCase().includes('not found')){
-    alert('Storage delete failed: '+stErr.message); return;
-  }
-  const {error:dbErr}=await sb.from('corporate_documents').delete().eq('id', id);
-  if(dbErr){ alert('Could not remove record: '+dbErr.message); return; }
-  const idx=corpDocs.findIndex(d=>d.id===id);
-  if(idx>=0)corpDocs.splice(idx,1);
-  renderDocs();
 }
 
 // Click-to-rename the displayed filename. Updates original_filename in
