@@ -183,20 +183,22 @@ table.doc-table td.num { text-align:right; white-space:nowrap; width:104px; font
 
 /* === PRINT === */
 @media print {
-  /* margin:0 removes the browser's auto date/title/URL/page-number — Chrome
-     renders those in the page-margin area, so a zero margin leaves nowhere
-     for them. The document's own white frame comes from .q-preview-wrap
-     padding below instead. */
+  /* Print the document EXACTLY as the on-screen preview shows it: the colored
+     band bleeds to the page edges (no white frame) and the paper fills the whole
+     page so the footer stays pinned to the bottom. @page margin:0 also suppresses
+     Chrome's auto header/footer (date/title/URL/page-number). */
   @page { size:letter; margin:0; }
-  html, body { height:auto; overflow:visible; background:#fff; }
-  .app-shell { display:block; height:auto; }
+  html, body { height:auto; overflow:visible; background:#fff; margin:0; padding:0; }
+  .app-shell { display:block; height:auto; margin:0; padding:0; }
   .bs-sidebar, .q-hdr, .q-editor, .main-content > .q-hdr { display:none !important; }
   .main-content { overflow:visible; display:block; }
   .q-work { display:block; }
-  .q-preview-wrap { display:block; padding:0.4in; background:#fff; overflow:visible; }
-  .paper { width:auto; min-height:0; box-shadow:none; margin:0; }
-  /* Force every filled/tinted element to actually print. */
-  .doc-band, table.doc-table thead th,
+  .q-preview-wrap { display:block; padding:0; background:#fff; overflow:visible; }
+  /* full-bleed to the page edges + fill the page height (footer sinks to bottom) */
+  .paper { width:auto; min-height:100vh; box-shadow:none; margin:0; }
+  /* Force every filled/tinted element to actually print, even if the user leaves
+     the print dialog's "Background graphics" box unchecked. */
+  .doc-band, .doc-band::after, table.doc-table thead th,
   table.doc-table tbody tr:nth-child(even) td,
   .doc-totals .tot-row.grand { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   table.doc-table tbody tr { page-break-inside:avoid; }
