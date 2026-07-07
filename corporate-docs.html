@@ -80,8 +80,7 @@ body { overflow:hidden; height:100vh; }
 /* === DOC GROUPS — compact two-column panels; every row IS a download === */
 .group-grid { columns:2 340px; column-gap:16px; }
 .group-card { background:#fff; border:1px solid var(--border); border-radius:8px; overflow:hidden; break-inside:avoid; margin-bottom:16px; }
-.group-card-h { padding:9px 14px; border-bottom:1px solid var(--border); background:var(--bg); font-size:11px; font-weight:700; color:var(--text-4); text-transform:uppercase; letter-spacing:.6px; display:flex; align-items:baseline; gap:8px; }
-.group-hint { font-weight:500; text-transform:none; letter-spacing:0; }
+.group-card-h { padding:10px 14px; border-bottom:1px solid var(--border); background:var(--bg-alt); font-size:11px; font-weight:700; color:var(--text); text-transform:uppercase; letter-spacing:.6px; }
 .doc-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 14px; cursor:pointer; }
 .doc-row + .doc-row { border-top:1px solid var(--border); }
 .doc-row:hover { background:var(--bg-page); }
@@ -171,11 +170,11 @@ window.sb=sb;
 // not) so the grouping is visible before anything's uploaded; Other only
 // appears when something actually falls in it.
 const DOC_GROUPS=[
-  {key:'corporate',  label:'Corporate Docs',        hint:'bylaws, articles of incorporation, SOI, 2553…'},
-  {key:'identity',   label:'Identity Documents',    hint:''},
-  {key:'resolution', label:'Corporate Resolutions', hint:'purchase / sell templates'},
-  {key:'pof',        label:'POF',                   hint:'proof of funds'},
-  {key:'other',      label:'Other',                 hint:''},
+  {key:'corporate',  label:'Corporate Docs'},
+  {key:'identity',   label:'Identity Documents'},
+  {key:'resolution', label:'Corporate Resolutions'},
+  {key:'pof',        label:'POF'},
+  {key:'other',      label:'Other'},
 ];
 const DOC_GROUP_KEYS=new Set(DOC_GROUPS.map(g=>g.key));
 const DOC_MIMES=['application/pdf','image/jpeg','image/png','image/heic','image/webp',
@@ -223,8 +222,7 @@ function renderDocs(){
   for(const g of DOC_GROUPS){
     const docs=byGroup[g.key]||[];
     if(g.key==='other' && !docs.length)continue;
-    const hint=g.hint?`<span class="group-hint">${escapeHtml(g.hint)}</span>`:'';
-    html+=`<div class="group-card"><div class="group-card-h">${escapeHtml(g.label)}${hint}</div>`;
+    html+=`<div class="group-card"><div class="group-card-h">${escapeHtml(g.label)}</div>`;
     html+=docs.length
       ? docs.map(docRowHtml).join('')
       : '<div class="doc-empty">Drop files here or use + Upload.</div>';
