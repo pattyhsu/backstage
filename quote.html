@@ -145,11 +145,14 @@ body { overflow:hidden; height:100vh; }
 
 /* --- Line-item table --- */
 .doc-table-wrap { padding:18px 40px 0; }
-table.doc-table { width:100%; border-collapse:collapse; }
+table.doc-table { width:100%; border-collapse:collapse; table-layout:fixed; }
 table.doc-table thead th { background:var(--doc-accent); color:#fff; font-size:11px; font-weight:600; letter-spacing:.3px; text-align:left; padding:10px 12px; }
 table.doc-table thead th.num { text-align:right; }
 table.doc-table thead th.ctr { text-align:center; }
-table.doc-table tbody td { padding:11px 12px; vertical-align:top; border-bottom:1px solid #e6e9ed; }
+/* Override the global `td { white-space:nowrap }` (backstage.css) so long scope
+   text wraps inside its column instead of overflowing off the paper. td.num /
+   td.ctr re-declare nowrap below (higher specificity) and keep their single line. */
+table.doc-table tbody td { padding:11px 12px; vertical-align:top; border-bottom:1px solid #e6e9ed; white-space:normal; overflow-wrap:break-word; }
 table.doc-table tbody tr:nth-child(even) td { background:#f5f7f9; }
 table.doc-table td.no { text-align:center; width:34px; color:var(--doc-muted); font-size:12px; }
 table.doc-table td.li-desc .li-title { font-weight:600; color:var(--doc-ink); font-size:12.5px; }
