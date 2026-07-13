@@ -546,11 +546,17 @@ document.addEventListener('keydown',e=>{
   }
 });
 
-let _statsTimer=null;
-// Each of the 4 stat counts is an exact full-table count. A reviewer clicking
-// through cards would otherwise fire all 4 after every single click. Debounce so
-// rapid edits coalesce into one refresh after they pause.
-function scheduleStats(){clearTimeout(_statsTimer);_statsTimer=setTimeout(updateStats,600);}
+// The "Unreviewed" badge is a global exact count (updateStats, run once on load).
+// Reviewing a card removes it from the unreviewed pool, so keep the badge in sync
+// by decrementing in place — no fresh full-table exact count after every edit.
+// It re-syncs to truth on the next full load (updateStats).
+function _isUnreviewed(p){return !!(p&&p.condition_tier!=null&&p.condition_overridden!==true);}
+function bumpUnreviewed(delta){
+  const el=document.getElementById('statUnreviewed');
+  const cur=parseInt(el.textContent,10);
+  if(!Number.isFinite(cur)) return;   // not populated yet — leave it for updateStats
+  el.textContent=Math.max(0,cur+delta);
+}
 async function updateStats(){
   // "Unreviewed" = scored rows (a tier was assigned) that no reviewer has
   // confirmed or overridden yet — i.e. still need a manual pass. Excludes the
@@ -635,9 +641,13 @@ async function loadCards(){
       .select('id,mls,address,city,sqft,beds,baths,sale_price,list_price,photo_count,condition_tier,condition_confidence,condition_sample_photos,condition_overridden,value_driver_rooms_updated,design_starred,designer_starred,multi_unit')
       .order('condition_scored_at',{ascending:false}).order('id',{ascending:false})
   ).range(from,from+ps-1));
-  const countReq=Promise.resolve(applyCardFilters(
+  // The exact count is invariant across pages of the SAME filter set, and it's
+  // the expensive query shape (Postgres counts every matching row). So only run
+  // it on page 0 — a fresh filter/search — and reuse totalCount when paginating.
+  const needCount=currentPage===0;
+  const countReq=needCount?Promise.resolve(applyCardFilters(
     sb.from('properties').select('id',{count:'exact',head:true})
-  ));
+  )):null;
 
   // ----- Cards: render as soon as the (light) data query returns -----
   const{data}=await dataReq;
@@ -649,7 +659,7 @@ async function loadCards(){
     document.getElementById('pagination').innerHTML='';
     document.getElementById('headerCount').textContent='(0)';
     totalCount=0;
-    await countReq.catch(()=>{}); // consume the in-flight count
+    if(countReq) await countReq.catch(()=>{}); // consume the in-flight count (page 0 only)
     return;
   }
 
@@ -668,11 +678,13 @@ async function loadCards(){
     hydrateCardText(txt);
   });
 
-  // ----- Count: fills the header + pagination once it arrives -----
-  const{count}=await countReq;
-  if(seq!==loadSeq) return;
-  totalCount=count||0;
-  document.getElementById('headerCount').textContent=`(${totalCount})`;
+  // ----- Count: only refreshed on page 0; later pages reuse totalCount -----
+  if(countReq){
+    const{count}=await countReq;
+    if(seq!==loadSeq) return;
+    totalCount=count||0;
+    document.getElementById('headerCount').textContent=`(${totalCount})`;
+  }
   renderPagination();
 }
 
@@ -807,6 +819,7 @@ function refreshCard(id){
 
 // T1–T4, T6: set the tier and mark reviewed.
 async function overrideTier(id,newTier){
+  const wasUnreviewed=_isUnreviewed(cardData[id]);
   const{error}=await sb.from('properties').update({
     condition_tier:newTier,
     condition_overridden:true,
@@ -815,11 +828,12 @@ async function overrideTier(id,newTier){
   if(error){console.error('Override failed:',error);return;}
   if(cardData[id]){cardData[id].condition_tier=newTier;cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
-  scheduleStats();
+  if(wasUnreviewed) bumpUnreviewed(-1);
 }
 
 // T5 sub-tier: set tier=5 and value_driver_rooms_updated (2/1/0, or null for U).
 async function setT5(id,val){
+  const wasUnreviewed=_isUnreviewed(cardData[id]);
   const{error}=await sb.from('properties').update({
     condition_tier:5,
     value_driver_rooms_updated:val,
@@ -829,16 +843,17 @@ async function setT5(id,val){
   if(error){console.error('T5 override failed:',error);return;}
   if(cardData[id]){cardData[id].condition_tier=5;cardData[id].value_driver_rooms_updated=val;cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
-  scheduleStats();
+  if(wasUnreviewed) bumpUnreviewed(-1);
 }
 
 // Confirm AI tier as-is — flip condition_overridden without changing the tier.
 async function markReviewed(id){
+  const wasUnreviewed=_isUnreviewed(cardData[id]);
   const{error}=await sb.from('properties').update({condition_overridden:true,condition_confidence:null}).eq('id',id);
   if(error){console.error('Mark reviewed failed:',error);return;}
   if(cardData[id]){cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
-  scheduleStats();
+  if(wasUnreviewed) bumpUnreviewed(-1);
 }
 
 // Uncategorize / de-select — clear the tier (no gradeable condition) and mark
@@ -846,6 +861,7 @@ async function markReviewed(id){
 // doesn't linger. Leaves the row visible until reload; afterwards it's found
 // under the "Uncategorized" filter.
 async function clearTier(id){
+  const wasUnreviewed=_isUnreviewed(cardData[id]);
   const{error}=await sb.from('properties').update({
     condition_tier:null,
     value_driver_rooms_updated:null,
@@ -855,7 +871,7 @@ async function clearTier(id){
   if(error){console.error('Clear tier failed:',error);return;}
   if(cardData[id]){cardData[id].condition_tier=null;cardData[id].value_driver_rooms_updated=null;cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
-  scheduleStats();
+  if(wasUnreviewed) bumpUnreviewed(-1);
 }
 
 // Design-reference star — pure curation flag, INDEPENDENT of the condition
