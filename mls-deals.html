@@ -1164,8 +1164,11 @@ function renderSmartCompsDetail(l,av){
 // count) + confidence + auditable reasoning. The "if Dotty flipped it" point
 // (fallback: generic point) is the default ARV feeding the deal analyzer + the
 // list ARV/GAP columns (see arvSourceVal / activeArvSource). NULL-safe: the
-// caller only invokes this when claude_generic_point is present. NOTE: the
-// server-side deal-score grade is still computed from the mechanical ARV.
+// caller only invokes this when claude_generic_point is present. The deal-score
+// grade is computed from Claude ARV ONLY (deal_scorer.select_scoring_arv, owner
+// directive 2026-07-11) — smart-comps / per-city are display references, never a
+// grade input. So the trust signals below are not decoration: they are the only
+// warning that the number driving the offer rests on nothing.
 function renderClaudeArvDetail(r){
   const lo=r.claude_generic_low,pt=r.claude_generic_point,hi=r.claude_generic_high;
   const rangeStr=[lo!=null?F(lo):null,pt!=null?F(pt):null,hi!=null?F(hi):null]
@@ -1225,12 +1228,47 @@ function renderClaudeArvDetail(r){
   const scoredAt=r.claude_scored_at?new Date(r.claude_scored_at).toLocaleString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(',','')+' PT':'';
   const metaBits=[nComps!=null?`${nComps} comps`:'',ver,scoredAt].filter(Boolean).join(' · ');
   const metaHtml=metaBits?`<div style="margin-top:6px;font-size:10px;color:var(--text-4)">${metaBits}</div>`:'';
+  // ── Comp-set forensics (claude_data.forensics, written by comps.analyze_comp_set)
+  // The no-anchor warning rides in the SUMMARY, not the body: 3550 Kemble told us
+  // it was blind (5 comps, zero size-matched T6, confidence low) and we shipped a
+  // $1.4M ARV anyway — because you had to expand a disclosure to find out. If it
+  // only matters when you open it, it doesn't matter.
+  const fx=data.forensics||{};
+  const noAnchor=(fx.has_size_matched_renovated_comp===false);
+  const noAnchorPill=noAnchor
+    ?`<span title="No renovated (T6) comp within ±15% of this home's size — the flip rate was never observed here, only inferred. Treat this ARV as weak." style="font-size:9px;font-weight:700;color:var(--red,#c0392b);border:1px solid var(--red,#c0392b);border-radius:8px;padding:1px 7px;letter-spacing:.4px;text-transform:uppercase;margin-left:6px">no size-matched flip comp</span>`
+    :'';
+  let forensicsHtml='';
+  const pairs=Array.isArray(fx.paired_sales)?fx.paired_sales:[];
+  if(pairs.length){
+    // A paired sale is the strongest anchor available: same house before/after,
+    // so location, lot, size and era are held constant — only condition moved.
+    const items=pairs.map(p=>{
+      const up=(p.implied_uplift_pct!=null)?` <span style="color:var(--accent);font-weight:700">${p.implied_uplift_pct>=0?'+':''}${Number(p.implied_uplift_pct).toFixed(0)}%</span>`:'';
+      const sq=(p.sqft!=null)?` · ${Math.round(p.sqft)} sf`:'';
+      const b=p.before||{},a=p.after||{};
+      return `<li style="margin:1px 0">${escapeHtml(String(p.address||'—'))}${sq}: ${escapeHtml(String(b.tier||'?'))} ${escapeHtml(String(b.sold_date||''))} $${Math.round(b.ppsf||0)}/sf → ${escapeHtml(String(a.tier||'?'))} ${escapeHtml(String(a.sold_date||''))} $${Math.round(a.ppsf||0)}/sf${up}</li>`;
+    }).join('');
+    forensicsHtml+=`<div style="margin-top:6px;font-size:11px;color:var(--text-2)"><span style="color:var(--text-4)">Flip round-trip in the comps:</span>
+      <ul style="margin:2px 0 0 0;padding-left:16px;color:var(--text-3)">${items}</ul></div>`;
+  }
+  const priors=Array.isArray(fx.subject_prior_sales)?fx.subject_prior_sales:[];
+  if(priors.length){
+    const items=priors.map(p=>`<li style="margin:1px 0">${escapeHtml(String(p.sold_date||''))} · ${escapeHtml(String(p.tier||'?'))} · ${p.price!=null?F(p.price):'—'} ($${Math.round(p.ppsf||0)}/sf)</li>`).join('');
+    forensicsHtml+=`<div style="margin-top:4px;font-size:11px;color:var(--text-2)"><span style="color:var(--text-4)">This home's own earlier sale:</span>
+      <ul style="margin:2px 0 0 0;padding-left:16px;color:var(--text-3)">${items}</ul></div>`;
+  }
+  if(noAnchor){
+    forensicsHtml+=`<div style="margin-top:6px;font-size:11px;color:var(--red,#c0392b)">
+      No renovated (T6) comp within ±15% of this home's size${fx.n_comps!=null?` (${fx.n_comps} comps in the net)`:''} — the flip rate here was <b>inferred, not observed</b>. Cross-check before trusting this ARV.</div>`;
+  }
   const summaryConf=(conf==='high'||conf==='medium'||conf==='low')?confPill:'';
-  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Claude ARV <span style="font-weight:400;color:var(--text-4)">(underwriting ARV)</span>${summaryConf}</summary>
+  return `<details><summary style="cursor:pointer;font-size:11px;font-weight:600;color:var(--text-3)">Claude ARV <span style="font-weight:400;color:var(--text-4)">(underwriting ARV)</span>${summaryConf}${noAnchorPill}</summary>
     <div style="margin-top:6px;font-size:11px;color:var(--text-2)">
       <span style="color:var(--text-4)">Generic flip range:</span>
       <span style="font-weight:700;color:var(--text-2);margin-left:6px">${rangeStr}</span></div>
     ${dottyLine}
+    ${forensicsHtml}
     ${reasoningHtml}
     ${metaHtml}</details>`;
 }
