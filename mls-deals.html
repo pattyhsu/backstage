@@ -3052,6 +3052,10 @@ function openMarkAsListingPicker(matches, mls, l){
 // Brief BV / D2: phase value renamed from 'listed' → 'selling'.
 async function applyMarkAsListing(dealId, mls, l, fromPhase){
   const today=new Date().toISOString().slice(0,10);
+  // Use the listing's actual MLS list_date, not today — the mark-as-listing
+  // step is often done days after the relist actually hit the MLS. Fall back
+  // to today only if the property row is missing a list_date.
+  const listDate=l.listDate||today;
   const listPrice=l.price||null;
   try{
     let resolvedDealId=dealId;
@@ -3061,7 +3065,7 @@ async function applyMarkAsListing(dealId, mls, l, fromPhase){
         relist_mls: mls,
         phase: 'selling',
         list_price: listPrice,
-        list_date: today,
+        list_date: listDate,
         updated_at: new Date().toISOString(),
       }).eq('id', dealId);
       if(uErr)throw uErr;
@@ -3072,7 +3076,7 @@ async function applyMarkAsListing(dealId, mls, l, fromPhase){
         relist_mls: mls,
         phase: 'selling',
         list_price: listPrice,
-        list_date: today,
+        list_date: listDate,
       }).select('id').single();
       if(iErr)throw iErr;
       resolvedDealId=newDeal.id;
