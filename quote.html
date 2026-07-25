@@ -317,7 +317,7 @@ const COMPANIES = {
   dotty: {
     name: 'DOTTY HOMES',
     wordmark: 'DOTTY<span class="wm-dot"></span>HOMES',
-    sub:  'Built Happy · Built Well',
+    sub:  'Home Renovation & Interior Design',
     lic:  'CSLB Lic. #1137668',
     cls:  'Class B — General Building Contractor',
     addr: '2275 Huntington Dr, #139, San Marino, CA 91108',
@@ -325,7 +325,6 @@ const COMPANIES = {
     email:'dottyhomes.ca@gmail.com',
     web:  'dottyhomes.com',
     accent:'#b8543b',   // terracotta — dottyhomes.com brand accent
-    tagline:'Building happiness, one home at a time.',  // prints in the footer
     pay: [
       ['Check payable to', 'Dotty Homes'],
       ['Zelle', 'dottyhomes.ca@gmail.com'],
@@ -484,7 +483,6 @@ function render(){
     escapeHtml(CO.addr),
     `${escapeHtml(CO.lic)} · ${escapeHtml(CO.cls)}`,
     CO.phone?`Tel ${escapeHtml(CO.phone)}`:'',
-    CO.email?escapeHtml(CO.email):'',
     CO.web?escapeHtml(CO.web):'',
   ].filter(Boolean);
   const contactHtml=contactLines.map(l=>`<div>${l}</div>`).join('');
