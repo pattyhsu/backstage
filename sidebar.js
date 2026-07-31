@@ -30,6 +30,7 @@
       items: [
         { key: 'deals', label: 'MLS Deals', href: 'mls-deals.html', icon: iconDeals() },
         { key: 'wholesaler', label: 'Wholesaler Deals', href: 'wholesaler-deals.html', icon: iconDeals() },
+        { key: 'staledeals', label: 'Stale Deals', href: 'stale-deals.html', icon: iconDeals() },
         { key: 'comps', label: 'Comp Check',  href: 'comps-db.html',  icon: iconComps() },
       ],
     },

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stale Deals — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js?v=20260731"></script>
+<style>
+/* === STALE DEALS — local layout only ===
+   The off-market program's Phase 1 surface (brief `stale_mls_offers` D3).
+
+   IMPORTANT: this page does NOT decide what "stale" means. The three candidate
+   legs (DOM > 90 / back-on-market <= 7d / witnessed price cut > 7%), the
+   DOM-from-list_date correction, and the tier-partitioned ranking all live in
+   daily_pipeline/stale_offers.py and are covered by tests/test_stale_offers.py.
+   The daily run writes the ranked result to `stale_offer_candidates`; this page
+   renders it. Re-deriving any of that in JS here would fork the definition —
+   the exact drift pattern the blindspot audit flagged as this repo's dominant
+   bug shape (plans/blindspot_audit.md §1). Add filters freely; do not add
+   candidate logic.
+
+   Shared shell + sidebar tokens come from backstage.css. */
+
+body { overflow:hidden; height:100vh; }
+.app-shell { display:flex; height:100vh; }
+
+/* --- Sidebar (identical token block to area-insights.html) --- */
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+.bs-sidebar.collapsed { width:56px; }
+.bs-sidebar.collapsed .side-brand span, .bs-sidebar.collapsed .side-section-label, .bs-sidebar.collapsed .side-label, .bs-sidebar.collapsed .side-user-name, .bs-sidebar.collapsed .lock-btn { display:none; }
+.bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+.bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+.bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+.bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+.bs-sidebar.collapsed .side-user { justify-content:center; }
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.lock-btn:hover { color:var(--text); }
+.collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
+.collapse-btn:hover { color:var(--text); }
+.main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
+
+/* --- Page header --- */
+.sd-hdr { flex-shrink:0; height:52px; padding:0 24px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); background:var(--bg-page); }
+.sd-hdr h1 { font-size:14px; font-weight:700; letter-spacing:-.3px; color:var(--accent); margin:0; }
+.sd-hdr-meta { color:var(--text-4); font-size:12px; }
+
+/* --- Filter bar --- */
+.sd-bar { flex-shrink:0; padding:10px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:18px; flex-wrap:wrap; background:var(--bg); }
+.sd-group { display:flex; align-items:center; gap:6px; }
+.sd-group-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); margin-right:2px; }
+.sd-chip { padding:3px 10px; border:1px solid var(--border); border-radius:999px; background:var(--bg); color:var(--text-3); font-family:inherit; font-size:11px; font-weight:600; cursor:pointer; transition:all .12s; }
+.sd-chip:hover { background:var(--bg-alt); }
+.sd-chip.on { background:var(--accent-dim2); border-color:var(--accent); color:var(--accent); }
+.sd-search { padding:4px 9px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); color:var(--text); font-family:inherit; font-size:12px; width:190px; }
+
+/* --- Body --- */
+.sd-body { flex:1; overflow-y:auto; min-height:0; background:var(--bg-page); }
+.sd-inner { max-width:1280px; margin:0 auto; padding:20px 24px 70px; }
+.sd-note { font-size:12px; color:var(--text-3); max-width:88ch; margin:0 0 14px; line-height:1.6; }
+.sd-note strong { color:var(--text-2); }
+
+.sd-tier-hdr { display:flex; align-items:baseline; gap:10px; margin:22px 0 8px; }
+.sd-tier-hdr:first-child { margin-top:0; }
+.sd-tier-hdr h2 { font-size:13px; font-weight:700; color:var(--text); margin:0; }
+.sd-tier-hdr .sub { font-size:11px; color:var(--text-4); }
+
+table.sd { border-collapse:collapse; width:100%; font-size:12.5px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+table.sd th { background:var(--bg-alt); font-weight:600; color:var(--text-3); text-align:left; padding:7px 10px; font-size:10px; text-transform:uppercase; letter-spacing:.4px; white-space:nowrap; border-bottom:1px solid var(--border); }
+table.sd td { padding:7px 10px; color:var(--text-2); border-bottom:1px solid var(--border); white-space:nowrap; }
+table.sd tbody tr:last-child td { border-bottom:none; }
+table.sd tbody tr { cursor:pointer; }
+table.sd tbody tr:hover td { background:var(--bg-alt); }
+td.num, th.num { text-align:right; font-family:var(--mono); }
+td.addr { white-space:normal; min-width:190px; color:var(--text); font-weight:500; }
+td.mls { font-family:var(--mono); font-size:11px; color:var(--text-4); }
+.rank { color:var(--text-4); font-family:var(--mono); font-size:11px; }
+
+.g { display:inline-block; min-width:17px; text-align:center; padding:1px 5px; border-radius:4px; font-size:10px; font-weight:800; }
+.g.A { background:var(--good-dim,#dcfce7); color:var(--good,#15803d); }
+.g.B { background:#dbeafe; color:#1d4ed8; }
+.g.C { background:#fef3c7; color:#b45309; }
+.g.D { background:var(--bg-alt); color:var(--text-4); }
+
+.why { display:inline-block; padding:1px 6px; border-radius:4px; background:var(--bg-alt); color:var(--text-3); font-size:10px; font-weight:600; margin-right:3px; }
+.why.cut { background:#fee2e2; color:#b91c1c; }
+.why.bom { background:#ede9fe; color:#6d28d9; }
+.pos { color:var(--good,#15803d); font-weight:600; }
+.neg { color:var(--text-4); }
+.approx { color:var(--text-4); }
+
+.sd-empty { display:grid; place-items:center; padding:80px 0; color:var(--text-4); font-size:14px; }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+<!-- Sidebar (rendered by sidebar.js after auth) -->
+<div class="bs-sidebar" id="bsSidebar"></div>
+
+<div class="main-content">
+
+  <div class="sd-hdr">
+    <h1>Stale Deals</h1>
+    <div class="sd-hdr-meta"><span id="meta"></span></div>
+  </div>
+
+  <div class="sd-bar">
+    <div class="sd-group">
+      <span class="sd-group-label">Grade</span>
+      <button class="sd-chip on" data-grade="A" onclick="tog(this,'grade','A')">A</button>
+      <button class="sd-chip on" data-grade="B" onclick="tog(this,'grade','B')">B</button>
+      <button class="sd-chip on" data-grade="C" onclick="tog(this,'grade','C')">C</button>
+      <button class="sd-chip"    data-grade="D" onclick="tog(this,'grade','D')">D</button>
+    </div>
+    <div class="sd-group">
+      <span class="sd-group-label">Why</span>
+      <button class="sd-chip on" onclick="tog(this,'reason','stale_dom')">Stale DOM</button>
+      <button class="sd-chip on" onclick="tog(this,'reason','back_on_market')">Back on market</button>
+      <button class="sd-chip on" onclick="tog(this,'reason','price_cut')">Price cut</button>
+    </div>
+    <div class="sd-group">
+      <span class="sd-group-label">Tier</span>
+      <button class="sd-chip on" onclick="tog(this,'tier','graded')">Graded</button>
+      <button class="sd-chip on" onclick="tog(this,'tier','reference')">Reference</button>
+    </div>
+    <div class="sd-group">
+      <input class="sd-search" id="q" placeholder="City or address…" oninput="render()">
+    </div>
+  </div>
+
+  <div class="sd-body">
+    <div class="sd-inner">
+      <p class="sd-note">
+        Listings that are still on market but going nowhere — the off-market channel hiding
+        <strong>on</strong> market. Ranked by spread, best first. <strong>Graded</strong> rows carry a
+        Claude-ARV underwritten spread; <strong>reference</strong> rows are cities Claude doesn't cover
+        and show a raw smart-comps gap that omits rehab, financing and closing costs — it is
+        <strong>not</strong> an underwritten spread and reads systematically richer, so the two tiers are
+        ranked separately. A DOM marked <span class="approx">~</span> was inherited from the frozen
+        <code>dom</code> column rather than measured from the list date.
+      </p>
+      <div id="out"></div>
+    </div>
+  </div>
+
+</div><!-- /main-content -->
+</div><!-- /app-shell -->
+
+<script>
+// ========== SUPABASE CLIENT ==========
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+
+let ROWS=[];
+// Grade D is off by default: it's the bulk of the list and the point of the
+// page is the offer shortlist, not the inventory dump. Everything else starts on.
+const F={ grade:new Set(['A','B','C']), reason:new Set(['stale_dom','back_on_market','price_cut']), tier:new Set(['graded','reference']) };
+
+const $=id=>document.getElementById(id);
+const escapeHtml=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=v=>v==null?'—':'$'+Math.round(v/1000).toLocaleString()+'K';
+const pct=v=>v==null?'—':(v>0?'+':'')+Number(v).toFixed(1)+'%';
+
+function tog(btn,dim,val){
+  btn.classList.toggle('on');
+  if(F[dim].has(val))F[dim].delete(val); else F[dim].add(val);
+  render();
+}
+
+const REASON_LABEL={stale_dom:'stale DOM',back_on_market:'back on mkt',price_cut:'price cut'};
+const REASON_CLASS={price_cut:'cut',back_on_market:'bom'};
+
+function passes(r){
+  const q=($('q').value||'').trim().toLowerCase();
+  if(q && !((r.city||'')+' '+(r.address||'')+' '+r.mls).toLowerCase().includes(q))return false;
+  if(!F.tier.has(r.tier))return false;
+  // Reference rows have no grade — the grade filter simply doesn't apply to
+  // them (filtering them out on a null grade would empty the tier entirely).
+  if(r.tier==='graded' && !F.grade.has(r.grade))return false;
+  // A row shows if ANY of its reasons is enabled (reasons are additive).
+  if(!(r.reasons||[]).some(x=>F.reason.has(x)))return false;
+  return true;
+}
+
+function rowHtml(r){
+  const rank=r.tier==='graded'?r.spread_pct:r.reference_gap_pct;
+  const rankCls=rank==null?'neg':(rank>0?'pos':'neg');
+  const dom=r.days_on_market==null?'—'
+    :escapeHtml(String(r.days_on_market))+(r.dom_is_live?'':'<span class="approx">~</span>');
+  const why=(r.reasons||[]).map(x=>
+    `<span class="why ${REASON_CLASS[x]||''}">${escapeHtml(REASON_LABEL[x]||x)}</span>`).join('');
+  const cut=r.price_cut_pct==null?'—':'−'+Number(r.price_cut_pct).toFixed(1)+'%';
+  const grade=r.grade?`<span class="g ${escapeHtml(r.grade)}">${escapeHtml(r.grade)}</span>`:'—';
+  return `<tr onclick="open_('${escapeHtml(r.mls)}')">
+    <td class="rank">${r.rank}</td>
+    <td class="addr">${escapeHtml(r.address||'—')}</td>
+    <td>${escapeHtml(r.city||'—')}</td>
+    <td class="mls">${escapeHtml(r.mls)}</td>
+    <td class="num">${money(r.list_price)}</td>
+    <td class="num">${dom}</td>
+    <td class="num">${cut}</td>
+    <td class="num">${money(r.arv_used)}</td>
+    <td class="num ${rankCls}">${pct(rank)}</td>
+    <td>${grade}</td>
+    <td>${why}</td>
+  </tr>`;
+}
+
+function tableHtml(title,sub,rows,rankLabel){
+  if(!rows.length)return '';
+  return `<div class="sd-tier-hdr"><h2>${escapeHtml(title)} (${rows.length})</h2>
+            <span class="sub">${escapeHtml(sub)}</span></div>
+    <table class="sd"><thead><tr>
+      <th>#</th><th>Address</th><th>City</th><th>MLS</th>
+      <th class="num">List</th><th class="num">DOM</th><th class="num">Cut</th>
+      <th class="num">ARV</th><th class="num">${escapeHtml(rankLabel)}</th>
+      <th>Grade</th><th>Why</th>
+    </tr></thead><tbody>${rows.map(rowHtml).join('')}</tbody></table>`;
+}
+
+function render(){
+  const shown=ROWS.filter(passes);
+  const graded=shown.filter(r=>r.tier==='graded');
+  const reference=shown.filter(r=>r.tier==='reference');
+  const html=tableHtml('Graded','Claude ARV · underwritten spread',graded,'Spread')
+           + tableHtml('Reference','no Claude ARV · raw smart-comps gap, NOT underwritten',reference,'Gap');
+  $('out').innerHTML = html || '<div class="sd-empty">No listings match these filters.</div>';
+}
+
+function open_(mls){ window.location.href='mls-deals.html?mls='+encodeURIComponent(mls); }
+
+async function load(){
+  // Pre-ranked by daily_pipeline/stale_offers.py — read in rank order and do
+  // not re-sort here. .range() is unnecessary: the candidate pool is ~100 rows
+  // and bounded by the filter itself, well inside PostgREST's 1000-row page.
+  const{data,error}=await sb.from('stale_offer_candidates').select('*').order('rank',{ascending:true});
+  if(error){
+    $('out').innerHTML='<div class="sd-empty">Could not load candidates: '+escapeHtml(error.message)+'</div>';
+    return;
+  }
+  ROWS=data||[];
+  const stamp=ROWS.length?new Date(ROWS[0].computed_at):null;
+  $('meta').textContent = ROWS.length
+    ? `${ROWS.length} candidates · refreshed ${stamp.toLocaleString()}`
+    : 'no candidates';
+  render();
+}
+
+// ========== INIT ==========
+(async()=>{
+  await window.authGate();
+  if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
+  window.renderSidebar('staledeals');
+  await load();
+})();
+</script>
+</body>
+</html>
