@@ -16,7 +16,8 @@
    The off-market program's Phase 1 surface (brief `stale_mls_offers` D3).
 
    IMPORTANT: this page does NOT decide what "stale" means. The three candidate
-   legs (DOM > 90 / back-on-market <= 7d / witnessed price cut > 7%), the
+   legs (DOM > 60 / back-on-market <= 7d / witnessed price cut > 7%; the
+   thresholds are tunable constants in that module, not fixed), the
    DOM-from-list_date correction, and the tier-partitioned ranking all live in
    daily_pipeline/stale_offers.py and are covered by tests/test_stale_offers.py.
    The daily run writes the ranked result to `stale_offer_candidates`; this page
