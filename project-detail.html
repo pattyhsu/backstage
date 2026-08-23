@@ -400,7 +400,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .cn-bar2 .fill.gold { background:var(--accent); }
 .cn-bar2 .fill.over { background:var(--red); }
 
-/* Brief CC — construction schedule: slip banner + milestone list */
+/* Brief CC — construction schedule: slip banner + Gantt build schedule */
 .cs-slip { display:flex; align-items:baseline; gap:8px; padding:9px 12px; border-radius:6px;
   margin-bottom:14px; font-size:13px; }
 .cs-slip.behind { background:#FBEDEB; color:#8C2B1F; }
@@ -409,22 +409,33 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .cs-slip .why { font-size:12px; opacity:.85; }
 .cs-proj { font-size:11px; color:var(--text-4); margin-top:-8px; margin-bottom:14px;
   font-variant-numeric:tabular-nums; }
-.ms-list { list-style:none; padding:0; margin:0; display:grid; grid-template-columns:1fr; gap:1px;
-  background:var(--border); border:1px solid var(--border); border-radius:6px; overflow:hidden; }
-.ms-row { display:grid; grid-template-columns:auto 1fr auto auto; align-items:center; gap:9px;
-  background:#fff; padding:7px 11px; font-size:13px; color:var(--text-2); }
-.ms-row input[type=checkbox] { cursor:pointer; margin:0; }
-.ms-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.ms-due { font-size:11px; color:var(--text-4); font-variant-numeric:tabular-nums; }
-.ms-row.done .ms-name { text-decoration:line-through; color:var(--text-4); }
-.ms-row.overdue { background:#FDF6F5; }
-.ms-row.overdue .ms-due { color:var(--red); font-weight:600; }
-.ms-row.na { background:var(--bg); }
-.ms-row.na .ms-name, .ms-row.na .ms-due { color:var(--text-4); font-style:italic; text-decoration:none; }
+.gt-wrap { display:flex; flex-direction:column; }
+.gt-row { display:grid; grid-template-columns:18px 190px 1fr 42px 30px; align-items:center;
+  gap:10px; padding:4px 0; font-size:13px; color:var(--text-2); }
+.gt-row input[type=checkbox] { cursor:pointer; margin:0; }
+.gt-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.gt-track { position:relative; height:16px; }
+.gt-bar { position:absolute; top:3px; height:10px; border-radius:3px; }
+.gt-dot { position:absolute; top:4px; width:8px; height:8px; border-radius:50%; margin-left:-4px; }
+.gt-today { position:absolute; top:-2px; bottom:-2px; width:1px; background:var(--red); opacity:.55; }
+.gt-due { font-size:11px; color:var(--text-4); font-variant-numeric:tabular-nums; text-align:right; }
+.gt-axis { padding-bottom:6px; border-bottom:1px solid var(--border); margin-bottom:4px; }
+.gt-axis .gt-track { height:13px; }
+.gt-tick { position:absolute; top:0; font-size:10px; color:var(--text-4); transform:translateX(-50%);
+  font-variant-numeric:tabular-nums; white-space:nowrap; }
+.gt-tick.now { color:var(--red); font-weight:600; }
+.gt-band { font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4);
+  padding:12px 0 3px; margin-top:4px; border-top:1px solid var(--border); }
+.gt-band:first-of-type { border-top:none; margin-top:0; }
+.gt-row.done .gt-name { text-decoration:line-through; color:var(--text-4); }
+.gt-row.done .gt-bar, .gt-row.done .gt-dot { opacity:.4; }
+.gt-row.overdue .gt-due { color:var(--red); font-weight:600; }
+.gt-row.na .gt-name { color:var(--text-4); font-style:italic; }
+.gt-row.na .gt-due { color:var(--text-4); }
 .ms-na { font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4);
-  cursor:pointer; padding:1px 5px; border:1px solid var(--border); border-radius:3px; }
+  cursor:pointer; padding:1px 5px; border:1px solid var(--border); border-radius:3px; text-align:center; }
 .ms-na:hover { border-color:var(--text-4); color:var(--text-2); }
-.ms-row.na .ms-na { background:var(--text-4); color:#fff; border-color:var(--text-4); }
+.gt-row.na .ms-na { background:var(--text-4); color:#fff; border-color:var(--text-4); }
 .cf-val.text-edit input { width:170px; }
 .constr-cols { display:grid; grid-template-columns:1fr 1.5fr; gap:14px; align-items:start; }   /* left: bars+docs · right: spent (bigger) */
 .constr-cols .sect { margin-bottom:0; }
@@ -1226,7 +1237,7 @@ async function loadProject(){
   // migration hasn't been applied.
   try {
     const {data:ct, error:ctErr}=await sb.from('escrow_milestone_templates')
-      .select('milestone_key, display_name, default_offset_days, display_order, required, description')
+      .select('milestone_key, display_name, default_offset_days, default_duration_days, category, display_order, required, description')
       .eq('template_key','construction_v2')
       .order('display_order',{ascending:true});
     constructionTemplate=ctErr?[]:(ct||[]);
@@ -1809,10 +1820,6 @@ function renderConstructionSection(){
               <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Budget</span><span class="pct">${budgetLabel}</span></div><div class="track"><div class="fill ${budgetPct>100?'over':'gold'}" style="width:${Math.min(100,budgetPct)}%"></div></div></div>
             </div>
           </div>
-          <div class="sect">
-            <div class="sect-h"><h2>Build schedule</h2><span class="sub">check off as it lands · n/a for what doesn't apply</span></div>
-            ${renderMilestoneList(st)}
-          </div>
         </div>
 
         <!-- RIGHT · spent to date + documents -->
@@ -1827,28 +1834,78 @@ function renderConstructionSection(){
         </div>
 
       </div>
+
+      <div class="sect">
+        <div class="sect-h"><h2>Build schedule</h2><span class="sub">${st.totalDays||36}-day sequence · check off as it lands · n/a for what doesn't apply</span></div>
+        ${renderBuildSchedule(st)}
+      </div>
     </div>
   `;
 }
 
-function renderMilestoneList(st){
+function renderBuildSchedule(st){
   if(!st.ms.length){
     return `<div class="sp-empty">No construction milestones seeded. They seed automatically once the deal has a close date (Brief CC).</div>`;
   }
+  const tpl=new Map(constructionTemplate.map(t=>[t.milestone_key, t]));
   const today=todayStr();
-  let lis='';
-  for(const m of st.ms){
-    const na=!!m.not_applicable;
-    const overdue=!na && !m.completed && m.due_date && m.due_date<today;
-    const cls=[na?'na':'', m.completed?'done':'', overdue?'overdue':''].filter(Boolean).join(' ');
-    lis+=`<li class="ms-row ${cls}">
-      <input type="checkbox" data-ms-id="${escapeHtml(m.id)}" ${m.completed?'checked':''} ${na?'disabled':''}>
-      <span class="ms-name">${escapeHtml(m.display_name)}</span>
-      <span class="ms-due">${fmtMD(m.due_date)}</span>
-      <span class="ms-na" data-ms-na="${escapeHtml(m.id)}" title="${na?'Mark applicable again':'Does not apply to this project'}">n/a</span>
-    </li>`;
+  const windowDays=st.totalDays||36;
+  // The axis stretches to whichever is longer, the planned window or how long
+  // we've actually been going — otherwise the today marker falls off the end
+  // of an overrunning build, which is exactly when you most want to see it.
+  const span=Math.max(windowDays, st.elapsed!=null?st.elapsed:0)||36;
+  const pct=d=>Math.max(0, Math.min(100, d/span*100));
+  const COLOR={procurement:'#D85A30', structural:'#7F77DD', finishes:'#1D9E75', closeout:'#888780'};
+  const GROUPS=[
+    ['procurement','Procurement — must beat its install date'],
+    ['structural','Structural + rough-in'],
+    ['finishes','Finishes'],
+    ['closeout','Closeout'],
+  ];
+  const todayPct=(st.elapsed!=null && st.elapsed>=0)?pct(st.elapsed):null;
+  const todayLine=todayPct==null?'':`<i class="gt-today" style="left:${todayPct}%"></i>`;
+
+  // Axis: ticks every 6 days, plus the end of the span.
+  let ticks='';
+  for(let d=0; d<=span; d+=6){
+    ticks+=`<span class="gt-tick" style="left:${pct(d)}%">${d===0?'day 0':d}</span>`;
   }
-  return `<ul class="ms-list">${lis}</ul>`;
+  if(span%6!==0)ticks+=`<span class="gt-tick" style="left:100%">${span}</span>`;
+  const todayTick=todayPct==null?'':`<span class="gt-tick now" style="left:${todayPct}%">today</span>`;
+
+  let body='';
+  for(const [key,label] of GROUPS){
+    const rows=st.ms.filter(m=>(tpl.get(m.milestone_key)||{}).category===key);
+    if(!rows.length)continue;
+    body+=`<div class="gt-band">${escapeHtml(label)}</div>`;
+    for(const m of rows){
+      const t=tpl.get(m.milestone_key)||{};
+      const dur=t.default_duration_days||0;
+      const na=!!m.not_applicable;
+      const overdue=!na && !m.completed && m.due_date && m.due_date<today;
+      // Bar span is derived from the template, then shifted by however far
+      // this deal's actual due date has drifted from the template offset
+      // (a start-date edit re-derives them, so normally they agree).
+      const endDay=(st.start && m.due_date)?daysBetween(st.start, m.due_date):(t.default_offset_days||0);
+      const startDay=Math.max(0, endDay-Math.max(dur,1)+1);
+      const cls=[na?'na':'', m.completed?'done':'', overdue?'overdue':''].filter(Boolean).join(' ');
+      const color=na?'#C9C8C3':(COLOR[key]||'#888780');
+      const mark=dur===0
+        ? `<i class="gt-dot" style="left:${pct(endDay)}%;background:${color}"></i>`
+        : `<i class="gt-bar" style="left:${pct(startDay)}%;width:${Math.max(1.2, pct(endDay+1)-pct(startDay))}%;background:${color}"></i>`;
+      body+=`<div class="gt-row ${cls}">
+        <input type="checkbox" data-ms-id="${escapeHtml(m.id)}" ${m.completed?'checked':''} ${na?'disabled':''}>
+        <span class="gt-name">${escapeHtml(m.display_name)}</span>
+        <div class="gt-track">${todayLine}${mark}</div>
+        <span class="gt-due">${fmtMD(m.due_date)}</span>
+        <span class="ms-na" data-ms-na="${escapeHtml(m.id)}" title="${na?'Mark applicable again':'Does not apply to this project'}">n/a</span>
+      </div>`;
+    }
+  }
+  return `<div class="gt-wrap">
+    <div class="gt-row gt-axis"><span></span><span></span><div class="gt-track">${ticks}${todayTick}</div><span></span><span></span></div>
+    ${body}
+  </div>`;
 }
 
 // Check-off + not-applicable toggle. Both write straight to deal_milestones
