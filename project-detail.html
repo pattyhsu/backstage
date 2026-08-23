@@ -399,6 +399,33 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .cn-bar2 .fill.blue { background:var(--blue); }
 .cn-bar2 .fill.gold { background:var(--accent); }
 .cn-bar2 .fill.over { background:var(--red); }
+
+/* Brief CC — construction schedule: slip banner + milestone list */
+.cs-slip { display:flex; align-items:baseline; gap:8px; padding:9px 12px; border-radius:6px;
+  margin-bottom:14px; font-size:13px; }
+.cs-slip.behind { background:#FBEDEB; color:#8C2B1F; }
+.cs-slip.ontrack { background:#EAF4EE; color:#1F6338; }
+.cs-slip .big { font-size:15px; font-weight:700; }
+.cs-slip .why { font-size:12px; opacity:.85; }
+.cs-proj { font-size:11px; color:var(--text-4); margin-top:-8px; margin-bottom:14px;
+  font-variant-numeric:tabular-nums; }
+.ms-list { list-style:none; padding:0; margin:0; display:grid; grid-template-columns:1fr; gap:1px;
+  background:var(--border); border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+.ms-row { display:grid; grid-template-columns:auto 1fr auto auto; align-items:center; gap:9px;
+  background:#fff; padding:7px 11px; font-size:13px; color:var(--text-2); }
+.ms-row input[type=checkbox] { cursor:pointer; margin:0; }
+.ms-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ms-due { font-size:11px; color:var(--text-4); font-variant-numeric:tabular-nums; }
+.ms-row.done .ms-name { text-decoration:line-through; color:var(--text-4); }
+.ms-row.overdue { background:#FDF6F5; }
+.ms-row.overdue .ms-due { color:var(--red); font-weight:600; }
+.ms-row.na { background:var(--bg); }
+.ms-row.na .ms-name, .ms-row.na .ms-due { color:var(--text-4); font-style:italic; text-decoration:none; }
+.ms-na { font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4);
+  cursor:pointer; padding:1px 5px; border:1px solid var(--border); border-radius:3px; }
+.ms-na:hover { border-color:var(--text-4); color:var(--text-2); }
+.ms-row.na .ms-na { background:var(--text-4); color:#fff; border-color:var(--text-4); }
+.cf-val.text-edit input { width:170px; }
 .constr-cols { display:grid; grid-template-columns:1fr 1.5fr; gap:14px; align-items:start; }   /* left: bars+docs · right: spent (bigger) */
 .constr-cols .sect { margin-bottom:0; }
 @media(max-width:860px){ .constr-cols { grid-template-columns:1fr; } }
@@ -1090,6 +1117,7 @@ let currentDeal=null;
 let propertiesByMls={};
 let phaseHistory=[];
 let dealMilestones=[];
+let constructionTemplate=[];   // Brief CC — construction_v2 rows (key, offset, order)
 let phaseChecklistItems=[];
 let userNameMap=new Map();
 let dealLoans=[];
@@ -1186,10 +1214,23 @@ async function loadProject(){
 
   // 5. Deal milestones.
   const {data:ms}=await sb.from('deal_milestones')
-    .select('id, deal_id, template_id, milestone_key, display_name, due_date, completed, completed_at, notes')
+    .select('id, deal_id, template_id, milestone_key, display_name, due_date, completed, completed_at, notes, not_applicable')
     .eq('deal_id', dealRow.id)
     .order('due_date', {ascending:true});
   dealMilestones=ms||[];
+
+  // 5b. Brief CC — the construction_v2 template. Gives us the canonical key
+  // set (to tell construction milestones from escrow ones), the display order
+  // (due dates tie on day 12 and day 30), and the offsets used to re-derive
+  // due dates when the start date is edited. Graceful fallback if the CC
+  // migration hasn't been applied.
+  try {
+    const {data:ct, error:ctErr}=await sb.from('escrow_milestone_templates')
+      .select('milestone_key, display_name, default_offset_days, display_order, required, description')
+      .eq('template_key','construction_v2')
+      .order('display_order',{ascending:true});
+    constructionTemplate=ctErr?[]:(ct||[]);
+  } catch(e){ constructionTemplate=[]; }
 
   // 6. Phase checklist items (BV new). Graceful fallback if table doesn't
   // exist yet (Migration 065 not applied).
@@ -1556,6 +1597,8 @@ function renderPage(){
   wireListingEdits();
   wireSpendingTree();
   wireDealDocs();
+  wireConstructionEdits();
+  wireMilestones();
 }
 
 function computePhaseAux(d, phase){
@@ -1648,49 +1691,134 @@ function updateAcqCard(viewing){
 // ============================================================
 // CONSTRUCTION SECTION
 // ============================================================
+// Brief CC — construction milestones for this deal, in template order.
+// Ordered by display_order, not due_date: the schedule ties on day 12
+// (roof + both rough-ins) and day 30 (bathrooms + countertop).
+function constructionMilestones(){
+  if(!constructionTemplate.length)return [];
+  const order=new Map(constructionTemplate.map(t=>[t.milestone_key, t.display_order]));
+  return dealMilestones
+    .filter(m=>order.has(m.milestone_key))
+    .sort((a,b)=>(order.get(a.milestone_key)||0)-(order.get(b.milestone_key)||0));
+}
+function addDays(dateStr, n){
+  if(!dateStr)return null;
+  const d=new Date(dateStr+'T00:00:00');
+  if(!isFinite(d))return null;
+  d.setDate(d.getDate()+n);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+const _MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtMD(dateStr){
+  if(!dateStr)return '—';
+  const p=String(dateStr).split('-');
+  if(p.length<3)return dateStr;
+  return _MON[Number(p[1])-1]+' '+Number(p[2]);
+}
+
+// Schedule state for the whole construction phase. The number that matters is
+// the SLIP: not "how many days have passed" (that's just the calendar) but how
+// far behind the oldest still-open milestone has fallen. Milestones flagged
+// not_applicable are excluded from every denominator — a flip that keeps its
+// roof shouldn't read as permanently incomplete.
+function constructionState(){
+  const d=currentDeal;
+  const today=todayStr();
+  const ms=constructionMilestones();
+  const applicable=ms.filter(m=>!m.not_applicable);
+  const done=applicable.filter(m=>m.completed);
+  const start=d.construction_start_date||d.actual_close_date||null;
+  const lastDue=ms.length?ms[ms.length-1].due_date:null;
+  const target=d.construction_complete_date||lastDue;
+  const totalDays=(start&&target)?daysBetween(start,target):null;
+  const elapsed=start?daysBetween(start,today):null;
+  const open=applicable.filter(m=>!m.completed && m.due_date)
+    .sort((a,b)=>a.due_date<b.due_date?-1:1);
+  const oldestOpen=open.length?open[0]:null;
+  const slip=(oldestOpen && oldestOpen.due_date<today)?daysBetween(oldestOpen.due_date,today):0;
+  const overdue=applicable.filter(m=>!m.completed && m.due_date && m.due_date<today).length;
+  return {
+    ms, applicable, done, start, target, totalDays, elapsed, oldestOpen, slip, overdue,
+    naCount: ms.length-applicable.length,
+    projFinish: (target && slip>0)?addDays(target, slip):target,
+  };
+}
+
 function renderConstructionSection(){
   const d=currentDeal;
   const pnl=dealPnl||{};
-  const today=todayStr();
-  // Schedule: construction runs a fixed 40-day window from the escrow close date.
-  const CONSTR_DAYS=40;
-  const start=d.actual_close_date||d.construction_start_date;
-  const totalDays=start?CONSTR_DAYS:null;
-  const elapsed=start?daysBetween(start, today):null;
-  const schedPct=(elapsed!=null && totalDays && totalDays>0)?Math.round(Math.max(0,elapsed)/totalDays*100):0;
-  const schedLabel=(elapsed!=null && totalDays)
-    ? (elapsed<=totalDays
-        ? `day ${Math.max(0,elapsed)} of ${totalDays} · ${schedPct}%`
-        : `day ${elapsed} of ${totalDays} · ${elapsed-totalDays}d over`)
+  const st=constructionState();
+
+  // Schedule bar — real window now (start date → target finish), replacing the
+  // hardcoded 40-day assumption that predated any real construction dates.
+  const schedPct=(st.elapsed!=null && st.totalDays>0)
+    ? Math.round(Math.max(0,st.elapsed)/st.totalDays*100) : 0;
+  const schedLabel=(st.elapsed!=null && st.totalDays)
+    ? (st.elapsed<=st.totalDays
+        ? 'day '+Math.max(0,st.elapsed)+' of '+st.totalDays
+        : 'day '+st.elapsed+' of '+st.totalDays+' · '+(st.elapsed-st.totalDays)+'d over')
     : 'dates not set';
-  // Budget bar: rehab spend vs budget. Actual prefers the canonical deal_pnl_v1
-  // rollup (QBO actuals). Budget reads v_deal_cost_breakdown.rehab_budget first —
-  // the same source the Pipeline board uses — so the two pages always agree; then
-  // falls back to deal_pnl_v1, then the legacy deals row.
+
+  // Progress bar — what's actually been finished, off the milestone list.
+  const progPct=st.applicable.length?Math.round(st.done.length/st.applicable.length*100):0;
+  const progLabel=st.applicable.length
+    ? st.done.length+' of '+st.applicable.length+' done · '+progPct+'%'
+      +(st.naCount?' · '+st.naCount+' n/a':'')
+    : 'no milestones seeded';
+
+  // Budget bar — unchanged. Actual prefers the canonical deal_pnl_v1 rollup
+  // (QBO actuals); budget reads v_deal_cost_breakdown first, the same source
+  // the Pipeline board uses, so the two pages always agree.
   const cost=dealCost||{};
   const rehabActual=(pnl.rehab_actual!=null)?pnl.rehab_actual:d.rehab_actual;
   const rehabBudget=(cost.rehab_budget!=null)?cost.rehab_budget
     :(pnl.rehab_budget!=null)?pnl.rehab_budget:d.rehab_budget;
   const budgetPct=(rehabActual!=null && rehabBudget && rehabBudget>0)
-    ? Math.round((rehabActual/rehabBudget)*100)
-    : 0;
-  const budgetLabel=`${rehabActual!=null?FD(rehabActual):'$0'} / ${rehabBudget!=null?FD(rehabBudget):'—'} · ${budgetPct}%`;
+    ? Math.round((rehabActual/rehabBudget)*100) : 0;
+  const budgetLabel=(rehabActual!=null?FD(rehabActual):'$0')+' / '+(rehabBudget!=null?FD(rehabBudget):'—')+' · '+budgetPct+'%';
 
-  // Spent-to-date breakdown (composition bar + grouped ledger)
+  const slipHtml=(!st.applicable.length||!st.start)?'':(st.slip>0
+    ? '<div class="cs-slip behind"><span class="big">'+st.slip+' days behind</span>'
+      +'<span class="why">oldest open · '+escapeHtml(st.oldestOpen.display_name)+', due '+fmtMD(st.oldestOpen.due_date)+'</span></div>'
+    : '<div class="cs-slip ontrack"><span class="big">On schedule</span>'
+      +'<span class="why">'+(st.oldestOpen?'next up · '+escapeHtml(st.oldestOpen.display_name)+', due '+fmtMD(st.oldestOpen.due_date):'everything closed out')+'</span></div>');
+  const projHtml=(st.slip>0 && st.target)
+    ? '<div class="cs-proj">Projected finish '+fmtMD(st.projFinish)+' — target was '+fmtMD(st.target)+'</div>' : '';
+
   const spendHtml=renderSpendingTree();
 
   return `
     <div class="phase-hide" id="constructionSect">
       <div class="constr-cols">
 
-        <!-- LEFT · status bars + documents -->
+        <!-- LEFT · dates + status bars + the milestone schedule -->
         <div class="esc-col">
           <div class="sect">
-            <div class="sect-h"><h2>Construction</h2><span class="sub">how far in · how much spent</span></div>
+            <div class="sect-h"><h2>Construction</h2><span class="sub">how far in · how far behind · how much spent</span></div>
+            <div class="et-grid" style="margin-bottom:16px">
+              <div class="et-cell"><div class="et-lbl">Started</div><div class="et-val" data-deal-field="construction_start_date" data-deal-type="date">${d.construction_start_date||'—'}</div><div class="et-aux">day of close</div></div>
+              <div class="et-cell"><div class="et-lbl">Target finish</div><div class="et-val" data-deal-field="construction_complete_date" data-deal-type="date">${d.construction_complete_date||(st.target||'—')}</div><div class="et-aux">${d.construction_complete_date?'set':'from schedule'}</div></div>
+              <div class="et-cell"><div class="et-lbl">GC / crew</div><div class="et-val" data-deal-field="gc_crew" data-deal-type="text">${escapeHtml(d.gc_crew||'—')}</div><div class="et-aux">who's running it</div></div>
+              <div class="et-cell"><div class="et-lbl">Scope tier</div><div class="et-val" data-deal-field="scope_tier" data-deal-type="text">${escapeHtml(d.scope_tier||'—')}</div><div class="et-aux">rehab depth</div></div>
+            </div>
+            ${slipHtml}
+            ${projHtml}
             <div class="cn-bars">
               <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Schedule</span><span class="pct">${schedLabel}</span></div><div class="track"><div class="fill ${schedPct>100?'over':'blue'}" style="width:${Math.min(100,schedPct)}%"></div></div></div>
+              <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Progress</span><span class="pct">${progLabel}</span></div><div class="track"><div class="fill blue" style="width:${Math.min(100,progPct)}%"></div></div></div>
               <div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">Budget</span><span class="pct">${budgetLabel}</span></div><div class="track"><div class="fill ${budgetPct>100?'over':'gold'}" style="width:${Math.min(100,budgetPct)}%"></div></div></div>
             </div>
+          </div>
+          <div class="sect">
+            <div class="sect-h"><h2>Build schedule</h2><span class="sub">check off as it lands · n/a for what doesn't apply</span></div>
+            ${renderMilestoneList(st)}
+          </div>
+        </div>
+
+        <!-- RIGHT · spent to date + documents -->
+        <div class="esc-col">
+          <div class="sect">
+            ${spendHtml}
           </div>
           <div class="sect doc-sect">
             <div class="sect-h"><h2>Documents</h2><span class="sub">from escrow + build docs</span><span class="right"><span class="doc-add" data-docadd>+ Upload</span></span></div>
@@ -1698,14 +1826,118 @@ function renderConstructionSection(){
           </div>
         </div>
 
-        <!-- RIGHT · spent to date (bigger) -->
-        <div class="sect">
-          ${spendHtml}
-        </div>
-
       </div>
     </div>
   `;
+}
+
+function renderMilestoneList(st){
+  if(!st.ms.length){
+    return `<div class="sp-empty">No construction milestones seeded. They seed automatically once the deal has a close date (Brief CC).</div>`;
+  }
+  const today=todayStr();
+  let lis='';
+  for(const m of st.ms){
+    const na=!!m.not_applicable;
+    const overdue=!na && !m.completed && m.due_date && m.due_date<today;
+    const cls=[na?'na':'', m.completed?'done':'', overdue?'overdue':''].filter(Boolean).join(' ');
+    lis+=`<li class="ms-row ${cls}">
+      <input type="checkbox" data-ms-id="${escapeHtml(m.id)}" ${m.completed?'checked':''} ${na?'disabled':''}>
+      <span class="ms-name">${escapeHtml(m.display_name)}</span>
+      <span class="ms-due">${fmtMD(m.due_date)}</span>
+      <span class="ms-na" data-ms-na="${escapeHtml(m.id)}" title="${na?'Mark applicable again':'Does not apply to this project'}">n/a</span>
+    </li>`;
+  }
+  return `<ul class="ms-list">${lis}</ul>`;
+}
+
+// Check-off + not-applicable toggle. Both write straight to deal_milestones
+// and re-render, so the slip number and both bars move together.
+function wireMilestones(){
+  document.querySelectorAll('input[type=checkbox][data-ms-id]').forEach(cb=>{
+    cb.addEventListener('change', async ()=>{
+      const id=cb.dataset.msId;
+      const completed=cb.checked;
+      const {error}=await sb.from('deal_milestones')
+        .update({completed, completed_at: completed?new Date().toISOString():null, updated_at:new Date().toISOString()})
+        .eq('id', id);
+      if(error){alert('Save failed: '+error.message);cb.checked=!completed;return;}
+      const m=dealMilestones.find(x=>x.id===id);
+      if(m){m.completed=completed;}
+      renderPage();
+    });
+  });
+  document.querySelectorAll('.ms-na[data-ms-na]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const id=el.dataset.msNa;
+      const m=dealMilestones.find(x=>x.id===id);
+      if(!m)return;
+      const na=!m.not_applicable;
+      // Going n/a also clears completion — the row is out of the denominator
+      // either way, and leaving a stale check behind reads as contradictory.
+      const updates={not_applicable:na, not_applicable_at: na?new Date().toISOString():null, updated_at:new Date().toISOString()};
+      if(na){updates.completed=false;updates.completed_at=null;}
+      const {error}=await sb.from('deal_milestones').update(updates).eq('id', id);
+      if(error){alert('Save failed: '+error.message);return;}
+      m.not_applicable=na;
+      if(na)m.completed=false;
+      renderPage();
+    });
+  });
+}
+
+// Inline edit for the 4 construction fields. Same interaction as the escrow
+// dates (click → input → Enter/blur saves, Escape cancels), but typed, since
+// GC and scope tier are free text.
+function wireConstructionEdits(){
+  document.querySelectorAll('.et-val[data-deal-field]').forEach(el=>{
+    el.addEventListener('click', ()=>_beginDealFieldEdit(el));
+  });
+}
+function _beginDealFieldEdit(el){
+  if(el.classList.contains('editing'))return;
+  const field=el.dataset.dealField;
+  const type=el.dataset.dealType||'text';
+  el.classList.add('editing');
+  const input=document.createElement('input');
+  input.type=(type==='date')?'date':'text';
+  input.value=currentDeal[field]||'';
+  if(type!=='date')el.classList.add('text-edit');
+  el.innerHTML='';
+  el.appendChild(input);
+  input.focus();
+  let settled=false;
+  input.addEventListener('keydown', async (e)=>{
+    if(e.key==='Enter'){e.preventDefault();settled=true;await _commitDealFieldEdit(field, input.value);}
+    else if(e.key==='Escape'){settled=true;el.classList.remove('editing');renderPage();}
+  });
+  input.addEventListener('blur', async ()=>{
+    if(settled)return;
+    settled=true;
+    await _commitDealFieldEdit(field, input.value);
+  });
+}
+async function _commitDealFieldEdit(field, val){
+  const newVal=(val||'').trim()||null;
+  const prevStart=currentDeal.construction_start_date;
+  const updates={updated_at:new Date().toISOString()};
+  updates[field]=newVal;
+  const {error}=await sb.from('deals').update(updates).eq('id', currentDeal.id);
+  if(error){alert('Save failed: '+error.message);renderPage();return;}
+  currentDeal[field]=newVal;
+  // Moving the start date re-derives every OPEN milestone's due date off the
+  // template offsets. Completed rows keep their stamped dates — those record
+  // what actually happened. The DB trigger only ever inserts missing rows
+  // (idempotent), so without this the dates would silently go stale.
+  if(field==='construction_start_date' && newVal && newVal!==prevStart && constructionTemplate.length){
+    const offset=new Map(constructionTemplate.map(t=>[t.milestone_key, t.default_offset_days]));
+    const open=dealMilestones.filter(m=>offset.has(m.milestone_key) && !m.completed);
+    await Promise.all(open.map(m=>{
+      const due=addDays(newVal, offset.get(m.milestone_key));
+      return sb.from('deal_milestones').update({due_date:due, updated_at:new Date().toISOString()}).eq('id', m.id);
+    }));
+  }
+  await loadProject();
 }
 
 // Map a deal_expenses row to one of the 4 rehab buckets by its QBO account path.
