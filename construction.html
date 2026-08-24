@@ -12,10 +12,8 @@
 <script src="auth.js"></script>
 <script src="sidebar.js?v=20260731"></script>
 <style>
-/* === CONSTRUCTION HUB — local layout only === */
-/* Shell + sidebar: these live page-local in every Backstage tool (they are
-   not in backstage.css), so they're carried over verbatim from
-   pipeline.html rather than re-invented. */
+/* Shell + sidebar: page-local in every Backstage tool (not in backstage.css),
+   carried over verbatim from pipeline.html. */
 .app-shell { display:flex; height:100vh; }
 .bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
 .bs-sidebar.collapsed { width:56px; }
@@ -46,247 +44,185 @@
 .lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
 .lock-btn:hover { color:var(--text); }
 .app-shell { min-height:100vh; height:auto; }
-.main-content { flex:1; min-width:0; padding:22px 26px 70px; max-width:1180px; }
+.main-content { flex:1; min-width:0; padding:20px 24px 70px; max-width:1400px; }
 
-.ch-hdr { display:flex; align-items:baseline; gap:12px; margin-bottom:18px; }
-.ch-hdr h1 { font-size:20px; font-weight:600; letter-spacing:-.01em; }
-.ch-hdr .sub { font-size:13px; color:var(--text-4); }
-.datenav { margin-left:auto; display:flex; align-items:center; gap:6px; }
-.datenav button { font:inherit; font-size:12px; padding:4px 9px; border:1px solid var(--border);
+/* === CONSTRUCTION HUB === */
+.hdr { display:flex; align-items:baseline; gap:11px; margin-bottom:14px; flex-wrap:wrap; }
+.hdr h1 { font-size:20px; font-weight:600; letter-spacing:-.01em; }
+.hdr .sub { font-size:12.5px; color:var(--text-4); }
+.hdr .right { margin-left:auto; display:flex; align-items:center; gap:6px; }
+button.btn { font:inherit; font-size:12px; padding:4px 10px; border:1px solid var(--border);
   background:var(--bg); border-radius:var(--radius-sm); cursor:pointer; color:var(--text-2); }
-.datenav button:hover { border-color:var(--border-hover); }
-.datenav .cur { font-size:13px; font-weight:600; min-width:150px; text-align:center; }
-.datenav input[type=date] { font:inherit; font-size:12px; padding:3px 6px; border:1px solid var(--border);
-  border-radius:var(--radius-sm); background:var(--bg); color:var(--text-2); }
-
-.strip { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border);
-  border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:20px; }
-.cell { background:var(--bg); padding:13px 16px; }
-.cell .k { font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:var(--text-4);
-  font-weight:600; margin-bottom:4px; }
-.cell .v { font-size:20px; font-weight:600; letter-spacing:-.018em; font-variant-numeric:tabular-nums; }
-.cell .s { font-size:11px; color:var(--text-4); margin-top:2px; }
-.cell .v.bad { color:var(--red); }
-
-.sect-h { display:flex; align-items:baseline; gap:9px; margin:0 0 10px; }
-.sect-h h2 { font-size:15px; font-weight:600; }
-.sect-h .sub { font-size:12px; color:var(--text-4); }
-
-.hsw { display:inline-flex; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; margin-left:4px; }
-.hsw button { border:none; border-radius:0; font-size:11.5px; padding:4px 9px; }
-.hsw button.on { background:var(--bg-alt); color:var(--text); font-weight:600; }
-.sugg { margin-left:auto; font:inherit; font-size:12px; padding:4px 11px; border:1px solid var(--accent);
-  background:var(--accent-dim); color:var(--accent); border-radius:var(--radius-sm); cursor:pointer; font-weight:600; }
-.sugg:hover { background:var(--accent-dim2); }
-.rs { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
-  padding:11px 14px; overflow-x:auto; }
+button.btn:hover { border-color:var(--border-hover); }
+.sw { display:inline-flex; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
+.sw button { border:none; border-radius:0; }
+.sw button.on { background:var(--bg-alt); color:var(--text); font-weight:600; }
+h2 { font-size:14.5px; font-weight:600; }
+.sh { display:flex; align-items:baseline; gap:9px; margin:22px 0 9px; }
+.sh .sub { font-size:12px; color:var(--text-4); }
+.sh .act { margin-left:auto; }
+.datenav { display:inline-flex; align-items:center; gap:5px; }
+.datenav button { padding:3px 9px; font-size:11.5px; }
+.cur { font-size:12.5px; font-weight:600; min-width:126px; text-align:center; color:var(--text-2); }
+.card { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:12px 14px; overflow-x:auto; }
+.r { display:grid; gap:1px; align-items:stretch; }
+.lb { font-size:12px; color:var(--text-2); display:flex; align-items:center; gap:5px;
+  padding-right:8px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.cw { font-size:9.5px; color:var(--text-4); background:var(--bg-alt); border-radius:3px;
+  padding:1px 4px; flex-shrink:0; }
+.tag { font-size:9.5px; color:var(--amber); background:var(--amber-bg); border-radius:3px;
+  padding:1px 5px; font-weight:700; }
+.hd { font-size:8.5px; color:var(--text-4); text-align:center; line-height:1.15; padding:2px 0; }
+.hd em { display:block; font-style:normal; font-size:8px; }
+.hd.sun { color:var(--amber); } .hd.t0 { color:var(--red); font-weight:700; }
+.cellw { position:relative; min-height:20px; }
+.mon { position:absolute; left:-1px; top:-2px; bottom:-2px; width:1px; background:var(--border-strong); opacity:.4; }
+.bar { height:14px; margin-top:3px; border-radius:2px; font-size:9px; font-weight:700;
+  text-align:center; line-height:14px; }
+.dcell { height:17px; margin-top:2px; border-radius:2px; background:var(--bg-page); cursor:pointer;
+  display:flex; flex-wrap:wrap; gap:1px; align-content:center; justify-content:center; padding:1px; }
+.dcell:hover { outline:1px solid var(--border-strong); outline-offset:-1px; }
+.dcell.off { background:transparent; border:1px dashed transparent; }
+.dcell.off:hover { border-color:var(--border-hover); outline:none; }
+.dcell.extra { background:var(--accent-dim2); outline:1px solid var(--accent); outline-offset:-1px; }
+.chip { font-size:8.5px; font-weight:700; padding:0 3px; border-radius:2px;
+  background:rgba(255,255,255,.9); line-height:12px; }
+.ph { grid-column:1/-1; display:flex; align-items:baseline; gap:9px; padding:13px 0 4px; font-size:12px; flex-wrap:wrap; }
+.ph .nm { font-weight:600; } .ph .meta { color:var(--text-4); font-size:11px; }
+.ph .slip { color:var(--red); font-weight:600; font-size:11px; }
+.ph .stale { color:var(--amber); font-weight:600; font-size:11px; }
+.car { cursor:pointer; color:var(--text-4); font-size:11px; user-select:none; padding:0 2px; }
+.car:hover { color:var(--text-2); }
+.replan { display:inline-flex; align-items:center; gap:4px; margin-left:auto; }
+.replan input { font:inherit; font-size:11px; padding:2px 5px; border:1px solid var(--border);
+  border-radius:4px; background:var(--bg); color:var(--text-2); }
+.replan button { font:inherit; font-size:11px; padding:2px 8px; border:1px solid var(--accent);
+  background:var(--accent-dim); color:var(--accent); border-radius:4px; cursor:pointer; font-weight:600; }
+.dot { width:8px; height:8px; border-radius:2px; display:inline-block; margin-right:5px; }
+.load { margin-top:8px; padding-top:7px; border-top:1px solid var(--border); }
+.load .lb { font-size:9.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4); }
+.n { text-align:center; font-size:9.5px; padding:3px 0; border-radius:2px; background:var(--bg-alt);
+  color:var(--text-2); font-weight:600; }
+.n.over { background:var(--red-bg); color:var(--red); }
+.n.zero { background:none; color:var(--text-4); font-weight:400; }
+.cols { display:grid; grid-template-columns:1.15fr 1fr; gap:24px; align-items:start; }
+.cols > div { min-width:0; }
+@media (max-width:1180px){ .cols { grid-template-columns:1fr; } }
+.site { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:13px 16px; margin-bottom:10px; }
+.site.sub { border-style:dashed; }
+.sitehd { display:flex; align-items:flex-start; gap:11px; margin-bottom:9px; }
+.sitehd .a { font-size:14px; font-weight:600; }
+.sitehd .a a { color:inherit; text-decoration:none; }
+.sitehd .a a:hover { color:var(--accent); }
+.sitehd .a .c { font-weight:400; color:var(--text-3); }
+.sitehd .m { font-size:11.5px; color:var(--text-4); margin-top:2px; }
+.sitehd .rr { margin-left:auto; text-align:right; font-size:11.5px; color:var(--text-4); }
+.sitehd .rr .cost { font-size:14px; font-weight:600; color:var(--text); }
+.tr { display:grid; grid-template-columns:180px 58px 1fr; gap:9px; align-items:start;
+  padding:6px 0; border-top:1px solid var(--border); }
+.tr:first-of-type { border-top:none; }
+.tr .tn { font-size:12.5px; color:var(--text-2); }
+.tr .tn em { font-style:normal; font-size:10px; color:var(--text-4); display:block; }
+.offtag { font-size:9px; font-weight:700; color:var(--accent); background:var(--accent-dim2);
+  border-radius:3px; padding:1px 4px; margin-left:4px; }
+.need { font-size:11px; color:var(--text-4); padding-top:2px; }
+.need.met { color:var(--green); font-weight:700; } .need.short { color:var(--amber); font-weight:700; }
+.chips { display:flex; flex-wrap:wrap; gap:4px; }
+.pc { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; padding:2px 7px;
+  border-radius:20px; background:var(--bg-alt); color:var(--text-2); }
+.pc .rt { color:var(--text-4); font-size:10px; } .pc .x { cursor:pointer; color:var(--text-4); }
+.pc .x:hover { color:var(--red); } .pc.dbl { background:var(--red-bg); color:var(--red); }
+.addb { font-size:11.5px; padding:2px 8px; border-radius:20px; border:1px dashed var(--border-hover);
+  color:var(--text-4); background:none; cursor:pointer; font-family:inherit; }
+.addb:hover { border-color:var(--accent); color:var(--accent); }
+.bench { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:13px 16px; margin-top:10px; }
+.bench .pc { background:var(--green-bg); color:#1F6338; }
 .rs-row { display:grid; gap:2px; align-items:center; }
-.rs-head { margin-bottom:4px; }
-.rs-h { font-size:9px; color:var(--text-4); text-align:center; line-height:1.15; overflow:hidden;
-  writing-mode:vertical-rl; transform:rotate(180deg); height:56px; margin:0 auto; }
-.rs-n { font-size:12px; color:var(--text-2); }
-.rs-r { font-size:10.5px; color:var(--text-4); font-variant-numeric:tabular-nums; }
+.rs-h { font-size:8.5px; color:var(--text-4); text-align:center; writing-mode:vertical-rl;
+  transform:rotate(180deg); height:60px; margin:0 auto; }
 .rs-c { height:17px; border-radius:3px; background:var(--bg-page); cursor:pointer; }
 .rs-c:hover { outline:1px solid var(--border-strong); outline-offset:-1px; }
 .rs-c.on { background:var(--accent); }
-.mx { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
-  padding:11px 14px; overflow-x:auto; }
-.mx-row { display:grid; grid-template-columns:132px repeat(14,1fr); gap:2px; align-items:center; }
-.mx-lbl { font-size:11.5px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis;
-  white-space:nowrap; padding-right:6px; }
-.mx-c { text-align:center; font-size:11px; padding:4px 0; border-radius:3px; cursor:pointer;
-  font-variant-numeric:tabular-nums; color:var(--text-3); background:var(--bg-page); }
-.mx-c:hover { outline:1px solid var(--border-strong); outline-offset:-1px; }
-.mx-c.has { background:var(--blue-bg); color:var(--blue); font-weight:600; }
-.mx-c.sun { background:repeating-linear-gradient(-45deg,var(--bg-alt) 0 4px,var(--bg-page) 4px 8px); }
-.mx-c.has.sun { background:repeating-linear-gradient(-45deg,#DCE8F8 0 4px,var(--blue-bg) 4px 8px); }
-.mx-c.sel { outline:2px solid var(--accent); outline-offset:-2px; }
-.mx-head { margin-bottom:5px; }
-.mx-h { background:none; color:var(--text-4); font-size:10px; line-height:1.25; padding:2px 0; }
-.mx-h em { display:block; font-style:normal; font-size:9px; color:var(--text-4); }
-.mx-h.sun { background:none; color:var(--amber); }
-.mx-sum { margin-top:3px; }
-.mx-sum .mx-lbl { font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4); font-weight:600; }
-.mx-t { background:var(--bg-alt); color:var(--text-2); font-weight:600; }
-.mx-t.over { background:var(--red-bg); color:var(--red); }
-.mx-a { background:none; color:var(--text-4); }
-.mx-a.short { color:var(--amber); font-weight:600; }
-.mx-a.met { color:var(--green); font-weight:600; }
-.offtag { font-size:9px; font-weight:700; color:var(--accent); background:var(--accent-dim2);
-  border-radius:3px; padding:1px 4px; margin-left:4px; }
-.crewtag { font-style:normal; font-size:10px; color:var(--amber); background:var(--amber-bg);
-  border-radius:3px; padding:1px 5px; margin-left:6px; font-weight:600; }
-.mx-c.sub { background:var(--bg-page); }
-.mx-c.sub.on { background:repeating-linear-gradient(-45deg,#FBE6CE 0 4px,var(--amber-bg) 4px 8px); }
-.site.sub { border-style:dashed; }
-.site.sub .rr { color:var(--amber); font-weight:600; }
-.site.sub .subnote { font-size:11px; color:var(--text-4); font-weight:400; margin-top:2px; }
-.mx-foot { font-size:11.5px; color:var(--text-4); margin:8px 0 20px; }
-.site { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
-  padding:14px 17px; margin-bottom:11px; }
-.site-h { display:flex; align-items:flex-start; gap:12px; margin-bottom:11px; }
-.site-h .addr { font-size:14.5px; font-weight:600; letter-spacing:-.01em; }
-.site-h .addr a { color:inherit; text-decoration:none; }
-.site-h .addr a:hover { color:var(--accent); }
-.site-h .addr .city { font-weight:400; color:var(--text-3); }
-.site-h .meta { font-size:11.5px; color:var(--text-4); margin-top:2px; }
-.site-h .rr { margin-left:auto; text-align:right; flex-shrink:0; font-size:11.5px; color:var(--text-4); }
-.site-h .rr .cost { font-size:14px; font-weight:600; color:var(--text); font-variant-numeric:tabular-nums; }
-
-.trade { display:grid; grid-template-columns:170px 60px 1fr; gap:10px; align-items:start;
-  padding:7px 0; border-top:1px solid var(--border); }
-.trade:first-of-type { border-top:none; }
-.trade .tn { font-size:13px; color:var(--text-2); }
-.trade .tn em { font-style:normal; font-size:10px; color:var(--text-4); display:block; }
-.trade .need { font-size:11px; color:var(--text-4); font-variant-numeric:tabular-nums; padding-top:2px; }
-.trade .need.met { color:var(--green); font-weight:600; }
-.trade .need.short { color:var(--amber); font-weight:600; }
-.chips { display:flex; flex-wrap:wrap; gap:5px; }
-.chip { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; padding:2px 7px;
-  border-radius:20px; background:var(--bg-alt); color:var(--text-2); }
-.chip .rate { color:var(--text-4); font-size:10px; font-variant-numeric:tabular-nums; }
-.chip .x { cursor:pointer; color:var(--text-4); font-size:12px; line-height:1; }
-.chip .x:hover { color:var(--red); }
-.chip.dbl { background:var(--red-bg); color:var(--red); }
-.chip-add { font-size:11.5px; padding:2px 8px; border-radius:20px; border:1px dashed var(--border-hover);
-  color:var(--text-4); cursor:pointer; background:none; font-family:inherit; }
-.chip-add:hover { border-color:var(--accent); color:var(--accent); }
-
-.bench { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
-  padding:14px 17px; margin-bottom:20px; }
-.bench .chips { margin-top:8px; }
-.bench .chip { background:var(--green-bg); color:#1F6338; }
-.bench .none { font-size:12px; color:var(--text-4); font-style:italic; }
-
-.wcard { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
-  padding:13px 17px; margin-bottom:10px; }
-.wcard-h { display:flex; align-items:baseline; gap:10px; }
-.wcard-h .addr { font-size:14px; font-weight:600; }
-.wcard-h .addr a { color:inherit; text-decoration:none; }
-.wcard-h .addr a:hover { color:var(--accent); }
-.wcard-h .rr { margin-left:auto; font-size:11.5px; color:var(--text-4); }
-.pill { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; }
-.pill.bad { background:var(--red-bg); color:var(--red); }
-.pill.warn { background:var(--amber-bg); color:var(--amber); }
-.pill.ok { background:var(--green-bg); color:var(--green); }
-.trk { position:relative; height:16px; background:var(--bg-inset); border-radius:4px;
-  overflow:hidden; margin:9px 0 4px; }
-.fill { position:absolute; left:0; top:0; bottom:0; background:var(--blue); opacity:.85; }
-.gap { position:absolute; top:0; bottom:0;
-  background:repeating-linear-gradient(-45deg,rgba(192,57,43,.16) 0 5px,rgba(192,57,43,.06) 5px 10px); }
-.now { position:absolute; top:0; bottom:0; width:2px; background:var(--red); }
-.wrows { display:grid; grid-template-columns:1fr 1fr; gap:8px 24px; margin-top:8px; }
-.bar .t { display:flex; justify-content:space-between; align-items:baseline; }
-.bar .l { font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:var(--text-4); font-weight:600; }
-.bar .p { font-size:11.5px; color:var(--text-2); font-variant-numeric:tabular-nums; }
-.bar .tk { height:6px; background:var(--bg-inset); border-radius:99px; overflow:hidden; margin-top:4px; }
-.bar .fl { height:100%; border-radius:99px; }
-
+.note { font-size:11.5px; color:var(--text-4); margin-top:9px; } .note.warn { color:var(--red); }
+.empty { font-size:13px; color:var(--text-4); font-style:italic; padding:26px 0; text-align:center; }
 .ov { position:fixed; inset:0; background:rgba(26,26,24,.35); display:none; align-items:center;
   justify-content:center; z-index:50; }
 .ov.open { display:flex; }
-.ovcard { background:var(--bg); border-radius:var(--radius-lg); width:400px; max-height:78vh;
+.ovc { background:var(--bg); border-radius:var(--radius-lg); width:390px; max-height:76vh;
   display:flex; flex-direction:column; box-shadow:var(--shadow-lg); }
-.ovhead { padding:14px 18px; border-bottom:1px solid var(--border); font-size:14px; font-weight:600;
+.ovh { padding:13px 17px; border-bottom:1px solid var(--border); font-size:14px; font-weight:600;
   display:flex; align-items:center; }
-.ovhead .x { margin-left:auto; cursor:pointer; color:var(--text-4); background:none; border:none;
-  font-size:15px; font-family:inherit; }
-.ovsub { font-size:11.5px; color:var(--text-4); font-weight:400; margin-top:2px; }
-.ovbody { overflow-y:auto; padding:6px 0; }
-.wrow { display:flex; align-items:center; gap:10px; padding:9px 18px; cursor:pointer; font-size:13px; }
-.wrow:hover { background:var(--bg-page); }
-.wrow .nm { font-weight:500; }
-.wrow .rt { margin-left:auto; font-size:11.5px; color:var(--text-4); font-variant-numeric:tabular-nums; }
-.wrow .st { font-size:11px; color:var(--amber); }
-.wrow.on { background:var(--accent-dim); }
-.wrow.on .nm { color:var(--accent); font-weight:600; }
-.empty { font-size:13px; color:var(--text-4); font-style:italic; padding:26px 0; text-align:center; }
-.note { font-size:11.5px; color:var(--text-4); margin-top:14px; }
-.note.warn { color:var(--red); }
+.ovh .x { margin-left:auto; border:none; background:none; cursor:pointer; color:var(--text-4); font-size:15px; }
+.ovs { font-size:11.5px; color:var(--text-4); font-weight:400; margin-top:2px; }
+.ovb { overflow-y:auto; padding:5px 0; }
+.wr { display:flex; align-items:center; gap:9px; padding:8px 17px; cursor:pointer; font-size:13px; }
+.wr:hover { background:var(--bg-page); } .wr .nm { font-weight:500; }
+.wr .rt { margin-left:auto; font-size:11.5px; color:var(--text-4); }
+.wr .st { font-size:11px; color:var(--amber); }
+.wr.on { background:var(--accent-dim); } .wr.on .nm { color:var(--accent); font-weight:700; }
 </style>
 </head>
 <body>
 <div class="app-shell">
 <div class="bs-sidebar" id="bsSidebar"></div>
 <div class="main-content">
-  <div class="ch-hdr">
-    <h1>Construction</h1>
-    <span class="sub" id="chSub"></span>
-    <div class="datenav">
-      <button id="dPrev">‹</button>
-      <span class="cur" id="dCur">—</span>
-      <button id="dNext">›</button>
-      <button id="dToday">Today</button>
-      <button id="dTom">Tomorrow</button>
-      <span class="hsw"><button id="h2w" class="on">2 weeks</button><button id="hFull">Full runway</button></span>
-      <input type="date" id="dPick">
+  <div class="hdr">
+    <h1>Construction</h1><span class="sub" id="hsub"></span>
+    <div class="right">
+      <span class="sw"><button class="btn on" id="v2w">2 weeks</button><button class="btn" id="vfull">Full runway</button></span>
     </div>
   </div>
   <div id="page"><div class="empty">Loading…</div></div>
 </div>
 </div>
-
-<div class="ov" id="ov" onclick="if(event.target===this)closeOv()">
-  <div class="ovcard">
-    <div class="ovhead"><div><span id="ovTitle">Assign</span><div class="ovsub" id="ovSub"></div></div>
-      <button class="x" onclick="closeOv()">✕</button></div>
-    <div class="ovbody" id="ovBody"></div>
-  </div>
-</div>
-
+<div class="ov" id="ov"><div class="ovc">
+  <div class="ovh"><div><span id="ovt"></span><div class="ovs" id="ovs"></div></div>
+    <button class="x" onclick="closeOv()">&#10005;</button></div>
+  <div class="ovb" id="ovb"></div>
+</div></div>
 <script>
 const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;
 
-let deals=[], propByMls={}, tpl=[], milestones=[], workers=[], assigns=[], costs={}, workdays=[], skills=[], crews=[];
-let selDate=todayStr();
-let horizonMode='2w';   // '2w' | 'full'
-const HORIZON=13;       // today + 13 = a fortnight
-// Full runway = today through the last milestone on any live build. Longer,
-// and the far end is a plan nobody has verified — hence two views, not one.
-function horizonDays(){
-  const from=todayStr();
-  let n=HORIZON;
-  if(horizonMode==='full'){
-    let last=from;
-    for(const m of milestones){ if(m.due_date&&m.due_date>last)last=m.due_date; }
-    n=Math.max(HORIZON, daysBetween(from,last)||HORIZON);
-  }
-  const days=[];
-  for(let i=0;i<=n;i++)days.push(addDays(from,i));
-  return days;
-}
-let ovCtx=null;
-
-function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-function addDays(s,n){if(!s)return null;const d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-function daysBetween(a,b){if(!a||!b)return null;const x=new Date(a+'T00:00:00'),y=new Date(b+'T00:00:00');
-  if(!isFinite(x)||!isFinite(y))return null;return Math.round((y-x)/86400000);}
-const DOW=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function longDate(s){const d=new Date(s+'T00:00:00');return DOW[d.getDay()]+' '+MON[d.getMonth()]+' '+d.getDate();}
-function fmtNum(s){if(!s)return '—';const p=String(s).split('-');return Number(p[1])+'/'+Number(p[2]);}
-function FD(n){return n==null||!isFinite(n)?'—':'$'+Math.round(n).toLocaleString();}
-function FK(n){if(n==null||!isFinite(n))return '—';if(Math.abs(n)>=1e6)return '$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';
-  if(Math.abs(n)>=1e3)return '$'+Math.round(n/1e3)+'K';return '$'+Math.round(n);}
+// Dates are pinned to the jobsite, not the browser. Planning "tomorrow" from
+// Taipei is 15 hours ahead of Cerritos and would otherwise write the wrong day.
+const TZ='America/Los_Angeles';
+const _fmtLA=new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'});
+function todayStr(){return _fmtLA.format(new Date());}
+function d(s){return new Date(s+'T00:00:00');}
+function addDays(s,n){const x=d(s);x.setDate(x.getDate()+n);
+  return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');}
+function diff(a,b){if(!a||!b)return null;return Math.round((d(b)-d(a))/86400000);}
+const DOW='SMTWTFS', MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAYNAME=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function md(s){return s?(d(s).getMonth()+1)+'/'+d(s).getDate():'—';}
+function longd(s){return DAYNAME[d(s).getDay()]+' '+MON[d(s).getMonth()]+' '+d(s).getDate();}
+function money(n){return n==null||!isFinite(n)?'—':'$'+Math.round(n).toLocaleString();}
 function titleCase(s){return String(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
+
+let TODAY=todayStr();
+let deals=[], propByMls={}, tpl=[], milestones=[], workers=[], skills=[], assigns=[], costs={}, crews=[];
+let sel=TODAY, view='2w', collapsed={}, ovCtx=null;
+const COL=[['#EFEFEE','#5F5E5A'],['#E1F2EC','#12604A'],['#EDEBFA','#3D3593'],['#FAECE7','#993C1D']];
 
 async function loadAll(){
   const {data:cr}=await sb.from('crews').select('id, name, kind, active');
   crews=cr||[];
-  const {data:d}=await sb.from('deals')
-    .select('id, buy_side_mls, construction_start_date, actual_close_date, gc_crew, purchase_price, crew_id')
+  const {data:dl}=await sb.from('deals')
+    .select('id, buy_side_mls, construction_start_date, actual_close_date, gc_crew, crew_id, plan_baselined_at')
     .eq('phase','under_construction');
-  deals=(d||[]).filter(x=>x.construction_start_date||x.actual_close_date)
-    .sort((a,b)=>(startOf(a)<startOf(b)?-1:1));
+  deals=(dl||[]).filter(x=>startOf(x)).sort((a,b)=>startOf(a)<startOf(b)?-1:1);
+  deals.forEach((x,i)=>{x._i=i; if(!(x.id in collapsed))collapsed[x.id]=!isOurs(x);});
 
   const mlss=deals.map(x=>x.buy_side_mls).filter(Boolean);
   if(mlss.length){
-    const {data:p}=await sb.from('properties').select('mls, address, city, beds, baths, sqft').in('mls',mlss);
+    const {data:p}=await sb.from('properties').select('mls, address, city').in('mls',mlss);
     propByMls={}; for(const r of (p||[]))propByMls[r.mls]=r;
   }
   const {data:t}=await sb.from('escrow_milestone_templates')
@@ -297,421 +233,252 @@ async function loadAll(){
   const ids=deals.map(x=>x.id);
   if(ids.length){
     const {data:m}=await sb.from('deal_milestones')
-      .select('deal_id, milestone_key, display_name, due_date, completed, not_applicable').in('deal_id',ids);
+      .select('deal_id, milestone_key, display_name, due_date, completed, not_applicable, planned_start, planned_end')
+      .in('deal_id',ids);
     milestones=m||[];
     const {data:c}=await sb.from('v_deal_cost_breakdown')
       .select('deal_id, rehab_budget, rehab_actual').in('deal_id',ids);
     costs={}; for(const r of (c||[]))costs[r.deal_id]=r;
-    const {data:wd}=await sb.from('deal_work_days')
-      .select('deal_id, milestone_key, work_date, crew_count').in('deal_id',ids);
-    workdays=wd||[];
   }
-  const {data:w}=await sb.from('workers').select('id, name, daily_rate, active').eq('active',true).order('name');
+  const {data:w}=await sb.from('workers').select('id, name, daily_rate').eq('active',true).order('name');
   workers=w||[];
   const {data:sk}=await sb.from('worker_trades').select('id, worker_id, milestone_key');
   skills=sk||[];
   await loadAssignments();
 }
-// Assignments for the whole forward window, not just the day on screen — the
-// demand matrix needs to show what's already covered across the fortnight.
+// Assignments across the whole visible window, so the Assigned row shows what
+// is already covered ahead — not just the day on screen.
 async function loadAssignments(){
-  const days=horizonDays();
-  const from=todayStr(), to=days[days.length-1];
-  const lo=selDate<from?selDate:from, hi=selDate>to?selDate:to;
+  const D=days(), lo=[D[0],sel].sort()[0], hi=[D[D.length-1],sel].sort().slice(-1)[0];
   const {data:a}=await sb.from('deal_work_assignments')
-    .select('id, deal_id, milestone_key, work_date, worker_id')
-    .gte('work_date',lo).lte('work_date',hi);
+    .select('id, deal_id, milestone_key, work_date, worker_id').gte('work_date',lo).lte('work_date',hi);
   assigns=a||[];
 }
-function assignsOn(date){return assigns.filter(a=>a.work_date===date);}
 
-function startOf(d){return d.construction_start_date||d.actual_close_date;}
-// A fixed-price sub crew (Alfonso) doesn't draw on our ten people: it isn't
-// scheduled per person, isn't costed per day, and must not be counted against
-// roster capacity. Counting it was the difference between a peak of 19 and the
-// real 11. NULL crew_id reads as our own crew.
-function crewOf(d){return crews.find(c=>c.id===d.crew_id)||null;}
-function isOurs(d){const c=crewOf(d);return !c||c.kind==='own';}
-function crewName(d){const c=crewOf(d);return c?c.name:'Dotty crew';}
+function startOf(x){return x.construction_start_date||x.actual_close_date;}
+function crewOf(x){return crews.find(c=>c.id===x.crew_id)||null;}
+function isOurs(x){const c=crewOf(x);return !c||c.kind==='own';}
+function crewName(x){const c=crewOf(x);return c?c.name:'Dotty crew';}
 function ourDeals(){return deals.filter(isOurs);}
-function subDeals(){return deals.filter(d=>!isOurs(d));}
-// Trades that need our own people — the only ones a suggestion can fill.
-function staffedTrades(){
-  return tpl.filter(t=>t.category!=='procurement'&&(t.default_crew_size||0)>0);
-}
-function canDo(workerId,key){return skills.some(s=>s.worker_id===workerId&&s.milestone_key===key);}
-function skilledFor(key){return workers.filter(w=>canDo(w.id,key));}
 function tplOf(k){return tpl.find(t=>t.milestone_key===k)||{};}
-// deal_milestones carries the name stamped at seed time; the template is the
-// fallback so a row seeded before a rename never renders as a raw key.
+function addrOf(x){const p=propByMls[x.buy_side_mls]||{};return p.address?titleCase(p.address):(x.buy_side_mls||'—');}
+function cityOf(x){const p=propByMls[x.buy_side_mls]||{};return titleCase(p.city||'');}
 function nameOf(m){return m.display_name||tplOf(m.milestone_key).display_name||m.milestone_key;}
-function addrOf(d){const p=propByMls[d.buy_side_mls]||{};return p.address?titleCase(p.address):(d.buy_side_mls||'—');}
-function cityOf(d){const p=propByMls[d.buy_side_mls]||{};return titleCase(p.city||'');}
+function workerById(id){return workers.find(w=>w.id===id)||null;}
+function canDo(wid,key){return skills.some(s=>s.worker_id===wid&&s.milestone_key===key);}
+function staffedTrades(){return tpl.filter(t=>t.category!=='procurement'&&(t.default_crew_size||0)>0);}
 
-// Trades planned at a site on a given date. A trade is planned across the
-// window its template implies, ending on this deal's own due date — the same
-// derivation project-detail uses, so the two pages never disagree.
-function tradesOn(deal, date){
-  const start=startOf(deal);
-  const off=daysBetween(start, date);
-  if(off==null||off<0)return [];
-  const out=[];
-  for(const m of milestones.filter(x=>x.deal_id===deal.id)){
-    const t=tplOf(m.milestone_key);
-    if(!t.milestone_key||t.category==='procurement')continue;
-    if(m.not_applicable||m.completed)continue;
-    const dur=t.default_duration_days||0;
-    if(dur<=0)continue;
-    const end=m.due_date?daysBetween(start,m.due_date):(t.default_offset_days||0);
-    const s=Math.max(0,end-dur+1);
-    if(off>=s&&off<=end)out.push({m,t,startDay:s,endDay:end});
-  }
-  return out.sort((a,b)=>(a.t.display_order||0)-(b.t.display_order||0));
+// A trade's span. The COMMITTED plan wins where one exists; otherwise fall
+// back to the baseline span the template implies off due_date. Deliberately
+// NOT rolled forward to today on the fly — a plan that re-anchors every page
+// load never shows a stalled build as stalled.
+function spanOf(deal, m){
+  if(m.planned_start && m.planned_end)return {s:m.planned_start, e:m.planned_end, planned:true};
+  const t=tplOf(m.milestone_key);
+  const dur=Math.max(t.default_duration_days||0,1);
+  const e=m.due_date||null;
+  if(!e)return null;
+  return {s:addDays(e,-(dur-1)), e, planned:false};
 }
-function assignedTo(dealId, key){
-  return assigns.filter(a=>a.deal_id===dealId&&a.milestone_key===key&&a.work_date===selDate)
-    .map(a=>({a, w:workers.find(w=>w.id===a.worker_id)})).filter(x=>x.w);
+function openTrades(deal){
+  return milestones.filter(m=>m.deal_id===deal.id && tplOf(m.milestone_key).milestone_key
+      && tplOf(m.milestone_key).category!=='procurement'
+      && (tplOf(m.milestone_key).default_duration_days||0)>0
+      && !m.completed && !m.not_applicable)
+    .sort((a,b)=>(tplOf(a.milestone_key).display_order||0)-(tplOf(b.milestone_key).display_order||0));
 }
-function workerDayCount(workerId, date){
-  return assigns.filter(a=>a.worker_id===workerId&&a.work_date===(date||selDate)).length;
+function doneTrades(deal){
+  return milestones.filter(m=>m.deal_id===deal.id && m.completed
+      && tplOf(m.milestone_key).milestone_key            // in the construction template at all
+      && tplOf(m.milestone_key).category!=='procurement')
+    .sort((a,b)=>(tplOf(a.milestone_key).display_order||0)-(tplOf(b.milestone_key).display_order||0));
 }
-// Crew a site needs on a date: the trades running that day, summed. Trades with
-// no crew size set contribute nothing and are counted separately so the number
-// never quietly reads low.
-function demandOn(deal, date){
-  let need=0, unknown=0;
-  for(const {t} of tradesOn(deal, date)){
-    if(t.default_crew_size==null)unknown++;
-    else need+=t.default_crew_size;
-  }
-  return {need, unknown};
+function finishOf(deal){
+  const sp=openTrades(deal).map(m=>spanOf(deal,m)).filter(Boolean).map(x=>x.e).sort();
+  return sp.length?sp[sp.length-1]:null;
 }
-
-// Schedule slip for the watch-list: how far behind the oldest still-open
-// milestone has fallen. Same definition project-detail uses.
-function slipOf(deal){
-  const start=startOf(deal);
-  const ms=milestones.filter(m=>m.deal_id===deal.id&&!m.not_applicable&&tplOf(m.milestone_key).milestone_key);
-  const applicable=ms.filter(m=>tplOf(m.milestone_key).category!=='procurement');
-  const done=applicable.filter(m=>m.completed).length;
-  const open=applicable.filter(m=>!m.completed&&m.due_date).sort((a,b)=>a.due_date<b.due_date?-1:1);
-  const oldest=open[0]||null;
-  const today=todayStr();
-  const slip=(oldest&&oldest.due_date<today)?daysBetween(oldest.due_date,today):0;
-  const last=ms.map(m=>m.due_date).filter(Boolean).sort();
-  const target=last.length?last[last.length-1]:null;
-  return {start, done, total:applicable.length, oldest, slip, target,
-    elapsed:start?daysBetween(start,today):null,
-    totalDays:(start&&target)?daysBetween(start,target):36};
+function baselineOf(deal){const s=startOf(deal);return s?addDays(s,36):null;}
+function runningOn(deal, day){
+  return openTrades(deal).filter(m=>{const sp=spanOf(deal,m);return sp&&sp.s<=day&&day<=sp.e;});
 }
-
-// The forward look: sites down, the next fortnight across, each cell the crew
-// that site needs that day. This is the part that makes the page a plan rather
-// than a form — you see Thursday needing more people than exist while there's
-// still time to do something about it.
-function renderMatrix(){
-  const days=horizonDays();
-  const roster=workers.length;
-  const gt=`grid-template-columns:132px repeat(${days.length},minmax(22px,1fr))`;
-
-  let head=`<div class="mx-row mx-head" style="${gt}"><span class="mx-lbl"></span>`;
-  for(const d of days){
-    const dow=new Date(d+'T00:00:00').getDay();
-    head+=`<span class="mx-c mx-h${dow===0?' sun':''}${d===selDate?' sel':''}" data-day="${d}">
-      <em>${DOW[dow].slice(0,1)}</em>${fmtNum(d)}</span>`;
-  }
-  head+='</div>';
-
-  let rows='';
-  const totals=days.map(()=>0);
-  const covered=days.map(()=>0);
-  for(const deal of ourDeals()){
-    let cells='';
-    let any=false;
-    days.forEach((d,i)=>{
-      const {need,unknown}=demandOn(deal,d);
-      totals[i]+=need;
-      covered[i]+=assignsOn(d).filter(a=>a.deal_id===deal.id).length;
-      if(need||unknown)any=true;
-      const dow=new Date(d+'T00:00:00').getDay();
-      cells+=`<span class="mx-c${need?' has':''}${dow===0?' sun':''}${d===selDate?' sel':''}" data-day="${d}"
-        title="${esc(addrOf(deal))} · ${longDate(d)} · ${need} needed${unknown?' (+'+unknown+' trade with no crew size)':''}"
-        >${need||''}</span>`;
-    });
-    if(!any)continue;
-    rows+=`<div class="mx-row" style="${gt}"><span class="mx-lbl" title="${esc(addrOf(deal))}">${esc(addrOf(deal))}</span>${cells}</div>`;
-  }
-  // Sub-crew builds still appear — you need to know when they land — but with
-  // no numbers, because their days aren't ours to staff.
-  for(const deal of subDeals()){
-    let cells='';
-    days.forEach(d=>{
-      const running=tradesOn(deal,d).length>0;
-      const dow=new Date(d+'T00:00:00').getDay();
-      cells+=`<span class="mx-c sub${running?' on':''}${dow===0?' sun':''}${d===selDate?' sel':''}" data-day="${d}"
-        title="${esc(addrOf(deal))} · ${esc(crewName(deal))} · ${running?'working':'not scheduled'}"></span>`;
-    });
-    rows+=`<div class="mx-row" style="${gt}"><span class="mx-lbl" title="${esc(addrOf(deal))}">${esc(addrOf(deal))} <em class="crewtag">${esc(crewName(deal))}</em></span>${cells}</div>`;
-  }
-
-  let totalCells='';
-  days.forEach((d,i)=>{
-    const over=totals[i]>roster;
-    const dow=new Date(d+'T00:00:00').getDay();
-    totalCells+=`<span class="mx-c mx-t${over?' over':''}${dow===0?' sun':''}${d===selDate?' sel':''}" data-day="${d}"
-      title="${totals[i]} needed of ${roster} on the roster${over?' — short by '+(totals[i]-roster):''}">${totals[i]||''}</span>`;
-  });
-  let coverCells='';
-  days.forEach((d,i)=>{
-    const dow=new Date(d+'T00:00:00').getDay();
-    const short=totals[i]>0&&covered[i]<totals[i];
-    coverCells+=`<span class="mx-c mx-a${short?' short':''}${covered[i]&&!short?' met':''}${dow===0?' sun':''}${d===selDate?' sel':''}"
-      data-day="${d}" title="${covered[i]} assigned of ${totals[i]} needed">${covered[i]||''}</span>`;
-  });
-
-  const peak=Math.max(...totals);
-  const overDays=totals.filter(t=>t>roster).length;
-  const sun=days.filter((d,i)=>new Date(d+'T00:00:00').getDay()===0&&totals[i]>0).length;
-  const notes=[];
-  if(overDays)notes.push(`${overDays} ${overDays===1?'day needs':'days need'} more people than the ${roster} on the roster`);
-  if(sun)notes.push(`${sun} ${sun===1?'Sunday has':'Sundays have'} work scheduled`);
-
-  return `<div class="mx">
-    ${head}
-    ${rows}
-    <div class="mx-row mx-sum" style="${gt}"><span class="mx-lbl">Needed</span>${totalCells}</div>
-    <div class="mx-row mx-sum" style="${gt}"><span class="mx-lbl">Assigned</span>${coverCells}</div>
-  </div>
-  <div class="mx-foot">Peak ${peak} of ${roster} on the roster${notes.length?' · '+notes.join(' · '):''}. Click a day to plan it.</div>`;
+function demandOn(deal, day){
+  let n=0; for(const m of runningOn(deal,day))n+=(tplOf(m.milestone_key).default_crew_size||0);
+  return n;
 }
-
-// Roster editor: people down, the trades we staff ourselves across. Click to
-// say someone can do a trade. Nothing is pre-filled — guessing who is qualified
-// would invent the exact fact this table exists to record.
-function renderRoster(){
-  const trades=staffedTrades();
-  const gt=`grid-template-columns:110px 52px repeat(${trades.length},minmax(20px,1fr))`;
-  let head=`<div class="rs-row rs-head" style="${gt}"><span></span><span></span>`;
-  for(const t of trades){
-    head+=`<span class="rs-h" title="${esc(t.display_name)}">${esc(shortTrade(t))}</span>`;
-  }
-  head+='</div>';
-  let rows='';
-  for(const w of workers){
-    let cells='';
-    for(const t of trades){
-      const on=canDo(w.id,t.milestone_key);
-      cells+=`<span class="rs-c${on?' on':''}" data-skill="${w.id}|${esc(t.milestone_key)}"
-        title="${esc(w.name)} · ${esc(t.display_name)}"></span>`;
-    }
-    const n=skills.filter(x=>x.worker_id===w.id).length;
-    rows+=`<div class="rs-row" style="${gt}"><span class="rs-n">${esc(w.name)}</span><span class="rs-r">${FD(w.daily_rate)}</span>${cells}</div>`;
-  }
-  const gaps=trades.filter(t=>skilledFor(t.milestone_key).length===0);
-  const thin=trades.filter(t=>{
-    const n=skilledFor(t.milestone_key).length;
-    return n>0 && n<(t.default_crew_size||1);
-  });
-  let note='';
-  if(gaps.length)note+=`<div class="note warn">Nobody is marked for ${gaps.map(t=>esc(t.display_name)).join(', ')} — those trades can't be suggested.</div>`;
-  if(thin.length)note+=`<div class="note">Fewer people marked than the crew size calls for: ${thin.map(t=>esc(t.display_name)+' ('+skilledFor(t.milestone_key).length+' of '+t.default_crew_size+')').join(', ')}.</div>`;
-  return `<div class="rs">${head}${rows}</div>${note}`;
+function assignedTo(dealId,key,day){
+  return assigns.filter(a=>a.deal_id===dealId&&a.milestone_key===key&&a.work_date===(day||sel))
+    .map(a=>({a,w:workerById(a.worker_id)})).filter(x=>x.w);
 }
-function shortTrade(t){
-  return String(t.display_name||'')
-    .replace(/ (complete|done|installed|pulled|ordered)\b.*$/i,'')
-    .replace(/,.*$/,'')
-    .replace(/ rough-in$/i,'')
-    .slice(0,10);
+function busyOn(wid,day){return assigns.filter(a=>a.worker_id===wid&&a.work_date===day).length;}
+function days(){
+  if(view==='2w')return Array.from({length:14},(_,i)=>addDays(TODAY,i));
+  let last=TODAY;
+  for(const dl of deals){const f=finishOf(dl); if(f&&f>last)last=f;}
+  const n=Math.max(13, diff(TODAY,last)||13);
+  return Array.from({length:n+1},(_,i)=>addDays(TODAY,i));
 }
-
-// Suggest a crew for the selected day. Only ever proposes someone who is
-// marked for the trade and is not already out somewhere that day. Continuity
-// first — whoever has been on this trade at this site keeps it, because moving
-// people mid-trade costs a day of ramp-up — then the cheapest qualified person.
-function suggestFor(date){
-  const taken=new Set(assigns.filter(a=>a.work_date===date).map(a=>a.worker_id));
-  const out=[];
-  for(const deal of ourDeals()){
-    for(const {m,t} of tradesOn(deal,date)){
-      const need=t.default_crew_size||0;
-      if(need<=0)continue;
-      const have=assigns.filter(a=>a.work_date===date&&a.deal_id===deal.id&&a.milestone_key===m.milestone_key).length;
-      let gap=need-have;
-      if(gap<=0)continue;
-      const pool=skilledFor(m.milestone_key)
-        .filter(w=>!taken.has(w.id))
-        .map(w=>({w, cont:assigns.some(a=>a.worker_id===w.id&&a.deal_id===deal.id&&a.milestone_key===m.milestone_key)?1:0}))
-        .sort((a,b)=>(b.cont-a.cont)||(Number(a.w.daily_rate)-Number(b.w.daily_rate)));
-      for(const cand of pool){
-        if(gap<=0)break;
-        out.push({deal_id:deal.id, milestone_key:m.milestone_key, work_date:date, worker_id:cand.w.id,
-                  _name:cand.w.name, _trade:nameOf(m), _site:addrOf(deal), _rate:Number(cand.w.daily_rate)});
-        taken.add(cand.w.id); gap--;
-      }
-      if(gap>0)out.push({_short:true, _trade:nameOf(m), _site:addrOf(deal), _gap:gap});
-    }
-  }
-  return out;
-}
-async function applySuggestion(){
-  const plan=suggestFor(selDate).filter(x=>!x._short);
-  if(!plan.length){alert('Nothing to suggest — either everything is covered, or nobody is marked for the trades running today.');return;}
-  const rows=plan.map(({deal_id,milestone_key,work_date,worker_id})=>({deal_id,milestone_key,work_date,worker_id}));
-  const {data,error}=await sb.from('deal_work_assignments').insert(rows)
-    .select('id, deal_id, milestone_key, work_date, worker_id');
-  if(error){alert('Suggest failed: '+error.message);return;}
-  assigns.push(...(data||[]));
-  render();
-}
-window.applySuggestion=applySuggestion;
 
 function render(){
-  const d=new Date(selDate+'T00:00:00');
-  document.getElementById('dCur').textContent=longDate(selDate);
-  document.getElementById('dPick').value=selDate;
-  document.getElementById('chSub').textContent=deals.length+(deals.length===1?' build in progress':' builds in progress');
+  const D=days(), N=D.length;
+  const gt=`grid-template-columns:196px repeat(${N},minmax(${view==='2w'?'34':'19'}px,1fr))`;
+  document.getElementById('hsub').textContent=
+    deals.length+(deals.length===1?' build':' builds')+' · '+ourDeals().length+' on our crew';
+  document.getElementById('v2w').classList.toggle('on',view==='2w');
+  document.getElementById('vfull').classList.toggle('on',view==='full');
+  if(!deals.length){document.getElementById('page').innerHTML='<div class="empty">No builds under construction.</div>';return;}
 
-  if(!deals.length){
-    document.getElementById('page').innerHTML='<div class="empty">No builds under construction.</div>';
-    return;
-  }
+  let hd=`<div class="r" style="${gt}"><span class="lb"></span>`;
+  for(const x of D){const dow=d(x).getDay();
+    const lab=x===TODAY?'today':((view==='2w'||dow===1)?md(x):'');
+    hd+=`<span class="hd${dow===0?' sun':''}${x===TODAY?' t0':''}"><em>${DOW[dow]}</em>${lab}</span>`;}
+  hd+='</div>';
 
-  let dayCost=0, needTotal=0, gotTotal=0;
-  const assignedIds=new Set(assigns.map(a=>a.worker_id));
-  let sites='';
-  for(const deal of ourDeals()){
-    const planned=tradesOn(deal, selDate);
-    // Plus any trade someone was actually put on that day, whether or not the
-    // plan called for it — assignments can come from project-detail's grid,
-    // where every day of every trade is clickable. An assignment with no row
-    // here is one you can neither see nor undo.
-    const onKeys=new Set(assigns.filter(a=>a.deal_id===deal.id&&a.work_date===selDate).map(a=>a.milestone_key));
-    const extra=(milestones||[]).filter(m=>m.deal_id===deal.id && onKeys.has(m.milestone_key)
-        && !planned.some(x=>x.m.milestone_key===m.milestone_key))
-      .map(m=>({m, t:tplOf(m.milestone_key), off:true}));
-    const trades=[...planned, ...extra];
-    if(!trades.length)continue;
-    let siteCost=0, siteNeed=0, siteGot=0;
-    let rows='';
-    for(const {m,t,off} of trades){
-      const need=t.default_crew_size==null?null:t.default_crew_size;
-      const people=assignedTo(deal.id, m.milestone_key);
-      siteGot+=people.length;
-      // Off-plan work isn't a slot the schedule asked for, so it counts people
-      // and cost but not the day's requirement.
-      if(need!=null && !off)siteNeed+=need;
-      for(const p of people)siteCost+=Number(p.w.daily_rate||0);
-      const cls=off?'':(need==null?'':(people.length>=need?'met':'short'));
-      const chips=people.map(p=>{
-        const dbl=workerDayCount(p.w.id)>1;
-        return `<span class="chip${dbl?' dbl':''}" title="${dbl?'Also assigned elsewhere today':''}">${esc(p.w.name)}<span class="rate">${FD(p.w.daily_rate)}</span><span class="x" data-unassign="${p.a.id}">✕</span></span>`;
-      }).join('');
-      rows+=`<div class="trade">
-        <div class="tn">${esc(nameOf(m))}${off?' <span class="offtag">off plan</span>':''}<em>due ${fmtNum(m.due_date)}</em></div>
-        <div class="need ${cls}">${people.length}${(need==null||off)?'':' / '+need}</div>
-        <div class="chips">${chips}<button class="chip-add" data-assign="${deal.id}|${esc(m.milestone_key)}|${esc(nameOf(m))}">+ assign</button></div>
-      </div>`;
-    }
-    dayCost+=siteCost; needTotal+=siteNeed; gotTotal+=siteGot;
-    sites+=`<div class="site">
-      <div class="site-h">
-        <div>
-          <div class="addr"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a>, <span class="city">${esc(cityOf(deal))}</span></div>
-          <div class="meta">day ${daysBetween(startOf(deal),selDate)} · ${trades.length} ${trades.length===1?'trade':'trades'} running${deal.gc_crew?' · '+esc(deal.gc_crew):''}</div>
-        </div>
-        <div class="rr"><div class="cost">${FD(siteCost)}</div>${siteGot} out · ${siteNeed} asked for by the plan</div>
-      </div>
-      ${rows}
-    </div>`;
-  }
-  if(!sites)sites='<div class="empty">Nothing on our crew this day.</div>';
-  let subs='';
-  for(const deal of subDeals()){
-    const trades=tradesOn(deal, selDate);
-    if(!trades.length)continue;
-    subs+=`<div class="site sub">
-      <div class="site-h">
-        <div>
-          <div class="addr"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a>, <span class="city">${esc(cityOf(deal))}</span>
-            <em class="crewtag">${esc(crewName(deal))}</em></div>
-          <div class="meta">day ${daysBetween(startOf(deal),selDate)} · ${trades.map(x=>esc(nameOf(x.m))).join(' · ')}</div>
-        </div>
-        <div class="rr">fixed price<div class="subnote">not staffed from our roster</div></div>
-      </div>
-    </div>`;
-  }
-
-  const bench=workers.filter(w=>!assignedIds.has(w.id));
-  const benchHtml=`<div class="bench">
-    <div class="sect-h"><h2>Not assigned</h2><span class="sub">${bench.length} of ${workers.length} free on ${fmtNum(selDate)}</span></div>
-    ${bench.length?`<div class="chips">${bench.map(w=>`<span class="chip">${esc(w.name)}<span class="rate">${FD(w.daily_rate)}</span></span>`).join('')}</div>`
-      :'<div class="none">Everyone is on a site today.</div>'}
-  </div>`;
-
-  const dbl=workers.filter(w=>workerDayCount(w.id)>1);
-  const dblNote=dbl.length?`<div class="note warn">${dbl.map(w=>esc(w.name)).join(', ')} ${dbl.length===1?'is':'are'} assigned to more than one job today.</div>`:'';
-
-  // Watch-list: every build, whether or not anything runs today.
-  let cards='';
-  for(const deal of [...deals].sort((a,b)=>slipOf(b).slip-slipOf(a).slip)){
-    const st=slipOf(deal);
+  let body='';
+  for(const deal of deals){
+    const [bg,fg]=COL[deal._i%COL.length];
+    const open=openTrades(deal), done=doneTrades(deal);
+    const fin=finishOf(deal), base=baselineOf(deal);
+    const over=(fin&&base)?diff(base,fin):null;
+    const anyPlanned=open.some(m=>m.planned_start);
     const c=costs[deal.id]||{};
-    const span=Math.max(st.totalDays||36, st.elapsed||0)||36;
-    const frontDay=st.oldest?Math.max(0,daysBetween(st.start,st.oldest.due_date)):span;
-    const frontPct=Math.min(100,Math.max(0,frontDay/span*100));
-    const nowPct=Math.min(100,Math.max(0,(st.elapsed||0)/span*100));
-    const pill=st.slip>7?'bad':(st.slip>0?'warn':'ok');
-    const pillTxt=st.slip>0?st.slip+' days behind':'On schedule';
-    const prog=st.total?Math.round(st.done/st.total*100):0;
     const bud=(c.rehab_budget&&c.rehab_budget>0)?Math.round((c.rehab_actual||0)/c.rehab_budget*100):0;
-    cards+=`<div class="wcard">
-      <div class="wcard-h">
-        <div class="addr"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a>${isOurs(deal)?'':`<em class="crewtag">${esc(crewName(deal))}</em>`}</div>
-        <span class="pill ${pill}">${pillTxt}</span>
-        <div class="rr">day ${st.elapsed} of ${st.totalDays}</div>
-      </div>
-      <div class="trk">
-        <div class="fill" style="width:${frontPct}%"></div>
-        ${st.slip>0?`<div class="gap" style="left:${frontPct}%;width:${Math.max(0,nowPct-frontPct)}%"></div>`:''}
-        <div class="now" style="left:${nowPct}%"></div>
-      </div>
-      <div class="wrows">
-        <div class="bar"><div class="t"><span class="l">Progress</span><span class="p">${st.done} of ${st.total} · ${prog}%</span></div><div class="tk"><div class="fl" style="width:${prog}%;background:var(--blue)"></div></div></div>
-        <div class="bar"><div class="t"><span class="l">Budget</span><span class="p">${FD(c.rehab_actual||0)} / ${c.rehab_budget?FD(c.rehab_budget):'—'} · ${bud}%</span></div><div class="tk"><div class="fl" style="width:${Math.min(100,bud)}%;background:var(--accent)"></div></div></div>
-      </div>
-      ${st.oldest?`<div class="note">Oldest open · <b>${esc(nameOf(st.oldest))}</b> due ${fmtNum(st.oldest.due_date)}</div>`:''}
-    </div>`;
+    const col=!!collapsed[deal.id];
+    body+=`<div class="ph"><span class="car" onclick="toggleCollapse('${deal.id}')">${col?'▸':'▾'}</span>
+      <span><span class="dot" style="background:${fg}"></span><span class="nm">${esc(addrOf(deal))}</span>
+      ${isOurs(deal)?'':'<span class="tag">'+esc(crewName(deal))+'</span>'}</span>
+      <span class="meta">done: ${done.length?done.map(m=>esc(nameOf(m))).join(' · '):'nothing marked complete yet'}</span>
+      <span class="meta">rehab ${money(c.rehab_actual||0)} of ${c.rehab_budget?money(c.rehab_budget):'—'} · ${bud}%</span>
+      ${fin?(anyPlanned
+        ? `<span class="slip">finishes ${md(fin)}${over>0?' — '+over+' past baseline':''}</span>`
+        : `<span class="stale">baseline ran to ${md(fin)} — no committed plan, re-plan to schedule the rest</span>`):''}
+      <span class="replan"><input type="date" id="rb-${deal.id}" value="${TODAY}">
+        <button onclick="rebaseline('${deal.id}')">Re-plan</button></span></div>`;
+
+    if(col){
+      const ss=open.map(m=>spanOf(deal,m)).filter(Boolean);
+      const s0=ss.map(x=>x.s).sort()[0], e0=ss.map(x=>x.e).sort().slice(-1)[0];
+      let cs='';
+      for(const x of D){
+        const mon=d(x).getDay()===1?'<span class="mon"></span>':'';
+        cs+=(s0&&s0<=x&&x<=e0)
+          ? `<span class="cellw">${mon}<div class="bar" style="background:${bg};color:${fg}">${x===s0||x===D[0]?open.length+' trades':''}</div></span>`
+          : `<span class="cellw">${mon}</span>`;
+      }
+      body+=`<div class="r" style="${gt}"><span class="lb" style="color:var(--text-4);font-style:italic">${isOurs(deal)?'collapsed':'not our labour'}</span>${cs}</div>`;
+      continue;
+    }
+
+    for(const m of open){
+      const t=tplOf(m.milestone_key), sp=spanOf(deal,m);
+      const crew=t.default_crew_size==null?0:t.default_crew_size;
+      let cells='';
+      for(const x of D){
+        const mon=d(x).getDay()===1?'<span class="mon"></span>':'';
+        const on=sp&&sp.s<=x&&x<=sp.e;
+        if(view==='full'){
+          cells+=on?`<span class="cellw">${mon}<div class="bar" style="background:${bg};color:${fg}">${x===sp.s&&crew?crew:''}</div></span>`
+                  :`<span class="cellw">${mon}</span>`;
+          continue;
+        }
+        const who=assignedTo(deal.id,m.milestone_key,x);
+        const clickable=(isOurs(deal)&&crew)?` onclick="openOv('${deal.id}','${esc(m.milestone_key)}','${x}')"`:'';
+        const inner=who.length
+          ? who.map(p=>`<span class="chip" style="color:${fg}">${esc(p.w.name.slice(0,2))}</span>`).join('')
+          : (on?(crew?`<span class="chip" style="color:${fg};background:none;opacity:.55">${crew}</span>`
+                     :'<span class="chip" style="background:none;color:#9b9b95;font-weight:400">s</span>'):'');
+        const cls='dcell'+(on?'':' off')+((who.length&&!on)?' extra':'');
+        cells+=`<span class="cellw">${mon}<div class="${cls}" style="${on?'background:'+bg:''}"${clickable}>${inner}</div></span>`;
+      }
+      body+=`<div class="r" style="${gt}"><span class="lb">${esc(nameOf(m))} <span class="cw">${crew?crew+'p':'sub'}</span></span>${cells}</div>`;
+    }
   }
 
-  // What the suggester would do, and where it can't.
-  const sugg=suggestFor(selDate);
-  const shorts=sugg.filter(x=>x._short);
-  const suggNote=shorts.length
-    ? `<div class="note warn">Can't fill ${shorts.map(x=>esc(x._trade)+' at '+esc(x._site)+' ('+x._gap+')').join(', ')} — nobody free is marked for ${shorts.length===1?'that trade':'those trades'}.</div>`
-    : '';
-  const suggestNote=suggNote;
+  let ld=`<div class="r load" style="${gt}"><span class="lb">Crew needed</span>`;
+  for(const x of D){let v=0;for(const dl of ourDeals())v+=demandOn(dl,x);
+    ld+=`<span class="n${v>workers.length?' over':(v?'':' zero')}">${v||''}</span>`;}
+  ld+='</div>';
+  let ac=`<div class="r" style="${gt}"><span class="lb">Assigned</span>`;
+  for(const x of D){const v=assigns.filter(a=>a.work_date===x).length;
+    let need=0;for(const dl of ourDeals())need+=demandOn(dl,x);
+    ac+=`<span class="n zero" style="${v&&v<need?'color:var(--amber);font-weight:700':(v?'color:var(--green);font-weight:700':'')}">${v||''}</span>`;}
+  ac+='</div>';
+
+  // ---- day panel ----
+  let sites='',subs='',dayCost=0;
+  for(const deal of deals){
+    const planned=runningOn(deal,sel);
+    const onKeys=new Set(assigns.filter(a=>a.deal_id===deal.id&&a.work_date===sel).map(a=>a.milestone_key));
+    const extra=milestones.filter(m=>m.deal_id===deal.id&&onKeys.has(m.milestone_key)
+      &&!planned.some(x=>x.milestone_key===m.milestone_key));
+    const tr=[...planned.map(m=>({m,off:false})), ...extra.map(m=>({m,off:true}))];
+    if(!tr.length)continue;
+    if(!isOurs(deal)){
+      subs+=`<div class="site sub"><div class="sitehd"><div>
+        <div class="a"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a>, <span class="c">${esc(cityOf(deal))}</span> <span class="tag">${esc(crewName(deal))}</span></div>
+        <div class="m">day ${diff(startOf(deal),sel)} · ${tr.map(x=>esc(nameOf(x.m))).join(' · ')}</div></div>
+        <div class="rr" style="color:var(--amber);font-weight:700">fixed price<div style="font-weight:400;color:var(--text-4)">not staffed from our roster</div></div>
+      </div></div>`; continue;
+    }
+    let rows='',cost=0,need=0,got=0;
+    for(const {m,off} of tr){
+      const t=tplOf(m.milestone_key), crew=t.default_crew_size||0, sp=spanOf(deal,m);
+      const who=assignedTo(deal.id,m.milestone_key,sel);
+      got+=who.length; if(!off)need+=crew;
+      for(const p of who)cost+=Number(p.w.daily_rate||0);
+      const cls=off?'':(crew?(who.length>=crew?'met':'short'):'');
+      rows+=`<div class="tr"><div class="tn">${esc(nameOf(m))}${off?' <span class="offtag">off plan</span>':''}<em>${sp?(sp.s===sp.e?md(sp.s):md(sp.s)+' – '+md(sp.e)):''}</em></div>
+        <div class="need ${cls}">${who.length}${(crew&&!off)?' / '+crew:''}</div>
+        <div class="chips">${who.map(p=>{const db=busyOn(p.w.id,sel)>1;
+          return `<span class="pc${db?' dbl':''}">${esc(p.w.name)}<span class="rt">${money(p.w.daily_rate)}</span><span class="x" onclick="unassign('${p.a.id}')">&#10005;</span></span>`;}).join('')}
+          ${crew?`<button class="addb" onclick="openOv('${deal.id}','${esc(m.milestone_key)}','${sel}')">+ assign</button>`:''}</div></div>`;
+    }
+    dayCost+=cost;
+    sites+=`<div class="site"><div class="sitehd"><div>
+      <div class="a"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a>, <span class="c">${esc(cityOf(deal))}</span></div>
+      <div class="m">day ${diff(startOf(deal),sel)} · ${tr.length} ${tr.length===1?'trade':'trades'}${extra.length?' · '+extra.length+' off plan':''}</div></div>
+      <div class="rr"><div class="cost">${money(cost)}</div>${got} out · ${need} asked for by the plan</div></div>${rows}</div>`;
+  }
+  if(!sites)sites='<div class="site" style="text-align:center;color:var(--text-4);font-style:italic">Nothing on our crew this day.</div>';
+  const out=new Set(assigns.filter(a=>a.work_date===sel).map(a=>a.worker_id));
+  const bench=workers.filter(w=>!out.has(w.id));
+  const dbl=workers.filter(w=>busyOn(w.id,sel)>1);
+
+  // ---- roster ----
+  const T=staffedTrades(), sgt=`grid-template-columns:88px 44px repeat(${T.length},minmax(15px,1fr))`;
+  let sh=`<div class="rs-row" style="${sgt}"><span></span><span></span>`;
+  for(const t of T)sh+=`<span class="rs-h" title="${esc(t.display_name)}">${esc(t.display_name.replace(/ (complete|done|installed)\b.*$/i,'').replace(/,.*$/,'').slice(0,11))}</span>`;
+  sh+='</div>';
+  let srows='';
+  for(const w of workers){
+    let cs='';
+    for(const t of T)cs+=`<span class="rs-c${canDo(w.id,t.milestone_key)?' on':''}" data-skill="${w.id}|${esc(t.milestone_key)}"></span>`;
+    srows+=`<div class="rs-row" style="${sgt}"><span style="font-size:12px">${esc(w.name)}</span><span style="font-size:10.5px;color:var(--text-4)">${money(w.daily_rate)}</span>${cs}</div>`;
+  }
+
   document.getElementById('page').innerHTML=`
-    <div class="strip">
-      <div class="cell"><div class="k">Crew out today</div><div class="v">${gotTotal}${needTotal?' / '+needTotal:''}</div><div class="s">${bench.length} still on the bench</div></div>
-      <div class="cell"><div class="k">Labor cost</div><div class="v">${FD(dayCost)}</div><div class="s">assigned people, ${fmtNum(selDate)}</div></div>
-      <div class="cell"><div class="k">Builds running</div><div class="v">${deals.length}</div><div class="s">${ourDeals().length} on our crew · ${subDeals().length} fixed price</div></div>
-      <div class="cell"><div class="k">Worst slip</div><div class="v ${Math.max(...deals.map(d=>slipOf(d).slip))>7?'bad':''}">${Math.max(...deals.map(d=>slipOf(d).slip))} days</div><div class="s">${esc(addrOf([...deals].sort((a,b)=>slipOf(b).slip-slipOf(a).slip)[0]))}</div></div>
-    </div>
-    <div class="sect-h"><h2>The next two weeks</h2><span class="sub">crew each site needs, per day</span></div>
-    ${renderMatrix()}
-    <div class="sect-h" style="margin-top:22px"><h2>Who goes where</h2><span class="sub">${longDate(selDate)} · click + assign to put someone on a trade</span>
-      <button class="sugg" onclick="applySuggestion()">Suggest crew</button></div>
-    ${suggestNote}
-    ${sites}
-    ${subs}
-    ${dblNote}
-    ${benchHtml}
-    <div class="sect-h"><h2>Crew &amp; skills</h2><span class="sub">click a square to say someone can do that trade</span></div>
-    ${renderRoster()}
-    <div class="sect-h" style="margin-top:22px"><h2>All builds</h2><span class="sub">sorted by slip, worst first</span></div>
-    ${cards}
-  `;
+    <div class="sh"><h2>${view==='2w'?'The next two weeks':'Full runway'}</h2>
+      <span class="sub">${view==='2w'?'every day is clickable — inside the plan or not':'the committed plan, out to the last trade'}</span></div>
+    <div class="card"><div style="min-width:${196+N*(view==='2w'?34:19)}px">${hd}${body}${ld}${ac}</div></div>
+    <div class="cols">
+      <div>
+        <div class="sh"><h2>Who goes where</h2><span class="sub">${dayCost?money(dayCost)+' in crew labour':''}</span>
+          <span class="act datenav">
+            <button class="btn" onclick="step(-1)">&lsaquo;</button>
+            <span class="cur">${longd(sel)}</span>
+            <button class="btn" onclick="step(1)">&rsaquo;</button>
+            <button class="btn" onclick="goDay('${TODAY}')">Today</button>
+            <button class="btn" onclick="goDay('${addDays(TODAY,1)}')">Tomorrow</button>
+          </span></div>
+        ${sites}${subs}
+        ${dbl.length?`<div class="note warn">${dbl.map(w=>esc(w.name)).join(', ')} ${dbl.length===1?'is':'are'} in two places today.</div>`:''}
+      </div>
+      <div>
+        <div class="sh"><h2>Crew &amp; skills</h2><span class="sub">click a square to mark a trade</span></div>
+        <div class="card">${sh}${srows}</div>
+        <div class="bench"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Not assigned <span style="font-weight:400;color:var(--text-4)">${bench.length} of ${workers.length} free on ${md(sel)}</span></div>
+          <div class="chips">${bench.map(w=>`<span class="pc">${esc(w.name)}<span class="rt">${money(w.daily_rate)}</span></span>`).join('')||'<span style="font-size:12px;color:var(--text-4);font-style:italic">Everyone is out.</span>'}</div></div>
+      </div>
+    </div>`;
   wire();
 }
 
@@ -720,7 +487,7 @@ function wire(){
     el.addEventListener('click', async ()=>{
       const [wid,key]=el.dataset.skill.split('|');
       const cur=skills.find(x=>x.worker_id===wid&&x.milestone_key===key);
-      el.classList.toggle('on', !cur);
+      el.classList.toggle('on',!cur);
       if(cur){
         const {error}=await sb.from('worker_trades').delete().eq('id',cur.id);
         if(error){el.classList.add('on');alert('Save failed: '+error.message);return;}
@@ -734,114 +501,109 @@ function wire(){
       render();
     });
   });
-  document.querySelectorAll('.mx-c[data-day]').forEach(el=>{
-    el.addEventListener('click',()=>setDate(el.dataset.day));
-  });
-  document.querySelectorAll('[data-unassign]').forEach(el=>{
-    el.addEventListener('click', async ()=>{
-      const id=el.dataset.unassign;
-      const {error}=await sb.from('deal_work_assignments').delete().eq('id',id);
-      if(error){alert('Remove failed: '+error.message);return;}
-      assigns=assigns.filter(a=>a.id!==id);
-      render();
-    });
-  });
-  document.querySelectorAll('[data-assign]').forEach(el=>{
-    el.addEventListener('click', ()=>{
-      const [dealId,key,label]=el.dataset.assign.split('|');
-      openOv(dealId,key,label);
-    });
-  });
 }
+function toggleCollapse(id){collapsed[id]=!collapsed[id];render();}
+async function step(n){sel=addDays(sel,n);await loadAssignments();render();}
+async function goDay(x){sel=x;await loadAssignments();render();}
+async function setView(v){view=v;await loadAssignments();render();}
+window.toggleCollapse=toggleCollapse; window.step=step; window.goDay=goDay;
 
-function openOv(dealId,key,label){
-  ovCtx={dealId,key};
-  const deal=deals.find(d=>d.id===dealId);
-  document.getElementById('ovTitle').textContent=label;
-  document.getElementById('ovSub').textContent=addrOf(deal)+' · '+longDate(selDate);
-  renderOvBody();
+// Re-plan: push the remaining schedule so the earliest open trade starts on the
+// chosen date. The baseline (due_date) is untouched, so how far behind the
+// build is stays visible afterwards.
+async function rebaseline(dealId){
+  const el=document.getElementById('rb-'+dealId);
+  const start=el&&el.value?el.value:TODAY;
+  const deal=deals.find(x=>x.id===dealId);
+  if(!confirm('Re-plan '+addrOf(deal)+' so the next unfinished trade starts '+longd(start)+'?\n\nThe original baseline is kept — this only moves the plan.'))return;
+  const {data,error}=await sb.rpc('rebaseline_construction_plan',{p_deal_id:dealId, p_start:start});
+  if(error){alert('Re-plan failed: '+error.message);return;}
+  await loadAll(); render();
+  alert('Re-planned '+data+' trades.');
+}
+window.rebaseline=rebaseline;
+
+async function unassign(id){
+  const {error}=await sb.from('deal_work_assignments').delete().eq('id',id);
+  if(error){alert('Remove failed: '+error.message);return;}
+  assigns=assigns.filter(a=>a.id!==id);
+  render();
+}
+window.unassign=unassign;
+
+function openOv(dealId,key,day){
+  ovCtx={dealId,key,day};
+  const deal=deals.find(x=>x.id===dealId);
+  const m=milestones.find(x=>x.deal_id===dealId&&x.milestone_key===key);
+  const t=tplOf(key);
+  document.getElementById('ovt').textContent=m?nameOf(m):key;
+  document.getElementById('ovs').textContent=addrOf(deal)+' · '+longd(day)+' · needs '+(t.default_crew_size||0);
+  renderOv();
   document.getElementById('ov').classList.add('open');
 }
-function renderOvBody(){
-  const here=new Set(assigns.filter(a=>a.deal_id===ovCtx.dealId&&a.milestone_key===ovCtx.key).map(a=>a.worker_id));
-  document.getElementById('ovBody').innerHTML=workers.map(w=>{
-    const elsewhere=assigns.find(a=>a.worker_id===w.id&&!(a.deal_id===ovCtx.dealId&&a.milestone_key===ovCtx.key));
-    let st='';
-    if(elsewhere){
-      const d=deals.find(x=>x.id===elsewhere.deal_id);
-      st=`<span class="st">on ${esc(addrOf(d))}</span>`;
-    }
-    return `<div class="wrow${here.has(w.id)?' on':''}" data-worker="${w.id}">
-      <span class="nm">${esc(w.name)}</span>${st}<span class="rt">${FD(w.daily_rate)}</span></div>`;
+window.openOv=openOv;
+function renderOv(){
+  const here=new Set(assignedTo(ovCtx.dealId,ovCtx.key,ovCtx.day).map(x=>x.w.id));
+  document.getElementById('ovb').innerHTML=workers.map(w=>{
+    const el=assigns.find(a=>a.worker_id===w.id&&a.work_date===ovCtx.day
+      &&!(a.deal_id===ovCtx.dealId&&a.milestone_key===ovCtx.key));
+    const st=el?`<span class="st">on ${esc(addrOf(deals.find(x=>x.id===el.deal_id)||{}))}</span>`:'';
+    const sk=canDo(w.id,ovCtx.key)?'<span class="st" style="color:var(--green)">marked for this</span>':'';
+    return `<div class="wr${here.has(w.id)?' on':''}" data-worker="${w.id}">
+      <span class="nm">${esc(w.name)}</span>${sk}${st}<span class="rt">${money(w.daily_rate)}</span></div>`;
   }).join('');
-  document.querySelectorAll('#ovBody .wrow').forEach(el=>{
-    el.addEventListener('click', ()=>toggleWorker(el.dataset.worker));
+  document.querySelectorAll('#ovb .wr').forEach(el=>{
+    el.addEventListener('click',()=>toggleWorker(el.dataset.worker));
   });
 }
-// Same in-flight guard as project-detail: the write is async, so rapid clicks
-// on one person raced and hit the unique constraint.
+// In-flight guard: the write is async, so rapid clicks on one person raced and
+// hit the unique constraint on (deal, trade, date, worker).
 const ovBusy=new Set();
 async function toggleWorker(workerId){
-  const token=ovCtx.dealId+'|'+ovCtx.key+'|'+selDate+'|'+workerId;
+  const token=ovCtx.dealId+'|'+ovCtx.key+'|'+ovCtx.day+'|'+workerId;
   if(ovBusy.has(token))return;
   ovBusy.add(token);
   try{ await _toggleWorker(workerId); } finally { ovBusy.delete(token); }
 }
 async function _toggleWorker(workerId){
-  const existing=assigns.find(a=>a.deal_id===ovCtx.dealId&&a.milestone_key===ovCtx.key
-    &&a.work_date===selDate&&a.worker_id===workerId);
+  const {dealId,key,day}=ovCtx;
+  const existing=assigns.find(a=>a.deal_id===dealId&&a.milestone_key===key&&a.work_date===day&&a.worker_id===workerId);
   if(existing){
     const {error}=await sb.from('deal_work_assignments').delete().eq('id',existing.id);
     if(error){alert('Remove failed: '+error.message);return;}
     assigns=assigns.filter(a=>a.id!==existing.id);
   } else {
     const {data,error}=await sb.from('deal_work_assignments')
-      .insert({deal_id:ovCtx.dealId, milestone_key:ovCtx.key, work_date:selDate, worker_id:workerId})
+      .insert({deal_id:dealId, milestone_key:key, work_date:day, worker_id:workerId})
       .select('id, deal_id, milestone_key, work_date, worker_id');
     if(error){
-      // Already assigned — adopt the existing row rather than reporting a
-      // failure for the state the user was asking for.
-      if(error.code==='23505' || /duplicate key/i.test(error.message||'')){
+      // Already there — assigned from project-detail, another tab, or a click
+      // the guard missed. That's the state asked for, so adopt it.
+      if(error.code==='23505'||/duplicate key/i.test(error.message||'')){
         const {data:again}=await sb.from('deal_work_assignments')
           .select('id, deal_id, milestone_key, work_date, worker_id')
-          .eq('deal_id',ovCtx.dealId).eq('milestone_key',ovCtx.key)
-          .eq('work_date',selDate).eq('worker_id',workerId).limit(1);
+          .eq('deal_id',dealId).eq('milestone_key',key).eq('work_date',day).eq('worker_id',workerId).limit(1);
         if(again&&again[0]&&!assigns.some(a=>a.id===again[0].id))assigns.push(again[0]);
       } else { alert('Assign failed: '+error.message); return; }
     } else if(data&&data[0]){ assigns.push(data[0]); }
   }
-  renderOvBody();
-  render();
+  renderOv(); render();
   document.getElementById('ov').classList.add('open');
 }
 function closeOv(){document.getElementById('ov').classList.remove('open');ovCtx=null;}
 window.closeOv=closeOv;
 
-async function setDate(s){selDate=s;await loadAssignments();render();}
-async function setHorizon(mode){
-  horizonMode=mode;
-  document.getElementById('h2w').classList.toggle('on',mode==='2w');
-  document.getElementById('hFull').classList.toggle('on',mode==='full');
-  await loadAssignments();
-  render();
-}
-
 (async()=>{
   await window.authGate();
   if(!window.CURRENT_USER_ROLE)return;
   window.renderSidebar('construction');
-  document.getElementById('dPrev').addEventListener('click',()=>setDate(addDays(selDate,-1)));
-  document.getElementById('dNext').addEventListener('click',()=>setDate(addDays(selDate,1)));
-  document.getElementById('dToday').addEventListener('click',()=>setDate(todayStr()));
-  // The nightly job is planning tomorrow, so it gets its own button rather
-  // than a step through the date arrows.
-  document.getElementById('dTom').addEventListener('click',()=>setDate(addDays(todayStr(),1)));
-  document.getElementById('h2w').addEventListener('click',()=>setHorizon('2w'));
-  document.getElementById('hFull').addEventListener('click',()=>setHorizon('full'));
-  document.getElementById('dPick').addEventListener('change',e=>{if(e.target.value)setDate(e.target.value);});
+  document.getElementById('v2w').addEventListener('click',()=>setView('2w'));
+  document.getElementById('vfull').addEventListener('click',()=>setView('full'));
+  document.getElementById('ov').addEventListener('click',e=>{if(e.target.id==='ov')closeOv();});
   await loadAll();
   render();
 })();
+
 </script>
 </body>
 </html>
