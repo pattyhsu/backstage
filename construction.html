@@ -218,7 +218,7 @@ async function loadAll(){
   const {data:cr}=await sb.from('crews').select('id, name, kind, active');
   crews=cr||[];
   const {data:dl}=await sb.from('deals')
-    .select('id, buy_side_mls, construction_start_date, actual_close_date, gc_crew, crew_id, plan_baselined_at')
+    .select('id, buy_side_mls, construction_start_date, actual_close_date, crew_id, plan_baselined_at')
     .eq('phase','under_construction');
   deals=(dl||[]).filter(x=>startOf(x)).sort((a,b)=>startOf(a)<startOf(b)?-1:1);
   deals.forEach((x,i)=>{x._i=i; if(!(x.id in collapsed))collapsed[x.id]=!isOurs(x);});

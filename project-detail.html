@@ -490,6 +490,9 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .ms-na:hover { border-color:var(--text-4); color:var(--text-2); }
 .gt-row.na .ms-na { background:var(--text-4); color:#fff; border-color:var(--text-4); }
 .cf-val.text-edit input { width:170px; }
+.crew-pick { font:inherit; font-size:14px; font-weight:700; color:var(--text); border:1px solid var(--border);
+  border-radius:4px; padding:1px 4px; background:var(--bg); cursor:pointer; width:max-content; }
+.crew-pick:hover { border-color:var(--border-hover); }
 .constr-cols { display:grid; grid-template-columns:1fr 1.5fr; gap:14px; align-items:start; }   /* left: bars+docs · right: spent (bigger) */
 .constr-cols .sect { margin-bottom:0; }
 @media(max-width:860px){ .constr-cols { grid-template-columns:1fr; } }
@@ -1185,6 +1188,7 @@ let constructionTemplate=[];   // Brief CC — construction_v2 rows (key, offset
 let dealWorkDays=[];           // Brief CC — deal_work_days rows (which days each trade worked)
 let dealAssignments=[];        // Brief CC — deal_work_assignments: the NAMED people, shared with construction.html
 let rosterWorkers=[];          // Brief CC — workers roster (owner-only; empty for other roles)
+let crewList=[];               // Brief CC — crews (our own vs a fixed-price sub crew)
 let phaseChecklistItems=[];
 let userNameMap=new Map();
 let dealLoans=[];
@@ -1317,6 +1321,10 @@ async function loadProject(){
       .eq('deal_id', dealRow.id);
     dealAssignments=aErr?[]:(as||[]);
   } catch(e){ dealAssignments=[]; }
+  try {
+    const {data:cr}=await sb.from('crews').select('id, name, kind').eq('active',true).order('kind',{ascending:false});
+    crewList=cr||[];
+  } catch(e){ crewList=[]; }
   try {
     const {data:wk, error:kErr}=await sb.from('workers')
       .select('id, name, daily_rate').eq('active',true).order('name');
@@ -1689,6 +1697,7 @@ function renderPage(){
   wireSpendingTree();
   wireDealDocs();
   wireConstructionEdits();
+  wireCrewPick();
   wireMilestones();
   wireWorkDays();
 }
@@ -1923,7 +1932,9 @@ function renderConstructionSection(){
             <div class="et-grid" style="margin-bottom:16px;grid-template-columns:1fr 1fr 1fr">
               <div class="et-cell"><div class="et-lbl">Started</div><div class="et-val" data-deal-field="construction_start_date" data-deal-type="date">${d.construction_start_date||'—'}</div><div class="et-aux">day of close</div></div>
               <div class="et-cell"><div class="et-lbl">Target finish</div><div class="et-val" data-deal-field="construction_complete_date" data-deal-type="date">${d.construction_complete_date||(st.target||'—')}</div><div class="et-aux">${d.construction_complete_date?'set':'from schedule'}</div></div>
-              <div class="et-cell"><div class="et-lbl">GC / crew</div><div class="et-val" data-deal-field="gc_crew" data-deal-type="text">${escapeHtml(d.gc_crew||'—')}</div><div class="et-aux">who's running it</div></div>
+              <div class="et-cell"><div class="et-lbl">Crew</div>
+                <select class="crew-pick" id="crewPick">${crewList.map(c=>`<option value="${escapeHtml(c.id)}"${c.id===d.crew_id?' selected':''}>${escapeHtml(c.name)}</option>`).join('')}</select>
+                <div class="et-aux">${(crewList.find(c=>c.id===d.crew_id)||{}).kind==='fixed_price'?'fixed price · not staffed from our roster':"who's running it"}</div></div>
                           </div>
             ${slipHtml}
             ${projHtml}
@@ -2411,6 +2422,18 @@ function wireMilestones(){
 // Inline edit for the 4 construction fields. Same interaction as the escrow
 // dates (click → input → Enter/blur saves, Escape cancels), but typed, since
 // GC and scope tier are free text.
+// Writing deals.crew_id here is what tells the Construction hub whether this
+// build competes for our ten people or is a sub crew on a contract.
+function wireCrewPick(){
+  const el=document.getElementById('crewPick');
+  if(!el)return;
+  el.addEventListener('change', async ()=>{
+    const {error}=await sb.from('deals').update({crew_id:el.value, updated_at:new Date().toISOString()}).eq('id', currentDeal.id);
+    if(error){alert('Save failed: '+error.message);renderPage();return;}
+    currentDeal.crew_id=el.value;
+    renderPage();
+  });
+}
 function wireConstructionEdits(){
   document.querySelectorAll('.et-val[data-deal-field]').forEach(el=>{
     el.addEventListener('click', ()=>_beginDealFieldEdit(el));
@@ -2431,7 +2454,7 @@ function _beginDealFieldEdit(el){
   let settled=false, dirty=false;
   // A blur only writes if the field was actually edited. Without this, a stray
   // click into the field (or a browser autofill landing in it) commits on the
-  // way out — which is how a phantom "Crew" once got written to gc_crew.
+  // way out — which is how a phantom value once got written to a deal field.
   input.addEventListener('input', ()=>{dirty=true;});
   input.addEventListener('keydown', async (e)=>{
     if(e.key==='Enter'){e.preventDefault();settled=true;await _commitDealFieldEdit(field, input.value);}
