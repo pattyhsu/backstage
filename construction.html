@@ -112,6 +112,13 @@
 .mx-a { background:none; color:var(--text-4); }
 .mx-a.short { color:var(--amber); font-weight:600; }
 .mx-a.met { color:var(--green); font-weight:600; }
+.crewtag { font-style:normal; font-size:10px; color:var(--amber); background:var(--amber-bg);
+  border-radius:3px; padding:1px 5px; margin-left:6px; font-weight:600; }
+.mx-c.sub { background:var(--bg-page); }
+.mx-c.sub.on { background:repeating-linear-gradient(-45deg,#FBE6CE 0 4px,var(--amber-bg) 4px 8px); }
+.site.sub { border-style:dashed; }
+.site.sub .rr { color:var(--amber); font-weight:600; }
+.site.sub .subnote { font-size:11px; color:var(--text-4); font-weight:400; margin-top:2px; }
 .mx-foot { font-size:11.5px; color:var(--text-4); margin:8px 0 20px; }
 .site { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
   padding:14px 17px; margin-bottom:11px; }
@@ -230,7 +237,7 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;
 
-let deals=[], propByMls={}, tpl=[], milestones=[], workers=[], assigns=[], costs={}, workdays=[], skills=[];
+let deals=[], propByMls={}, tpl=[], milestones=[], workers=[], assigns=[], costs={}, workdays=[], skills=[], crews=[];
 let selDate=todayStr();
 let horizonMode='2w';   // '2w' | 'full'
 const HORIZON=13;       // today + 13 = a fortnight
@@ -266,8 +273,10 @@ function titleCase(s){return String(s||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
 
 async function loadAll(){
+  const {data:cr}=await sb.from('crews').select('id, name, kind, active');
+  crews=cr||[];
   const {data:d}=await sb.from('deals')
-    .select('id, buy_side_mls, construction_start_date, actual_close_date, gc_crew, purchase_price')
+    .select('id, buy_side_mls, construction_start_date, actual_close_date, gc_crew, purchase_price, crew_id')
     .eq('phase','under_construction');
   deals=(d||[]).filter(x=>x.construction_start_date||x.actual_close_date)
     .sort((a,b)=>(startOf(a)<startOf(b)?-1:1));
@@ -314,6 +323,15 @@ async function loadAssignments(){
 function assignsOn(date){return assigns.filter(a=>a.work_date===date);}
 
 function startOf(d){return d.construction_start_date||d.actual_close_date;}
+// A fixed-price sub crew (Alfonso) doesn't draw on our ten people: it isn't
+// scheduled per person, isn't costed per day, and must not be counted against
+// roster capacity. Counting it was the difference between a peak of 19 and the
+// real 11. NULL crew_id reads as our own crew.
+function crewOf(d){return crews.find(c=>c.id===d.crew_id)||null;}
+function isOurs(d){const c=crewOf(d);return !c||c.kind==='own';}
+function crewName(d){const c=crewOf(d);return c?c.name:'Dotty crew';}
+function ourDeals(){return deals.filter(isOurs);}
+function subDeals(){return deals.filter(d=>!isOurs(d));}
 // Trades that need our own people — the only ones a suggestion can fill.
 function staffedTrades(){
   return tpl.filter(t=>t.category!=='procurement'&&(t.default_crew_size||0)>0);
@@ -404,7 +422,7 @@ function renderMatrix(){
   let rows='';
   const totals=days.map(()=>0);
   const covered=days.map(()=>0);
-  for(const deal of deals){
+  for(const deal of ourDeals()){
     let cells='';
     let any=false;
     days.forEach((d,i)=>{
@@ -419,6 +437,18 @@ function renderMatrix(){
     });
     if(!any)continue;
     rows+=`<div class="mx-row" style="${gt}"><span class="mx-lbl" title="${esc(addrOf(deal))}">${esc(addrOf(deal))}</span>${cells}</div>`;
+  }
+  // Sub-crew builds still appear — you need to know when they land — but with
+  // no numbers, because their days aren't ours to staff.
+  for(const deal of subDeals()){
+    let cells='';
+    days.forEach(d=>{
+      const running=tradesOn(deal,d).length>0;
+      const dow=new Date(d+'T00:00:00').getDay();
+      cells+=`<span class="mx-c sub${running?' on':''}${dow===0?' sun':''}${d===selDate?' sel':''}" data-day="${d}"
+        title="${esc(addrOf(deal))} · ${esc(crewName(deal))} · ${running?'working':'not scheduled'}"></span>`;
+    });
+    rows+=`<div class="mx-row" style="${gt}"><span class="mx-lbl" title="${esc(addrOf(deal))}">${esc(addrOf(deal))} <em class="crewtag">${esc(crewName(deal))}</em></span>${cells}</div>`;
   }
 
   let totalCells='';
@@ -499,7 +529,7 @@ function shortTrade(t){
 function suggestFor(date){
   const taken=new Set(assigns.filter(a=>a.work_date===date).map(a=>a.worker_id));
   const out=[];
-  for(const deal of deals){
+  for(const deal of ourDeals()){
     for(const {m,t} of tradesOn(deal,date)){
       const need=t.default_crew_size||0;
       if(need<=0)continue;
@@ -547,7 +577,7 @@ function render(){
   let dayCost=0, needTotal=0, gotTotal=0;
   const assignedIds=new Set(assigns.map(a=>a.worker_id));
   let sites='';
-  for(const deal of deals){
+  for(const deal of ourDeals()){
     const trades=tradesOn(deal, selDate);
     if(!trades.length)continue;
     let siteCost=0, siteNeed=0, siteGot=0;
@@ -581,7 +611,22 @@ function render(){
       ${rows}
     </div>`;
   }
-  if(!sites)sites='<div class="empty">No trades scheduled on any site this day.</div>';
+  if(!sites)sites='<div class="empty">Nothing on our crew this day.</div>';
+  let subs='';
+  for(const deal of subDeals()){
+    const trades=tradesOn(deal, selDate);
+    if(!trades.length)continue;
+    subs+=`<div class="site sub">
+      <div class="site-h">
+        <div>
+          <div class="addr"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a>, <span class="city">${esc(cityOf(deal))}</span>
+            <em class="crewtag">${esc(crewName(deal))}</em></div>
+          <div class="meta">day ${daysBetween(startOf(deal),selDate)} · ${trades.map(x=>esc(nameOf(x.m))).join(' · ')}</div>
+        </div>
+        <div class="rr">fixed price<div class="subnote">not staffed from our roster</div></div>
+      </div>
+    </div>`;
+  }
 
   const bench=workers.filter(w=>!assignedIds.has(w.id));
   const benchHtml=`<div class="bench">
@@ -608,7 +653,7 @@ function render(){
     const bud=(c.rehab_budget&&c.rehab_budget>0)?Math.round((c.rehab_actual||0)/c.rehab_budget*100):0;
     cards+=`<div class="wcard">
       <div class="wcard-h">
-        <div class="addr"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a></div>
+        <div class="addr"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a>${isOurs(deal)?'':`<em class="crewtag">${esc(crewName(deal))}</em>`}</div>
         <span class="pill ${pill}">${pillTxt}</span>
         <div class="rr">day ${st.elapsed} of ${st.totalDays}</div>
       </div>
@@ -636,7 +681,7 @@ function render(){
     <div class="strip">
       <div class="cell"><div class="k">Crew out today</div><div class="v">${gotTotal}${needTotal?' / '+needTotal:''}</div><div class="s">${bench.length} still on the bench</div></div>
       <div class="cell"><div class="k">Labor cost</div><div class="v">${FD(dayCost)}</div><div class="s">assigned people, ${fmtNum(selDate)}</div></div>
-      <div class="cell"><div class="k">Builds running</div><div class="v">${deals.length}</div><div class="s">${FK(deals.reduce((s,d)=>s+(Number(d.purchase_price)||0),0))} acquisition capital</div></div>
+      <div class="cell"><div class="k">Builds running</div><div class="v">${deals.length}</div><div class="s">${ourDeals().length} on our crew · ${subDeals().length} fixed price</div></div>
       <div class="cell"><div class="k">Worst slip</div><div class="v ${Math.max(...deals.map(d=>slipOf(d).slip))>7?'bad':''}">${Math.max(...deals.map(d=>slipOf(d).slip))} days</div><div class="s">${esc(addrOf([...deals].sort((a,b)=>slipOf(b).slip-slipOf(a).slip)[0]))}</div></div>
     </div>
     <div class="sect-h"><h2>The next two weeks</h2><span class="sub">crew each site needs, per day</span></div>
@@ -645,6 +690,7 @@ function render(){
       <button class="sugg" onclick="applySuggestion()">Suggest crew</button></div>
     ${suggestNote}
     ${sites}
+    ${subs}
     ${dblNote}
     ${benchHtml}
     <div class="sect-h"><h2>Crew &amp; skills</h2><span class="sub">click a square to say someone can do that trade</span></div>
