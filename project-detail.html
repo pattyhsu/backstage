@@ -1285,7 +1285,7 @@ async function loadProject(){
 
   // 5. Deal milestones.
   const {data:ms}=await sb.from('deal_milestones')
-    .select('id, deal_id, template_id, milestone_key, display_name, due_date, completed, completed_at, notes, not_applicable')
+    .select('id, deal_id, template_id, milestone_key, display_name, due_date, completed, completed_at, notes, not_applicable, planned_start, planned_end')
     .eq('deal_id', dealRow.id)
     .order('due_date', {ascending:true});
   dealMilestones=ms||[];
@@ -1795,6 +1795,19 @@ function updateAcqCard(viewing){
 // Brief CC — construction milestones for this deal, in template order.
 // Ordered by display_order, not due_date: the schedule ties on day 12
 // (roof + both rough-ins) and day 30 (bathrooms + countertop).
+// A trade's span: the COMMITTED plan where one exists, else the baseline span
+// the template implies off due_date. Same rule the Construction hub uses, so
+// pressing Re-plan there moves the bars here too — without it this page stays a
+// museum of the original schedule while the hub shows the current one.
+function spanDaysOf(m, start){
+  const t=constructionTemplate.find(x=>x.milestone_key===m.milestone_key)||{};
+  const dur=Math.max(t.default_duration_days||0,1);
+  if(m.planned_start && m.planned_end && start){
+    return {s:daysBetween(start,m.planned_start), e:daysBetween(start,m.planned_end), planned:true};
+  }
+  const e=(start&&m.due_date)?daysBetween(start,m.due_date):(t.default_offset_days||0);
+  return {s:Math.max(0,e-dur+1), e, planned:false};
+}
 function workerById(id){return rosterWorkers.find(w=>w.id===id)||null;}
 function initialsOf(w){return w?w.name.slice(0,2):'?';}
 // Who is named on a trade for a day. This is the shared record; the typed
@@ -1858,8 +1871,12 @@ function constructionState(){
   const applicable=ms.filter(m=>!m.not_applicable && tplCat.get(m.milestone_key)!=='procurement');
   const done=applicable.filter(m=>m.completed);
   const start=d.construction_start_date||d.actual_close_date||null;
-  const lastDue=ms.length?ms[ms.length-1].due_date:null;
+  // Prefer the committed plan's last day; fall back to the last baseline date.
+  const plannedEnds=ms.map(m=>m.planned_end).filter(Boolean).sort();
+  const lastDue=plannedEnds.length?plannedEnds[plannedEnds.length-1]
+    :(ms.length?ms[ms.length-1].due_date:null);
   const target=d.construction_complete_date||lastDue;
+  const anyPlanned=ms.some(m=>m.planned_start);
   const totalDays=(start&&target)?daysBetween(start,target):null;
   const elapsed=start?daysBetween(start,today):null;
   const open=applicable.filter(m=>!m.completed && m.due_date)
@@ -1872,7 +1889,7 @@ function constructionState(){
   // for being procurement, not for being inapplicable.
   const naCount=ms.filter(m=>m.not_applicable && tplCat.get(m.milestone_key)!=='procurement').length;
   return {
-    ms, applicable, done, start, target, totalDays, elapsed, oldestOpen, slip, overdue,
+    ms, applicable, done, start, target, totalDays, elapsed, oldestOpen, slip, overdue, anyPlanned,
     naCount,
     projFinish: (target && slip>0)?addDays(target, slip):target,
   };
@@ -1964,7 +1981,7 @@ function renderConstructionSection(){
       </div>
 
       <div class="sect">
-        <div class="sect-h"><h2>Build schedule</h2><span class="sub">${st.totalDays||36}-day sequence · check off as it lands · n/a for what doesn't apply</span></div>
+        <div class="sect-h"><h2>Build schedule</h2><span class="sub">${st.anyPlanned?`re-planned · runs to ${fmtNum(st.target)}`:`original ${st.totalDays||36}-day schedule · re-plan from the Construction hub`} · check off as it lands</span></div>
         ${renderBuildSchedule(st)}
       </div>
     </div>
@@ -2062,8 +2079,8 @@ function renderBuildSchedule(st){
       const dur=t.default_duration_days||0;
       const na=!!m.not_applicable;
       const overdue=!na && !m.completed && m.due_date && m.due_date<today;
-      const endDay=(st.start && m.due_date)?daysBetween(st.start, m.due_date):(t.default_offset_days||0);
-      const startDay=Math.max(0, endDay-Math.max(dur,1)+1);
+      const sp=spanDaysOf(m, st.start);
+      const endDay=sp.e, startDay=sp.s;
       const wmap=worked[m.milestone_key]||new Map();
       const color=na?'#C9C8C3':(COLOR[key]||'#888780');
       const planCrew=(t.default_crew_size==null)?1:t.default_crew_size;
