@@ -448,6 +448,17 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .ol-row.na { background:var(--bg); }
 .ol-row.na .ol-name, .ol-row.na .ol-due { color:var(--text-4); font-style:italic; text-decoration:none; }
 .ol-row.na .ms-na { background:var(--text-4); color:#fff; border-color:var(--text-4); }
+.gg-crew-chip { font-style:normal; font-size:10px; color:var(--text-3); margin-left:6px;
+  background:var(--bg-alt); border-radius:3px; padding:1px 4px; font-variant-numeric:tabular-nums; }
+.gg-crew-chip.none { color:var(--text-4); background:transparent; }
+.gg-crew-chip.sub { color:var(--accent); background:var(--accent-dim); }
+.gg-crewrow { border-top:1px solid var(--border); margin-top:8px; padding-top:7px; }
+.gg-crewrow .gg-name { font-size:10px; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--text-4); font-weight:600; }
+.gg-hc { font-size:9.5px; text-align:center; color:var(--text-3); font-variant-numeric:tabular-nums; }
+.gg-hc.peak { color:var(--red); font-weight:600; }
+.gg-hc.now { font-weight:700; color:var(--text); }
+.gg-help.warn { color:var(--amber); font-style:normal; }
 .gg-help { font-size:11px; color:var(--text-4); margin-top:11px; font-style:italic; }
 .ms-na { font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4);
   cursor:pointer; padding:1px 5px; border:1px solid var(--border); border-radius:3px; text-align:center; }
@@ -1255,7 +1266,7 @@ async function loadProject(){
   // migration hasn't been applied.
   try {
     const {data:ct, error:ctErr}=await sb.from('escrow_milestone_templates')
-      .select('milestone_key, display_name, default_offset_days, default_duration_days, category, display_order, required, description')
+      .select('milestone_key, display_name, default_offset_days, default_duration_days, default_crew_size, category, display_order, required, description')
       .eq('template_key','construction_v2')
       .order('display_order',{ascending:true});
     constructionTemplate=ctErr?[]:(ct||[]);
@@ -1965,6 +1976,8 @@ function renderBuildSchedule(st){
     axis+=`<span class="gg-ax${i===todayIdx?' now':''}">${show}</span>`;
   }
 
+  const crewByDay=new Array(cols).fill(0);
+  const unstaffed=[];
   let body='';
   for(const [key,label] of GROUPS){
     const rows=st.ms.filter(m=>(tpl.get(m.milestone_key)||{}).category===key);
@@ -1992,21 +2005,53 @@ function renderBuildSchedule(st){
       }
       const cnt=wset.size;
       const cls=[na?'na':'', m.completed?'done':'', overdue?'overdue':''].filter(Boolean).join(' ');
+      // Daily headcount: every planned day of an applicable trade adds its
+      // crew. A trade with no crew size set is skipped and flagged rather
+      // than counted as zero, which would understate the day.
+      const crew=t.default_crew_size;
+      if(!na && !m.completed){
+        if(crew==null)unstaffed.push(m.display_name);
+        else if(crew>0){ for(let i=startDay;i<=endDay && i<cols;i++)crewByDay[i]+=crew; }
+      }
+      const crewChip=(crew==null)
+        ? `<em class="gg-crew-chip none" title="Crew size not set">—</em>`
+        : (crew===0
+            ? `<em class="gg-crew-chip sub" title="Outside crew — not our people">sub</em>`
+            : `<em class="gg-crew-chip">${crew}p</em>`);
       body+=`<div class="gg-row ${cls}">
         <input type="checkbox" data-ms-id="${escapeHtml(m.id)}" ${m.completed?'checked':''} ${na?'disabled':''}>
-        <span class="gg-name">${escapeHtml(m.display_name)}${cnt?`<em class="gg-cnt">${cnt}d${dur?' / '+dur:''}</em>`:''}</span>
+        <span class="gg-name">${escapeHtml(m.display_name)}${crewChip}${cnt?`<em class="gg-cnt">${cnt}d${dur?' / '+dur:''}</em>`:''}</span>
         <div class="gg-grid" style="grid-template-columns:repeat(${cols},1fr)">${weekLines}${todayLine}${cells}</div>
         <span class="gg-due">${fmtNum(m.due_date)}</span>
         <span class="ms-na" data-ms-na="${escapeHtml(m.id)}" title="${na?'Mark applicable again':'Does not apply to this project'}">n/a</span>
       </div>`;
     }
   }
+  // How many people this site needs each day — the answer to "who do I send
+  // where tomorrow", per project. Only counts trades still open.
+  let crewCells='';
+  for(let i=0;i<cols;i++){
+    const n=crewByDay[i];
+    crewCells+=`<span class="gg-hc${i===todayIdx?' now':''}${n>=8?' peak':''}">${n||''}</span>`;
+  }
+  const todayCrew=(todayIdx!=null)?crewByDay[todayIdx]:null;
+  const crewRow=`<div class="gg-row gg-crewrow">
+    <span></span>
+    <span class="gg-name">Crew needed${todayCrew!=null?`<em class="gg-cnt">${todayCrew} today</em>`:''}</span>
+    <div class="gg-grid" style="grid-template-columns:repeat(${cols},1fr)">${weekLines}${todayLine}${crewCells}</div>
+    <span></span><span></span>
+  </div>`;
+  const gap=unstaffed.length
+    ? `<div class="gg-help warn">No crew size set for ${unstaffed.length} open ${unstaffed.length===1?'trade':'trades'} (${escapeHtml(unstaffed.join(', '))}) — those days are undercounted.</div>`
+    : '';
   return `<div class="gg-wrap">
     <div class="gg-row gg-axis"><span></span><span></span>
       <div class="gg-grid" style="grid-template-columns:repeat(${cols},1fr)">${weekLines}${axis}</div>
       <span></span><span></span></div>
     ${body}
+    ${crewRow}
     <div class="gg-help">Click a day to record that the trade worked it. Shaded = planned, solid = actually worked.</div>
+    ${gap}
   </div>`;
 }
 
