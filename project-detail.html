@@ -2246,24 +2246,51 @@ function renderCrewPicker(){
     el.addEventListener('click', ()=>toggleCrew(el.dataset.cp));
   });
 }
+// In-flight guard. The write is async and the local list only updates after
+// it returns, so two quick clicks on the same person both saw "not assigned"
+// and both inserted — which the unique constraint then rejected with a raw
+// duplicate-key alert.
+let crewBusy=new Set();
 async function toggleCrew(workerId){
   const {key, date}=pickerCtx;
-  const existing=dealAssignments.find(a=>a.milestone_key===key && a.work_date===date && a.worker_id===workerId);
-  if(existing){
-    const {error}=await sb.from('deal_work_assignments').delete().eq('id', existing.id);
-    if(error){alert('Remove failed: '+error.message);return;}
-    dealAssignments=dealAssignments.filter(a=>a.id!==existing.id);
-  } else {
-    const {data, error}=await sb.from('deal_work_assignments')
-      .insert({deal_id: currentDeal.id, milestone_key: key, work_date: date, worker_id: workerId})
-      .select('id, milestone_key, work_date, worker_id');
-    if(error){alert('Assign failed: '+error.message);return;}
-    if(data && data[0])dealAssignments.push(data[0]);
+  const token=key+'|'+date+'|'+workerId;
+  if(crewBusy.has(token))return;
+  crewBusy.add(token);
+  try {
+    const existing=dealAssignments.find(a=>a.milestone_key===key && a.work_date===date && a.worker_id===workerId);
+    if(existing){
+      const {error}=await sb.from('deal_work_assignments').delete().eq('id', existing.id);
+      if(error){alert('Remove failed: '+error.message);return;}
+      dealAssignments=dealAssignments.filter(a=>a.id!==existing.id);
+    } else {
+      const {data, error}=await sb.from('deal_work_assignments')
+        .insert({deal_id: currentDeal.id, milestone_key: key, work_date: date, worker_id: workerId})
+        .select('id, milestone_key, work_date, worker_id');
+      if(error){
+        // 23505: the row is already there — assigned from the hub, another tab,
+        // or a click this guard didn't catch. That's the state the user asked
+        // for, so adopt it instead of reporting a failure.
+        if(error.code==='23505' || /duplicate key/i.test(error.message||'')){
+          const {data:again}=await sb.from('deal_work_assignments')
+            .select('id, milestone_key, work_date, worker_id')
+            .eq('deal_id', currentDeal.id).eq('milestone_key', key)
+            .eq('work_date', date).eq('worker_id', workerId).limit(1);
+          if(again && again[0] && !dealAssignments.some(a=>a.id===again[0].id))dealAssignments.push(again[0]);
+        } else {
+          alert('Assign failed: '+error.message);
+          return;
+        }
+      } else if(data && data[0]){
+        dealAssignments.push(data[0]);
+      }
+    }
+    renderCrewPicker();
+    renderPage();
+    const el=document.getElementById('crewPick');
+    if(el)el.classList.add('open');
+  } finally {
+    crewBusy.delete(token);
   }
-  renderCrewPicker();
-  renderPage();
-  const el=document.getElementById('crewPick');
-  if(el)el.classList.add('open');
 }
 window.closeCrewPicker=closeCrewPicker;
 

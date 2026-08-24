@@ -778,8 +778,18 @@ function renderOvBody(){
     el.addEventListener('click', ()=>toggleWorker(el.dataset.worker));
   });
 }
+// Same in-flight guard as project-detail: the write is async, so rapid clicks
+// on one person raced and hit the unique constraint.
+const ovBusy=new Set();
 async function toggleWorker(workerId){
-  const existing=assigns.find(a=>a.deal_id===ovCtx.dealId&&a.milestone_key===ovCtx.key&&a.worker_id===workerId);
+  const token=ovCtx.dealId+'|'+ovCtx.key+'|'+selDate+'|'+workerId;
+  if(ovBusy.has(token))return;
+  ovBusy.add(token);
+  try{ await _toggleWorker(workerId); } finally { ovBusy.delete(token); }
+}
+async function _toggleWorker(workerId){
+  const existing=assigns.find(a=>a.deal_id===ovCtx.dealId&&a.milestone_key===ovCtx.key
+    &&a.work_date===selDate&&a.worker_id===workerId);
   if(existing){
     const {error}=await sb.from('deal_work_assignments').delete().eq('id',existing.id);
     if(error){alert('Remove failed: '+error.message);return;}
@@ -788,8 +798,17 @@ async function toggleWorker(workerId){
     const {data,error}=await sb.from('deal_work_assignments')
       .insert({deal_id:ovCtx.dealId, milestone_key:ovCtx.key, work_date:selDate, worker_id:workerId})
       .select('id, deal_id, milestone_key, work_date, worker_id');
-    if(error){alert('Assign failed: '+error.message);return;}
-    if(data&&data[0])assigns.push(data[0]);
+    if(error){
+      // Already assigned — adopt the existing row rather than reporting a
+      // failure for the state the user was asking for.
+      if(error.code==='23505' || /duplicate key/i.test(error.message||'')){
+        const {data:again}=await sb.from('deal_work_assignments')
+          .select('id, deal_id, milestone_key, work_date, worker_id')
+          .eq('deal_id',ovCtx.dealId).eq('milestone_key',ovCtx.key)
+          .eq('work_date',selDate).eq('worker_id',workerId).limit(1);
+        if(again&&again[0]&&!assigns.some(a=>a.id===again[0].id))assigns.push(again[0]);
+      } else { alert('Assign failed: '+error.message); return; }
+    } else if(data&&data[0]){ assigns.push(data[0]); }
   }
   renderOvBody();
   render();
