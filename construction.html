@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Construction — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js?v=20260731"></script>
+<style>
+/* === CONSTRUCTION HUB — local layout only === */
+/* Shell + sidebar: these live page-local in every Backstage tool (they are
+   not in backstage.css), so they're carried over verbatim from
+   pipeline.html rather than re-invented. */
+.app-shell { display:flex; height:100vh; }
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+.bs-sidebar.collapsed { width:56px; }
+.bs-sidebar.collapsed .side-brand span, .bs-sidebar.collapsed .side-section-label, .bs-sidebar.collapsed .side-label, .bs-sidebar.collapsed .side-user-name, .bs-sidebar.collapsed .lock-btn { display:none; }
+.bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+.bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+.bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+.bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+.bs-sidebar.collapsed .side-user { justify-content:center; }
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.lock-btn:hover { color:var(--text); }
+.app-shell { min-height:100vh; height:auto; }
+.main-content { flex:1; min-width:0; padding:22px 26px 70px; max-width:1180px; }
+
+.ch-hdr { display:flex; align-items:baseline; gap:12px; margin-bottom:18px; }
+.ch-hdr h1 { font-size:20px; font-weight:600; letter-spacing:-.01em; }
+.ch-hdr .sub { font-size:13px; color:var(--text-4); }
+.datenav { margin-left:auto; display:flex; align-items:center; gap:6px; }
+.datenav button { font:inherit; font-size:12px; padding:4px 9px; border:1px solid var(--border);
+  background:var(--bg); border-radius:var(--radius-sm); cursor:pointer; color:var(--text-2); }
+.datenav button:hover { border-color:var(--border-hover); }
+.datenav .cur { font-size:13px; font-weight:600; min-width:150px; text-align:center; }
+.datenav input[type=date] { font:inherit; font-size:12px; padding:3px 6px; border:1px solid var(--border);
+  border-radius:var(--radius-sm); background:var(--bg); color:var(--text-2); }
+
+.strip { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border);
+  border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:20px; }
+.cell { background:var(--bg); padding:13px 16px; }
+.cell .k { font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:var(--text-4);
+  font-weight:600; margin-bottom:4px; }
+.cell .v { font-size:20px; font-weight:600; letter-spacing:-.018em; font-variant-numeric:tabular-nums; }
+.cell .s { font-size:11px; color:var(--text-4); margin-top:2px; }
+.cell .v.bad { color:var(--red); }
+
+.sect-h { display:flex; align-items:baseline; gap:9px; margin:0 0 10px; }
+.sect-h h2 { font-size:15px; font-weight:600; }
+.sect-h .sub { font-size:12px; color:var(--text-4); }
+
+.site { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:14px 17px; margin-bottom:11px; }
+.site-h { display:flex; align-items:flex-start; gap:12px; margin-bottom:11px; }
+.site-h .addr { font-size:14.5px; font-weight:600; letter-spacing:-.01em; }
+.site-h .addr a { color:inherit; text-decoration:none; }
+.site-h .addr a:hover { color:var(--accent); }
+.site-h .addr .city { font-weight:400; color:var(--text-3); }
+.site-h .meta { font-size:11.5px; color:var(--text-4); margin-top:2px; }
+.site-h .rr { margin-left:auto; text-align:right; flex-shrink:0; font-size:11.5px; color:var(--text-4); }
+.site-h .rr .cost { font-size:14px; font-weight:600; color:var(--text); font-variant-numeric:tabular-nums; }
+
+.trade { display:grid; grid-template-columns:170px 60px 1fr; gap:10px; align-items:start;
+  padding:7px 0; border-top:1px solid var(--border); }
+.trade:first-of-type { border-top:none; }
+.trade .tn { font-size:13px; color:var(--text-2); }
+.trade .tn em { font-style:normal; font-size:10px; color:var(--text-4); display:block; }
+.trade .need { font-size:11px; color:var(--text-4); font-variant-numeric:tabular-nums; padding-top:2px; }
+.trade .need.met { color:var(--green); font-weight:600; }
+.trade .need.short { color:var(--amber); font-weight:600; }
+.chips { display:flex; flex-wrap:wrap; gap:5px; }
+.chip { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; padding:2px 7px;
+  border-radius:20px; background:var(--bg-alt); color:var(--text-2); }
+.chip .rate { color:var(--text-4); font-size:10px; font-variant-numeric:tabular-nums; }
+.chip .x { cursor:pointer; color:var(--text-4); font-size:12px; line-height:1; }
+.chip .x:hover { color:var(--red); }
+.chip.dbl { background:var(--red-bg); color:var(--red); }
+.chip-add { font-size:11.5px; padding:2px 8px; border-radius:20px; border:1px dashed var(--border-hover);
+  color:var(--text-4); cursor:pointer; background:none; font-family:inherit; }
+.chip-add:hover { border-color:var(--accent); color:var(--accent); }
+
+.bench { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:14px 17px; margin-bottom:20px; }
+.bench .chips { margin-top:8px; }
+.bench .chip { background:var(--green-bg); color:#1F6338; }
+.bench .none { font-size:12px; color:var(--text-4); font-style:italic; }
+
+.wcard { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:13px 17px; margin-bottom:10px; }
+.wcard-h { display:flex; align-items:baseline; gap:10px; }
+.wcard-h .addr { font-size:14px; font-weight:600; }
+.wcard-h .addr a { color:inherit; text-decoration:none; }
+.wcard-h .addr a:hover { color:var(--accent); }
+.wcard-h .rr { margin-left:auto; font-size:11.5px; color:var(--text-4); }
+.pill { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; }
+.pill.bad { background:var(--red-bg); color:var(--red); }
+.pill.warn { background:var(--amber-bg); color:var(--amber); }
+.pill.ok { background:var(--green-bg); color:var(--green); }
+.trk { position:relative; height:16px; background:var(--bg-inset); border-radius:4px;
+  overflow:hidden; margin:9px 0 4px; }
+.fill { position:absolute; left:0; top:0; bottom:0; background:var(--blue); opacity:.85; }
+.gap { position:absolute; top:0; bottom:0;
+  background:repeating-linear-gradient(-45deg,rgba(192,57,43,.16) 0 5px,rgba(192,57,43,.06) 5px 10px); }
+.now { position:absolute; top:0; bottom:0; width:2px; background:var(--red); }
+.wrows { display:grid; grid-template-columns:1fr 1fr; gap:8px 24px; margin-top:8px; }
+.bar .t { display:flex; justify-content:space-between; align-items:baseline; }
+.bar .l { font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:var(--text-4); font-weight:600; }
+.bar .p { font-size:11.5px; color:var(--text-2); font-variant-numeric:tabular-nums; }
+.bar .tk { height:6px; background:var(--bg-inset); border-radius:99px; overflow:hidden; margin-top:4px; }
+.bar .fl { height:100%; border-radius:99px; }
+
+.ov { position:fixed; inset:0; background:rgba(26,26,24,.35); display:none; align-items:center;
+  justify-content:center; z-index:50; }
+.ov.open { display:flex; }
+.ovcard { background:var(--bg); border-radius:var(--radius-lg); width:400px; max-height:78vh;
+  display:flex; flex-direction:column; box-shadow:var(--shadow-lg); }
+.ovhead { padding:14px 18px; border-bottom:1px solid var(--border); font-size:14px; font-weight:600;
+  display:flex; align-items:center; }
+.ovhead .x { margin-left:auto; cursor:pointer; color:var(--text-4); background:none; border:none;
+  font-size:15px; font-family:inherit; }
+.ovsub { font-size:11.5px; color:var(--text-4); font-weight:400; margin-top:2px; }
+.ovbody { overflow-y:auto; padding:6px 0; }
+.wrow { display:flex; align-items:center; gap:10px; padding:9px 18px; cursor:pointer; font-size:13px; }
+.wrow:hover { background:var(--bg-page); }
+.wrow .nm { font-weight:500; }
+.wrow .rt { margin-left:auto; font-size:11.5px; color:var(--text-4); font-variant-numeric:tabular-nums; }
+.wrow .st { font-size:11px; color:var(--amber); }
+.wrow.on { background:var(--accent-dim); }
+.wrow.on .nm { color:var(--accent); font-weight:600; }
+.empty { font-size:13px; color:var(--text-4); font-style:italic; padding:26px 0; text-align:center; }
+.note { font-size:11.5px; color:var(--text-4); margin-top:14px; }
+.note.warn { color:var(--red); }
+</style>
+</head>
+<body>
+<div class="app-shell">
+<div class="bs-sidebar" id="bsSidebar"></div>
+<div class="main-content">
+  <div class="ch-hdr">
+    <h1>Construction</h1>
+    <span class="sub" id="chSub"></span>
+    <div class="datenav">
+      <button id="dPrev">‹</button>
+      <span class="cur" id="dCur">—</span>
+      <button id="dNext">›</button>
+      <button id="dToday">Today</button>
+      <input type="date" id="dPick">
+    </div>
+  </div>
+  <div id="page"><div class="empty">Loading…</div></div>
+</div>
+</div>
+
+<div class="ov" id="ov" onclick="if(event.target===this)closeOv()">
+  <div class="ovcard">
+    <div class="ovhead"><div><span id="ovTitle">Assign</span><div class="ovsub" id="ovSub"></div></div>
+      <button class="x" onclick="closeOv()">✕</button></div>
+    <div class="ovbody" id="ovBody"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+
+let deals=[], propByMls={}, tpl=[], milestones=[], workers=[], assigns=[], costs={}, workdays=[];
+let selDate=todayStr();
+let ovCtx=null;
+
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function addDays(s,n){if(!s)return null;const d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function daysBetween(a,b){if(!a||!b)return null;const x=new Date(a+'T00:00:00'),y=new Date(b+'T00:00:00');
+  if(!isFinite(x)||!isFinite(y))return null;return Math.round((y-x)/86400000);}
+const DOW=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function longDate(s){const d=new Date(s+'T00:00:00');return DOW[d.getDay()]+' '+MON[d.getMonth()]+' '+d.getDate();}
+function fmtNum(s){if(!s)return '—';const p=String(s).split('-');return Number(p[1])+'/'+Number(p[2]);}
+function FD(n){return n==null||!isFinite(n)?'—':'$'+Math.round(n).toLocaleString();}
+function FK(n){if(n==null||!isFinite(n))return '—';if(Math.abs(n)>=1e6)return '$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';
+  if(Math.abs(n)>=1e3)return '$'+Math.round(n/1e3)+'K';return '$'+Math.round(n);}
+function titleCase(s){return String(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
+
+async function loadAll(){
+  const {data:d}=await sb.from('deals')
+    .select('id, buy_side_mls, construction_start_date, actual_close_date, gc_crew, purchase_price')
+    .eq('phase','under_construction');
+  deals=(d||[]).filter(x=>x.construction_start_date||x.actual_close_date)
+    .sort((a,b)=>(startOf(a)<startOf(b)?-1:1));
+
+  const mlss=deals.map(x=>x.buy_side_mls).filter(Boolean);
+  if(mlss.length){
+    const {data:p}=await sb.from('properties').select('mls, address, city, beds, baths, sqft').in('mls',mlss);
+    propByMls={}; for(const r of (p||[]))propByMls[r.mls]=r;
+  }
+  const {data:t}=await sb.from('escrow_milestone_templates')
+    .select('milestone_key, display_name, default_offset_days, default_duration_days, default_crew_size, category, display_order')
+    .eq('template_key','construction_v2').order('display_order');
+  tpl=t||[];
+
+  const ids=deals.map(x=>x.id);
+  if(ids.length){
+    const {data:m}=await sb.from('deal_milestones')
+      .select('deal_id, milestone_key, display_name, due_date, completed, not_applicable').in('deal_id',ids);
+    milestones=m||[];
+    const {data:c}=await sb.from('v_deal_cost_breakdown')
+      .select('deal_id, rehab_budget, rehab_actual').in('deal_id',ids);
+    costs={}; for(const r of (c||[]))costs[r.deal_id]=r;
+    const {data:wd}=await sb.from('deal_work_days')
+      .select('deal_id, milestone_key, work_date, crew_count').in('deal_id',ids);
+    workdays=wd||[];
+  }
+  const {data:w}=await sb.from('workers').select('id, name, daily_rate, active').eq('active',true).order('name');
+  workers=w||[];
+  await loadAssignments();
+}
+async function loadAssignments(){
+  const {data:a}=await sb.from('deal_work_assignments')
+    .select('id, deal_id, milestone_key, work_date, worker_id').eq('work_date',selDate);
+  assigns=a||[];
+}
+
+function startOf(d){return d.construction_start_date||d.actual_close_date;}
+function tplOf(k){return tpl.find(t=>t.milestone_key===k)||{};}
+// deal_milestones carries the name stamped at seed time; the template is the
+// fallback so a row seeded before a rename never renders as a raw key.
+function nameOf(m){return m.display_name||tplOf(m.milestone_key).display_name||m.milestone_key;}
+function addrOf(d){const p=propByMls[d.buy_side_mls]||{};return p.address?titleCase(p.address):(d.buy_side_mls||'—');}
+function cityOf(d){const p=propByMls[d.buy_side_mls]||{};return titleCase(p.city||'');}
+
+// Trades planned at a site on a given date. A trade is planned across the
+// window its template implies, ending on this deal's own due date — the same
+// derivation project-detail uses, so the two pages never disagree.
+function tradesOn(deal, date){
+  const start=startOf(deal);
+  const off=daysBetween(start, date);
+  if(off==null||off<0)return [];
+  const out=[];
+  for(const m of milestones.filter(x=>x.deal_id===deal.id)){
+    const t=tplOf(m.milestone_key);
+    if(!t.milestone_key||t.category==='procurement')continue;
+    if(m.not_applicable||m.completed)continue;
+    const dur=t.default_duration_days||0;
+    if(dur<=0)continue;
+    const end=m.due_date?daysBetween(start,m.due_date):(t.default_offset_days||0);
+    const s=Math.max(0,end-dur+1);
+    if(off>=s&&off<=end)out.push({m,t,startDay:s,endDay:end});
+  }
+  return out.sort((a,b)=>(a.t.display_order||0)-(b.t.display_order||0));
+}
+function assignedTo(dealId, key){
+  return assigns.filter(a=>a.deal_id===dealId&&a.milestone_key===key)
+    .map(a=>({a, w:workers.find(w=>w.id===a.worker_id)})).filter(x=>x.w);
+}
+function workerDayCount(workerId){return assigns.filter(a=>a.worker_id===workerId).length;}
+
+// Schedule slip for the watch-list: how far behind the oldest still-open
+// milestone has fallen. Same definition project-detail uses.
+function slipOf(deal){
+  const start=startOf(deal);
+  const ms=milestones.filter(m=>m.deal_id===deal.id&&!m.not_applicable&&tplOf(m.milestone_key).milestone_key);
+  const applicable=ms.filter(m=>tplOf(m.milestone_key).category!=='procurement');
+  const done=applicable.filter(m=>m.completed).length;
+  const open=applicable.filter(m=>!m.completed&&m.due_date).sort((a,b)=>a.due_date<b.due_date?-1:1);
+  const oldest=open[0]||null;
+  const today=todayStr();
+  const slip=(oldest&&oldest.due_date<today)?daysBetween(oldest.due_date,today):0;
+  const last=ms.map(m=>m.due_date).filter(Boolean).sort();
+  const target=last.length?last[last.length-1]:null;
+  return {start, done, total:applicable.length, oldest, slip, target,
+    elapsed:start?daysBetween(start,today):null,
+    totalDays:(start&&target)?daysBetween(start,target):36};
+}
+
+function render(){
+  const d=new Date(selDate+'T00:00:00');
+  document.getElementById('dCur').textContent=longDate(selDate);
+  document.getElementById('dPick').value=selDate;
+  document.getElementById('chSub').textContent=deals.length+(deals.length===1?' build in progress':' builds in progress');
+
+  if(!deals.length){
+    document.getElementById('page').innerHTML='<div class="empty">No builds under construction.</div>';
+    return;
+  }
+
+  let dayCost=0, needTotal=0, gotTotal=0;
+  const assignedIds=new Set(assigns.map(a=>a.worker_id));
+  let sites='';
+  for(const deal of deals){
+    const trades=tradesOn(deal, selDate);
+    if(!trades.length)continue;
+    let siteCost=0, siteNeed=0, siteGot=0;
+    let rows='';
+    for(const {m,t} of trades){
+      const need=t.default_crew_size==null?null:t.default_crew_size;
+      const people=assignedTo(deal.id, m.milestone_key);
+      siteGot+=people.length;
+      if(need!=null)siteNeed+=need;
+      for(const p of people)siteCost+=Number(p.w.daily_rate||0);
+      const cls=need==null?'':(people.length>=need?'met':(people.length?'short':'short'));
+      const chips=people.map(p=>{
+        const dbl=workerDayCount(p.w.id)>1;
+        return `<span class="chip${dbl?' dbl':''}" title="${dbl?'Also assigned elsewhere today':''}">${esc(p.w.name)}<span class="rate">${FD(p.w.daily_rate)}</span><span class="x" data-unassign="${p.a.id}">✕</span></span>`;
+      }).join('');
+      rows+=`<div class="trade">
+        <div class="tn">${esc(nameOf(m))}<em>due ${fmtNum(m.due_date)}</em></div>
+        <div class="need ${cls}">${people.length}${need==null?'':' / '+need}</div>
+        <div class="chips">${chips}<button class="chip-add" data-assign="${deal.id}|${esc(m.milestone_key)}|${esc(nameOf(m))}">+ assign</button></div>
+      </div>`;
+    }
+    dayCost+=siteCost; needTotal+=siteNeed; gotTotal+=siteGot;
+    sites+=`<div class="site">
+      <div class="site-h">
+        <div>
+          <div class="addr"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a>, <span class="city">${esc(cityOf(deal))}</span></div>
+          <div class="meta">day ${daysBetween(startOf(deal),selDate)} · ${trades.length} ${trades.length===1?'trade':'trades'} running${deal.gc_crew?' · '+esc(deal.gc_crew):''}</div>
+        </div>
+        <div class="rr"><div class="cost">${FD(siteCost)}</div>${siteGot} of ${siteNeed} needed</div>
+      </div>
+      ${rows}
+    </div>`;
+  }
+  if(!sites)sites='<div class="empty">No trades scheduled on any site this day.</div>';
+
+  const bench=workers.filter(w=>!assignedIds.has(w.id));
+  const benchHtml=`<div class="bench">
+    <div class="sect-h"><h2>Not assigned</h2><span class="sub">${bench.length} of ${workers.length} free on ${fmtNum(selDate)}</span></div>
+    ${bench.length?`<div class="chips">${bench.map(w=>`<span class="chip">${esc(w.name)}<span class="rate">${FD(w.daily_rate)}</span></span>`).join('')}</div>`
+      :'<div class="none">Everyone is on a site today.</div>'}
+  </div>`;
+
+  const dbl=workers.filter(w=>workerDayCount(w.id)>1);
+  const dblNote=dbl.length?`<div class="note warn">${dbl.map(w=>esc(w.name)).join(', ')} ${dbl.length===1?'is':'are'} assigned to more than one job today.</div>`:'';
+
+  // Watch-list: every build, whether or not anything runs today.
+  let cards='';
+  for(const deal of [...deals].sort((a,b)=>slipOf(b).slip-slipOf(a).slip)){
+    const st=slipOf(deal);
+    const c=costs[deal.id]||{};
+    const span=Math.max(st.totalDays||36, st.elapsed||0)||36;
+    const frontDay=st.oldest?Math.max(0,daysBetween(st.start,st.oldest.due_date)):span;
+    const frontPct=Math.min(100,Math.max(0,frontDay/span*100));
+    const nowPct=Math.min(100,Math.max(0,(st.elapsed||0)/span*100));
+    const pill=st.slip>7?'bad':(st.slip>0?'warn':'ok');
+    const pillTxt=st.slip>0?st.slip+' days behind':'On schedule';
+    const prog=st.total?Math.round(st.done/st.total*100):0;
+    const bud=(c.rehab_budget&&c.rehab_budget>0)?Math.round((c.rehab_actual||0)/c.rehab_budget*100):0;
+    cards+=`<div class="wcard">
+      <div class="wcard-h">
+        <div class="addr"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a></div>
+        <span class="pill ${pill}">${pillTxt}</span>
+        <div class="rr">day ${st.elapsed} of ${st.totalDays}</div>
+      </div>
+      <div class="trk">
+        <div class="fill" style="width:${frontPct}%"></div>
+        ${st.slip>0?`<div class="gap" style="left:${frontPct}%;width:${Math.max(0,nowPct-frontPct)}%"></div>`:''}
+        <div class="now" style="left:${nowPct}%"></div>
+      </div>
+      <div class="wrows">
+        <div class="bar"><div class="t"><span class="l">Progress</span><span class="p">${st.done} of ${st.total} · ${prog}%</span></div><div class="tk"><div class="fl" style="width:${prog}%;background:var(--blue)"></div></div></div>
+        <div class="bar"><div class="t"><span class="l">Budget</span><span class="p">${FD(c.rehab_actual||0)} / ${c.rehab_budget?FD(c.rehab_budget):'—'} · ${bud}%</span></div><div class="tk"><div class="fl" style="width:${Math.min(100,bud)}%;background:var(--accent)"></div></div></div>
+      </div>
+      ${st.oldest?`<div class="note">Oldest open · <b>${esc(nameOf(st.oldest))}</b> due ${fmtNum(st.oldest.due_date)}</div>`:''}
+    </div>`;
+  }
+
+  document.getElementById('page').innerHTML=`
+    <div class="strip">
+      <div class="cell"><div class="k">Crew out today</div><div class="v">${gotTotal}${needTotal?' / '+needTotal:''}</div><div class="s">${bench.length} still on the bench</div></div>
+      <div class="cell"><div class="k">Labor cost</div><div class="v">${FD(dayCost)}</div><div class="s">assigned people, ${fmtNum(selDate)}</div></div>
+      <div class="cell"><div class="k">Builds running</div><div class="v">${deals.length}</div><div class="s">${FK(deals.reduce((s,d)=>s+(Number(d.purchase_price)||0),0))} acquisition capital</div></div>
+      <div class="cell"><div class="k">Worst slip</div><div class="v ${Math.max(...deals.map(d=>slipOf(d).slip))>7?'bad':''}">${Math.max(...deals.map(d=>slipOf(d).slip))} days</div><div class="s">${esc(addrOf([...deals].sort((a,b)=>slipOf(b).slip-slipOf(a).slip)[0]))}</div></div>
+    </div>
+    <div class="sect-h"><h2>Who goes where</h2><span class="sub">${longDate(selDate)} · click + assign to put someone on a trade</span></div>
+    ${sites}
+    ${dblNote}
+    ${benchHtml}
+    <div class="sect-h"><h2>All builds</h2><span class="sub">sorted by slip, worst first</span></div>
+    ${cards}
+  `;
+  wire();
+}
+
+function wire(){
+  document.querySelectorAll('[data-unassign]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const id=el.dataset.unassign;
+      const {error}=await sb.from('deal_work_assignments').delete().eq('id',id);
+      if(error){alert('Remove failed: '+error.message);return;}
+      assigns=assigns.filter(a=>a.id!==id);
+      render();
+    });
+  });
+  document.querySelectorAll('[data-assign]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const [dealId,key,label]=el.dataset.assign.split('|');
+      openOv(dealId,key,label);
+    });
+  });
+}
+
+function openOv(dealId,key,label){
+  ovCtx={dealId,key};
+  const deal=deals.find(d=>d.id===dealId);
+  document.getElementById('ovTitle').textContent=label;
+  document.getElementById('ovSub').textContent=addrOf(deal)+' · '+longDate(selDate);
+  renderOvBody();
+  document.getElementById('ov').classList.add('open');
+}
+function renderOvBody(){
+  const here=new Set(assigns.filter(a=>a.deal_id===ovCtx.dealId&&a.milestone_key===ovCtx.key).map(a=>a.worker_id));
+  document.getElementById('ovBody').innerHTML=workers.map(w=>{
+    const elsewhere=assigns.find(a=>a.worker_id===w.id&&!(a.deal_id===ovCtx.dealId&&a.milestone_key===ovCtx.key));
+    let st='';
+    if(elsewhere){
+      const d=deals.find(x=>x.id===elsewhere.deal_id);
+      st=`<span class="st">on ${esc(addrOf(d))}</span>`;
+    }
+    return `<div class="wrow${here.has(w.id)?' on':''}" data-worker="${w.id}">
+      <span class="nm">${esc(w.name)}</span>${st}<span class="rt">${FD(w.daily_rate)}</span></div>`;
+  }).join('');
+  document.querySelectorAll('#ovBody .wrow').forEach(el=>{
+    el.addEventListener('click', ()=>toggleWorker(el.dataset.worker));
+  });
+}
+async function toggleWorker(workerId){
+  const existing=assigns.find(a=>a.deal_id===ovCtx.dealId&&a.milestone_key===ovCtx.key&&a.worker_id===workerId);
+  if(existing){
+    const {error}=await sb.from('deal_work_assignments').delete().eq('id',existing.id);
+    if(error){alert('Remove failed: '+error.message);return;}
+    assigns=assigns.filter(a=>a.id!==existing.id);
+  } else {
+    const {data,error}=await sb.from('deal_work_assignments')
+      .insert({deal_id:ovCtx.dealId, milestone_key:ovCtx.key, work_date:selDate, worker_id:workerId})
+      .select('id, deal_id, milestone_key, work_date, worker_id');
+    if(error){alert('Assign failed: '+error.message);return;}
+    if(data&&data[0])assigns.push(data[0]);
+  }
+  renderOvBody();
+  render();
+  document.getElementById('ov').classList.add('open');
+}
+function closeOv(){document.getElementById('ov').classList.remove('open');ovCtx=null;}
+window.closeOv=closeOv;
+
+async function setDate(s){selDate=s;await loadAssignments();render();}
+
+(async()=>{
+  await window.authGate();
+  if(!window.CURRENT_USER_ROLE)return;
+  window.renderSidebar('construction');
+  document.getElementById('dPrev').addEventListener('click',()=>setDate(addDays(selDate,-1)));
+  document.getElementById('dNext').addEventListener('click',()=>setDate(addDays(selDate,1)));
+  document.getElementById('dToday').addEventListener('click',()=>setDate(todayStr()));
+  document.getElementById('dPick').addEventListener('change',e=>{if(e.target.value)setDate(e.target.value);});
+  await loadAll();
+  render();
+})();
+</script>
+</body>
+</html>

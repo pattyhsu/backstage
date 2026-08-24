@@ -12,6 +12,7 @@ _tmp_*
 # Local dev tooling & backups
 .claude/
 .backups/
-_pd-local.html
+# Local render harnesses — these embed the SERVICE key. Never commit.
+_*-local.html
 HANDOFF.md
 make-pd-local.sh

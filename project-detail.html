@@ -1796,7 +1796,13 @@ function constructionState(){
   const d=currentDeal;
   const today=todayStr();
   const ms=constructionMilestones();
-  const applicable=ms.filter(m=>!m.not_applicable);
+  // Slip and progress measure the BUILD, so the order list is excluded. It has
+  // its own section with its own overdue dates, and letting an unticked
+  // "permit pulled" (day 0) anchor the slip would peg it at the age of the
+  // project forever and drown the trade that's actually holding things up.
+  // The Construction hub computes it the same way — the two must agree.
+  const tplCat=new Map(constructionTemplate.map(t=>[t.milestone_key, t.category]));
+  const applicable=ms.filter(m=>!m.not_applicable && tplCat.get(m.milestone_key)!=='procurement');
   const done=applicable.filter(m=>m.completed);
   const start=d.construction_start_date||d.actual_close_date||null;
   const lastDue=ms.length?ms[ms.length-1].due_date:null;
@@ -1808,9 +1814,13 @@ function constructionState(){
   const oldestOpen=open.length?open[0]:null;
   const slip=(oldestOpen && oldestOpen.due_date<today)?daysBetween(oldestOpen.due_date,today):0;
   const overdue=applicable.filter(m=>!m.completed && m.due_date && m.due_date<today).length;
+  // n/a count is of the BUILD rows only. Deriving it as ms.length - applicable
+  // .length would silently include the five order items, which are excluded
+  // for being procurement, not for being inapplicable.
+  const naCount=ms.filter(m=>m.not_applicable && tplCat.get(m.milestone_key)!=='procurement').length;
   return {
     ms, applicable, done, start, target, totalDays, elapsed, oldestOpen, slip, overdue,
-    naCount: ms.length-applicable.length,
+    naCount,
     projFinish: (target && slip>0)?addDays(target, slip):target,
   };
 }

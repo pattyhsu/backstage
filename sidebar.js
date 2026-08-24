@@ -36,7 +36,7 @@
     {
       label: 'Projects',
       items: [
-        { key: 'construction', label: 'Construction', href: null, icon: iconConstruction() },
+        { key: 'construction', label: 'Construction', href: 'construction.html', icon: iconConstruction() },
         { key: 'listings',     label: 'Listings',     href: null, icon: iconListings() },
       ],
     },
