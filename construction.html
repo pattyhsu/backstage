@@ -97,6 +97,8 @@ h2 { font-size:14.5px; font-weight:600; }
 .replan { display:inline-flex; align-items:center; gap:4px; margin-left:auto; }
 .replan input { font:inherit; font-size:11px; padding:2px 5px; border:1px solid var(--border);
   border-radius:4px; background:var(--bg); color:var(--text-2); }
+.replan button.clr { border-color:var(--border); background:var(--bg); color:var(--text-4); font-weight:400; }
+.replan button.clr:hover { border-color:var(--border-hover); color:var(--text-2); }
 .replan button { font:inherit; font-size:11px; padding:2px 8px; border:1px solid var(--accent);
   background:var(--accent-dim); color:var(--accent); border-radius:4px; cursor:pointer; font-weight:600; }
 .dot { width:8px; height:8px; border-radius:2px; display:inline-block; margin-right:5px; }
@@ -351,8 +353,11 @@ function render(){
       ${fin?(anyPlanned
         ? `<span class="slip">finishes ${md(fin)}${over>0?' — '+over+' past baseline':''}</span>`
         : `<span class="stale">baseline ran to ${md(fin)} — no committed plan, re-plan to schedule the rest</span>`):''}
+      ${(anyPlanned&&deal.plan_baselined_at)?`<span class="meta">planned ${md(String(deal.plan_baselined_at).slice(0,10))}</span>`:''}
       <span class="replan"><input type="date" id="rb-${deal.id}" value="${TODAY}">
-        <button onclick="rebaseline('${deal.id}')">Re-plan</button></span></div>`;
+        <button onclick="rebaseline('${deal.id}')">Re-plan</button>
+        ${anyPlanned?`<button class="clr" onclick="clearPlan('${deal.id}')" title="Back to baseline dates">Clear</button>`:''}
+      </span></div>`;
 
     if(col){
       const ss=open.map(m=>spanOf(deal,m)).filter(Boolean);
@@ -522,6 +527,22 @@ async function rebaseline(dealId){
   alert('Re-planned '+data+' trades.');
 }
 window.rebaseline=rebaseline;
+
+// The one thing Re-plan can't undo on its own: getting back to "no committed
+// plan". Re-planning is idempotent — the shift is always derived from the
+// template and the build's start date, never from the previous plan — so a
+// wrong date is fixed by re-planning with the right one. This is for backing
+// out of having a plan at all.
+async function clearPlan(dealId){
+  const deal=deals.find(x=>x.id===dealId);
+  if(!confirm('Clear the committed plan for '+addrOf(deal)+'?\n\nIts trades go back to the original baseline dates. Nothing else changes.'))return;
+  const {error}=await sb.from('deal_milestones')
+    .update({planned_start:null, planned_end:null}).eq('deal_id',dealId);
+  if(error){alert('Clear failed: '+error.message);return;}
+  await sb.from('deals').update({plan_baselined_at:null}).eq('id',dealId);
+  await loadAll(); render();
+}
+window.clearPlan=clearPlan;
 
 async function unassign(id){
   const {error}=await sb.from('deal_work_assignments').delete().eq('id',id);
