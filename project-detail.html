@@ -417,7 +417,10 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .gg-cnt { font-style:normal; font-size:10.5px; color:var(--text-4); margin-left:6px;
   font-variant-numeric:tabular-nums; }
 .gg-grid { position:relative; display:grid; gap:1px; height:17px; }
-.gg-c { display:block; height:100%; border-radius:2px; background:var(--bg-alt); cursor:pointer; }
+.gg-c { display:block; height:100%; border-radius:2px; background:var(--bg-alt); cursor:pointer;
+  font-size:9px; font-style:normal; line-height:17px; text-align:center; color:transparent;
+  font-variant-numeric:tabular-nums; user-select:none; }
+.gg-c.work { color:#fff; font-weight:600; }
 .gg-c:hover { outline:1px solid var(--border-strong); outline-offset:-1px; }
 .gg-now { position:absolute; top:-2px; bottom:-2px; width:1px; background:var(--red); opacity:.6;
   pointer-events:none; z-index:2; }
@@ -458,6 +461,11 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .gg-hc { font-size:9.5px; text-align:center; color:var(--text-3); font-variant-numeric:tabular-nums; }
 .gg-hc.peak { color:var(--red); font-weight:600; }
 .gg-hc.now { font-weight:700; color:var(--text); }
+.gg-actualrow { padding-top:2px; }
+.gg-actualrow .gg-name { font-size:10px; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--text-4); font-weight:600; }
+.gg-hc.short { color:var(--amber); font-weight:600; }
+.gg-hc.over { color:var(--green); font-weight:600; }
 .gg-help.warn { color:var(--amber); font-style:normal; }
 .gg-help { font-size:11px; color:var(--text-4); margin-top:11px; font-style:italic; }
 .ms-na { font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4);
@@ -1276,7 +1284,7 @@ async function loadProject(){
   // schedule rendering (planned only) if the migration hasn't been applied.
   try {
     const {data:wd, error:wdErr}=await sb.from('deal_work_days')
-      .select('id, milestone_key, work_date')
+      .select('id, milestone_key, work_date, crew_count')
       .eq('deal_id', dealRow.id);
     dealWorkDays=wdErr?[]:(wd||[]);
   } catch(e){ dealWorkDays=[]; }
@@ -1948,7 +1956,8 @@ function renderBuildSchedule(st){
   for(const w of dealWorkDays){
     const off=st.start?daysBetween(st.start, w.work_date):null;
     if(off==null)continue;
-    (worked[w.milestone_key]=worked[w.milestone_key]||new Set()).add(off);
+    (worked[w.milestone_key]=worked[w.milestone_key]||new Map())
+      .set(off, w.crew_count==null?1:w.crew_count);
   }
   const todayLine=todayIdx==null?'':`<i class="gg-now" style="left:${(todayIdx+0.5)/cols*100}%"></i>`;
 
@@ -1990,20 +1999,26 @@ function renderBuildSchedule(st){
       const overdue=!na && !m.completed && m.due_date && m.due_date<today;
       const endDay=(st.start && m.due_date)?daysBetween(st.start, m.due_date):(t.default_offset_days||0);
       const startDay=Math.max(0, endDay-Math.max(dur,1)+1);
-      const wset=worked[m.milestone_key]||new Set();
+      const wmap=worked[m.milestone_key]||new Map();
       const color=na?'#C9C8C3':(COLOR[key]||'#888780');
+      const planCrew=(t.default_crew_size==null)?1:t.default_crew_size;
       let cells='';
       for(let i=0;i<cols;i++){
         const planned=(i>=startDay && i<=endDay);
-        const did=wset.has(i);
+        const did=wmap.has(i);
+        const n=did?wmap.get(i):null;
         const date=addDays(st.start||today, i);
         const cls=['gg-c', planned?'plan':'', did?'work':'', i===todayIdx?'now':''].filter(Boolean).join(' ');
         const bg=did?color:(planned?color+'2E':'');
+        const tip=did
+          ? `${m.display_name} · ${fmtMD(date)} · ${n===0?'outside crew':n+(n===1?' person':' people')}`
+          : `${m.display_name} · ${fmtMD(date)}${planned?' · planned '+planCrew:''}`;
         cells+=`<i class="${cls}" data-wd-key="${escapeHtml(m.milestone_key)}" data-wd-date="${date}"`
+             +` data-wd-plan="${planCrew}" data-wd-crew="${did?n:''}"`
              +(bg?` style="background:${bg}"`:'')
-             +` title="${escapeHtml(m.display_name)} · ${fmtMD(date)}${did?' · worked':(planned?' · planned':'')}"></i>`;
+             +` title="${escapeHtml(tip)}">${did?(n===0?'·':n):''}</i>`;
       }
-      const cnt=wset.size;
+      const cnt=wmap.size;
       const cls=[na?'na':'', m.completed?'done':'', overdue?'overdue':''].filter(Boolean).join(' ');
       // Daily headcount: every planned day of an applicable trade adds its
       // crew. A trade with no crew size set is skipped and flagged rather
@@ -2035,12 +2050,34 @@ function renderBuildSchedule(st){
     crewCells+=`<span class="gg-hc${i===todayIdx?' now':''}${n>=8?' peak':''}">${n||''}</span>`;
   }
   const todayCrew=(todayIdx!=null)?crewByDay[todayIdx]:null;
+  // What actually turned up, against what was planned. Only rendered once
+  // there's something to compare — an all-zero row is noise.
+  const actualByDay=new Array(cols).fill(0);
+  let anyActual=false;
+  for(const w of dealWorkDays){
+    const off=st.start?daysBetween(st.start, w.work_date):null;
+    if(off==null || off<0 || off>=cols)continue;
+    actualByDay[off]+=(w.crew_count==null?1:w.crew_count);
+    anyActual=true;
+  }
+  let actualCells='';
+  for(let i=0;i<cols;i++){
+    const a=actualByDay[i], pl=crewByDay[i];
+    const short=(pl>0 && a<pl), over=(a>pl && pl>0);
+    actualCells+=`<span class="gg-hc${i===todayIdx?' now':''}${short?' short':''}${over?' over':''}">${a||''}</span>`;
+  }
   const crewRow=`<div class="gg-row gg-crewrow">
     <span></span>
     <span class="gg-name">Crew needed${todayCrew!=null?`<em class="gg-cnt">${todayCrew} today</em>`:''}</span>
     <div class="gg-grid" style="grid-template-columns:repeat(${cols},1fr)">${weekLines}${todayLine}${crewCells}</div>
     <span></span><span></span>
-  </div>`;
+  </div>`
+  +(anyActual?`<div class="gg-row gg-actualrow">
+    <span></span>
+    <span class="gg-name">Crew actual</span>
+    <div class="gg-grid" style="grid-template-columns:repeat(${cols},1fr)">${weekLines}${todayLine}${actualCells}</div>
+    <span></span><span></span>
+  </div>`:'');
   const gap=unstaffed.length
     ? `<div class="gg-help warn">No crew size set for ${unstaffed.length} open ${unstaffed.length===1?'trade':'trades'} (${escapeHtml(unstaffed.join(', '))}) — those days are undercounted.</div>`
     : '';
@@ -2050,13 +2087,15 @@ function renderBuildSchedule(st){
       <span></span><span></span></div>
     ${body}
     ${crewRow}
-    <div class="gg-help">Click a day to record that the trade worked it. Shaded = planned, solid = actually worked.</div>
+    <div class="gg-help">Click a day to log the planned crew, click again to step it down, shift-click to add people. Shaded = planned, solid = actually worked.</div>
     ${gap}
   </div>`;
 }
 
-// Day-cell toggle. Optimistic: flip the cell, then write. Full re-render would
-// fight rapid clicking across a row, so only the counts refresh in place.
+// Day-cell entry. A plain click logs the planned crew, then steps it down one
+// person per click until it clears — most days run the planned crew and the
+// exception is fewer, so that's the cheap path. Shift-click adds people for
+// the days that run heavier. Optimistic: the cell updates first, then writes.
 function wireWorkDays(){
   const wrap=document.querySelector('.gg-wrap');
   if(!wrap)return;
@@ -2066,26 +2105,64 @@ function wireWorkDays(){
     const row=cell.closest('.gg-row');
     if(row && row.classList.contains('na'))return;
     const key=cell.dataset.wdKey, date=cell.dataset.wdDate;
-    const was=cell.classList.contains('work');
-    const tpl=constructionTemplate.find(t=>t.milestone_key===key)||{};
-    const COLOR={procurement:'#D85A30', structural:'#7F77DD', finishes:'#1D9E75', closeout:'#888780'};
-    const color=COLOR[tpl.category]||'#888780';
-    // Optimistic flip.
-    cell.classList.toggle('work', !was);
-    cell.style.background = was ? (cell.classList.contains('plan')?color+'2E':'') : color;
-    if(was){
-      const {error}=await sb.from('deal_work_days').delete()
-        .eq('deal_id', currentDeal.id).eq('milestone_key', key).eq('work_date', date);
-      if(error){cell.classList.add('work');cell.style.background=color;alert('Save failed: '+error.message);return;}
-      dealWorkDays=dealWorkDays.filter(w=>!(w.milestone_key===key && w.work_date===date));
+    const plan=Number(cell.dataset.wdPlan||1);
+    const cur=cell.dataset.wdCrew===''?null:Number(cell.dataset.wdCrew);
+    let next;
+    if(e.shiftKey){
+      next=(cur==null)?1:Math.min(20, cur+1);
+    } else if(cur==null){
+      next=plan;                     // first click: the trade's planned crew
+    } else if(cur<=1){
+      next=null;                     // stepping below one clears the day
     } else {
-      const {error}=await sb.from('deal_work_days')
-        .insert({deal_id: currentDeal.id, milestone_key: key, work_date: date});
-      if(error){cell.classList.remove('work');cell.style.background=cell.classList.contains('plan')?color+'2E':'';alert('Save failed: '+error.message);return;}
-      dealWorkDays.push({milestone_key:key, work_date:date});
+      next=cur-1;
     }
+    const prev=cur;
+    _paintCell(cell, next);
+    const ok=await _saveWorkDay(key, date, prev, next);
+    if(!ok){_paintCell(cell, prev);return;}
     _refreshWorkCounts();
   });
+}
+function _paintCell(cell, n){
+  const tpl=constructionTemplate.find(t=>t.milestone_key===cell.dataset.wdKey)||{};
+  const COLOR={procurement:'#D85A30', structural:'#7F77DD', finishes:'#1D9E75', closeout:'#888780'};
+  const color=COLOR[tpl.category]||'#888780';
+  if(n==null){
+    cell.classList.remove('work');
+    cell.dataset.wdCrew='';
+    cell.textContent='';
+    cell.style.background=cell.classList.contains('plan')?color+'2E':'';
+  } else {
+    cell.classList.add('work');
+    cell.dataset.wdCrew=String(n);
+    cell.textContent=(n===0)?'·':String(n);
+    cell.style.background=color;
+  }
+}
+// prev == null → insert; next == null → delete; otherwise update the count.
+async function _saveWorkDay(key, date, prev, next){
+  if(next==null){
+    const {error}=await sb.from('deal_work_days').delete()
+      .eq('deal_id', currentDeal.id).eq('milestone_key', key).eq('work_date', date);
+    if(error){alert('Save failed: '+error.message);return false;}
+    dealWorkDays=dealWorkDays.filter(w=>!(w.milestone_key===key && w.work_date===date));
+    return true;
+  }
+  if(prev==null){
+    const {data, error}=await sb.from('deal_work_days')
+      .insert({deal_id: currentDeal.id, milestone_key: key, work_date: date, crew_count: next})
+      .select('id, milestone_key, work_date, crew_count');
+    if(error){alert('Save failed: '+error.message);return false;}
+    dealWorkDays.push((data && data[0])||{milestone_key:key, work_date:date, crew_count:next});
+    return true;
+  }
+  const {error}=await sb.from('deal_work_days').update({crew_count: next})
+    .eq('deal_id', currentDeal.id).eq('milestone_key', key).eq('work_date', date);
+  if(error){alert('Save failed: '+error.message);return false;}
+  const row=dealWorkDays.find(w=>w.milestone_key===key && w.work_date===date);
+  if(row)row.crew_count=next;
+  return true;
 }
 function _refreshWorkCounts(){
   const tpl=new Map(constructionTemplate.map(t=>[t.milestone_key, t]));
@@ -2102,6 +2179,27 @@ function _refreshWorkCounts(){
     if(!n){ if(em)em.remove(); return; }
     if(!em){ em=document.createElement('em'); em.className='gg-cnt'; name.appendChild(em); }
     em.textContent=n+'d'+(dur?' / '+dur:'');
+  });
+  _refreshActualCrewRow();
+}
+// Recompute the "Crew actual" footer from the cells themselves, so it tracks
+// entry without a full page re-render (which would fight rapid clicking).
+function _refreshActualCrewRow(){
+  const rowEl=document.querySelector('.gg-actualrow .gg-grid');
+  const plannedEls=document.querySelectorAll('.gg-crewrow .gg-hc');
+  if(!rowEl)return;
+  const cells=rowEl.querySelectorAll('.gg-hc');
+  const totals=new Array(cells.length).fill(0);
+  document.querySelectorAll('.gg-row:not(.gg-crewrow):not(.gg-actualrow) .gg-c.work').forEach(c=>{
+    const grid=c.parentElement;
+    const idx=Array.prototype.indexOf.call(grid.querySelectorAll('.gg-c'), c);
+    if(idx>=0 && idx<totals.length)totals[idx]+=Number(c.dataset.wdCrew||0);
+  });
+  cells.forEach((el,i)=>{
+    const planned=Number((plannedEls[i]||{}).textContent||0);
+    el.textContent=totals[i]||'';
+    el.classList.toggle('short', planned>0 && totals[i]<planned);
+    el.classList.toggle('over', planned>0 && totals[i]>planned);
   });
 }
 
