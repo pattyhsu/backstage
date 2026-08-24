@@ -421,6 +421,8 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .gg-c:hover { outline:1px solid var(--border-strong); outline-offset:-1px; }
 .gg-now { position:absolute; top:-2px; bottom:-2px; width:1px; background:var(--red); opacity:.6;
   pointer-events:none; z-index:2; }
+.gg-week { position:absolute; top:-3px; bottom:-3px; width:1px; background:var(--border-strong);
+  opacity:.45; pointer-events:none; z-index:1; }
 .gg-due { font-size:11px; color:var(--text-4); font-variant-numeric:tabular-nums; text-align:right; }
 .gg-axis { padding-bottom:5px; border-bottom:1px solid var(--border); margin-bottom:4px; }
 .gg-axis .gg-grid { height:12px; }
@@ -1740,6 +1742,19 @@ function fmtMD(dateStr){
   if(p.length<3)return dateStr;
   return _MON[Number(p[1])-1]+' '+Number(p[2]);
 }
+// Compact numeric form (7/20) for the dense grid — axis and due column. The
+// prose contexts (slip banner, projected finish) keep the month name, where
+// they read as a sentence rather than a column.
+function fmtNum(dateStr){
+  if(!dateStr)return '—';
+  const p=String(dateStr).split('-');
+  if(p.length<3)return dateStr;
+  return Number(p[1])+'/'+Number(p[2]);
+}
+function dowOf(dateStr){
+  const d=new Date(dateStr+'T00:00:00');
+  return isFinite(d)?d.getDay():null;   // 0 = Sunday, 1 = Monday
+}
 
 // Schedule state for the whole construction phase. The number that matters is
 // the SLIP: not "how many days have passed" (that's just the calendar) but how
@@ -1885,13 +1900,26 @@ function renderBuildSchedule(st){
   const todayLine=todayIdx==null?'':`<i class="gg-now" style="left:${(todayIdx+0.5)/cols*100}%"></i>`;
 
   // Axis shares the same grid, so ticks line up with the columns exactly.
+  // Week rhythm: a soft divider before each Monday, so it's obvious where one
+  // work week ends and the next begins. Labels sit on the same boundaries —
+  // Mondays plus day 0 and today — rather than every Nth column, which drifts
+  // across weekdays and makes the grid harder to read against a calendar.
+  const anchor=st.start||today;
+  let weekLines='';
+  const mondays=[];
+  for(let i=1;i<cols;i++){
+    if(dowOf(addDays(anchor,i))===1){
+      mondays.push(i);
+      weekLines+=`<i class="gg-week" style="left:${i/cols*100}%"></i>`;
+    }
+  }
+  const labelled=new Set([0, ...mondays]);
   let axis='';
   for(let i=0;i<cols;i++){
-    // Dates read faster than day numbers when you're matching the grid against
-    // what the crew actually did. Every 6th column, plus today — and a date is
-    // dropped when it would sit on top of the today label.
-    const near=(todayIdx!=null && i!==todayIdx && Math.abs(i-todayIdx)<=2);
-    const show=(i===todayIdx)?'today':((i%6===0 && !near)?fmtMD(addDays(st.start||today, i)):'');
+    // Drop a date that would collide with the today label or with day 0.
+    const crowded=(todayIdx!=null && i!==todayIdx && Math.abs(i-todayIdx)<=2)
+               || (i!==0 && i<=2);
+    const show=(i===todayIdx)?'today':((labelled.has(i) && !crowded)?fmtNum(addDays(anchor, i)):'');
     axis+=`<span class="gg-ax${i===todayIdx?' now':''}">${show}</span>`;
   }
 
@@ -1925,15 +1953,15 @@ function renderBuildSchedule(st){
       body+=`<div class="gg-row ${cls}">
         <input type="checkbox" data-ms-id="${escapeHtml(m.id)}" ${m.completed?'checked':''} ${na?'disabled':''}>
         <span class="gg-name">${escapeHtml(m.display_name)}${cnt?`<em class="gg-cnt">${cnt}d${dur?' / '+dur:''}</em>`:''}</span>
-        <div class="gg-grid" style="grid-template-columns:repeat(${cols},1fr)">${todayLine}${cells}</div>
-        <span class="gg-due">${fmtMD(m.due_date)}</span>
+        <div class="gg-grid" style="grid-template-columns:repeat(${cols},1fr)">${weekLines}${todayLine}${cells}</div>
+        <span class="gg-due">${fmtNum(m.due_date)}</span>
         <span class="ms-na" data-ms-na="${escapeHtml(m.id)}" title="${na?'Mark applicable again':'Does not apply to this project'}">n/a</span>
       </div>`;
     }
   }
   return `<div class="gg-wrap">
     <div class="gg-row gg-axis"><span></span><span></span>
-      <div class="gg-grid" style="grid-template-columns:repeat(${cols},1fr)">${axis}</div>
+      <div class="gg-grid" style="grid-template-columns:repeat(${cols},1fr)">${weekLines}${axis}</div>
       <span></span><span></span></div>
     ${body}
     <div class="gg-help">Click a day to record that the trade worked it. Shaded = planned, solid = actually worked.</div>
