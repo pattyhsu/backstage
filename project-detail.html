@@ -400,7 +400,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .cn-bar2 .fill.gold { background:var(--accent); }
 .cn-bar2 .fill.over { background:var(--red); }
 
-/* Brief CC — construction schedule: slip banner + Gantt build schedule */
+/* Brief CC — construction schedule: slip banner + clickable day grid */
 .cs-slip { display:flex; align-items:baseline; gap:8px; padding:9px 12px; border-radius:6px;
   margin-bottom:14px; font-size:13px; }
 .cs-slip.behind { background:#FBEDEB; color:#8C2B1F; }
@@ -409,29 +409,32 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .cs-slip .why { font-size:12px; opacity:.85; }
 .cs-proj { font-size:11px; color:var(--text-4); margin-top:-8px; margin-bottom:14px;
   font-variant-numeric:tabular-nums; }
-.gt-wrap { display:flex; flex-direction:column; }
-.gt-row { display:grid; grid-template-columns:18px 190px 1fr 42px 30px; align-items:center;
-  gap:10px; padding:4px 0; font-size:13px; color:var(--text-2); }
-.gt-row input[type=checkbox] { cursor:pointer; margin:0; }
-.gt-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.gt-track { position:relative; height:16px; }
-.gt-bar { position:absolute; top:3px; height:10px; border-radius:3px; }
-.gt-dot { position:absolute; top:4px; width:8px; height:8px; border-radius:50%; margin-left:-4px; }
-.gt-today { position:absolute; top:-2px; bottom:-2px; width:1px; background:var(--red); opacity:.55; }
-.gt-due { font-size:11px; color:var(--text-4); font-variant-numeric:tabular-nums; text-align:right; }
-.gt-axis { padding-bottom:6px; border-bottom:1px solid var(--border); margin-bottom:4px; }
-.gt-axis .gt-track { height:13px; }
-.gt-tick { position:absolute; top:0; font-size:10px; color:var(--text-4); transform:translateX(-50%);
-  font-variant-numeric:tabular-nums; white-space:nowrap; }
-.gt-tick.now { color:var(--red); font-weight:600; }
-.gt-band { font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4);
-  padding:12px 0 3px; margin-top:4px; border-top:1px solid var(--border); }
-.gt-band:first-of-type { border-top:none; margin-top:0; }
-.gt-row.done .gt-name { text-decoration:line-through; color:var(--text-4); }
-.gt-row.done .gt-bar, .gt-row.done .gt-dot { opacity:.4; }
-.gt-row.overdue .gt-due { color:var(--red); font-weight:600; }
-.gt-row.na .gt-name { color:var(--text-4); font-style:italic; }
-.gt-row.na .gt-due { color:var(--text-4); }
+.gg-wrap { display:flex; flex-direction:column; }
+.gg-row { display:grid; grid-template-columns:18px 208px 1fr 44px 30px; align-items:center;
+  gap:10px; padding:2px 0; font-size:13px; color:var(--text-2); }
+.gg-row input[type=checkbox] { cursor:pointer; margin:0; }
+.gg-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.gg-cnt { font-style:normal; font-size:10.5px; color:var(--text-4); margin-left:6px;
+  font-variant-numeric:tabular-nums; }
+.gg-grid { position:relative; display:grid; gap:1px; height:17px; }
+.gg-c { display:block; height:100%; border-radius:2px; background:var(--bg-alt); cursor:pointer; }
+.gg-c:hover { outline:1px solid var(--border-strong); outline-offset:-1px; }
+.gg-now { position:absolute; top:-2px; bottom:-2px; width:1px; background:var(--red); opacity:.6;
+  pointer-events:none; z-index:2; }
+.gg-due { font-size:11px; color:var(--text-4); font-variant-numeric:tabular-nums; text-align:right; }
+.gg-axis { padding-bottom:5px; border-bottom:1px solid var(--border); margin-bottom:4px; }
+.gg-axis .gg-grid { height:12px; }
+.gg-ax { font-size:9.5px; color:var(--text-4); text-align:center; white-space:nowrap;
+  font-variant-numeric:tabular-nums; overflow:visible; }
+.gg-ax.now { color:var(--red); font-weight:600; }
+.gg-band { font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4);
+  padding:11px 0 3px; margin-top:3px; border-top:1px solid var(--border); }
+.gg-band:first-of-type { border-top:none; margin-top:0; }
+.gg-row.done .gg-name { text-decoration:line-through; color:var(--text-4); }
+.gg-row.overdue .gg-due { color:var(--red); font-weight:600; }
+.gg-row.na .gg-name { color:var(--text-4); font-style:italic; }
+.gg-row.na .gg-c { cursor:default; }
+.gg-help { font-size:11px; color:var(--text-4); margin-top:11px; font-style:italic; }
 .ms-na { font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4);
   cursor:pointer; padding:1px 5px; border:1px solid var(--border); border-radius:3px; text-align:center; }
 .ms-na:hover { border-color:var(--text-4); color:var(--text-2); }
@@ -1129,6 +1132,7 @@ let propertiesByMls={};
 let phaseHistory=[];
 let dealMilestones=[];
 let constructionTemplate=[];   // Brief CC — construction_v2 rows (key, offset, order)
+let dealWorkDays=[];           // Brief CC — deal_work_days rows (which days each trade worked)
 let phaseChecklistItems=[];
 let userNameMap=new Map();
 let dealLoans=[];
@@ -1242,6 +1246,15 @@ async function loadProject(){
       .order('display_order',{ascending:true});
     constructionTemplate=ctErr?[]:(ct||[]);
   } catch(e){ constructionTemplate=[]; }
+
+  // 5c. Brief CC — actual days worked per trade. Graceful fallback keeps the
+  // schedule rendering (planned only) if the migration hasn't been applied.
+  try {
+    const {data:wd, error:wdErr}=await sb.from('deal_work_days')
+      .select('id, milestone_key, work_date')
+      .eq('deal_id', dealRow.id);
+    dealWorkDays=wdErr?[]:(wd||[]);
+  } catch(e){ dealWorkDays=[]; }
 
   // 6. Phase checklist items (BV new). Graceful fallback if table doesn't
   // exist yet (Migration 065 not applied).
@@ -1610,6 +1623,7 @@ function renderPage(){
   wireDealDocs();
   wireConstructionEdits();
   wireMilestones();
+  wireWorkDays();
 }
 
 function computePhaseAux(d, phase){
@@ -1850,11 +1864,11 @@ function renderBuildSchedule(st){
   const tpl=new Map(constructionTemplate.map(t=>[t.milestone_key, t]));
   const today=todayStr();
   const windowDays=st.totalDays||36;
-  // The axis stretches to whichever is longer, the planned window or how long
-  // we've actually been going — otherwise the today marker falls off the end
-  // of an overrunning build, which is exactly when you most want to see it.
+  // Columns run day 0..span. The grid stretches past the planned window when a
+  // build overruns, so days worked late still have a cell to land in.
   const span=Math.max(windowDays, st.elapsed!=null?st.elapsed:0)||36;
-  const pct=d=>Math.max(0, Math.min(100, d/span*100));
+  const cols=span+1;
+  const todayIdx=(st.elapsed!=null && st.elapsed>=0 && st.elapsed<=span)?st.elapsed:null;
   const COLOR={procurement:'#D85A30', structural:'#7F77DD', finishes:'#1D9E75', closeout:'#888780'};
   const GROUPS=[
     ['procurement','Procurement — must beat its install date'],
@@ -1862,50 +1876,114 @@ function renderBuildSchedule(st){
     ['finishes','Finishes'],
     ['closeout','Closeout'],
   ];
-  const todayPct=(st.elapsed!=null && st.elapsed>=0)?pct(st.elapsed):null;
-  const todayLine=todayPct==null?'':`<i class="gt-today" style="left:${todayPct}%"></i>`;
-
-  // Axis: ticks every 6 days, plus the end of the span.
-  let ticks='';
-  for(let d=0; d<=span; d+=6){
-    ticks+=`<span class="gt-tick" style="left:${pct(d)}%">${d===0?'day 0':d}</span>`;
+  // Worked days, bucketed by trade → set of day offsets from the start date.
+  const worked={};
+  for(const w of dealWorkDays){
+    const off=st.start?daysBetween(st.start, w.work_date):null;
+    if(off==null)continue;
+    (worked[w.milestone_key]=worked[w.milestone_key]||new Set()).add(off);
   }
-  if(span%6!==0)ticks+=`<span class="gt-tick" style="left:100%">${span}</span>`;
-  const todayTick=todayPct==null?'':`<span class="gt-tick now" style="left:${todayPct}%">today</span>`;
+  const todayLine=todayIdx==null?'':`<i class="gg-now" style="left:${(todayIdx+0.5)/cols*100}%"></i>`;
+
+  // Axis shares the same grid, so ticks line up with the columns exactly.
+  let axis='';
+  for(let i=0;i<cols;i++){
+    axis+=`<span class="gg-ax${i===todayIdx?' now':''}">${(i%6===0||i===todayIdx)?(i===todayIdx?'today':(i===0?'0':i)):''}</span>`;
+  }
 
   let body='';
   for(const [key,label] of GROUPS){
     const rows=st.ms.filter(m=>(tpl.get(m.milestone_key)||{}).category===key);
     if(!rows.length)continue;
-    body+=`<div class="gt-band">${escapeHtml(label)}</div>`;
+    body+=`<div class="gg-band">${escapeHtml(label)}</div>`;
     for(const m of rows){
       const t=tpl.get(m.milestone_key)||{};
       const dur=t.default_duration_days||0;
       const na=!!m.not_applicable;
       const overdue=!na && !m.completed && m.due_date && m.due_date<today;
-      // Bar span is derived from the template, then shifted by however far
-      // this deal's actual due date has drifted from the template offset
-      // (a start-date edit re-derives them, so normally they agree).
       const endDay=(st.start && m.due_date)?daysBetween(st.start, m.due_date):(t.default_offset_days||0);
       const startDay=Math.max(0, endDay-Math.max(dur,1)+1);
-      const cls=[na?'na':'', m.completed?'done':'', overdue?'overdue':''].filter(Boolean).join(' ');
+      const wset=worked[m.milestone_key]||new Set();
       const color=na?'#C9C8C3':(COLOR[key]||'#888780');
-      const mark=dur===0
-        ? `<i class="gt-dot" style="left:${pct(endDay)}%;background:${color}"></i>`
-        : `<i class="gt-bar" style="left:${pct(startDay)}%;width:${Math.max(1.2, pct(endDay+1)-pct(startDay))}%;background:${color}"></i>`;
-      body+=`<div class="gt-row ${cls}">
+      let cells='';
+      for(let i=0;i<cols;i++){
+        const planned=(i>=startDay && i<=endDay);
+        const did=wset.has(i);
+        const date=addDays(st.start||today, i);
+        const cls=['gg-c', planned?'plan':'', did?'work':'', i===todayIdx?'now':''].filter(Boolean).join(' ');
+        const bg=did?color:(planned?color+'2E':'');
+        cells+=`<i class="${cls}" data-wd-key="${escapeHtml(m.milestone_key)}" data-wd-date="${date}"`
+             +(bg?` style="background:${bg}"`:'')
+             +` title="${escapeHtml(m.display_name)} · ${fmtMD(date)}${did?' · worked':(planned?' · planned':'')}"></i>`;
+      }
+      const cnt=wset.size;
+      const cls=[na?'na':'', m.completed?'done':'', overdue?'overdue':''].filter(Boolean).join(' ');
+      body+=`<div class="gg-row ${cls}">
         <input type="checkbox" data-ms-id="${escapeHtml(m.id)}" ${m.completed?'checked':''} ${na?'disabled':''}>
-        <span class="gt-name">${escapeHtml(m.display_name)}</span>
-        <div class="gt-track">${todayLine}${mark}</div>
-        <span class="gt-due">${fmtMD(m.due_date)}</span>
+        <span class="gg-name">${escapeHtml(m.display_name)}${cnt?`<em class="gg-cnt">${cnt}d${dur?' / '+dur:''}</em>`:''}</span>
+        <div class="gg-grid" style="grid-template-columns:repeat(${cols},1fr)">${todayLine}${cells}</div>
+        <span class="gg-due">${fmtMD(m.due_date)}</span>
         <span class="ms-na" data-ms-na="${escapeHtml(m.id)}" title="${na?'Mark applicable again':'Does not apply to this project'}">n/a</span>
       </div>`;
     }
   }
-  return `<div class="gt-wrap">
-    <div class="gt-row gt-axis"><span></span><span></span><div class="gt-track">${ticks}${todayTick}</div><span></span><span></span></div>
+  return `<div class="gg-wrap">
+    <div class="gg-row gg-axis"><span></span><span></span>
+      <div class="gg-grid" style="grid-template-columns:repeat(${cols},1fr)">${axis}</div>
+      <span></span><span></span></div>
     ${body}
+    <div class="gg-help">Click a day to record that the trade worked it. Shaded = planned, solid = actually worked.</div>
   </div>`;
+}
+
+// Day-cell toggle. Optimistic: flip the cell, then write. Full re-render would
+// fight rapid clicking across a row, so only the counts refresh in place.
+function wireWorkDays(){
+  const wrap=document.querySelector('.gg-wrap');
+  if(!wrap)return;
+  wrap.addEventListener('click', async (e)=>{
+    const cell=e.target.closest('.gg-c');
+    if(!cell)return;
+    const row=cell.closest('.gg-row');
+    if(row && row.classList.contains('na'))return;
+    const key=cell.dataset.wdKey, date=cell.dataset.wdDate;
+    const was=cell.classList.contains('work');
+    const tpl=constructionTemplate.find(t=>t.milestone_key===key)||{};
+    const COLOR={procurement:'#D85A30', structural:'#7F77DD', finishes:'#1D9E75', closeout:'#888780'};
+    const color=COLOR[tpl.category]||'#888780';
+    // Optimistic flip.
+    cell.classList.toggle('work', !was);
+    cell.style.background = was ? (cell.classList.contains('plan')?color+'2E':'') : color;
+    if(was){
+      const {error}=await sb.from('deal_work_days').delete()
+        .eq('deal_id', currentDeal.id).eq('milestone_key', key).eq('work_date', date);
+      if(error){cell.classList.add('work');cell.style.background=color;alert('Save failed: '+error.message);return;}
+      dealWorkDays=dealWorkDays.filter(w=>!(w.milestone_key===key && w.work_date===date));
+    } else {
+      const {error}=await sb.from('deal_work_days')
+        .insert({deal_id: currentDeal.id, milestone_key: key, work_date: date});
+      if(error){cell.classList.remove('work');cell.style.background=cell.classList.contains('plan')?color+'2E':'';alert('Save failed: '+error.message);return;}
+      dealWorkDays.push({milestone_key:key, work_date:date});
+    }
+    _refreshWorkCounts();
+  });
+}
+function _refreshWorkCounts(){
+  const tpl=new Map(constructionTemplate.map(t=>[t.milestone_key, t]));
+  const by={};
+  for(const w of dealWorkDays)by[w.milestone_key]=(by[w.milestone_key]||0)+1;
+  document.querySelectorAll('.gg-row').forEach(row=>{
+    const cell=row.querySelector('.gg-c[data-wd-key]');
+    if(!cell)return;
+    const key=cell.dataset.wdKey;
+    const n=by[key]||0;
+    const dur=(tpl.get(key)||{}).default_duration_days||0;
+    let em=row.querySelector('.gg-cnt');
+    const name=row.querySelector('.gg-name');
+    if(!n){ if(em)em.remove(); return; }
+    if(!em){ em=document.createElement('em'); em.className='gg-cnt'; name.appendChild(em); }
+    em.textContent=n+'d'+(dur?' / '+dur:'');
+  });
 }
 
 // Check-off + not-applicable toggle. Both write straight to deal_milestones
@@ -1963,7 +2041,11 @@ function _beginDealFieldEdit(el){
   el.innerHTML='';
   el.appendChild(input);
   input.focus();
-  let settled=false;
+  let settled=false, dirty=false;
+  // A blur only writes if the field was actually edited. Without this, a stray
+  // click into the field (or a browser autofill landing in it) commits on the
+  // way out — which is how a phantom "Crew" once got written to gc_crew.
+  input.addEventListener('input', ()=>{dirty=true;});
   input.addEventListener('keydown', async (e)=>{
     if(e.key==='Enter'){e.preventDefault();settled=true;await _commitDealFieldEdit(field, input.value);}
     else if(e.key==='Escape'){settled=true;el.classList.remove('editing');renderPage();}
@@ -1971,6 +2053,7 @@ function _beginDealFieldEdit(el){
   input.addEventListener('blur', async ()=>{
     if(settled)return;
     settled=true;
+    if(!dirty){el.classList.remove('editing');renderPage();return;}
     await _commitDealFieldEdit(field, input.value);
   });
 }
