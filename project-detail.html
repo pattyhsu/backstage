@@ -490,6 +490,14 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .ms-na:hover { border-color:var(--text-4); color:var(--text-2); }
 .gt-row.na .ms-na { background:var(--text-4); color:#fff; border-color:var(--text-4); }
 .cf-val.text-edit input { width:170px; }
+.rp-wrap { margin-left:auto; display:inline-flex; align-items:center; gap:5px; }
+.rp-wrap input { font:inherit; font-size:11px; padding:2px 5px; border:1px solid var(--border);
+  border-radius:4px; background:var(--bg); color:var(--text-2); }
+.rp-go { font:inherit; font-size:11px; padding:2px 9px; border:1px solid var(--accent);
+  background:var(--accent-dim); color:var(--accent); border-radius:4px; cursor:pointer; font-weight:600; }
+.rp-clr { font:inherit; font-size:11px; padding:2px 9px; border:1px solid var(--border);
+  background:var(--bg); color:var(--text-4); border-radius:4px; cursor:pointer; }
+.rp-clr:hover { border-color:var(--border-hover); color:var(--text-2); }
 .crew-pick { font:inherit; font-size:14px; font-weight:700; color:var(--text); border:1px solid var(--border);
   border-radius:4px; padding:1px 4px; background:var(--bg); cursor:pointer; width:max-content; }
 .crew-pick:hover { border-color:var(--border-hover); }
@@ -1121,10 +1129,11 @@ function daysBetween(a,b){
   if(!isFinite(da)||!isFinite(db))return null;
   return Math.round((db-da)/86400000);
 }
-function todayStr(){
-  const d=new Date();
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-}
+// Pinned to the jobsite, not the browser. From Taipei the local date is a day
+// ahead of Cerritos, and the Construction hub already pins the same way — two
+// pages disagreeing about "today" would put work on the wrong day.
+const _fmtLA=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit'});
+function todayStr(){return _fmtLA.format(new Date());}
 function userShort(uuid){
   if(!uuid)return 'unknown';
   return uuid.slice(0,8);
@@ -1981,7 +1990,10 @@ function renderConstructionSection(){
       </div>
 
       <div class="sect">
-        <div class="sect-h"><h2>Build schedule</h2><span class="sub">${st.anyPlanned?`re-planned · runs to ${fmtNum(st.target)}`:`original ${st.totalDays||36}-day schedule · re-plan from the Construction hub`} · check off as it lands</span></div>
+        <div class="sect-h"><h2>Build schedule</h2><span class="sub">${st.anyPlanned?`re-planned · runs to ${fmtNum(st.target)}`:`original ${st.totalDays||36}-day schedule`} · check off as it lands</span>
+              <span class="right rp-wrap"><input type="date" id="rpDate" value="${todayStr()}">
+                <button class="rp-go" onclick="replanHere()">Re-plan</button>
+                ${st.anyPlanned?'<button class="rp-clr" onclick="clearPlanHere()">Clear</button>':''}</span></div>
         ${renderBuildSchedule(st)}
       </div>
     </div>
@@ -2441,6 +2453,28 @@ function wireMilestones(){
 // GC and scope tier are free text.
 // Writing deals.crew_id here is what tells the Construction hub whether this
 // build competes for our ten people or is a sub crew on a contract.
+// Re-plan from the deal page — same RPC the Construction hub's button calls.
+// Shifts every open trade so the earliest starts on the chosen date, spacing
+// preserved; due_date (the baseline) is untouched, so the slip survives.
+async function replanHere(){
+  const el=document.getElementById('rpDate');
+  const start=(el&&el.value)||todayStr();
+  if(!confirm('Re-plan this build so the next unfinished trade starts '+start+'?\n\nThe original baseline is kept — this only moves the plan.'))return;
+  const {data,error}=await sb.rpc('rebaseline_construction_plan',{p_deal_id:currentDeal.id,p_start:start});
+  if(error){alert('Re-plan failed: '+error.message);return;}
+  await loadProject();
+  alert('Re-planned '+data+' trades.');
+}
+async function clearPlanHere(){
+  if(!confirm('Clear the committed plan?\n\nTrades go back to the original baseline dates. Nothing else changes.'))return;
+  const {error}=await sb.from('deal_milestones')
+    .update({planned_start:null,planned_end:null}).eq('deal_id',currentDeal.id);
+  if(error){alert('Clear failed: '+error.message);return;}
+  await sb.from('deals').update({plan_baselined_at:null}).eq('id',currentDeal.id);
+  await loadProject();
+}
+window.replanHere=replanHere; window.clearPlanHere=clearPlanHere;
+
 function wireCrewPick(){
   const el=document.getElementById('crewPick');
   if(!el)return;
