@@ -72,6 +72,23 @@
 .sect-h h2 { font-size:15px; font-weight:600; }
 .sect-h .sub { font-size:12px; color:var(--text-4); }
 
+.hsw { display:inline-flex; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; margin-left:4px; }
+.hsw button { border:none; border-radius:0; font-size:11.5px; padding:4px 9px; }
+.hsw button.on { background:var(--bg-alt); color:var(--text); font-weight:600; }
+.sugg { margin-left:auto; font:inherit; font-size:12px; padding:4px 11px; border:1px solid var(--accent);
+  background:var(--accent-dim); color:var(--accent); border-radius:var(--radius-sm); cursor:pointer; font-weight:600; }
+.sugg:hover { background:var(--accent-dim2); }
+.rs { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:11px 14px; overflow-x:auto; }
+.rs-row { display:grid; gap:2px; align-items:center; }
+.rs-head { margin-bottom:4px; }
+.rs-h { font-size:9px; color:var(--text-4); text-align:center; line-height:1.15; overflow:hidden;
+  writing-mode:vertical-rl; transform:rotate(180deg); height:56px; margin:0 auto; }
+.rs-n { font-size:12px; color:var(--text-2); }
+.rs-r { font-size:10.5px; color:var(--text-4); font-variant-numeric:tabular-nums; }
+.rs-c { height:17px; border-radius:3px; background:var(--bg-page); cursor:pointer; }
+.rs-c:hover { outline:1px solid var(--border-strong); outline-offset:-1px; }
+.rs-c.on { background:var(--accent); }
 .mx { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
   padding:11px 14px; overflow-x:auto; }
 .mx-row { display:grid; grid-template-columns:132px repeat(14,1fr); gap:2px; align-items:center; }
@@ -191,6 +208,7 @@
       <span class="cur" id="dCur">—</span>
       <button id="dNext">›</button>
       <button id="dToday">Today</button>
+      <span class="hsw"><button id="h2w" class="on">2 weeks</button><button id="hFull">Full runway</button></span>
       <input type="date" id="dPick">
     </div>
   </div>
@@ -212,9 +230,24 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.sb=sb;
 
-let deals=[], propByMls={}, tpl=[], milestones=[], workers=[], assigns=[], costs={}, workdays=[];
+let deals=[], propByMls={}, tpl=[], milestones=[], workers=[], assigns=[], costs={}, workdays=[], skills=[];
 let selDate=todayStr();
-const HORIZON=13;   // today + 13 = a fortnight of forward planning
+let horizonMode='2w';   // '2w' | 'full'
+const HORIZON=13;       // today + 13 = a fortnight
+// Full runway = today through the last milestone on any live build. Longer,
+// and the far end is a plan nobody has verified — hence two views, not one.
+function horizonDays(){
+  const from=todayStr();
+  let n=HORIZON;
+  if(horizonMode==='full'){
+    let last=from;
+    for(const m of milestones){ if(m.due_date&&m.due_date>last)last=m.due_date; }
+    n=Math.max(HORIZON, daysBetween(from,last)||HORIZON);
+  }
+  const days=[];
+  for(let i=0;i<=n;i++)days.push(addDays(from,i));
+  return days;
+}
 let ovCtx=null;
 
 function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -263,12 +296,15 @@ async function loadAll(){
   }
   const {data:w}=await sb.from('workers').select('id, name, daily_rate, active').eq('active',true).order('name');
   workers=w||[];
+  const {data:sk}=await sb.from('worker_trades').select('id, worker_id, milestone_key');
+  skills=sk||[];
   await loadAssignments();
 }
 // Assignments for the whole forward window, not just the day on screen — the
 // demand matrix needs to show what's already covered across the fortnight.
 async function loadAssignments(){
-  const from=todayStr(), to=addDays(from, HORIZON+1);
+  const days=horizonDays();
+  const from=todayStr(), to=days[days.length-1];
   const lo=selDate<from?selDate:from, hi=selDate>to?selDate:to;
   const {data:a}=await sb.from('deal_work_assignments')
     .select('id, deal_id, milestone_key, work_date, worker_id')
@@ -278,6 +314,12 @@ async function loadAssignments(){
 function assignsOn(date){return assigns.filter(a=>a.work_date===date);}
 
 function startOf(d){return d.construction_start_date||d.actual_close_date;}
+// Trades that need our own people — the only ones a suggestion can fill.
+function staffedTrades(){
+  return tpl.filter(t=>t.category!=='procurement'&&(t.default_crew_size||0)>0);
+}
+function canDo(workerId,key){return skills.some(s=>s.worker_id===workerId&&s.milestone_key===key);}
+function skilledFor(key){return workers.filter(w=>canDo(w.id,key));}
 function tplOf(k){return tpl.find(t=>t.milestone_key===k)||{};}
 // deal_milestones carries the name stamped at seed time; the template is the
 // fallback so a row seeded before a rename never renders as a raw key.
@@ -347,12 +389,11 @@ function slipOf(deal){
 // than a form — you see Thursday needing more people than exist while there's
 // still time to do something about it.
 function renderMatrix(){
-  const from=todayStr();
-  const days=[];
-  for(let i=0;i<=HORIZON;i++)days.push(addDays(from,i));
+  const days=horizonDays();
   const roster=workers.length;
+  const gt=`grid-template-columns:132px repeat(${days.length},minmax(22px,1fr))`;
 
-  let head='<div class="mx-row mx-head"><span class="mx-lbl"></span>';
+  let head=`<div class="mx-row mx-head" style="${gt}"><span class="mx-lbl"></span>`;
   for(const d of days){
     const dow=new Date(d+'T00:00:00').getDay();
     head+=`<span class="mx-c mx-h${dow===0?' sun':''}${d===selDate?' sel':''}" data-day="${d}">
@@ -377,7 +418,7 @@ function renderMatrix(){
         >${need||''}</span>`;
     });
     if(!any)continue;
-    rows+=`<div class="mx-row"><span class="mx-lbl" title="${esc(addrOf(deal))}">${esc(addrOf(deal))}</span>${cells}</div>`;
+    rows+=`<div class="mx-row" style="${gt}"><span class="mx-lbl" title="${esc(addrOf(deal))}">${esc(addrOf(deal))}</span>${cells}</div>`;
   }
 
   let totalCells='';
@@ -397,7 +438,7 @@ function renderMatrix(){
 
   const peak=Math.max(...totals);
   const overDays=totals.filter(t=>t>roster).length;
-  const sun=days.filter(d=>new Date(d+'T00:00:00').getDay()===0&&totals[days.indexOf(d)]>0).length;
+  const sun=days.filter((d,i)=>new Date(d+'T00:00:00').getDay()===0&&totals[i]>0).length;
   const notes=[];
   if(overDays)notes.push(`${overDays} ${overDays===1?'day needs':'days need'} more people than the ${roster} on the roster`);
   if(sun)notes.push(`${sun} ${sun===1?'Sunday has':'Sundays have'} work scheduled`);
@@ -405,11 +446,92 @@ function renderMatrix(){
   return `<div class="mx">
     ${head}
     ${rows}
-    <div class="mx-row mx-sum"><span class="mx-lbl">Needed</span>${totalCells}</div>
-    <div class="mx-row mx-sum"><span class="mx-lbl">Assigned</span>${coverCells}</div>
+    <div class="mx-row mx-sum" style="${gt}"><span class="mx-lbl">Needed</span>${totalCells}</div>
+    <div class="mx-row mx-sum" style="${gt}"><span class="mx-lbl">Assigned</span>${coverCells}</div>
   </div>
   <div class="mx-foot">Peak ${peak} of ${roster} on the roster${notes.length?' · '+notes.join(' · '):''}. Click a day to plan it.</div>`;
 }
+
+// Roster editor: people down, the trades we staff ourselves across. Click to
+// say someone can do a trade. Nothing is pre-filled — guessing who is qualified
+// would invent the exact fact this table exists to record.
+function renderRoster(){
+  const trades=staffedTrades();
+  const gt=`grid-template-columns:110px 52px repeat(${trades.length},minmax(20px,1fr))`;
+  let head=`<div class="rs-row rs-head" style="${gt}"><span></span><span></span>`;
+  for(const t of trades){
+    head+=`<span class="rs-h" title="${esc(t.display_name)}">${esc(shortTrade(t))}</span>`;
+  }
+  head+='</div>';
+  let rows='';
+  for(const w of workers){
+    let cells='';
+    for(const t of trades){
+      const on=canDo(w.id,t.milestone_key);
+      cells+=`<span class="rs-c${on?' on':''}" data-skill="${w.id}|${esc(t.milestone_key)}"
+        title="${esc(w.name)} · ${esc(t.display_name)}"></span>`;
+    }
+    const n=skills.filter(x=>x.worker_id===w.id).length;
+    rows+=`<div class="rs-row" style="${gt}"><span class="rs-n">${esc(w.name)}</span><span class="rs-r">${FD(w.daily_rate)}</span>${cells}</div>`;
+  }
+  const gaps=trades.filter(t=>skilledFor(t.milestone_key).length===0);
+  const thin=trades.filter(t=>{
+    const n=skilledFor(t.milestone_key).length;
+    return n>0 && n<(t.default_crew_size||1);
+  });
+  let note='';
+  if(gaps.length)note+=`<div class="note warn">Nobody is marked for ${gaps.map(t=>esc(t.display_name)).join(', ')} — those trades can't be suggested.</div>`;
+  if(thin.length)note+=`<div class="note">Fewer people marked than the crew size calls for: ${thin.map(t=>esc(t.display_name)+' ('+skilledFor(t.milestone_key).length+' of '+t.default_crew_size+')').join(', ')}.</div>`;
+  return `<div class="rs">${head}${rows}</div>${note}`;
+}
+function shortTrade(t){
+  return String(t.display_name||'')
+    .replace(/ (complete|done|installed|pulled|ordered)\b.*$/i,'')
+    .replace(/,.*$/,'')
+    .replace(/ rough-in$/i,'')
+    .slice(0,10);
+}
+
+// Suggest a crew for the selected day. Only ever proposes someone who is
+// marked for the trade and is not already out somewhere that day. Continuity
+// first — whoever has been on this trade at this site keeps it, because moving
+// people mid-trade costs a day of ramp-up — then the cheapest qualified person.
+function suggestFor(date){
+  const taken=new Set(assigns.filter(a=>a.work_date===date).map(a=>a.worker_id));
+  const out=[];
+  for(const deal of deals){
+    for(const {m,t} of tradesOn(deal,date)){
+      const need=t.default_crew_size||0;
+      if(need<=0)continue;
+      const have=assigns.filter(a=>a.work_date===date&&a.deal_id===deal.id&&a.milestone_key===m.milestone_key).length;
+      let gap=need-have;
+      if(gap<=0)continue;
+      const pool=skilledFor(m.milestone_key)
+        .filter(w=>!taken.has(w.id))
+        .map(w=>({w, cont:assigns.some(a=>a.worker_id===w.id&&a.deal_id===deal.id&&a.milestone_key===m.milestone_key)?1:0}))
+        .sort((a,b)=>(b.cont-a.cont)||(Number(a.w.daily_rate)-Number(b.w.daily_rate)));
+      for(const cand of pool){
+        if(gap<=0)break;
+        out.push({deal_id:deal.id, milestone_key:m.milestone_key, work_date:date, worker_id:cand.w.id,
+                  _name:cand.w.name, _trade:nameOf(m), _site:addrOf(deal), _rate:Number(cand.w.daily_rate)});
+        taken.add(cand.w.id); gap--;
+      }
+      if(gap>0)out.push({_short:true, _trade:nameOf(m), _site:addrOf(deal), _gap:gap});
+    }
+  }
+  return out;
+}
+async function applySuggestion(){
+  const plan=suggestFor(selDate).filter(x=>!x._short);
+  if(!plan.length){alert('Nothing to suggest — either everything is covered, or nobody is marked for the trades running today.');return;}
+  const rows=plan.map(({deal_id,milestone_key,work_date,worker_id})=>({deal_id,milestone_key,work_date,worker_id}));
+  const {data,error}=await sb.from('deal_work_assignments').insert(rows)
+    .select('id, deal_id, milestone_key, work_date, worker_id');
+  if(error){alert('Suggest failed: '+error.message);return;}
+  assigns.push(...(data||[]));
+  render();
+}
+window.applySuggestion=applySuggestion;
 
 function render(){
   const d=new Date(selDate+'T00:00:00');
@@ -503,6 +625,13 @@ function render(){
     </div>`;
   }
 
+  // What the suggester would do, and where it can't.
+  const sugg=suggestFor(selDate);
+  const shorts=sugg.filter(x=>x._short);
+  const suggNote=shorts.length
+    ? `<div class="note warn">Can't fill ${shorts.map(x=>esc(x._trade)+' at '+esc(x._site)+' ('+x._gap+')').join(', ')} — nobody free is marked for ${shorts.length===1?'that trade':'those trades'}.</div>`
+    : '';
+  const suggestNote=suggNote;
   document.getElementById('page').innerHTML=`
     <div class="strip">
       <div class="cell"><div class="k">Crew out today</div><div class="v">${gotTotal}${needTotal?' / '+needTotal:''}</div><div class="s">${bench.length} still on the bench</div></div>
@@ -512,17 +641,39 @@ function render(){
     </div>
     <div class="sect-h"><h2>The next two weeks</h2><span class="sub">crew each site needs, per day</span></div>
     ${renderMatrix()}
-    <div class="sect-h" style="margin-top:22px"><h2>Who goes where</h2><span class="sub">${longDate(selDate)} · click + assign to put someone on a trade</span></div>
+    <div class="sect-h" style="margin-top:22px"><h2>Who goes where</h2><span class="sub">${longDate(selDate)} · click + assign to put someone on a trade</span>
+      <button class="sugg" onclick="applySuggestion()">Suggest crew</button></div>
+    ${suggestNote}
     ${sites}
     ${dblNote}
     ${benchHtml}
-    <div class="sect-h"><h2>All builds</h2><span class="sub">sorted by slip, worst first</span></div>
+    <div class="sect-h"><h2>Crew &amp; skills</h2><span class="sub">click a square to say someone can do that trade</span></div>
+    ${renderRoster()}
+    <div class="sect-h" style="margin-top:22px"><h2>All builds</h2><span class="sub">sorted by slip, worst first</span></div>
     ${cards}
   `;
   wire();
 }
 
 function wire(){
+  document.querySelectorAll('.rs-c[data-skill]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const [wid,key]=el.dataset.skill.split('|');
+      const cur=skills.find(x=>x.worker_id===wid&&x.milestone_key===key);
+      el.classList.toggle('on', !cur);
+      if(cur){
+        const {error}=await sb.from('worker_trades').delete().eq('id',cur.id);
+        if(error){el.classList.add('on');alert('Save failed: '+error.message);return;}
+        skills=skills.filter(x=>x.id!==cur.id);
+      } else {
+        const {data,error}=await sb.from('worker_trades')
+          .insert({worker_id:wid, milestone_key:key}).select('id, worker_id, milestone_key');
+        if(error){el.classList.remove('on');alert('Save failed: '+error.message);return;}
+        if(data&&data[0])skills.push(data[0]);
+      }
+      render();
+    });
+  });
   document.querySelectorAll('.mx-c[data-day]').forEach(el=>{
     el.addEventListener('click',()=>setDate(el.dataset.day));
   });
@@ -588,6 +739,13 @@ function closeOv(){document.getElementById('ov').classList.remove('open');ovCtx=
 window.closeOv=closeOv;
 
 async function setDate(s){selDate=s;await loadAssignments();render();}
+async function setHorizon(mode){
+  horizonMode=mode;
+  document.getElementById('h2w').classList.toggle('on',mode==='2w');
+  document.getElementById('hFull').classList.toggle('on',mode==='full');
+  await loadAssignments();
+  render();
+}
 
 (async()=>{
   await window.authGate();
@@ -596,6 +754,8 @@ async function setDate(s){selDate=s;await loadAssignments();render();}
   document.getElementById('dPrev').addEventListener('click',()=>setDate(addDays(selDate,-1)));
   document.getElementById('dNext').addEventListener('click',()=>setDate(addDays(selDate,1)));
   document.getElementById('dToday').addEventListener('click',()=>setDate(todayStr()));
+  document.getElementById('h2w').addEventListener('click',()=>setHorizon('2w'));
+  document.getElementById('hFull').addEventListener('click',()=>setHorizon('full'));
   document.getElementById('dPick').addEventListener('change',e=>{if(e.target.value)setDate(e.target.value);});
   await loadAll();
   render();
