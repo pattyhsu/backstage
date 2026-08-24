@@ -416,20 +416,29 @@ function render(){
     const onKeys=new Set(assigns.filter(a=>a.deal_id===deal.id&&a.work_date===sel).map(a=>a.milestone_key));
     const extra=milestones.filter(m=>m.deal_id===deal.id&&onKeys.has(m.milestone_key)
       &&!planned.some(x=>x.milestone_key===m.milestone_key));
-    const tr=[...planned.map(m=>({m,off:false})), ...extra.map(m=>({m,off:true}))];
-    if(!tr.length)continue;
+    // Only trades someone is actually on. A planned trade with nobody on it is
+    // already stated by the Crew needed / Assigned rows above; repeating it here
+    // as "0 / 2" made the panel mostly empty rows. To put the first person on a
+    // trade, click its day cell in the grid.
+    const all=[...planned.map(m=>({m,off:false})), ...extra.map(m=>({m,off:true}))];
     if(!isOurs(deal)){
+      if(!all.length)continue;
       subs+=`<div class="site sub"><div class="sitehd"><div>
         <div class="a"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a>, <span class="c">${esc(cityOf(deal))}</span> <span class="tag">${esc(crewName(deal))}</span></div>
-        <div class="m">day ${diff(startOf(deal),sel)} · ${tr.map(x=>esc(nameOf(x.m))).join(' · ')}</div></div>
+        <div class="m">day ${diff(startOf(deal),sel)} · ${all.map(x=>esc(nameOf(x.m))).join(' · ')}</div></div>
         <div class="rr" style="color:var(--amber);font-weight:700">fixed price<div style="font-weight:400;color:var(--text-4)">not staffed from our roster</div></div>
       </div></div>`; continue;
     }
-    let rows='',cost=0,need=0,got=0;
+    const tr=all.filter(x=>assignedTo(deal.id,x.m.milestone_key,sel).length>0);
+    if(!tr.length)continue;
+    let rows='',cost=0,got=0;
+    // The plan's ask counts every planned trade, staffed or not — otherwise
+    // hiding the empty rows would also hide the shortfall they represent.
+    let need=0; for(const x of planned)need+=(tplOf(x.milestone_key).default_crew_size||0);
     for(const {m,off} of tr){
       const t=tplOf(m.milestone_key), crew=t.default_crew_size||0, sp=spanOf(deal,m);
       const who=assignedTo(deal.id,m.milestone_key,sel);
-      got+=who.length; if(!off)need+=crew;
+      got+=who.length;
       for(const p of who)cost+=Number(p.w.daily_rate||0);
       const cls=off?'':(crew?(who.length>=crew?'met':'short'):'');
       rows+=`<div class="tr"><div class="tn">${esc(nameOf(m))}${off?' <span class="offtag">off plan</span>':''}<em>${sp?(sp.s===sp.e?md(sp.s):md(sp.s)+' – '+md(sp.e)):''}</em></div>
