@@ -72,6 +72,30 @@
 .sect-h h2 { font-size:15px; font-weight:600; }
 .sect-h .sub { font-size:12px; color:var(--text-4); }
 
+.mx { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:11px 14px; overflow-x:auto; }
+.mx-row { display:grid; grid-template-columns:132px repeat(14,1fr); gap:2px; align-items:center; }
+.mx-lbl { font-size:11.5px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; padding-right:6px; }
+.mx-c { text-align:center; font-size:11px; padding:4px 0; border-radius:3px; cursor:pointer;
+  font-variant-numeric:tabular-nums; color:var(--text-3); background:var(--bg-page); }
+.mx-c:hover { outline:1px solid var(--border-strong); outline-offset:-1px; }
+.mx-c.has { background:var(--blue-bg); color:var(--blue); font-weight:600; }
+.mx-c.sun { background:repeating-linear-gradient(-45deg,var(--bg-alt) 0 4px,var(--bg-page) 4px 8px); }
+.mx-c.has.sun { background:repeating-linear-gradient(-45deg,#DCE8F8 0 4px,var(--blue-bg) 4px 8px); }
+.mx-c.sel { outline:2px solid var(--accent); outline-offset:-2px; }
+.mx-head { margin-bottom:5px; }
+.mx-h { background:none; color:var(--text-4); font-size:10px; line-height:1.25; padding:2px 0; }
+.mx-h em { display:block; font-style:normal; font-size:9px; color:var(--text-4); }
+.mx-h.sun { background:none; color:var(--amber); }
+.mx-sum { margin-top:3px; }
+.mx-sum .mx-lbl { font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4); font-weight:600; }
+.mx-t { background:var(--bg-alt); color:var(--text-2); font-weight:600; }
+.mx-t.over { background:var(--red-bg); color:var(--red); }
+.mx-a { background:none; color:var(--text-4); }
+.mx-a.short { color:var(--amber); font-weight:600; }
+.mx-a.met { color:var(--green); font-weight:600; }
+.mx-foot { font-size:11.5px; color:var(--text-4); margin:8px 0 20px; }
 .site { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
   padding:14px 17px; margin-bottom:11px; }
 .site-h { display:flex; align-items:flex-start; gap:12px; margin-bottom:11px; }
@@ -190,6 +214,7 @@ window.sb=sb;
 
 let deals=[], propByMls={}, tpl=[], milestones=[], workers=[], assigns=[], costs={}, workdays=[];
 let selDate=todayStr();
+const HORIZON=13;   // today + 13 = a fortnight of forward planning
 let ovCtx=null;
 
 function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -240,11 +265,17 @@ async function loadAll(){
   workers=w||[];
   await loadAssignments();
 }
+// Assignments for the whole forward window, not just the day on screen — the
+// demand matrix needs to show what's already covered across the fortnight.
 async function loadAssignments(){
+  const from=todayStr(), to=addDays(from, HORIZON+1);
+  const lo=selDate<from?selDate:from, hi=selDate>to?selDate:to;
   const {data:a}=await sb.from('deal_work_assignments')
-    .select('id, deal_id, milestone_key, work_date, worker_id').eq('work_date',selDate);
+    .select('id, deal_id, milestone_key, work_date, worker_id')
+    .gte('work_date',lo).lte('work_date',hi);
   assigns=a||[];
 }
+function assignsOn(date){return assigns.filter(a=>a.work_date===date);}
 
 function startOf(d){return d.construction_start_date||d.actual_close_date;}
 function tplOf(k){return tpl.find(t=>t.milestone_key===k)||{};}
@@ -275,10 +306,23 @@ function tradesOn(deal, date){
   return out.sort((a,b)=>(a.t.display_order||0)-(b.t.display_order||0));
 }
 function assignedTo(dealId, key){
-  return assigns.filter(a=>a.deal_id===dealId&&a.milestone_key===key)
+  return assigns.filter(a=>a.deal_id===dealId&&a.milestone_key===key&&a.work_date===selDate)
     .map(a=>({a, w:workers.find(w=>w.id===a.worker_id)})).filter(x=>x.w);
 }
-function workerDayCount(workerId){return assigns.filter(a=>a.worker_id===workerId).length;}
+function workerDayCount(workerId, date){
+  return assigns.filter(a=>a.worker_id===workerId&&a.work_date===(date||selDate)).length;
+}
+// Crew a site needs on a date: the trades running that day, summed. Trades with
+// no crew size set contribute nothing and are counted separately so the number
+// never quietly reads low.
+function demandOn(deal, date){
+  let need=0, unknown=0;
+  for(const {t} of tradesOn(deal, date)){
+    if(t.default_crew_size==null)unknown++;
+    else need+=t.default_crew_size;
+  }
+  return {need, unknown};
+}
 
 // Schedule slip for the watch-list: how far behind the oldest still-open
 // milestone has fallen. Same definition project-detail uses.
@@ -296,6 +340,75 @@ function slipOf(deal){
   return {start, done, total:applicable.length, oldest, slip, target,
     elapsed:start?daysBetween(start,today):null,
     totalDays:(start&&target)?daysBetween(start,target):36};
+}
+
+// The forward look: sites down, the next fortnight across, each cell the crew
+// that site needs that day. This is the part that makes the page a plan rather
+// than a form — you see Thursday needing more people than exist while there's
+// still time to do something about it.
+function renderMatrix(){
+  const from=todayStr();
+  const days=[];
+  for(let i=0;i<=HORIZON;i++)days.push(addDays(from,i));
+  const roster=workers.length;
+
+  let head='<div class="mx-row mx-head"><span class="mx-lbl"></span>';
+  for(const d of days){
+    const dow=new Date(d+'T00:00:00').getDay();
+    head+=`<span class="mx-c mx-h${dow===0?' sun':''}${d===selDate?' sel':''}" data-day="${d}">
+      <em>${DOW[dow].slice(0,1)}</em>${fmtNum(d)}</span>`;
+  }
+  head+='</div>';
+
+  let rows='';
+  const totals=days.map(()=>0);
+  const covered=days.map(()=>0);
+  for(const deal of deals){
+    let cells='';
+    let any=false;
+    days.forEach((d,i)=>{
+      const {need,unknown}=demandOn(deal,d);
+      totals[i]+=need;
+      covered[i]+=assignsOn(d).filter(a=>a.deal_id===deal.id).length;
+      if(need||unknown)any=true;
+      const dow=new Date(d+'T00:00:00').getDay();
+      cells+=`<span class="mx-c${need?' has':''}${dow===0?' sun':''}${d===selDate?' sel':''}" data-day="${d}"
+        title="${esc(addrOf(deal))} · ${longDate(d)} · ${need} needed${unknown?' (+'+unknown+' trade with no crew size)':''}"
+        >${need||''}</span>`;
+    });
+    if(!any)continue;
+    rows+=`<div class="mx-row"><span class="mx-lbl" title="${esc(addrOf(deal))}">${esc(addrOf(deal))}</span>${cells}</div>`;
+  }
+
+  let totalCells='';
+  days.forEach((d,i)=>{
+    const over=totals[i]>roster;
+    const dow=new Date(d+'T00:00:00').getDay();
+    totalCells+=`<span class="mx-c mx-t${over?' over':''}${dow===0?' sun':''}${d===selDate?' sel':''}" data-day="${d}"
+      title="${totals[i]} needed of ${roster} on the roster${over?' — short by '+(totals[i]-roster):''}">${totals[i]||''}</span>`;
+  });
+  let coverCells='';
+  days.forEach((d,i)=>{
+    const dow=new Date(d+'T00:00:00').getDay();
+    const short=totals[i]>0&&covered[i]<totals[i];
+    coverCells+=`<span class="mx-c mx-a${short?' short':''}${covered[i]&&!short?' met':''}${dow===0?' sun':''}${d===selDate?' sel':''}"
+      data-day="${d}" title="${covered[i]} assigned of ${totals[i]} needed">${covered[i]||''}</span>`;
+  });
+
+  const peak=Math.max(...totals);
+  const overDays=totals.filter(t=>t>roster).length;
+  const sun=days.filter(d=>new Date(d+'T00:00:00').getDay()===0&&totals[days.indexOf(d)]>0).length;
+  const notes=[];
+  if(overDays)notes.push(`${overDays} ${overDays===1?'day needs':'days need'} more people than the ${roster} on the roster`);
+  if(sun)notes.push(`${sun} ${sun===1?'Sunday has':'Sundays have'} work scheduled`);
+
+  return `<div class="mx">
+    ${head}
+    ${rows}
+    <div class="mx-row mx-sum"><span class="mx-lbl">Needed</span>${totalCells}</div>
+    <div class="mx-row mx-sum"><span class="mx-lbl">Assigned</span>${coverCells}</div>
+  </div>
+  <div class="mx-foot">Peak ${peak} of ${roster} on the roster${notes.length?' · '+notes.join(' · '):''}. Click a day to plan it.</div>`;
 }
 
 function render(){
@@ -397,7 +510,9 @@ function render(){
       <div class="cell"><div class="k">Builds running</div><div class="v">${deals.length}</div><div class="s">${FK(deals.reduce((s,d)=>s+(Number(d.purchase_price)||0),0))} acquisition capital</div></div>
       <div class="cell"><div class="k">Worst slip</div><div class="v ${Math.max(...deals.map(d=>slipOf(d).slip))>7?'bad':''}">${Math.max(...deals.map(d=>slipOf(d).slip))} days</div><div class="s">${esc(addrOf([...deals].sort((a,b)=>slipOf(b).slip-slipOf(a).slip)[0]))}</div></div>
     </div>
-    <div class="sect-h"><h2>Who goes where</h2><span class="sub">${longDate(selDate)} · click + assign to put someone on a trade</span></div>
+    <div class="sect-h"><h2>The next two weeks</h2><span class="sub">crew each site needs, per day</span></div>
+    ${renderMatrix()}
+    <div class="sect-h" style="margin-top:22px"><h2>Who goes where</h2><span class="sub">${longDate(selDate)} · click + assign to put someone on a trade</span></div>
     ${sites}
     ${dblNote}
     ${benchHtml}
@@ -408,6 +523,9 @@ function render(){
 }
 
 function wire(){
+  document.querySelectorAll('.mx-c[data-day]').forEach(el=>{
+    el.addEventListener('click',()=>setDate(el.dataset.day));
+  });
   document.querySelectorAll('[data-unassign]').forEach(el=>{
     el.addEventListener('click', async ()=>{
       const id=el.dataset.unassign;
