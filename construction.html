@@ -80,11 +80,12 @@ h2 { font-size:14.5px; font-weight:600; }
 .mon { position:absolute; left:-1px; top:-2px; bottom:-2px; width:1px; background:var(--border-strong); opacity:.4; }
 .bar { height:14px; margin-top:3px; border-radius:2px; font-size:9px; font-weight:700;
   text-align:center; line-height:14px; }
-.dcell { height:17px; margin-top:2px; border-radius:2px; background:var(--bg-page); cursor:pointer;
+.rcell { height:14px; margin-top:3px; border-radius:2px; background:var(--bg-alt); }
+.dcell { height:17px; margin-top:2px; border-radius:2px; background:var(--bg-alt); cursor:pointer;
   display:flex; flex-wrap:wrap; gap:1px; align-content:center; justify-content:center; padding:1px; }
 .dcell:hover { outline:1px solid var(--border-strong); outline-offset:-1px; }
-.dcell.off { background:transparent; border:1px dashed transparent; }
-.dcell.off:hover { border-color:var(--border-hover); outline:none; }
+.dcell.off { background:var(--bg-alt); }
+.dcell.off:hover { outline:1px solid var(--border-strong); outline-offset:-1px; }
 .dcell.extra { background:var(--accent-dim2); outline:1px solid var(--accent); outline-offset:-1px; }
 .chip { font-size:8.5px; font-weight:700; padding:0 3px; border-radius:2px;
   background:rgba(255,255,255,.9); line-height:12px; }
@@ -145,7 +146,7 @@ h2 { font-size:14.5px; font-weight:600; }
 .rs-row { display:grid; gap:2px; align-items:center; }
 .rs-h { font-size:8.5px; color:var(--text-4); text-align:center; writing-mode:vertical-rl;
   transform:rotate(180deg); height:60px; margin:0 auto; }
-.rs-c { height:17px; border-radius:3px; background:var(--bg-page); cursor:pointer; }
+.rs-c { height:17px; border-radius:3px; background:var(--bg-alt); cursor:pointer; }
 .rs-c:hover { outline:1px solid var(--border-strong); outline-offset:-1px; }
 .rs-c.on { background:var(--accent); }
 .note { font-size:11.5px; color:var(--text-4); margin-top:9px; } .note.warn { color:var(--red); }
@@ -367,7 +368,7 @@ function render(){
         const mon=d(x).getDay()===1?'<span class="mon"></span>':'';
         cs+=(s0&&s0<=x&&x<=e0)
           ? `<span class="cellw">${mon}<div class="bar" style="background:${bg};color:${fg}">${x===s0||x===D[0]?open.length+' trades':''}</div></span>`
-          : `<span class="cellw">${mon}</span>`;
+          : `<span class="cellw">${mon}<div class="rcell"></div></span>`;
       }
       body+=`<div class="r" style="${gt}"><span class="lb" style="color:var(--text-4);font-style:italic">${isOurs(deal)?'collapsed':'not our labour'}</span>${cs}</div>`;
       continue;
@@ -382,7 +383,7 @@ function render(){
         const on=sp&&sp.s<=x&&x<=sp.e;
         if(view==='full'){
           cells+=on?`<span class="cellw">${mon}<div class="bar" style="background:${bg};color:${fg}">${x===sp.s&&crew?crew:''}</div></span>`
-                  :`<span class="cellw">${mon}</span>`;
+                  :`<span class="cellw">${mon}<div class="rcell"></div></span>`;
           continue;
         }
         const who=assignedTo(deal.id,m.milestone_key,x);
