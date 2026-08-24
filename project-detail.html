@@ -1820,12 +1820,11 @@ function renderConstructionSection(){
         <div class="esc-col">
           <div class="sect">
             <div class="sect-h"><h2>Construction</h2><span class="sub">how far in · how far behind · how much spent</span></div>
-            <div class="et-grid" style="margin-bottom:16px">
+            <div class="et-grid" style="margin-bottom:16px;grid-template-columns:1fr 1fr 1fr">
               <div class="et-cell"><div class="et-lbl">Started</div><div class="et-val" data-deal-field="construction_start_date" data-deal-type="date">${d.construction_start_date||'—'}</div><div class="et-aux">day of close</div></div>
               <div class="et-cell"><div class="et-lbl">Target finish</div><div class="et-val" data-deal-field="construction_complete_date" data-deal-type="date">${d.construction_complete_date||(st.target||'—')}</div><div class="et-aux">${d.construction_complete_date?'set':'from schedule'}</div></div>
               <div class="et-cell"><div class="et-lbl">GC / crew</div><div class="et-val" data-deal-field="gc_crew" data-deal-type="text">${escapeHtml(d.gc_crew||'—')}</div><div class="et-aux">who's running it</div></div>
-              <div class="et-cell"><div class="et-lbl">Scope tier</div><div class="et-val" data-deal-field="scope_tier" data-deal-type="text">${escapeHtml(d.scope_tier||'—')}</div><div class="et-aux">rehab depth</div></div>
-            </div>
+                          </div>
             ${slipHtml}
             ${projHtml}
             <div class="cn-bars">
@@ -1888,7 +1887,12 @@ function renderBuildSchedule(st){
   // Axis shares the same grid, so ticks line up with the columns exactly.
   let axis='';
   for(let i=0;i<cols;i++){
-    axis+=`<span class="gg-ax${i===todayIdx?' now':''}">${(i%6===0||i===todayIdx)?(i===todayIdx?'today':(i===0?'0':i)):''}</span>`;
+    // Dates read faster than day numbers when you're matching the grid against
+    // what the crew actually did. Every 6th column, plus today — and a date is
+    // dropped when it would sit on top of the today label.
+    const near=(todayIdx!=null && i!==todayIdx && Math.abs(i-todayIdx)<=2);
+    const show=(i===todayIdx)?'today':((i%6===0 && !near)?fmtMD(addDays(st.start||today, i)):'');
+    axis+=`<span class="gg-ax${i===todayIdx?' now':''}">${show}</span>`;
   }
 
   let body='';
