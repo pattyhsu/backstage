@@ -112,6 +112,8 @@
 .mx-a { background:none; color:var(--text-4); }
 .mx-a.short { color:var(--amber); font-weight:600; }
 .mx-a.met { color:var(--green); font-weight:600; }
+.offtag { font-size:9px; font-weight:700; color:var(--accent); background:var(--accent-dim2);
+  border-radius:3px; padding:1px 4px; margin-left:4px; }
 .crewtag { font-style:normal; font-size:10px; color:var(--amber); background:var(--amber-bg);
   border-radius:3px; padding:1px 5px; margin-left:6px; font-weight:600; }
 .mx-c.sub { background:var(--bg-page); }
@@ -579,24 +581,35 @@ function render(){
   const assignedIds=new Set(assigns.map(a=>a.worker_id));
   let sites='';
   for(const deal of ourDeals()){
-    const trades=tradesOn(deal, selDate);
+    const planned=tradesOn(deal, selDate);
+    // Plus any trade someone was actually put on that day, whether or not the
+    // plan called for it — assignments can come from project-detail's grid,
+    // where every day of every trade is clickable. An assignment with no row
+    // here is one you can neither see nor undo.
+    const onKeys=new Set(assigns.filter(a=>a.deal_id===deal.id&&a.work_date===selDate).map(a=>a.milestone_key));
+    const extra=(milestones||[]).filter(m=>m.deal_id===deal.id && onKeys.has(m.milestone_key)
+        && !planned.some(x=>x.m.milestone_key===m.milestone_key))
+      .map(m=>({m, t:tplOf(m.milestone_key), off:true}));
+    const trades=[...planned, ...extra];
     if(!trades.length)continue;
     let siteCost=0, siteNeed=0, siteGot=0;
     let rows='';
-    for(const {m,t} of trades){
+    for(const {m,t,off} of trades){
       const need=t.default_crew_size==null?null:t.default_crew_size;
       const people=assignedTo(deal.id, m.milestone_key);
       siteGot+=people.length;
-      if(need!=null)siteNeed+=need;
+      // Off-plan work isn't a slot the schedule asked for, so it counts people
+      // and cost but not the day's requirement.
+      if(need!=null && !off)siteNeed+=need;
       for(const p of people)siteCost+=Number(p.w.daily_rate||0);
-      const cls=need==null?'':(people.length>=need?'met':(people.length?'short':'short'));
+      const cls=off?'':(need==null?'':(people.length>=need?'met':'short'));
       const chips=people.map(p=>{
         const dbl=workerDayCount(p.w.id)>1;
         return `<span class="chip${dbl?' dbl':''}" title="${dbl?'Also assigned elsewhere today':''}">${esc(p.w.name)}<span class="rate">${FD(p.w.daily_rate)}</span><span class="x" data-unassign="${p.a.id}">✕</span></span>`;
       }).join('');
       rows+=`<div class="trade">
-        <div class="tn">${esc(nameOf(m))}<em>due ${fmtNum(m.due_date)}</em></div>
-        <div class="need ${cls}">${people.length}${need==null?'':' / '+need}</div>
+        <div class="tn">${esc(nameOf(m))}${off?' <span class="offtag">off plan</span>':''}<em>due ${fmtNum(m.due_date)}</em></div>
+        <div class="need ${cls}">${people.length}${(need==null||off)?'':' / '+need}</div>
         <div class="chips">${chips}<button class="chip-add" data-assign="${deal.id}|${esc(m.milestone_key)}|${esc(nameOf(m))}">+ assign</button></div>
       </div>`;
     }
@@ -607,7 +620,7 @@ function render(){
           <div class="addr"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a>, <span class="city">${esc(cityOf(deal))}</span></div>
           <div class="meta">day ${daysBetween(startOf(deal),selDate)} · ${trades.length} ${trades.length===1?'trade':'trades'} running${deal.gc_crew?' · '+esc(deal.gc_crew):''}</div>
         </div>
-        <div class="rr"><div class="cost">${FD(siteCost)}</div>${siteGot} of ${siteNeed} needed</div>
+        <div class="rr"><div class="cost">${FD(siteCost)}</div>${siteGot} out · ${siteNeed} asked for by the plan</div>
       </div>
       ${rows}
     </div>`;

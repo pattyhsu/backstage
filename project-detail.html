@@ -467,6 +467,23 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .gg-hc.short { color:var(--amber); font-weight:600; }
 .gg-hc.over { color:var(--green); font-weight:600; }
 .gg-help.warn { color:var(--amber); font-style:normal; }
+.cp-ov { position:fixed; inset:0; background:rgba(26,26,24,.35); display:none;
+  align-items:center; justify-content:center; z-index:60; }
+.cp-ov.open { display:flex; }
+.cp-card { background:#fff; border-radius:10px; width:360px; max-height:76vh; display:flex;
+  flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.18); }
+.cp-head { padding:13px 17px; border-bottom:1px solid var(--border); font-size:14px;
+  font-weight:600; display:flex; align-items:center; }
+.cp-head .cp-x { margin-left:auto; cursor:pointer; color:var(--text-4); }
+.cp-sub { font-size:11.5px; color:var(--text-4); font-weight:400; margin-top:2px; }
+.cp-body { overflow-y:auto; padding:5px 0; }
+.cp-row { display:flex; align-items:center; gap:9px; padding:8px 17px; cursor:pointer; font-size:13px; }
+.cp-row:hover { background:var(--bg); }
+.cp-nm { font-weight:500; }
+.cp-st { font-size:11px; color:var(--amber); }
+.cp-rt { margin-left:auto; font-size:11.5px; color:var(--text-4); font-variant-numeric:tabular-nums; }
+.cp-row.on { background:var(--accent-dim); }
+.cp-row.on .cp-nm { color:var(--accent); font-weight:600; }
 .gg-help { font-size:11px; color:var(--text-4); margin-top:11px; font-style:italic; }
 .ms-na { font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4);
   cursor:pointer; padding:1px 5px; border:1px solid var(--border); border-radius:3px; text-align:center; }
@@ -1166,6 +1183,8 @@ let phaseHistory=[];
 let dealMilestones=[];
 let constructionTemplate=[];   // Brief CC — construction_v2 rows (key, offset, order)
 let dealWorkDays=[];           // Brief CC — deal_work_days rows (which days each trade worked)
+let dealAssignments=[];        // Brief CC — deal_work_assignments: the NAMED people, shared with construction.html
+let rosterWorkers=[];          // Brief CC — workers roster (owner-only; empty for other roles)
 let phaseChecklistItems=[];
 let userNameMap=new Map();
 let dealLoans=[];
@@ -1288,6 +1307,21 @@ async function loadProject(){
       .eq('deal_id', dealRow.id);
     dealWorkDays=wdErr?[]:(wd||[]);
   } catch(e){ dealWorkDays=[]; }
+
+  // 5d. Brief CC — the named assignments and the roster. Same tables the
+  // Construction hub writes, so assigning someone here shows up there and
+  // vice versa. Both are owner-only, so a non-owner just sees counts.
+  try {
+    const {data:as, error:aErr}=await sb.from('deal_work_assignments')
+      .select('id, milestone_key, work_date, worker_id')
+      .eq('deal_id', dealRow.id);
+    dealAssignments=aErr?[]:(as||[]);
+  } catch(e){ dealAssignments=[]; }
+  try {
+    const {data:wk, error:kErr}=await sb.from('workers')
+      .select('id, name, daily_rate').eq('active',true).order('name');
+    rosterWorkers=kErr?[]:(wk||[]);
+  } catch(e){ rosterWorkers=[]; }
 
   // 6. Phase checklist items (BV new). Graceful fallback if table doesn't
   // exist yet (Migration 065 not applied).
@@ -1752,6 +1786,16 @@ function updateAcqCard(viewing){
 // Brief CC — construction milestones for this deal, in template order.
 // Ordered by display_order, not due_date: the schedule ties on day 12
 // (roof + both rough-ins) and day 30 (bathrooms + countertop).
+function workerById(id){return rosterWorkers.find(w=>w.id===id)||null;}
+function initialsOf(w){return w?w.name.slice(0,2):'?';}
+// Who is named on a trade for a day. This is the shared record; the typed
+// crew_count on deal_work_days is only the fallback for a day where nobody
+// was named (a subbed trade working, or a quick count entered before the
+// roster existed).
+function namedOn(key, date){
+  return dealAssignments.filter(a=>a.milestone_key===key && a.work_date===date)
+    .map(a=>({a, w:workerById(a.worker_id)})).filter(x=>x.w);
+}
 function constructionMilestones(){
   if(!constructionTemplate.length)return [];
   const order=new Map(constructionTemplate.map(t=>[t.milestone_key, t.display_order]));
@@ -2015,18 +2059,25 @@ function renderBuildSchedule(st){
       let cells='';
       for(let i=0;i<cols;i++){
         const planned=(i>=startDay && i<=endDay);
-        const did=wmap.has(i);
-        const n=did?wmap.get(i):null;
         const date=addDays(st.start||today, i);
+        const people=namedOn(m.milestone_key, date);
+        const did=people.length>0 || wmap.has(i);
+        const n=people.length ? people.length : (wmap.has(i)?wmap.get(i):null);
         const cls=['gg-c', planned?'plan':'', did?'work':'', i===todayIdx?'now':''].filter(Boolean).join(' ');
         const bg=did?color:(planned?color+'2E':'');
-        const tip=did
-          ? `${m.display_name} · ${fmtMD(date)} · ${n===0?'outside crew':n+(n===1?' person':' people')}`
-          : `${m.display_name} · ${fmtMD(date)}${planned?' · planned '+planCrew:''}`;
+        const tip=people.length
+          ? `${m.display_name} · ${fmtMD(date)} · ${people.map(x=>x.w.name).join(', ')}`
+          : (did
+              ? `${m.display_name} · ${fmtMD(date)} · ${n===0?'outside crew':n+(n===1?' person':' people')}`
+              : `${m.display_name} · ${fmtMD(date)}${planned?' · planned '+planCrew:''}`);
+        // One initial when a single person is named, otherwise the headcount —
+        // a 17px cell can't hold three names, and the tooltip carries them.
+        const label=people.length===1 ? initialsOf(people[0].w)
+                  : (did ? (n===0?'·':String(n)) : '');
         cells+=`<i class="${cls}" data-wd-key="${escapeHtml(m.milestone_key)}" data-wd-date="${date}"`
-             +` data-wd-plan="${planCrew}" data-wd-crew="${did?n:''}"`
+             +` data-wd-plan="${planCrew}" data-wd-crew="${did?n:''}" data-wd-named="${people.length}"`
              +(bg?` style="background:${bg}"`:'')
-             +` title="${escapeHtml(tip)}">${did?(n===0?'·':n):''}</i>`;
+             +` title="${escapeHtml(tip)}">${label}</i>`;
       }
       const cnt=wmap.size;
       const cls=[na?'na':'', m.completed?'done':'', overdue?'overdue':''].filter(Boolean).join(' ');
@@ -2064,7 +2115,17 @@ function renderBuildSchedule(st){
   // there's something to compare — an all-zero row is noise.
   const actualByDay=new Array(cols).fill(0);
   let anyActual=false;
+  const countedDays=new Set();
+  for(const a of dealAssignments){
+    const off=st.start?daysBetween(st.start, a.work_date):null;
+    if(off==null || off<0 || off>=cols)continue;
+    actualByDay[off]+=1; anyActual=true;
+    countedDays.add(a.milestone_key+'|'+a.work_date);
+  }
   for(const w of dealWorkDays){
+    // Skip a day already covered by named people — otherwise the fallback
+    // count double-counts the same work.
+    if(countedDays.has(w.milestone_key+'|'+w.work_date))continue;
     const off=st.start?daysBetween(st.start, w.work_date):null;
     if(off==null || off<0 || off>=cols)continue;
     actualByDay[off]+=(w.crew_count==null?1:w.crew_count);
@@ -2097,7 +2158,7 @@ function renderBuildSchedule(st){
       <span></span><span></span></div>
     ${body}
     ${crewRow}
-    <div class="gg-help">Click a day to log the planned crew, click again to step it down, shift-click to add people. Shaded = planned, solid = actually worked.</div>
+    <div class="gg-help">Click a day to choose who works it — the same people the Construction hub schedules. Shaded = planned, solid = actually worked.</div>
     ${gap}
   </div>`;
 }
@@ -2117,6 +2178,11 @@ function wireWorkDays(){
     const key=cell.dataset.wdKey, date=cell.dataset.wdDate;
     const plan=Number(cell.dataset.wdPlan||1);
     const cur=cell.dataset.wdCrew===''?null:Number(cell.dataset.wdCrew);
+    // A trade our own people staff opens the picker, so what gets recorded is
+    // WHO — the same rows the Construction hub reads and writes. Subbed trades
+    // (crew 0) have nobody of ours to name, so they keep the simple
+    // work-happened toggle.
+    if(plan>0 && rosterWorkers.length){ openCrewPicker(key, date); return; }
     let next;
     if(e.shiftKey){
       next=(cur==null)?1:Math.min(20, cur+1);
@@ -2134,6 +2200,73 @@ function wireWorkDays(){
     _refreshWorkCounts();
   });
 }
+// Crew picker — the same interaction the Construction hub uses, writing the
+// same deal_work_assignments rows. Assign someone here and they show up on the
+// hub's day view; assign them there and they show up in this grid.
+let pickerCtx=null;
+function openCrewPicker(key, date){
+  pickerCtx={key, date};
+  const m=dealMilestones.find(x=>x.milestone_key===key);
+  const t=constructionTemplate.find(x=>x.milestone_key===key)||{};
+  let el=document.getElementById('crewPick');
+  if(!el){
+    el=document.createElement('div');
+    el.id='crewPick'; el.className='cp-ov';
+    el.innerHTML=`<div class="cp-card">
+      <div class="cp-head"><div><span id="cpTitle"></span><div class="cp-sub" id="cpSub"></div></div>
+        <span class="cp-x" id="cpX">&#10005;</span></div>
+      <div class="cp-body" id="cpBody"></div></div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', e=>{ if(e.target===el)closeCrewPicker(); });
+    el.querySelector('#cpX').addEventListener('click', closeCrewPicker);
+  }
+  document.getElementById('cpTitle').textContent=(m?m.display_name:key);
+  document.getElementById('cpSub').textContent=fmtMD(date)+' · needs '+(t.default_crew_size||0);
+  renderCrewPicker();
+  el.classList.add('open');
+}
+function closeCrewPicker(){
+  const el=document.getElementById('crewPick');
+  if(el)el.classList.remove('open');
+  pickerCtx=null;
+}
+function renderCrewPicker(){
+  const here=new Set(namedOn(pickerCtx.key, pickerCtx.date).map(x=>x.w.id));
+  document.getElementById('cpBody').innerHTML=rosterWorkers.map(w=>{
+    // Busy elsewhere on this deal the same day. Cross-deal clashes are the
+    // hub's job — it can see every build; this page only sees one.
+    const busy=dealAssignments.some(a=>a.worker_id===w.id && a.work_date===pickerCtx.date
+      && a.milestone_key!==pickerCtx.key);
+    return `<div class="cp-row${here.has(w.id)?' on':''}" data-cp="${escapeHtml(w.id)}">
+      <span class="cp-nm">${escapeHtml(w.name)}</span>
+      ${busy?'<span class="cp-st">on another trade today</span>':''}
+      <span class="cp-rt">$${Number(w.daily_rate||0).toLocaleString()}</span></div>`;
+  }).join('');
+  document.querySelectorAll('#cpBody .cp-row').forEach(el=>{
+    el.addEventListener('click', ()=>toggleCrew(el.dataset.cp));
+  });
+}
+async function toggleCrew(workerId){
+  const {key, date}=pickerCtx;
+  const existing=dealAssignments.find(a=>a.milestone_key===key && a.work_date===date && a.worker_id===workerId);
+  if(existing){
+    const {error}=await sb.from('deal_work_assignments').delete().eq('id', existing.id);
+    if(error){alert('Remove failed: '+error.message);return;}
+    dealAssignments=dealAssignments.filter(a=>a.id!==existing.id);
+  } else {
+    const {data, error}=await sb.from('deal_work_assignments')
+      .insert({deal_id: currentDeal.id, milestone_key: key, work_date: date, worker_id: workerId})
+      .select('id, milestone_key, work_date, worker_id');
+    if(error){alert('Assign failed: '+error.message);return;}
+    if(data && data[0])dealAssignments.push(data[0]);
+  }
+  renderCrewPicker();
+  renderPage();
+  const el=document.getElementById('crewPick');
+  if(el)el.classList.add('open');
+}
+window.closeCrewPicker=closeCrewPicker;
+
 function _paintCell(cell, n){
   const tpl=constructionTemplate.find(t=>t.milestone_key===cell.dataset.wdKey)||{};
   const COLOR={procurement:'#D85A30', structural:'#7F77DD', finishes:'#1D9E75', closeout:'#888780'};
