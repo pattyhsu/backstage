@@ -215,6 +215,7 @@
       <span class="cur" id="dCur">—</span>
       <button id="dNext">›</button>
       <button id="dToday">Today</button>
+      <button id="dTom">Tomorrow</button>
       <span class="hsw"><button id="h2w" class="on">2 weeks</button><button id="hFull">Full runway</button></span>
       <input type="date" id="dPick">
     </div>
@@ -800,6 +801,9 @@ async function setHorizon(mode){
   document.getElementById('dPrev').addEventListener('click',()=>setDate(addDays(selDate,-1)));
   document.getElementById('dNext').addEventListener('click',()=>setDate(addDays(selDate,1)));
   document.getElementById('dToday').addEventListener('click',()=>setDate(todayStr()));
+  // The nightly job is planning tomorrow, so it gets its own button rather
+  // than a step through the date arrows.
+  document.getElementById('dTom').addEventListener('click',()=>setDate(addDays(todayStr(),1)));
   document.getElementById('h2w').addEventListener('click',()=>setHorizon('2w'));
   document.getElementById('hFull').addEventListener('click',()=>setHorizon('full'));
   document.getElementById('dPick').addEventListener('change',e=>{if(e.target.value)setDate(e.target.value);});
