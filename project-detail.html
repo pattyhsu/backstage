@@ -480,7 +480,8 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .cp-row { display:flex; align-items:center; gap:9px; padding:8px 17px; cursor:pointer; font-size:13px; }
 .cp-row:hover { background:var(--bg); }
 .cp-nm { font-weight:500; }
-.cp-st { font-size:11px; color:var(--amber); }
+.cp-st { font-size:11px; color:var(--amber); min-width:0; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; }
 .cp-rt { margin-left:auto; font-size:11.5px; color:var(--text-4); font-variant-numeric:tabular-nums; }
 .cp-row.on { background:var(--accent-dim); }
 .cp-row.on .cp-nm { color:var(--accent); font-weight:600; }
@@ -1202,6 +1203,8 @@ let constructionTemplate=[];   // Brief CC — construction_v2 rows (key, offset
 let dealWorkDays=[];           // Brief CC — deal_work_days rows (which days each trade worked)
 let dealAssignments=[];        // Brief CC — deal_work_assignments: the NAMED people, shared with construction.html
 let rosterWorkers=[];          // Brief CC — workers roster (owner-only; empty for other roles)
+let awayAssignments=[];        // Brief CC — the same people booked on OTHER builds in this window
+let awayDealLabel={};          // deal_id → the street we'd say out loud ("Moore St")
 let crewList=[];               // Brief CC — crews (our own vs a fixed-price sub crew)
 let phaseChecklistItems=[];
 let userNameMap=new Map();
@@ -1344,6 +1347,36 @@ async function loadProject(){
       .select('id, name, daily_rate').eq('active',true).order('name');
     rosterWorkers=kErr?[]:(wk||[]);
   } catch(e){ rosterWorkers=[]; }
+
+  // 5e. Brief CC — the clash that actually costs a day: someone already booked
+  // on ANOTHER build. This page used to check only its own rows, so a crew
+  // standing on Moore St looked free here. Bounded to this build's own window
+  // (plus today) so it stays one small indexed read; owner-only, and non-owners
+  // never open the picker anyway.
+  awayAssignments=[]; awayDealLabel={};
+  try {
+    if(rosterWorkers.length){
+      const span=dealMilestones
+        .flatMap(m=>[m.planned_start, m.planned_end, m.due_date])
+        .filter(Boolean).concat([todayStr()]).sort();
+      const {data:aw}=await sb.from('deal_work_assignments')
+        .select('deal_id, work_date, worker_id')
+        .neq('deal_id', dealRow.id)
+        .gte('work_date', span[0]).lte('work_date', span[span.length-1]);
+      awayAssignments=aw||[];
+      const ids=[...new Set(awayAssignments.map(a=>a.deal_id))];
+      if(ids.length){
+        const {data:dl}=await sb.from('deals').select('id, buy_side_mls').in('id', ids);
+        const mlss=(dl||[]).map(x=>x.buy_side_mls).filter(Boolean);
+        const addr={};
+        if(mlss.length){
+          const {data:pr}=await sb.from('properties').select('mls, address').in('mls', mlss);
+          for(const r of (pr||[]))addr[r.mls]=r.address;
+        }
+        for(const x of (dl||[]))awayDealLabel[x.id]=streetLabel(addr[x.buy_side_mls]);
+      }
+    }
+  } catch(e){ awayAssignments=[]; awayDealLabel={}; }
 
   // 6. Phase checklist items (BV new). Graceful fallback if table doesn't
   // exist yet (Migration 065 not applied).
@@ -2250,6 +2283,13 @@ function wireWorkDays(){
     _refreshWorkCounts();
   });
 }
+// "13408 Moore St" → "Moore St" — the street is how a build gets referred to
+// out loud, and the house number just eats the picker's 360px.
+function streetLabel(addr){
+  const s=String(addr||'').replace(/^\s*\d+[A-Za-z]?\s+/,'').trim();
+  if(!s)return 'another build';
+  return s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+}
 // Crew picker — the same interaction the Construction hub uses, writing the
 // same deal_work_assignments rows. Assign someone here and they show up on the
 // hub's day view; assign them there and they show up in this grid.
@@ -2283,13 +2323,16 @@ function closeCrewPicker(){
 function renderCrewPicker(){
   const here=new Set(namedOn(pickerCtx.key, pickerCtx.date).map(x=>x.w.id));
   document.getElementById('cpBody').innerHTML=rosterWorkers.map(w=>{
-    // Busy elsewhere on this deal the same day. Cross-deal clashes are the
-    // hub's job — it can see every build; this page only sees one.
+    // Already spoken for that day — on another build (name the site, that's the
+    // clash worth knowing) or on another trade right here.
+    const away=awayAssignments.find(a=>a.worker_id===w.id && a.work_date===pickerCtx.date);
     const busy=dealAssignments.some(a=>a.worker_id===w.id && a.work_date===pickerCtx.date
       && a.milestone_key!==pickerCtx.key);
+    const st=away ? 'on '+(awayDealLabel[away.deal_id]||'another build')+' today'
+           : busy ? 'on another trade today' : '';
     return `<div class="cp-row${here.has(w.id)?' on':''}" data-cp="${escapeHtml(w.id)}">
       <span class="cp-nm">${escapeHtml(w.name)}</span>
-      ${busy?'<span class="cp-st">on another trade today</span>':''}
+      ${st?`<span class="cp-st">${escapeHtml(st)}</span>`:''}
       <span class="cp-rt">$${Number(w.daily_rate||0).toLocaleString()}</span></div>`;
   }).join('');
   document.querySelectorAll('#cpBody .cp-row').forEach(el=>{
