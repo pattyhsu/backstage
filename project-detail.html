@@ -1959,7 +1959,7 @@ function renderConstructionSection(){
               <div class="et-cell"><div class="et-lbl">Started</div><div class="et-val" data-deal-field="construction_start_date" data-deal-type="date">${d.construction_start_date||'—'}</div><div class="et-aux">day of close</div></div>
               <div class="et-cell"><div class="et-lbl">Target finish</div><div class="et-val" data-deal-field="construction_complete_date" data-deal-type="date">${d.construction_complete_date||(st.target||'—')}</div><div class="et-aux">${d.construction_complete_date?'set':'from schedule'}</div></div>
               <div class="et-cell"><div class="et-lbl">Crew</div>
-                <select class="crew-pick" id="crewPick">${crewList.map(c=>`<option value="${escapeHtml(c.id)}"${c.id===d.crew_id?' selected':''}>${escapeHtml(c.name)}</option>`).join('')}</select>
+                <select class="crew-pick" id="dealCrewSelect">${crewList.map(c=>`<option value="${escapeHtml(c.id)}"${c.id===d.crew_id?' selected':''}>${escapeHtml(c.name)}</option>`).join('')}</select>
                 <div class="et-aux">${(crewList.find(c=>c.id===d.crew_id)||{}).kind==='fixed_price'?'fixed price · not staffed from our roster':"who's running it"}</div></div>
                           </div>
             ${slipHtml}
@@ -2090,7 +2090,8 @@ function renderBuildSchedule(st){
       const t=tpl.get(m.milestone_key)||{};
       const dur=t.default_duration_days||0;
       const na=!!m.not_applicable;
-      const overdue=!na && !m.completed && m.due_date && m.due_date<today;
+      const shownDue=m.planned_end||m.due_date;
+      const overdue=!na && !m.completed && shownDue && shownDue<today;
       const sp=spanDaysOf(m, st.start);
       const endDay=sp.e, startDay=sp.s;
       const wmap=worked[m.milestone_key]||new Map();
@@ -2138,7 +2139,7 @@ function renderBuildSchedule(st){
         <input type="checkbox" data-ms-id="${escapeHtml(m.id)}" ${m.completed?'checked':''} ${na?'disabled':''}>
         <span class="gg-name">${escapeHtml(m.display_name)}${crewChip}${cnt?`<em class="gg-cnt">${cnt}d${dur?' / '+dur:''}</em>`:''}</span>
         <div class="gg-grid" style="grid-template-columns:repeat(${cols},1fr)">${weekLines}${todayLine}${cells}</div>
-        <span class="gg-due">${fmtNum(m.due_date)}</span>
+        <span class="gg-due" title="${m.planned_end?('baseline '+fmtNum(m.due_date)):''}">${fmtNum(m.planned_end||m.due_date)}</span>
         <span class="ms-na" data-ms-na="${escapeHtml(m.id)}" title="${na?'Mark applicable again':'Does not apply to this project'}">n/a</span>
       </div>`;
     }
@@ -2476,7 +2477,11 @@ async function clearPlanHere(){
 window.replanHere=replanHere; window.clearPlanHere=clearPlanHere;
 
 function wireCrewPick(){
-  const el=document.getElementById('crewPick');
+  // NB: id is dealCrewSelect, not crewPick — the worker-assignment modal owns
+  // crewPick, and when both used it getElementById returned this <select>,
+  // the modal was never created, and clicking a day cell threw instead of
+  // opening the picker.
+  const el=document.getElementById('dealCrewSelect');
   if(!el)return;
   el.addEventListener('change', async ()=>{
     const {error}=await sb.from('deals').update({crew_id:el.value, updated_at:new Date().toISOString()}).eq('id', currentDeal.id);
