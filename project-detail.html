@@ -410,7 +410,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .cs-proj { font-size:11px; color:var(--text-4); margin-top:-8px; margin-bottom:14px;
   font-variant-numeric:tabular-nums; }
 .gg-wrap { display:flex; flex-direction:column; }
-.gg-row { display:grid; grid-template-columns:18px 208px 1fr 44px 30px; align-items:center;
+.gg-row { display:grid; grid-template-columns:18px 208px 1fr 44px 26px; align-items:center;
   gap:10px; padding:2px 0; font-size:13px; color:var(--text-2); }
 .gg-row input[type=checkbox] { cursor:pointer; margin:0; }
 .gg-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -486,8 +486,13 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .cp-row.on .cp-nm { color:var(--accent); font-weight:600; }
 .gg-help { font-size:11px; color:var(--text-4); margin-top:11px; font-style:italic; }
 .ms-na { font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4);
-  cursor:pointer; padding:1px 5px; border:1px solid var(--border); border-radius:3px; text-align:center; }
+  cursor:pointer; padding:1px 5px; border:1px solid var(--border); border-radius:3px; text-align:center;
+  opacity:0; transition:opacity .12s; }
+.gg-row:hover .ms-na, .ol-row:hover .ms-na { opacity:1; }
 .ms-na:hover { border-color:var(--text-4); color:var(--text-2); }
+/* A trade already marked n/a stays visible — otherwise the row looks broken
+   rather than deliberately skipped. */
+.gg-row.na .ms-na, .ol-row.na .ms-na { opacity:1; }
 .gt-row.na .ms-na { background:var(--text-4); color:#fff; border-color:var(--text-4); }
 .cf-val.text-edit input { width:170px; }
 .rp-wrap { margin-left:auto; display:inline-flex; align-items:center; gap:5px; }
@@ -1900,7 +1905,9 @@ function constructionState(){
   return {
     ms, applicable, done, start, target, totalDays, elapsed, oldestOpen, slip, overdue, anyPlanned,
     naCount,
-    projFinish: (target && slip>0)?addDays(target, slip):target,
+    // With a committed plan, the plan's end is the projection. Only an
+    // un-planned build extrapolates from the baseline.
+    projFinish: (anyPlanned || !target || slip<=0) ? target : addDays(target, slip),
   };
 }
 
@@ -1938,12 +1945,14 @@ function renderConstructionSection(){
   const budgetLabel=(rehabActual!=null?FD(rehabActual):'$0')+' / '+(rehabBudget!=null?FD(rehabBudget):'—')+' · '+budgetPct+'%';
 
   const slipHtml=(!st.applicable.length||!st.start)?'':(st.slip>0
-    ? '<div class="cs-slip behind"><span class="big">'+st.slip+' days behind</span>'
+    ? '<div class="cs-slip behind"><span class="big">'+st.slip+(st.anyPlanned?' days past baseline':' days behind')+'</span>'
       +'<span class="why">oldest open · '+escapeHtml(st.oldestOpen.display_name)+', due '+fmtMD(st.oldestOpen.due_date)+'</span></div>'
     : '<div class="cs-slip ontrack"><span class="big">On schedule</span>'
       +'<span class="why">'+(st.oldestOpen?'next up · '+escapeHtml(st.oldestOpen.display_name)+', due '+fmtMD(st.oldestOpen.due_date):'everything closed out')+'</span></div>');
   const projHtml=(st.slip>0 && st.target)
-    ? '<div class="cs-proj">Projected finish '+fmtMD(st.projFinish)+' — target was '+fmtMD(st.target)+'</div>' : '';
+    ? '<div class="cs-proj">'+(st.anyPlanned
+        ? 'Plan runs to '+fmtMD(st.target)+' — the delay above is against the original baseline'
+        : 'Projected finish '+fmtMD(st.projFinish)+' — target was '+fmtMD(st.target))+'</div>' : '';
 
   const spendHtml=renderSpendingTree();
 
@@ -2019,7 +2028,7 @@ function renderOrderList(st){
       <input type="checkbox" data-ms-id="${escapeHtml(m.id)}" ${m.completed?'checked':''} ${na?'disabled':''}>
       <span class="ol-name">${escapeHtml(m.display_name)}</span>
       <span class="ol-due">${fmtNum(m.due_date)}</span>
-      <span class="ms-na" data-ms-na="${escapeHtml(m.id)}" title="${na?'Mark applicable again':'Does not apply to this project'}">n/a</span>
+      <span class="ms-na" data-ms-na="${escapeHtml(m.id)}" title="${na?'Mark applicable again':'This trade does not apply to this build'}">n/a</span>
     </li>`;
   }
   return `<ul class="ol-list">${lis}</ul>`;
