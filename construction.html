@@ -267,6 +267,13 @@ function tplOf(k){return tpl.find(t=>t.milestone_key===k)||{};}
 function addrOf(x){const p=propByMls[x.buy_side_mls]||{};return p.address?titleCase(p.address):(x.buy_side_mls||'—');}
 function cityOf(x){const p=propByMls[x.buy_side_mls]||{};return titleCase(p.city||'');}
 function nameOf(m){return m.display_name||tplOf(m.milestone_key).display_name||m.milestone_key;}
+// What to say about someone already booked that day. On the SAME build the
+// useful fact is WHICH TRADE — naming the site would just repeat the header
+// you're looking at. On a different build it's the site.
+function tradeNameOf(dealId,key){
+  const m=milestones.find(x=>x.deal_id===dealId&&x.milestone_key===key);
+  return m?nameOf(m):(tplOf(key).display_name||key);
+}
 function workerById(id){return workers.find(w=>w.id===id)||null;}
 function canDo(wid,key){return skills.some(s=>s.worker_id===wid&&s.milestone_key===key);}
 function staffedTrades(){return tpl.filter(t=>t.category!=='procurement'&&(t.default_crew_size||0)>0);}
@@ -578,7 +585,9 @@ function renderOv(){
   document.getElementById('ovb').innerHTML=workers.map(w=>{
     const el=assigns.find(a=>a.worker_id===w.id&&a.work_date===ovCtx.day
       &&!(a.deal_id===ovCtx.dealId&&a.milestone_key===ovCtx.key));
-    const st=el?`<span class="st">on ${esc(addrOf(deals.find(x=>x.id===el.deal_id)||{}))}</span>`:'';
+    const st=el?`<span class="st">on ${esc(el.deal_id===ovCtx.dealId
+      ? tradeNameOf(el.deal_id, el.milestone_key)
+      : addrOf(deals.find(x=>x.id===el.deal_id)||{}))}</span>`:'';
     const sk=canDo(w.id,ovCtx.key)?'<span class="st" style="color:var(--green)">trained for this</span>':'';
     return `<div class="wr${here.has(w.id)?' on':''}" data-worker="${w.id}">
       <span class="nm">${esc(w.name)}</span>${sk}${st}<span class="rt">${money(w.daily_rate)}</span></div>`;

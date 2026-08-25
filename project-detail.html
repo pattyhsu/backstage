@@ -2283,6 +2283,15 @@ function wireWorkDays(){
     _refreshWorkCounts();
   });
 }
+// The trade someone is already on, for the picker's same-build case — the
+// site there is the one you're already looking at, so the trade is the fact
+// worth showing.
+function tradeName(key){
+  const m=dealMilestones.find(x=>x.milestone_key===key);
+  if(m && m.display_name)return m.display_name;
+  const t=constructionTemplate.find(x=>x.milestone_key===key);
+  return (t&&t.display_name)||key;
+}
 // "13408 Moore St" → "Moore St" — the street is how a build gets referred to
 // out loud, and the house number just eats the picker's 360px.
 function streetLabel(addr){
@@ -2326,10 +2335,10 @@ function renderCrewPicker(){
     // Already spoken for that day — on another build (name the site, that's the
     // clash worth knowing) or on another trade right here.
     const away=awayAssignments.find(a=>a.worker_id===w.id && a.work_date===pickerCtx.date);
-    const busy=dealAssignments.some(a=>a.worker_id===w.id && a.work_date===pickerCtx.date
+    const busy=dealAssignments.find(a=>a.worker_id===w.id && a.work_date===pickerCtx.date
       && a.milestone_key!==pickerCtx.key);
     const st=away ? 'on '+(awayDealLabel[away.deal_id]||'another build')+' today'
-           : busy ? 'on another trade today' : '';
+           : busy ? 'on '+tradeName(busy.milestone_key)+' today' : '';
     return `<div class="cp-row${here.has(w.id)?' on':''}" data-cp="${escapeHtml(w.id)}">
       <span class="cp-nm">${escapeHtml(w.name)}</span>
       ${st?`<span class="cp-st">${escapeHtml(st)}</span>`:''}
