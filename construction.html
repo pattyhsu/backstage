@@ -579,7 +579,7 @@ function renderOv(){
     const el=assigns.find(a=>a.worker_id===w.id&&a.work_date===ovCtx.day
       &&!(a.deal_id===ovCtx.dealId&&a.milestone_key===ovCtx.key));
     const st=el?`<span class="st">on ${esc(addrOf(deals.find(x=>x.id===el.deal_id)||{}))}</span>`:'';
-    const sk=canDo(w.id,ovCtx.key)?'<span class="st" style="color:var(--green)">marked for this</span>':'';
+    const sk=canDo(w.id,ovCtx.key)?'<span class="st" style="color:var(--green)">trained for this</span>':'';
     return `<div class="wr${here.has(w.id)?' on':''}" data-worker="${w.id}">
       <span class="nm">${esc(w.name)}</span>${sk}${st}<span class="rt">${money(w.daily_rate)}</span></div>`;
   }).join('');
