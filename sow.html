@@ -141,6 +141,10 @@ body { overflow:hidden; height:100vh; }
   background:#fff; color:var(--doc-ink);
   box-shadow:0 4px 24px rgba(0,0,0,.14);
   font-family:var(--doc-sans); font-size:12.5px; line-height:1.42;
+  /* backstage.css sets `body { font-weight:450 }`, which Helvetica Neue
+     resolves to its Medium face — the whole letter then prints semi-bold.
+     The originals use regular + true bold only, so reset to 400 here. */
+  font-weight:400;
   padding:52px 64px 40px; box-sizing:border-box;
   display:flex; flex-direction:column;
 }
@@ -150,8 +154,8 @@ body { overflow:hidden; height:100vh; }
 .lh-gap { height:11px; }
 .doc-re { font-weight:400; margin-bottom:18px; }
 .doc-block { margin-bottom:18px; }
-.doc-block .db-cap { margin-bottom:2px; }
-.doc-scope-cap { margin-bottom:9px; }
+.doc-block .db-cap { font-weight:700; margin-bottom:2px; }
+.doc-scope-cap { font-weight:700; margin-bottom:9px; }
 .scope-ul { list-style:none; margin:0; padding:0; }
 .scope-ul li { position:relative; padding-left:14px; margin-bottom:1px; }
 .scope-ul li::before { content:"-"; position:absolute; left:2px; }
