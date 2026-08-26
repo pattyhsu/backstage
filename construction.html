@@ -320,12 +320,18 @@ function assignedTo(dealId,key,day){
     .map(a=>({a,w:workerById(a.worker_id)})).filter(x=>x.w);
 }
 function busyOn(wid,day){return assigns.filter(a=>a.worker_id===wid&&a.work_date===day).length;}
+// A few days of lead-in before today. The board is a planning surface, so the
+// forward horizon stays a full two weeks — the lookback is added, not traded
+// against it. Deliberately a fixed window rather than a scrollable history:
+// "what did we actually get done" is always a question about the last few
+// days, and paging would put a where-am-I state on a glance surface.
+const LOOKBACK=4;
 function days(){
-  if(view==='2w')return Array.from({length:14},(_,i)=>addDays(TODAY,i));
+  if(view==='2w')return Array.from({length:LOOKBACK+14},(_,i)=>addDays(TODAY,i-LOOKBACK));
   let last=TODAY;
   for(const dl of deals){const f=finishOf(dl); if(f&&f>last)last=f;}
   const n=Math.max(13, diff(TODAY,last)||13);
-  return Array.from({length:n+1},(_,i)=>addDays(TODAY,i));
+  return Array.from({length:LOOKBACK+n+1},(_,i)=>addDays(TODAY,i-LOOKBACK));
 }
 
 function render(){
@@ -479,7 +485,7 @@ function render(){
 
   document.getElementById('page').innerHTML=`
     <div class="sh"><h2>${view==='2w'?'The next two weeks':'Full runway'}</h2>
-      <span class="sub">${view==='2w'?'every day is clickable — inside the plan or not':'the committed plan, out to the last trade'}</span></div>
+      <span class="sub">${view==='2w'?'plus the last four days — every day is clickable, inside the plan or not':'the committed plan, out to the last trade'}</span></div>
     <div class="card"><div style="min-width:${196+N*(view==='2w'?34:19)}px">${hd}${body}${ld}${ac}</div></div>
     <div class="cols">
       <div>
