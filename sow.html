@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOW — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js?v=20260825"></script>
+<style>
+/* === SOW GENERATOR — local layout only ===
+   Shared shell + sidebar tokens come from backstage.css. Sibling of quote.html
+   and reduction-letter.html: a form on the left drives a live "paper" preview on
+   the right, and the browser's Print / Save-as-PDF reproduces the document.
+   Nothing is persisted.
+
+   The document reproduced here is the contractor's completed-scope letter that
+   goes to appraisers and buyers (the MCI letterhead ones in Patty's `sow rr/`
+   folder). The left column carries a clickable LIBRARY of scope lines harvested
+   from every past SOW — click a line to drop it on the sheet, then edit freely. */
+
+:root {
+  --doc-ink: #1a1a1a;
+  --doc-muted: #555;
+  /* The originals are Pages documents set in Helvetica — no webfont, on purpose. */
+  --doc-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+body { overflow:hidden; height:100vh; }
+.app-shell { display:flex; height:100vh; }
+
+/* --- Sidebar (identical token block to quote.html) --- */
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+.bs-sidebar.collapsed { width:56px; }
+.bs-sidebar.collapsed .side-brand span, .bs-sidebar.collapsed .side-section-label, .bs-sidebar.collapsed .side-label, .bs-sidebar.collapsed .side-user-name, .bs-sidebar.collapsed .lock-btn { display:none; }
+.bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+.bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+.bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+.bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+.bs-sidebar.collapsed .side-user { justify-content:center; }
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.lock-btn:hover { color:var(--text); }
+.collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
+.collapse-btn:hover { color:var(--text); }
+.main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
+
+/* --- Top header bar --- */
+.q-hdr { padding:14px 20px 12px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.92); backdrop-filter:blur(20px); display:flex; align-items:center; justify-content:space-between; gap:16px; flex-shrink:0; }
+.q-hdr h1 { font-size:14px; font-weight:700; letter-spacing:-.3px; color:var(--accent); margin:0; }
+.q-hdr h1 span { color:var(--text-3); font-weight:400; margin-left:6px; }
+.q-actions { display:flex; gap:8px; align-items:center; }
+.btn { font-size:12.5px; font-weight:600; padding:7px 14px; border-radius:var(--radius); border:1px solid var(--border-strong); background:var(--bg); color:var(--text-2); cursor:pointer; transition:all .12s; }
+.btn:hover { border-color:var(--border-hover); background:var(--bg-page); }
+.btn-primary { background:var(--text); border-color:var(--text); color:#fff; }
+.btn-primary:hover { filter:brightness(1.25); }
+
+/* --- Work area: editor (left) + preview (right) — same shell as quote.html --- */
+.q-work { flex:1; display:flex; min-height:0; }
+.q-editor { width:430px; flex-shrink:0; border-right:1px solid var(--border); overflow-y:auto; padding:18px 20px 60px; background:var(--bg-page); }
+.q-preview-wrap { flex:1; overflow:auto; background:var(--bg-inset); padding:28px; display:flex; align-items:flex-start;
+  /* `safe center` so an over-wide sheet spills to the RIGHT (scrollable)
+     instead of off the left edge, where plain `center` puts it out of reach. */
+  justify-content:safe center; }
+
+/* --- Editor form --- */
+.fld { margin-bottom:12px; }
+.fld label { display:block; font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--text-4); margin-bottom:4px; }
+.fld input, .fld textarea, .fld select { width:100%; box-sizing:border-box; font-family:var(--sans); font-size:13px; color:var(--text); padding:7px 9px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); }
+.fld input:focus, .fld textarea:focus, .fld select:focus { outline:none; border-color:var(--accent); }
+.fld select { cursor:pointer; }
+.fld-row { display:flex; gap:9px; }
+.fld-row .fld { flex:1; min-width:0; }
+.hint { font-size:10.5px; color:var(--text-4); margin-top:3px; line-height:1.35; }
+.sec-label { font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-3); margin:20px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+.sec-label .sl-note { font-weight:400; letter-spacing:0; text-transform:none; color:var(--text-4); font-size:10.5px; }
+.chk { display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--text-2); margin-bottom:9px; cursor:pointer; }
+.chk input { width:auto; margin:0; cursor:pointer; }
+
+/* --- Scope library (a panel inside the editor column) --- */
+.lib-wrap { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:11px 12px 4px; }
+.lib-scroll { max-height:340px; overflow-y:auto; margin:0 -4px; padding:0 4px; }
+.lib-search { width:100%; box-sizing:border-box; font-family:var(--sans); font-size:13px; padding:7px 9px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg-page); margin-bottom:14px; }
+.lib-search:focus { outline:none; border-color:var(--accent); }
+.lib-cat { margin-bottom:13px; }
+.lib-cat:last-child { margin-bottom:4px; }
+.lib-cat-h { font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-3); margin-bottom:6px; padding-bottom:5px; border-bottom:1px solid var(--border); }
+.lib-item { display:flex; align-items:flex-start; gap:8px; width:100%; box-sizing:border-box; text-align:left; font-family:var(--sans); font-size:12.5px; line-height:1.4; color:var(--text-2); background:none; border:1px solid transparent; border-radius:var(--radius-sm); padding:5px 7px; cursor:pointer; transition:all .1s; }
+.lib-item:hover { background:var(--bg-page); border-color:var(--border); }
+.lib-item .li-plus { flex-shrink:0; width:14px; color:var(--text-4); font-weight:700; font-size:13px; line-height:1.35; }
+.lib-item:hover .li-plus { color:var(--accent); }
+.lib-item.on { color:var(--text-4); }
+.lib-item.on .li-plus { color:var(--green, #3a9b5c); }
+.lib-empty { font-size:12px; color:var(--text-4); padding:10px 2px; }
+
+/* --- Selected scope rows (editor column) --- */
+.sc-row { display:flex; align-items:center; gap:6px; margin-bottom:6px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm); padding:4px 5px 4px 3px; }
+.sc-row.dragging { opacity:.4; }
+.sc-row.drop-target { border-color:var(--accent); }
+.sc-grip { flex-shrink:0; cursor:grab; color:var(--text-4); font-size:12px; line-height:1; padding:4px 2px; user-select:none; }
+.sc-grip:active { cursor:grabbing; }
+.sc-row input { flex:1; min-width:0; border:none; background:none; font-family:var(--sans); font-size:12.5px; color:var(--text); padding:3px 2px; }
+.sc-row input:focus { outline:none; }
+.sc-x { flex-shrink:0; border:none; background:none; cursor:pointer; color:var(--text-4); font-size:13px; line-height:1; padding:3px 4px; }
+.sc-x:hover { color:var(--red); }
+.sc-empty { font-size:12px; color:var(--text-4); line-height:1.5; padding:6px 2px 10px; }
+.btn-add { width:100%; font-size:12.5px; font-weight:600; padding:8px; border-radius:var(--radius); border:1px dashed var(--border-strong); background:var(--bg); color:var(--text-3); cursor:pointer; margin-top:4px; }
+.btn-add:hover { border-color:var(--accent); color:var(--accent); }
+
+/* === THE PAPER (also the print surface) === */
+.paper {
+  /* On-screen preview only — in print the paper fills the page (width:auto,
+     min-height:100vh), so --page-h just keeps the preview proportioned to the
+     selected paper size. Density is tuned to the real letters: they run about
+     11pt Helvetica with tight leading, which is what lets ~25 scope lines land
+     on one page. */
+  width:760px; flex-shrink:0;               /* never let the flex wrap squeeze the sheet narrower than a page */
+  min-height:var(--page-h, 1056px);
+  zoom:var(--paper-zoom, 1);                /* set by fitPaper() so the sheet always fits its column */
+  background:#fff; color:var(--doc-ink);
+  box-shadow:0 4px 24px rgba(0,0,0,.14);
+  font-family:var(--doc-sans); font-size:12.5px; line-height:1.42;
+  padding:52px 64px 40px; box-sizing:border-box;
+  display:flex; flex-direction:column;
+}
+.lh { text-align:center; margin-bottom:22px; }
+.lh-name { font-size:14px; font-weight:700; letter-spacing:.2px; }
+.lh-line { font-size:11.5px; color:var(--doc-ink); }
+.lh-gap { height:11px; }
+.doc-re { font-weight:400; margin-bottom:18px; }
+.doc-block { margin-bottom:18px; }
+.doc-block .db-cap { margin-bottom:2px; }
+.doc-scope-cap { margin-bottom:9px; }
+.scope-ul { list-style:none; margin:0; padding:0; }
+.scope-ul li { position:relative; padding-left:14px; margin-bottom:1px; }
+.scope-ul li::before { content:"-"; position:absolute; left:2px; }
+.scope-grp { font-weight:700; margin:11px 0 4px; }
+.scope-grp:first-child { margin-top:0; }
+.scope-empty { color:#a2a2a2; font-style:italic; }
+.doc-sign { margin-top:auto; padding-top:26px; }
+.doc-sign .sg-regards { margin-bottom:30px; }
+.doc-sign .sg-row { display:flex; gap:40px; }
+.doc-sign .sg-who { flex:1; min-width:0; }
+
+/* === PRINT === */
+@media print {
+  /* The `@page { size: … ; margin:0 }` rule lives in #page-rule, written by
+     setPageSize() — @page can't be toggled with a class. margin:0 also
+     suppresses Chrome's auto header/footer (date/title/URL/page number); the
+     paper's own 52/64px padding IS the document margin. */
+  html, body { height:auto; overflow:visible; background:#fff; margin:0; padding:0; }
+  .app-shell { display:block; height:auto; margin:0; padding:0; }
+  .bs-sidebar, .q-hdr, .q-editor { display:none !important; }
+  .main-content { overflow:visible; display:block; }
+  .q-work { display:block; }
+  .q-preview-wrap { display:block; padding:0; background:#fff; overflow:visible; }
+  .paper { width:auto; min-height:100vh; box-shadow:none; margin:0; zoom:1; }
+  .scope-ul li, .doc-sign, .doc-block { page-break-inside:avoid; }
+}
+</style>
+<style id="page-rule">@page { size:letter; margin:0; }</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+<!-- Sidebar (rendered by sidebar.js) -->
+<div class="bs-sidebar" id="bsSidebar"></div>
+
+<div class="main-content">
+
+  <div class="q-hdr">
+    <h1>SOW <span>build the scope &amp; print to PDF</span></h1>
+    <div class="q-actions">
+      <button class="btn" onclick="resetForm()">Clear</button>
+      <button class="btn btn-primary" onclick="window.print()">Print / Save PDF</button>
+    </div>
+  </div>
+
+  <div class="q-work">
+
+    <!-- ===== EDITOR ===== -->
+    <div class="q-editor">
+
+      <div class="sec-label" style="margin-top:0">Document</div>
+      <div class="fld">
+        <label>Letterhead</label>
+        <select id="f-company" onchange="render()">
+          <option value="mci">Metropolitan Commercial Interiors</option>
+          <option value="dotty">Dotty Homes</option>
+        </select>
+      </div>
+      <div class="fld">
+        <label>Audience</label>
+        <select id="f-audience" onchange="onAudienceChange()">
+          <option value="buyer">For buyer — no cost shown</option>
+          <option value="appraiser">For appraiser — fee + payment status</option>
+        </select>
+        <div class="hint">Appraiser copy adds the “Fee (labor and material included)” and “Payment status” lines.</div>
+      </div>
+      <div class="fld">
+        <label>Paper</label>
+        <select id="f-paper" onchange="setPageSize()">
+          <option value="letter">Letter — 8.5 × 11</option>
+          <option value="legal">Legal — 8.5 × 14</option>
+        </select>
+        <div class="hint" id="paper-hint"></div>
+      </div>
+      <div class="fld">
+        <label>RE line</label>
+        <input type="text" id="f-re" oninput="render()" placeholder="Alterations and Improvements">
+      </div>
+
+      <div class="sec-label">Project</div>
+      <div class="fld">
+        <label>Customer</label>
+        <input type="text" id="f-customer" oninput="render()" placeholder="Dotty Homes">
+      </div>
+      <div class="fld">
+        <label>Property address</label>
+        <input type="text" id="f-addr" oninput="render()" placeholder="17422 Vierra Ave, Cerritos, CA 90703">
+      </div>
+      <div class="fld-row">
+        <div class="fld"><label>Date started</label><input type="date" id="f-start" oninput="render()"></div>
+        <div class="fld"><label>Date completed</label><input type="date" id="f-end" oninput="render()"></div>
+      </div>
+      <div class="fld">
+        <label>Contractor / Project Manager</label>
+        <input type="text" id="f-pm" oninput="render()" placeholder="Jack Dioses">
+      </div>
+      <div id="cost-fields" style="display:none">
+        <div class="fld">
+          <label>Fee — labor &amp; material</label>
+          <input type="text" id="f-fee" oninput="render()" placeholder="210000">
+          <div class="hint">Digits only; prints as $210,000.</div>
+        </div>
+        <div class="fld">
+          <label>Payment status</label>
+          <select id="f-paid" onchange="render()">
+            <option value="Paid in full">Paid in full</option>
+            <option value="Paid">Paid</option>
+            <option value="Balance due">Balance due</option>
+            <option value="">— omit the line —</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="sec-label">Scope library <span class="sl-note">click a line to put it on the sheet</span></div>
+      <div class="lib-wrap">
+        <input class="lib-search" id="lib-q" type="text" placeholder="Filter…" oninput="renderLibrary()">
+        <div class="lib-scroll" id="lib-body"></div>
+      </div>
+      <div class="fld-row" style="margin-top:11px">
+        <div class="fld" style="flex:1.6">
+          <label>Custom line</label>
+          <input type="text" id="f-custom" placeholder="Type a line, press Enter" onkeydown="if(event.key==='Enter'){addCustom();}">
+        </div>
+        <div class="fld" style="flex:1">
+          <label>Category</label>
+          <select id="f-custom-cat"></select>
+        </div>
+      </div>
+
+      <div class="sec-label">On the sheet <span class="sl-note" id="sc-count">0 lines</span></div>
+      <label class="chk"><input type="checkbox" id="f-grouped" onchange="render()"> Group under category headings</label>
+      <div id="sc-list"></div>
+      <button class="btn-add" onclick="addBlank()">+ Add blank line</button>
+
+      <div class="sec-label">Signature</div>
+      <div class="fld-row">
+        <div class="fld"><label>Name</label><input type="text" id="f-sig1" oninput="render()" placeholder="Jack Dioses"></div>
+        <div class="fld"><label>Title</label><input type="text" id="f-sig1t" oninput="render()" placeholder="Project Manager"></div>
+      </div>
+      <div class="fld-row">
+        <div class="fld"><label>2nd name (opt.)</label><input type="text" id="f-sig2" oninput="render()" placeholder="Alex Flores"></div>
+        <div class="fld"><label>Title</label><input type="text" id="f-sig2t" oninput="render()" placeholder="General Contractor"></div>
+      </div>
+      <div class="hint" style="margin-top:-4px">When a 2nd name is set it prints on the left, the 1st name on the right — matching the two-signer letters.</div>
+
+    </div>
+
+    <!-- ===== LIVE PAPER PREVIEW ===== -->
+    <div class="q-preview-wrap">
+      <div class="paper" id="paper"><!-- rendered by render() --></div>
+    </div>
+
+  </div><!-- /q-work -->
+</div><!-- /main-content -->
+</div><!-- /app-shell -->
+
+<script>
+// ========== SUPABASE CLIENT (auth gate only; no data reads) ==========
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+
+// ========== LETTERHEADS ==========
+// Each entry is the centered header block, line by line. `gap:true` prints a
+// blank line. Transcribed from the real letters in `sow rr/`.
+const COMPANIES = {
+  mci: {
+    lines: [
+      {t:'METROPOLITAN COMMERCIAL INTERIORS', strong:true},
+      {t:'2573 Pattiglen Ave'},
+      {t:'La Verne, CA 91750'},
+      {gap:true},
+      {t:'General Building Contractor'},
+      {t:'License #736529'},
+      {gap:true},
+      {t:'909-262-7063'},
+    ],
+    pm: 'Jack Dioses',
+  },
+  dotty: {
+    lines: [
+      {t:'DOTTY HOMES', strong:true},
+      {t:'2275 Huntington Dr, #139, San Marino, CA 91108'},
+      {gap:true},
+      {t:'General Building Contractor'},
+      {t:'CSLB License #1137668'},
+      {gap:true},
+      {t:'626-340-4388'},
+      {t:'dottyhomes.com'},
+    ],
+    pm: '',
+  },
+};
+
+// ========== SCOPE LIBRARY ==========
+// Every line below is lifted verbatim (or lightly normalized) from a real Dotty
+// SOW in `~/Desktop/DOTTY HOMES/sow rr/`. Category order is the order they print
+// in grouped mode. Add to this list as new scope language shows up on a job.
+const LIBRARY = [
+  ['Structural & Layout', [
+    'Demolition and trash',
+    'Permit applications',
+    'Structural changes / beam additions to open up spaces',
+    'Structural change between kitchen and living room; removed bearing wall and put in new beam',
+    'Floor plan changes and bedroom additions',
+    'Floor plan changes throughout entire house',
+    'Ceiling height changes',
+    'Leveling of family room',
+    'Add laundry area inside property',
+    'Relocated laundry into garage',
+    'New back entrance to house',
+    'New garage entrance to the house',
+    'Chimney / fireplace removal',
+    'Foundation repair',
+    'New insulation in the attic',
+  ]],
+  ['Kitchen & Living', [
+    'New kitchen layout and remodel',
+    'New windows and sliding doors',
+    'Relocated sliding door from kitchen to dining room area',
+    'Added window in the kitchen area',
+    'Fireplace replaster',
+  ]],
+  ['Bathrooms', [
+    'New bathroom remodel',
+    'New bathrooms (x2) remodel',
+    'Plumbing modifications in bathrooms',
+    'Relocate bathroom into master suite',
+  ]],
+  ['Bedrooms & Closets', [
+    'New master bedroom, bathroom, and closet layout',
+    'New closets and doors',
+    'New bedroom layouts',
+    'Convert hallway closet to bedroom closet; add new hallway closet',
+  ]],
+  ['Mechanical, Electrical & Plumbing', [
+    'New electrical wiring, outlets, and switches',
+    'New recessed lighting',
+    'New EV charging and electric panel',
+    'New HVAC and ducts',
+    'New HVAC condenser',
+    'New water supply lines and drains',
+    'New main drain',
+    'New drain from property to sidewalk and new liner to city line',
+    'New water heater (including relocation)',
+    'New sprinkler system',
+    'Repipe',
+    'Repipe water supply line with PEX',
+  ]],
+  ['Exterior & Landscaping', [
+    'New roof',
+    'New roof paint',
+    'New landscaping',
+    'New fences, gates, and metal railings',
+    'New concrete in front yard',
+    'New concrete driveway',
+    'New concrete around patio area',
+    'Patio repair',
+    'New garage door and motor',
+    'Re-plaster and retile pool; new pool light, heater, pump, and filter',
+  ]],
+  ['Finishes', [
+    'New flooring',
+    'New interior / exterior painting',
+    'Removal of popcorn ceiling',
+  ]],
+  ['Additional Work', []],
+];
+const CATS = LIBRARY.map(([c])=>c);
+
+// ========== STATE ==========
+// SCOPE is the source of truth for the sheet. Each entry: {id, text, cat}.
+// The editor rows are re-rendered only on structural change (add / remove /
+// reorder) so typing in a row never loses focus; keystrokes just patch .text
+// and re-render the paper.
+let SCOPE=[];
+let SEQ=0;
+
+// ========== HELPERS ==========
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
+function val(id){const e=document.getElementById(id);return e?e.value:'';}
+// yyyy-mm-dd -> "3/3/2026" (parsed as LOCAL date to avoid a TZ off-by-one).
+function shortDate(iso){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');
+  if(!m)return '';
+  return `${Number(m[2])}/${Number(m[3])}/${Number(m[1])}`;
+}
+// "210000" / "$210,000" -> "$210,000". Blank for empty / unparseable.
+function money(raw){
+  const v=Number(String(raw==null?'':raw).replace(/[^0-9.\-]/g,''));
+  if(!isFinite(v)||v===0)return '';
+  return '$'+v.toLocaleString('en-US',{maximumFractionDigits:0});
+}
+
+// ========== SCOPE MUTATIONS ==========
+function addLine(text,cat){
+  SCOPE.push({id:++SEQ, text:text, cat:cat||'Additional Work'});
+  renderScopeRows(); renderLibrary(); render();
+}
+function addBlank(){
+  SCOPE.push({id:++SEQ, text:'', cat:'Additional Work'});
+  renderScopeRows(); render();
+  const rows=document.querySelectorAll('#sc-list .sc-row input');
+  if(rows.length)rows[rows.length-1].focus();
+}
+function addCustom(){
+  const f=document.getElementById('f-custom');
+  const t=(f.value||'').trim();
+  if(!t)return;
+  addLine(t, val('f-custom-cat'));
+  f.value=''; f.focus();
+}
+function removeLine(id){
+  SCOPE=SCOPE.filter(s=>s.id!==id);
+  renderScopeRows(); renderLibrary(); render();
+}
+// Library click is a toggle: adds the line, or removes it if that exact text is
+// already on the sheet (unedited).
+function toggleLib(cat,text){
+  const hit=SCOPE.find(s=>s.text===text);
+  if(hit)removeLine(hit.id); else addLine(text,cat);
+}
+function patchLine(id,text){
+  const s=SCOPE.find(x=>x.id===id);
+  if(s){ s.text=text; render(); renderLibrary(); }
+}
+function moveLine(fromId,toId){
+  if(fromId===toId)return;
+  const fi=SCOPE.findIndex(s=>s.id===fromId);
+  const ti=SCOPE.findIndex(s=>s.id===toId);
+  if(fi<0||ti<0)return;
+  const [row]=SCOPE.splice(fi,1);
+  SCOPE.splice(ti,0,row);
+  renderScopeRows(); render();
+}
+
+// ========== EDITOR: SELECTED-SCOPE ROWS ==========
+let DRAG_ID=null;
+function renderScopeRows(){
+  const el=document.getElementById('sc-list');
+  document.getElementById('sc-count').textContent=
+    SCOPE.length===1?'1 line':SCOPE.length+' lines';
+  if(!SCOPE.length){
+    el.innerHTML='<div class="sc-empty">Nothing on the sheet yet — click lines in the library to the right, or add a blank line.</div>';
+    return;
+  }
+  el.innerHTML=SCOPE.map(s=>`<div class="sc-row" data-id="${s.id}">
+      <span class="sc-grip" title="Drag to reorder">⠿</span>
+      <input type="text" value="${escapeHtml(s.text)}" placeholder="Scope line">
+      <button class="sc-x" title="Remove">✕</button>
+    </div>`).join('');
+  el.querySelectorAll('.sc-row').forEach(row=>{
+    const id=Number(row.dataset.id);
+    row.querySelector('input').addEventListener('input',e=>patchLine(id,e.target.value));
+    row.querySelector('.sc-x').addEventListener('click',()=>removeLine(id));
+    // Only the grip starts a drag — otherwise dragging inside the text input
+    // would select text instead of moving the row.
+    const grip=row.querySelector('.sc-grip');
+    grip.addEventListener('mouseenter',()=>{row.draggable=true;});
+    grip.addEventListener('mouseleave',()=>{if(DRAG_ID===null)row.draggable=false;});
+    row.addEventListener('dragstart',e=>{DRAG_ID=id;row.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
+    row.addEventListener('dragend',()=>{row.draggable=false;DRAG_ID=null;
+      document.querySelectorAll('.sc-row').forEach(r=>r.classList.remove('dragging','drop-target'));});
+    row.addEventListener('dragover',e=>{e.preventDefault();if(DRAG_ID!==null&&DRAG_ID!==id)row.classList.add('drop-target');});
+    row.addEventListener('dragleave',()=>row.classList.remove('drop-target'));
+    row.addEventListener('drop',e=>{e.preventDefault();row.classList.remove('drop-target');
+      if(DRAG_ID!==null)moveLine(DRAG_ID,id);});
+  });
+}
+
+// ========== LIBRARY ==========
+function renderLibrary(){
+  const q=(val('lib-q')||'').trim().toLowerCase();
+  const used=new Set(SCOPE.map(s=>s.text));
+  let html='';
+  for(const [cat,items] of LIBRARY){
+    const hits=items.filter(t=>!q||t.toLowerCase().includes(q)||cat.toLowerCase().includes(q));
+    if(!hits.length)continue;
+    html+=`<div class="lib-cat"><div class="lib-cat-h">${escapeHtml(cat)}</div>`;
+    for(const t of hits){
+      const on=used.has(t);
+      html+=`<button class="lib-item${on?' on':''}" data-cat="${escapeHtml(cat)}" data-t="${escapeHtml(t)}">
+        <span class="li-plus">${on?'✓':'+'}</span><span>${escapeHtml(t)}</span></button>`;
+    }
+    html+='</div>';
+  }
+  const el=document.getElementById('lib-body');
+  el.innerHTML=html||'<div class="lib-empty">No matching scope lines.</div>';
+  el.querySelectorAll('.lib-item').forEach(b=>{
+    b.addEventListener('click',()=>toggleLib(b.dataset.cat,b.dataset.t));
+  });
+}
+
+// ========== RENDER PAPER ==========
+function render(){
+  const CO=COMPANIES[val('f-company')]||COMPANIES.mci;
+  const isAppraiser=val('f-audience')==='appraiser';
+  const grouped=document.getElementById('f-grouped').checked;
+
+  const lhHtml=CO.lines.map(l=>l.gap
+    ? '<div class="lh-gap"></div>'
+    : `<div class="${l.strong?'lh-name':'lh-line'}">${escapeHtml(l.t)}</div>`).join('');
+
+  // --- Project Details block ---
+  const details=[
+    ['Customer', val('f-customer')],
+    ['Address', val('f-addr')],
+    ['Date started', shortDate(val('f-start'))],
+    ['Date completed', shortDate(val('f-end'))],
+    ['Contractor / Project Manager', val('f-pm')],
+  ];
+  if(isAppraiser){
+    const fee=money(val('f-fee'));
+    if(fee)details.push(['Fee (labor and material included)', fee]);
+    const paid=val('f-paid');
+    if(paid)details.push(['Payment status', paid]);
+  }
+  const detailsHtml=details.filter(([,v])=>v)
+    .map(([k,v])=>`<div class="db-line">${escapeHtml(k)}: ${escapeHtml(v)}</div>`).join('');
+
+  // --- Scope list ---
+  const lines=SCOPE.filter(s=>(s.text||'').trim());
+  let scopeHtml;
+  if(!lines.length){
+    scopeHtml='<div class="scope-empty">Click scope lines in the library to build the list.</div>';
+  }else if(grouped){
+    // Group in LIBRARY order; a category with nothing in it is skipped.
+    scopeHtml=CATS.map(cat=>{
+      const inCat=lines.filter(s=>s.cat===cat);
+      if(!inCat.length)return '';
+      return `<div class="scope-grp">${escapeHtml(cat)}</div>`
+        + `<ul class="scope-ul">${inCat.map(s=>`<li>${escapeHtml(s.text)}</li>`).join('')}</ul>`;
+    }).join('');
+  }else{
+    scopeHtml=`<ul class="scope-ul">${lines.map(s=>`<li>${escapeHtml(s.text)}</li>`).join('')}</ul>`;
+  }
+
+  // --- Signature block: 2nd signer on the left, 1st on the right ---
+  const s1=val('f-sig1'), s1t=val('f-sig1t'), s2=val('f-sig2'), s2t=val('f-sig2t');
+  const who=(n,t)=>`<div class="sg-who"><div class="sg-name">${escapeHtml(n)}</div><div class="sg-title">${escapeHtml(t)}</div></div>`;
+  const signers=[];
+  if(s2)signers.push(who(s2,s2t));
+  if(s1)signers.push(who(s1,s1t));
+
+  const re=(val('f-re')||'').trim();
+
+  document.getElementById('paper').innerHTML=`
+    <div class="lh">${lhHtml}</div>
+    ${re?`<div class="doc-re">RE- ${escapeHtml(re)}</div>`:''}
+    ${detailsHtml?`<div class="doc-block"><div class="db-cap">Project Details:</div>${detailsHtml}</div>`:''}
+    <div class="doc-block">
+      <div class="doc-scope-cap">Completed scope of work:</div>
+      ${scopeHtml}
+    </div>
+    <div class="doc-sign">
+      <div class="sg-regards">Regards,</div>
+      ${signers.length?`<div class="sg-row">${signers.join('')}</div>`:''}
+    </div>
+  `;
+  reportPages();
+}
+
+// Keep the 760px sheet inside its column on narrow windows. `zoom` (not
+// transform) so the wrapper's scroll height stays correct; print resets it.
+function fitPaper(){
+  const wrap=document.querySelector('.q-preview-wrap');
+  if(!wrap)return;
+  const avail=wrap.clientWidth-56;          // 28px padding each side
+  if(avail<=0)return;                       // hidden tab reports 0 — keep the last good zoom
+  const z=Math.min(1, Math.max(0.3, avail/760));
+  document.documentElement.style.setProperty('--paper-zoom', z.toFixed(3));
+}
+window.addEventListener('resize', fitPaper);
+// Also re-fit when the column itself changes width (sidebar collapse, tab
+// becoming visible) — a plain resize listener misses both.
+if(window.ResizeObserver){
+  new ResizeObserver(fitPaper).observe(document.querySelector('.q-preview-wrap'));
+}
+
+// ========== PAPER SIZE ==========
+// Letter (11in) vs Legal (14in). The originals in `sow rr/` are 14in pages —
+// that's how ~26 scope lines fit on one sheet. @page can't be toggled with a
+// class, so the rule is rewritten into #page-rule instead.
+const PAGE_PX={letter:1056, legal:1344};   // inches x 96dpi
+function setPageSize(){
+  const size=val('f-paper')||'letter';
+  document.getElementById('page-rule').textContent=`@page { size:${size}; margin:0; }`;
+  document.documentElement.style.setProperty('--page-h', PAGE_PX[size]+'px');
+  fitPaper(); reportPages();
+}
+// Tell her up front how many pages this will print as — a scope letter that
+// silently spills onto page 2 is the one thing you notice only after printing.
+function reportPages(){
+  const p=document.getElementById('paper');
+  if(!p)return;
+  const size=val('f-paper')||'letter';
+  const zoom=Number(getComputedStyle(document.documentElement).getPropertyValue('--paper-zoom'))||1;
+  const h=p.getBoundingClientRect().height/zoom;      // un-zoomed CSS px
+  const pages=Math.max(1, Math.ceil(h/PAGE_PX[size]-0.01));
+  const hint=document.getElementById('paper-hint');
+  if(!hint)return;
+  hint.textContent = pages===1
+    ? 'Prints on 1 page.'
+    : `Prints on ${pages} pages — trim lines, or switch to Legal.`;
+  hint.style.color = pages===1 ? '' : 'var(--red)';
+}
+
+// ========== SELECTORS ==========
+function onAudienceChange(){
+  document.getElementById('cost-fields').style.display =
+    val('f-audience')==='appraiser' ? '' : 'none';
+  render();
+}
+
+// ========== RESET ==========
+function resetForm(){
+  if(!confirm('Clear this SOW and start over?'))return;
+  SCOPE=[];
+  ['f-addr','f-fee','f-custom','lib-q','f-start','f-end'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-grouped').checked=false;
+  document.getElementById('f-audience').value='buyer';
+  document.getElementById('f-paper').value='letter';
+  seedDefaults();
+  setPageSize();
+  setPageSize();
+  onAudienceChange();
+  renderScopeRows(); renderLibrary(); render();
+}
+
+// Defaults that match how every past SOW was written.
+function seedDefaults(){
+  document.getElementById('f-customer').value='Dotty Homes';
+  document.getElementById('f-re').value='Alterations and Improvements';
+  document.getElementById('f-pm').value='Jack Dioses';
+  document.getElementById('f-sig1').value='Jack Dioses';
+  document.getElementById('f-sig1t').value='Project Manager';
+  document.getElementById('f-sig2').value='';
+  document.getElementById('f-sig2t').value='General Contractor';
+  document.getElementById('f-paid').value='Paid in full';
+}
+
+// ========== INIT ==========
+(async()=>{
+  await window.authGate();
+  if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
+  window.renderSidebar('sow');
+  document.getElementById('f-custom-cat').innerHTML=
+    CATS.map(c=>`<option value="${escapeHtml(c)}"${c==='Additional Work'?' selected':''}>${escapeHtml(c)}</option>`).join('');
+  seedDefaults();
+  setPageSize();
+  onAudienceChange();
+  renderScopeRows();
+  renderLibrary();
+  render();
+  fitPaper();
+})();
+</script>
+</body>
+</html>
