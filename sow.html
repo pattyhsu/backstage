@@ -106,12 +106,19 @@ body { overflow:hidden; height:100vh; }
 .lib-cat { margin-bottom:13px; }
 .lib-cat:last-child { margin-bottom:4px; }
 .lib-cat-h { font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-3); margin-bottom:6px; padding-bottom:5px; border-bottom:1px solid var(--border); }
-.lib-item { display:flex; align-items:flex-start; gap:8px; width:100%; box-sizing:border-box; text-align:left; font-family:var(--sans); font-size:12.5px; line-height:1.4; color:var(--text-2); background:none; border:1px solid transparent; border-radius:var(--radius-sm); padding:5px 7px; cursor:pointer; transition:all .1s; }
+.lib-item { display:flex; align-items:flex-start; gap:8px; width:100%; box-sizing:border-box; text-align:left; font-family:var(--sans); font-size:12.5px; line-height:1.4; color:var(--text-2); background:none; border:1px solid transparent; border-radius:var(--radius-sm); padding:5px 7px; cursor:pointer; transition:background .1s, border-color .1s; }
 .lib-item:hover { background:var(--bg-page); border-color:var(--border); }
-.lib-item .li-plus { flex-shrink:0; width:14px; color:var(--text-4); font-weight:700; font-size:13px; line-height:1.35; }
+.lib-item .li-plus { flex-shrink:0; width:14px; color:var(--text-4); font-weight:700; font-size:13px; line-height:1.35; text-align:center; }
 .lib-item:hover .li-plus { color:var(--accent); }
+.lib-item .li-text { min-width:0; }
 .lib-item.on { color:var(--text-4); }
 .lib-item.on .li-plus { color:var(--green, #3a9b5c); }
+.lib-item.on:hover .li-plus { color:var(--red); }
+/* Row swapped into an editable field — the line is already on the sheet and
+   every keystroke re-renders the paper. */
+.lib-item.editing { background:var(--bg-page); border-color:var(--accent); cursor:default; }
+.lib-item .lib-edit { flex:1; min-width:0; font-family:var(--sans); font-size:12.5px; line-height:1.4; color:var(--text); background:none; border:none; padding:0; margin:0; }
+.lib-item .lib-edit:focus { outline:none; }
 .lib-empty { font-size:12px; color:var(--text-4); padding:10px 2px; }
 
 /* --- Selected scope rows (editor column) --- */
@@ -270,11 +277,12 @@ body { overflow:hidden; height:100vh; }
         </div>
       </div>
 
-      <div class="sec-label">Scope library <span class="sl-note">click a line to put it on the sheet</span></div>
+      <div class="sec-label">Scope library <span class="sl-note">click a line to add + edit it</span></div>
       <div class="lib-wrap">
-        <input class="lib-search" id="lib-q" type="text" placeholder="Filter…" oninput="renderLibrary()">
+        <input class="lib-search" id="lib-q" type="text" placeholder="Filter…" oninput="closeLibEdit();renderLibrary()">
         <div class="lib-scroll" id="lib-body"></div>
       </div>
+      <div class="hint">Clicking a line adds it and leaves it editable right there — type to tweak the wording, Enter when done. Hit the <b>✓</b> to take it back off; the <b>+</b> adds without opening the field.</div>
       <div class="fld-row" style="margin-top:11px">
         <div class="fld" style="flex:1.6">
           <label>Custom line</label>
@@ -453,12 +461,16 @@ function money(raw){
 }
 
 // ========== SCOPE MUTATIONS ==========
-function addLine(text,cat){
-  SCOPE.push({id:++SEQ, text:text, cat:cat||'Additional Work'});
+// `src` remembers which library line an entry came from, so the library keeps
+// showing it as on-the-sheet (✓) even after the wording has been tweaked.
+function addLine(text,cat,src){
+  const id=++SEQ;
+  SCOPE.push({id:id, text:text, cat:cat||'Additional Work', src:src||null});
   renderScopeRows(); renderLibrary(); render();
+  return id;
 }
 function addBlank(){
-  SCOPE.push({id:++SEQ, text:'', cat:'Additional Work'});
+  SCOPE.push({id:++SEQ, text:'', cat:'Additional Work', src:null});
   renderScopeRows(); render();
   const rows=document.querySelectorAll('#sc-list .sc-row input');
   if(rows.length)rows[rows.length-1].focus();
@@ -471,18 +483,13 @@ function addCustom(){
   f.value=''; f.focus();
 }
 function removeLine(id){
+  if(LIB_EDIT_ID===id)LIB_EDIT_ID=null;
   SCOPE=SCOPE.filter(s=>s.id!==id);
   renderScopeRows(); renderLibrary(); render();
 }
-// Library click is a toggle: adds the line, or removes it if that exact text is
-// already on the sheet (unedited).
-function toggleLib(cat,text){
-  const hit=SCOPE.find(s=>s.text===text);
-  if(hit)removeLine(hit.id); else addLine(text,cat);
-}
 function patchLine(id,text){
   const s=SCOPE.find(x=>x.id===id);
-  if(s){ s.text=text; render(); renderLibrary(); }
+  if(s){ s.text=text; render(); }
 }
 function moveLine(fromId,toId){
   if(fromId===toId)return;
@@ -501,7 +508,7 @@ function renderScopeRows(){
   document.getElementById('sc-count').textContent=
     SCOPE.length===1?'1 line':SCOPE.length+' lines';
   if(!SCOPE.length){
-    el.innerHTML='<div class="sc-empty">Nothing on the sheet yet — click lines in the library to the right, or add a blank line.</div>';
+    el.innerHTML='<div class="sc-empty">Nothing on the sheet yet — click lines in the library above, or add a blank line.</div>';
     return;
   }
   el.innerHTML=SCOPE.map(s=>`<div class="sc-row" data-id="${s.id}">
@@ -529,26 +536,91 @@ function renderScopeRows(){
 }
 
 // ========== LIBRARY ==========
+// Clicking a line puts it on the sheet AND turns that row into a text field
+// holding the live scope entry — so the common "add it, then tack on the
+// property-specific tail" edit happens right here, with no trip down to the
+// On-the-sheet list. LIB_EDIT_ID is the SCOPE id the open field is bound to.
+let LIB_EDIT_ID=null;
+
+function onLibRow(cat,text){
+  const hit=SCOPE.find(s=>s.src===text);
+  if(!hit){                       // not on the sheet — add it and open the field
+    LIB_EDIT_ID=addLine(text,cat,text);
+    renderLibrary(); focusLibEdit();
+    return;
+  }
+  if(LIB_EDIT_ID===hit.id){       // field already open here — just put the caret back
+    focusLibEdit();
+    return;                       // removal is the ✓'s job, never a stray click mid-edit
+  }
+  LIB_EDIT_ID=hit.id;             // on the sheet but not open — reopen for another tweak
+  renderLibrary(); focusLibEdit();
+}
+// The ✓ / + stub is the plain add-remove toggle: no field, no typing.
+function onLibToggle(cat,text){
+  const hit=SCOPE.find(s=>s.src===text);
+  if(hit){ removeLine(hit.id); return; }
+  LIB_EDIT_ID=null;
+  addLine(text,cat,text);
+}
+function focusLibEdit(){
+  const inp=document.querySelector('#lib-body .lib-edit');
+  if(!inp)return;
+  inp.focus();
+  inp.setSelectionRange(inp.value.length, inp.value.length);   // caret at the end
+  inp.scrollLeft=inp.scrollWidth;
+}
+function closeLibEdit(){
+  if(LIB_EDIT_ID===null)return;
+  LIB_EDIT_ID=null;
+  renderScopeRows();              // the sheet list is stale while the field is open
+  renderLibrary();
+}
+
 function renderLibrary(){
   const q=(val('lib-q')||'').trim().toLowerCase();
-  const used=new Set(SCOPE.map(s=>s.text));
+  // Keyed on `src`, not text, so an edited line still reads as on the sheet.
+  const onSheet=new Map(SCOPE.filter(s=>s.src).map(s=>[s.src,s]));
+  const editing=SCOPE.find(s=>s.id===LIB_EDIT_ID);
   let html='';
   for(const [cat,items] of LIBRARY){
     const hits=items.filter(t=>!q||t.toLowerCase().includes(q)||cat.toLowerCase().includes(q));
     if(!hits.length)continue;
     html+=`<div class="lib-cat"><div class="lib-cat-h">${escapeHtml(cat)}</div>`;
     for(const t of hits){
-      const on=used.has(t);
-      html+=`<button class="lib-item${on?' on':''}" data-cat="${escapeHtml(cat)}" data-t="${escapeHtml(t)}">
-        <span class="li-plus">${on?'✓':'+'}</span><span>${escapeHtml(t)}</span></button>`;
+      const hit=onSheet.get(t);
+      const isEdit=editing && editing.src===t;
+      const body=isEdit
+        ? `<input class="lib-edit" type="text" value="${escapeHtml(editing.text)}" placeholder="Scope line">`
+        : `<span class="li-text">${escapeHtml(hit?hit.text:t)}</span>`;
+      html+=`<div class="lib-item${hit?' on':''}${isEdit?' editing':''}" data-cat="${escapeHtml(cat)}" data-t="${escapeHtml(t)}">
+        <span class="li-plus" title="${hit?'Remove from the sheet':'Add without editing'}">${hit?'✓':'+'}</span>${body}</div>`;
     }
     html+='</div>';
   }
   const el=document.getElementById('lib-body');
   el.innerHTML=html||'<div class="lib-empty">No matching scope lines.</div>';
-  el.querySelectorAll('.lib-item').forEach(b=>{
-    b.addEventListener('click',()=>toggleLib(b.dataset.cat,b.dataset.t));
+
+  el.querySelectorAll('.lib-item').forEach(row=>{
+    const cat=row.dataset.cat, t=row.dataset.t;
+    // mousedown, not click: it fires before the open field's blur, so the
+    // re-render can't swallow the interaction half-way through.
+    row.addEventListener('mousedown',e=>{
+      if(e.target.classList.contains('lib-edit'))return;   // clicking inside the open field
+      e.preventDefault();                                  // keep focus stable across the re-render
+      if(e.target.classList.contains('li-plus')){ onLibToggle(cat,t); return; }
+      onLibRow(cat,t);
+    });
   });
+
+  const inp=el.querySelector('.lib-edit');
+  if(inp){
+    inp.addEventListener('input',e=>patchLine(LIB_EDIT_ID, e.target.value));
+    inp.addEventListener('keydown',e=>{
+      if(e.key==='Enter'||e.key==='Escape'){ e.preventDefault(); closeLibEdit(); }
+    });
+    inp.addEventListener('blur',closeLibEdit);
+  }
 }
 
 // ========== RENDER PAPER ==========
@@ -675,7 +747,7 @@ function onAudienceChange(){
 // ========== RESET ==========
 function resetForm(){
   if(!confirm('Clear this SOW and start over?'))return;
-  SCOPE=[];
+  SCOPE=[]; LIB_EDIT_ID=null;
   ['f-addr','f-fee','f-custom','lib-q','f-start','f-end'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f-grouped').checked=false;
   document.getElementById('f-audience').value='buyer';
