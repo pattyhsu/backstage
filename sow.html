@@ -151,6 +151,12 @@ body { overflow:hidden; height:100vh; }
 .scope-ul { list-style:none; margin:0; padding:0; }
 .scope-ul li { position:relative; padding-left:15px; margin-bottom:1px; }
 .scope-ul li::before { content:"-"; position:absolute; left:2px; }
+/* Screen-only drag affordance — every one of these is stripped in print. */
+.scope-ul li[draggable] { cursor:grab; border-radius:3px; }
+.scope-ul li[draggable]:hover { background:#f0ece4; }
+.scope-ul li.dragging { opacity:.35; }
+.scope-ul li.drop-above { box-shadow:inset 0 2px 0 -1px var(--accent); }
+.scope-ul li.drop-below { box-shadow:inset 0 -2px 0 -1px var(--accent); }
 .scope-empty { color:#a2a2a2; font-style:italic; }
 .doc-sign { margin-top:auto; padding-top:26px; }
 .doc-sign .sg-regards { margin-bottom:30px; }
@@ -171,6 +177,8 @@ body { overflow:hidden; height:100vh; }
   .q-preview-wrap { display:block; padding:0; background:#fff; overflow:visible; }
   .paper { width:auto; min-height:100vh; box-shadow:none; margin:0; zoom:1; }
   .scope-ul li, .doc-sign, .doc-block { page-break-inside:avoid; }
+  /* No drag chrome on paper — a hover tint or drop rule must never print. */
+  .scope-ul li { background:none !important; box-shadow:none !important; opacity:1 !important; cursor:auto; }
 }
 </style>
 <style id="page-rule">@page { size:letter; margin:0; }</style>
@@ -256,7 +264,8 @@ body { overflow:hidden; height:100vh; }
         <input class="lib-search" id="lib-q" type="text" placeholder="Filter…" oninput="closeLibEdit();renderLibrary()">
         <div class="lib-scroll" id="lib-body"></div>
       </div>
-      <div class="hint">Click a line to put it on the sheet — it stays editable right there, so type to tweak the wording and hit Enter. The <b>✓</b> takes it back off; the <b>+</b> adds without opening the field. The sheet prints in this list's order.</div>
+      <div class="hint">Click a line to put it on the sheet — it stays editable right there, so type to tweak the wording and hit Enter. The <b>✓</b> takes it back off; the <b>+</b> adds without opening the field.</div>
+      <div class="hint" style="margin-top:5px">Lines land in this list's order. To put one somewhere else, <b>drag it on the sheet</b> — that reorders this document only.</div>
       <div class="fld-row" style="margin-top:11px">
         <div class="fld" style="flex:1.6">
           <label>Add your own line</label>
@@ -426,14 +435,35 @@ function libItem(k){
   return null;
 }
 function onSheet(k){ return SCOPE.find(s=>s.k===k); }
-// Sheet order = LIB order, not the order things were clicked.
-function orderedScope(){
-  const out=[];
-  for(const c of LIB) for(const it of c.items){
-    const hit=onSheet(it.k);
-    if(hit && (hit.text||'').trim()) out.push(hit);
-  }
-  return out;
+// A line's position in the library, flattened across categories. New lines seed
+// their sheet position from this, so a scope built in any click order still
+// comes out in the category sequence the past SOWs use.
+function libIndex(k){
+  let i=0;
+  for(const c of LIB) for(const it of c.items){ if(it.k===k)return i; i++; }
+  return Number.MAX_SAFE_INTEGER;
+}
+// SCOPE *is* the running order — seeded from the library, then whatever the
+// drag-reordering on the sheet makes it.
+function orderedScope(){ return SCOPE.filter(s=>(s.text||'').trim()); }
+// Slot a new line in at its library position relative to what's already there.
+// After a manual reorder this still lands it somewhere sensible: just ahead of
+// the first line that sits later in the library than it does.
+function insertByLibOrder(entry){
+  const idx=libIndex(entry.k);
+  const at=SCOPE.findIndex(s=>libIndex(s.k)>idx);
+  if(at<0)SCOPE.push(entry); else SCOPE.splice(at,0,entry);
+}
+// Drag-reorder from the sheet. `after` drops below the target instead of above.
+function moveKey(fromK,toK,after){
+  if(fromK===toK)return;
+  const fi=SCOPE.findIndex(s=>s.k===fromK);
+  if(fi<0)return;
+  const [row]=SCOPE.splice(fi,1);
+  let ti=SCOPE.findIndex(s=>s.k===toK);
+  if(ti<0){ SCOPE.push(row); }
+  else { SCOPE.splice(after?ti+1:ti, 0, row); }
+  render();
 }
 
 // ========== HELPERS ==========
@@ -456,7 +486,7 @@ function money(raw){
 function addLine(k){
   const found=libItem(k);
   if(!found || onSheet(k))return;
-  SCOPE.push({k:k, text:found.item.t, cat:found.cat});
+  insertByLibOrder({k:k, text:found.item.t, cat:found.cat});
   renderLibrary(); render();
 }
 function removeLine(k){
@@ -484,7 +514,7 @@ function addCustom(){
   const cat=val('f-custom-cat')||LIB[LIB.length-1].cat;
   const k='C:'+(++CSEQ);
   libCat(cat).items.push({k:k, t:t, custom:true});
-  SCOPE.push({k:k, text:t, cat:cat});
+  insertByLibOrder({k:k, text:t, cat:cat});
   f.value='';
   document.getElementById('lib-q').value='';   // a filter would hide the new line
   LIB_EDIT_K=null;
@@ -616,7 +646,8 @@ function render(){
   // --- Scope list — one flat bullet list, in library order ---
   const lines=orderedScope();
   const scopeHtml = lines.length
-    ? `<ul class="scope-ul">${lines.map(s=>`<li>${escapeHtml(s.text)}</li>`).join('')}</ul>`
+    ? `<ul class="scope-ul">${lines.map(s=>
+        `<li draggable="true" data-k="${escapeHtml(s.k)}">${escapeHtml(s.text)}</li>`).join('')}</ul>`
     : '<div class="scope-empty">Click scope lines in the library to build the list.</div>';
 
   // --- Signature block: 2nd signer on the left, 1st on the right ---
@@ -641,8 +672,50 @@ function render(){
       ${signers.length?`<div class="sg-row">${signers.join('')}</div>`:''}
     </div>
   `;
+  bindScopeDrag();
   reportPages();
   updateScopeCount();
+}
+
+// ========== DRAG-REORDER ON THE SHEET ==========
+// The preview is the only scope surface, so reordering happens right on it:
+// drag a bullet and drop it above or below another. This reorders THIS
+// document only — the library's own order is untouched, so the next SOW still
+// starts from the standard sequence.
+let DRAG_K=null;
+function clearDropMarks(){
+  document.querySelectorAll('#paper .scope-ul li')
+    .forEach(l=>l.classList.remove('drop-above','drop-below','dragging'));
+}
+function bindScopeDrag(){
+  document.querySelectorAll('#paper .scope-ul li').forEach(li=>{
+    const k=li.dataset.k;
+    li.addEventListener('dragstart',e=>{
+      DRAG_K=k; li.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain',k);   // Firefox needs a payload to start a drag
+    });
+    li.addEventListener('dragend',()=>{ DRAG_K=null; clearDropMarks(); });
+    li.addEventListener('dragover',e=>{
+      if(DRAG_K===null||DRAG_K===k)return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect='move';
+      const r=li.getBoundingClientRect();
+      const below=(e.clientY-r.top)>r.height/2;
+      li.classList.toggle('drop-below',below);
+      li.classList.toggle('drop-above',!below);
+    });
+    li.addEventListener('dragleave',()=>li.classList.remove('drop-above','drop-below'));
+    li.addEventListener('drop',e=>{
+      e.preventDefault();
+      if(DRAG_K===null||DRAG_K===k)return;
+      const r=li.getBoundingClientRect();
+      const below=(e.clientY-r.top)>r.height/2;
+      const from=DRAG_K;
+      DRAG_K=null; clearDropMarks();
+      moveKey(from,k,below);          // re-renders the paper
+    });
+  });
 }
 
 // Keep the 760px sheet inside its column on narrow windows. `zoom` (not
