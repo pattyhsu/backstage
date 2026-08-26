@@ -95,8 +95,6 @@ body { overflow:hidden; height:100vh; }
 .hint { font-size:10.5px; color:var(--text-4); margin-top:3px; line-height:1.35; }
 .sec-label { font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-3); margin:20px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
 .sec-label .sl-note { font-weight:400; letter-spacing:0; text-transform:none; color:var(--text-4); font-size:10.5px; }
-.chk { display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--text-2); margin-bottom:9px; cursor:pointer; }
-.chk input { width:auto; margin:0; cursor:pointer; }
 
 /* --- Scope library (a panel inside the editor column) --- */
 .lib-wrap { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:11px 12px 4px; }
@@ -113,6 +111,7 @@ body { overflow:hidden; height:100vh; }
 .lib-item .li-text { min-width:0; }
 .lib-item.on { color:var(--text-4); }
 .lib-item.on .li-plus { color:var(--green, #3a9b5c); }
+.lib-item.custom .li-text::after { content:"added"; margin-left:7px; font-size:9px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:var(--text-4); vertical-align:1px; }
 .lib-item.on:hover .li-plus { color:var(--red); }
 /* Row swapped into an editable field — the line is already on the sheet and
    every keystroke re-renders the paper. */
@@ -120,20 +119,6 @@ body { overflow:hidden; height:100vh; }
 .lib-item .lib-edit { flex:1; min-width:0; font-family:var(--sans); font-size:12.5px; line-height:1.4; color:var(--text); background:none; border:none; padding:0; margin:0; }
 .lib-item .lib-edit:focus { outline:none; }
 .lib-empty { font-size:12px; color:var(--text-4); padding:10px 2px; }
-
-/* --- Selected scope rows (editor column) --- */
-.sc-row { display:flex; align-items:center; gap:6px; margin-bottom:6px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm); padding:4px 5px 4px 3px; }
-.sc-row.dragging { opacity:.4; }
-.sc-row.drop-target { border-color:var(--accent); }
-.sc-grip { flex-shrink:0; cursor:grab; color:var(--text-4); font-size:12px; line-height:1; padding:4px 2px; user-select:none; }
-.sc-grip:active { cursor:grabbing; }
-.sc-row input { flex:1; min-width:0; border:none; background:none; font-family:var(--sans); font-size:12.5px; color:var(--text); padding:3px 2px; }
-.sc-row input:focus { outline:none; }
-.sc-x { flex-shrink:0; border:none; background:none; cursor:pointer; color:var(--text-4); font-size:13px; line-height:1; padding:3px 4px; }
-.sc-x:hover { color:var(--red); }
-.sc-empty { font-size:12px; color:var(--text-4); line-height:1.5; padding:6px 2px 10px; }
-.btn-add { width:100%; font-size:12.5px; font-weight:600; padding:8px; border-radius:var(--radius); border:1px dashed var(--border-strong); background:var(--bg); color:var(--text-3); cursor:pointer; margin-top:4px; }
-.btn-add:hover { border-color:var(--accent); color:var(--accent); }
 
 /* === THE PAPER (also the print surface) === */
 .paper {
@@ -166,8 +151,6 @@ body { overflow:hidden; height:100vh; }
 .scope-ul { list-style:none; margin:0; padding:0; }
 .scope-ul li { position:relative; padding-left:14px; margin-bottom:1px; }
 .scope-ul li::before { content:"-"; position:absolute; left:2px; }
-.scope-grp { font-weight:700; margin:11px 0 4px; }
-.scope-grp:first-child { margin-top:0; }
 .scope-empty { color:#a2a2a2; font-style:italic; }
 .doc-sign { margin-top:auto; padding-top:26px; }
 .doc-sign .sg-regards { margin-bottom:30px; }
@@ -264,40 +247,26 @@ body { overflow:hidden; height:100vh; }
         <div class="fld">
           <label>Fee — labor &amp; material</label>
           <input type="text" id="f-fee" oninput="render()" placeholder="210000">
-          <div class="hint">Digits only; prints as $210,000.</div>
-        </div>
-        <div class="fld">
-          <label>Payment status</label>
-          <select id="f-paid" onchange="render()">
-            <option value="Paid in full">Paid in full</option>
-            <option value="Paid">Paid</option>
-            <option value="Balance due">Balance due</option>
-            <option value="">— omit the line —</option>
-          </select>
+          <div class="hint">Digits only; prints as $210,000. The appraiser copy always carries “Payment status: Paid in full”.</div>
         </div>
       </div>
 
-      <div class="sec-label">Scope library <span class="sl-note">click a line to add + edit it</span></div>
+      <div class="sec-label">Scope <span class="sl-note" id="sc-count">nothing on the sheet</span></div>
       <div class="lib-wrap">
         <input class="lib-search" id="lib-q" type="text" placeholder="Filter…" oninput="closeLibEdit();renderLibrary()">
         <div class="lib-scroll" id="lib-body"></div>
       </div>
-      <div class="hint">Clicking a line adds it and leaves it editable right there — type to tweak the wording, Enter when done. Hit the <b>✓</b> to take it back off; the <b>+</b> adds without opening the field.</div>
+      <div class="hint">Click a line to put it on the sheet — it stays editable right there, so type to tweak the wording and hit Enter. The <b>✓</b> takes it back off; the <b>+</b> adds without opening the field. The sheet prints in this list's order.</div>
       <div class="fld-row" style="margin-top:11px">
         <div class="fld" style="flex:1.6">
-          <label>Custom line</label>
+          <label>Add your own line</label>
           <input type="text" id="f-custom" placeholder="Type a line, press Enter" onkeydown="if(event.key==='Enter'){addCustom();}">
         </div>
         <div class="fld" style="flex:1">
-          <label>Category</label>
+          <label>File it under</label>
           <select id="f-custom-cat"></select>
         </div>
       </div>
-
-      <div class="sec-label">On the sheet <span class="sl-note" id="sc-count">0 lines</span></div>
-      <label class="chk"><input type="checkbox" id="f-grouped" onchange="render()"> Group under category headings</label>
-      <div id="sc-list"></div>
-      <button class="btn-add" onclick="addBlank()">+ Add blank line</button>
 
       <div class="sec-label">Signature</div>
       <div class="fld-row">
@@ -434,15 +403,38 @@ const LIBRARY = [
   ]],
   ['Additional Work', []],
 ];
-const CATS = LIBRARY.map(([c])=>c);
 
 // ========== STATE ==========
-// SCOPE is the source of truth for the sheet. Each entry: {id, text, cat}.
-// The editor rows are re-rendered only on structural change (add / remove /
-// reorder) so typing in a row never loses focus; keystrokes just patch .text
-// and re-render the paper.
+// LIB is the single list of scope lines — the LIBRARY constants above plus any
+// custom lines added this session, each with a stable key. It is BOTH the
+// picker and the running order: the sheet prints in LIB order, so a scope
+// always comes out in the category sequence the past SOWs use (demo →
+// structural → kitchen → baths → bedrooms → MEP → exterior → finishes).
+//
+// SCOPE holds only what's on the sheet, keyed by LIB key: {k, text, cat}.
+// `text` starts as the library wording and diverges once it's edited.
+const LIB = LIBRARY.map(([cat,items])=>({
+  cat: cat,
+  items: items.map(t=>({k:'T:'+cat+'|'+t, t:t, custom:false})),
+}));
 let SCOPE=[];
-let SEQ=0;
+let CSEQ=0;
+
+function libCat(cat){ return LIB.find(c=>c.cat===cat); }
+function libItem(k){
+  for(const c of LIB){ const it=c.items.find(i=>i.k===k); if(it)return {cat:c.cat, item:it}; }
+  return null;
+}
+function onSheet(k){ return SCOPE.find(s=>s.k===k); }
+// Sheet order = LIB order, not the order things were clicked.
+function orderedScope(){
+  const out=[];
+  for(const c of LIB) for(const it of c.items){
+    const hit=onSheet(it.k);
+    if(hit && (hit.text||'').trim()) out.push(hit);
+  }
+  return out;
+}
 
 // ========== HELPERS ==========
 function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
@@ -461,107 +453,72 @@ function money(raw){
 }
 
 // ========== SCOPE MUTATIONS ==========
-// `src` remembers which library line an entry came from, so the library keeps
-// showing it as on-the-sheet (✓) even after the wording has been tweaked.
-function addLine(text,cat,src){
-  const id=++SEQ;
-  SCOPE.push({id:id, text:text, cat:cat||'Additional Work', src:src||null});
-  renderScopeRows(); renderLibrary(); render();
-  return id;
+function addLine(k){
+  const found=libItem(k);
+  if(!found || onSheet(k))return;
+  SCOPE.push({k:k, text:found.item.t, cat:found.cat});
+  renderLibrary(); render();
 }
-function addBlank(){
-  SCOPE.push({id:++SEQ, text:'', cat:'Additional Work', src:null});
-  renderScopeRows(); render();
-  const rows=document.querySelectorAll('#sc-list .sc-row input');
-  if(rows.length)rows[rows.length-1].focus();
+function removeLine(k){
+  if(LIB_EDIT_K===k)LIB_EDIT_K=null;
+  SCOPE=SCOPE.filter(s=>s.k!==k);
+  // A custom line only exists because it's on the sheet — taking it off the
+  // sheet retires it from the library too.
+  const found=libItem(k);
+  if(found && found.item.custom){
+    const c=libCat(found.cat);
+    c.items=c.items.filter(i=>i.k!==k);
+  }
+  renderLibrary(); render();
 }
+function patchLine(k,text){
+  const s=SCOPE.find(x=>x.k===k);
+  if(s){ s.text=text; render(); }
+}
+// A custom line is filed into a category and behaves exactly like a library
+// line from then on: click to edit in place, ✓ to take it back off.
 function addCustom(){
   const f=document.getElementById('f-custom');
   const t=(f.value||'').trim();
   if(!t)return;
-  addLine(t, val('f-custom-cat'));
-  f.value=''; f.focus();
-}
-function removeLine(id){
-  if(LIB_EDIT_ID===id)LIB_EDIT_ID=null;
-  SCOPE=SCOPE.filter(s=>s.id!==id);
-  renderScopeRows(); renderLibrary(); render();
-}
-function patchLine(id,text){
-  const s=SCOPE.find(x=>x.id===id);
-  if(s){ s.text=text; render(); }
-}
-function moveLine(fromId,toId){
-  if(fromId===toId)return;
-  const fi=SCOPE.findIndex(s=>s.id===fromId);
-  const ti=SCOPE.findIndex(s=>s.id===toId);
-  if(fi<0||ti<0)return;
-  const [row]=SCOPE.splice(fi,1);
-  SCOPE.splice(ti,0,row);
-  renderScopeRows(); render();
-}
-
-// ========== EDITOR: SELECTED-SCOPE ROWS ==========
-let DRAG_ID=null;
-function renderScopeRows(){
-  const el=document.getElementById('sc-list');
-  document.getElementById('sc-count').textContent=
-    SCOPE.length===1?'1 line':SCOPE.length+' lines';
-  if(!SCOPE.length){
-    el.innerHTML='<div class="sc-empty">Nothing on the sheet yet — click lines in the library above, or add a blank line.</div>';
-    return;
-  }
-  el.innerHTML=SCOPE.map(s=>`<div class="sc-row" data-id="${s.id}">
-      <span class="sc-grip" title="Drag to reorder">⠿</span>
-      <input type="text" value="${escapeHtml(s.text)}" placeholder="Scope line">
-      <button class="sc-x" title="Remove">✕</button>
-    </div>`).join('');
-  el.querySelectorAll('.sc-row').forEach(row=>{
-    const id=Number(row.dataset.id);
-    row.querySelector('input').addEventListener('input',e=>patchLine(id,e.target.value));
-    row.querySelector('.sc-x').addEventListener('click',()=>removeLine(id));
-    // Only the grip starts a drag — otherwise dragging inside the text input
-    // would select text instead of moving the row.
-    const grip=row.querySelector('.sc-grip');
-    grip.addEventListener('mouseenter',()=>{row.draggable=true;});
-    grip.addEventListener('mouseleave',()=>{if(DRAG_ID===null)row.draggable=false;});
-    row.addEventListener('dragstart',e=>{DRAG_ID=id;row.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
-    row.addEventListener('dragend',()=>{row.draggable=false;DRAG_ID=null;
-      document.querySelectorAll('.sc-row').forEach(r=>r.classList.remove('dragging','drop-target'));});
-    row.addEventListener('dragover',e=>{e.preventDefault();if(DRAG_ID!==null&&DRAG_ID!==id)row.classList.add('drop-target');});
-    row.addEventListener('dragleave',()=>row.classList.remove('drop-target'));
-    row.addEventListener('drop',e=>{e.preventDefault();row.classList.remove('drop-target');
-      if(DRAG_ID!==null)moveLine(DRAG_ID,id);});
-  });
+  const cat=val('f-custom-cat')||LIB[LIB.length-1].cat;
+  const k='C:'+(++CSEQ);
+  libCat(cat).items.push({k:k, t:t, custom:true});
+  SCOPE.push({k:k, text:t, cat:cat});
+  f.value='';
+  document.getElementById('lib-q').value='';   // a filter would hide the new line
+  LIB_EDIT_K=null;
+  renderLibrary(); render();
+  f.focus();
 }
 
 // ========== LIBRARY ==========
-// Clicking a line puts it on the sheet AND turns that row into a text field
-// holding the live scope entry — so the common "add it, then tack on the
-// property-specific tail" edit happens right here, with no trip down to the
-// On-the-sheet list. LIB_EDIT_ID is the SCOPE id the open field is bound to.
-let LIB_EDIT_ID=null;
+// The library is the only scope surface: it picks, it edits, and its order is
+// the sheet's order. Clicking a line puts it on the sheet AND turns that row
+// into a text field bound to the live entry, so the usual "add it, then tack
+// on the property-specific tail" edit happens right where you clicked.
+// LIB_EDIT_K is the key of the row holding the open field.
+let LIB_EDIT_K=null;
 
-function onLibRow(cat,text){
-  const hit=SCOPE.find(s=>s.src===text);
-  if(!hit){                       // not on the sheet — add it and open the field
-    LIB_EDIT_ID=addLine(text,cat,text);
+function onLibRow(k){
+  if(!onSheet(k)){                // not on the sheet — add it and open the field
+    addLine(k);
+    LIB_EDIT_K=k;
     renderLibrary(); focusLibEdit();
     return;
   }
-  if(LIB_EDIT_ID===hit.id){       // field already open here — just put the caret back
+  if(LIB_EDIT_K===k){             // field already open here — just put the caret back
     focusLibEdit();
     return;                       // removal is the ✓'s job, never a stray click mid-edit
   }
-  LIB_EDIT_ID=hit.id;             // on the sheet but not open — reopen for another tweak
+  LIB_EDIT_K=k;                   // on the sheet but not open — reopen for another tweak
   renderLibrary(); focusLibEdit();
 }
 // The ✓ / + stub is the plain add-remove toggle: no field, no typing.
-function onLibToggle(cat,text){
-  const hit=SCOPE.find(s=>s.src===text);
-  if(hit){ removeLine(hit.id); return; }
-  LIB_EDIT_ID=null;
-  addLine(text,cat,text);
+function onLibToggle(k){
+  if(onSheet(k)){ removeLine(k); return; }
+  LIB_EDIT_K=null;
+  addLine(k);
 }
 function focusLibEdit(){
   const inp=document.querySelector('#lib-body .lib-edit');
@@ -571,30 +528,32 @@ function focusLibEdit(){
   inp.scrollLeft=inp.scrollWidth;
 }
 function closeLibEdit(){
-  if(LIB_EDIT_ID===null)return;
-  LIB_EDIT_ID=null;
-  renderScopeRows();              // the sheet list is stale while the field is open
+  if(LIB_EDIT_K===null)return;
+  LIB_EDIT_K=null;
   renderLibrary();
 }
 
 function renderLibrary(){
   const q=(val('lib-q')||'').trim().toLowerCase();
-  // Keyed on `src`, not text, so an edited line still reads as on the sheet.
-  const onSheet=new Map(SCOPE.filter(s=>s.src).map(s=>[s.src,s]));
-  const editing=SCOPE.find(s=>s.id===LIB_EDIT_ID);
   let html='';
-  for(const [cat,items] of LIBRARY){
-    const hits=items.filter(t=>!q||t.toLowerCase().includes(q)||cat.toLowerCase().includes(q));
+  for(const c of LIB){
+    // Filter on what the row actually shows, so an edited line stays findable
+    // by its new wording.
+    const hits=c.items.filter(it=>{
+      if(!q)return true;
+      const hit=onSheet(it.k);
+      return (hit?hit.text:it.t).toLowerCase().includes(q) || c.cat.toLowerCase().includes(q);
+    });
     if(!hits.length)continue;
-    html+=`<div class="lib-cat"><div class="lib-cat-h">${escapeHtml(cat)}</div>`;
-    for(const t of hits){
-      const hit=onSheet.get(t);
-      const isEdit=editing && editing.src===t;
+    html+=`<div class="lib-cat"><div class="lib-cat-h">${escapeHtml(c.cat)}</div>`;
+    for(const it of hits){
+      const hit=onSheet(it.k);
+      const isEdit=LIB_EDIT_K===it.k;
       const body=isEdit
-        ? `<input class="lib-edit" type="text" value="${escapeHtml(editing.text)}" placeholder="Scope line">`
-        : `<span class="li-text">${escapeHtml(hit?hit.text:t)}</span>`;
-      html+=`<div class="lib-item${hit?' on':''}${isEdit?' editing':''}" data-cat="${escapeHtml(cat)}" data-t="${escapeHtml(t)}">
-        <span class="li-plus" title="${hit?'Remove from the sheet':'Add without editing'}">${hit?'✓':'+'}</span>${body}</div>`;
+        ? `<input class="lib-edit" type="text" value="${escapeHtml(hit?hit.text:it.t)}" placeholder="Scope line">`
+        : `<span class="li-text">${escapeHtml(hit?hit.text:it.t)}</span>`;
+      html+=`<div class="lib-item${hit?' on':''}${isEdit?' editing':''}${it.custom?' custom':''}" data-k="${escapeHtml(it.k)}">
+        <span class="li-plus" title="${hit?'Take off the sheet':'Add without editing'}">${hit?'✓':'+'}</span>${body}</div>`;
     }
     html+='</div>';
   }
@@ -602,32 +561,37 @@ function renderLibrary(){
   el.innerHTML=html||'<div class="lib-empty">No matching scope lines.</div>';
 
   el.querySelectorAll('.lib-item').forEach(row=>{
-    const cat=row.dataset.cat, t=row.dataset.t;
+    const k=row.dataset.k;
     // mousedown, not click: it fires before the open field's blur, so the
     // re-render can't swallow the interaction half-way through.
     row.addEventListener('mousedown',e=>{
       if(e.target.classList.contains('lib-edit'))return;   // clicking inside the open field
       e.preventDefault();                                  // keep focus stable across the re-render
-      if(e.target.classList.contains('li-plus')){ onLibToggle(cat,t); return; }
-      onLibRow(cat,t);
+      if(e.target.classList.contains('li-plus')){ onLibToggle(k); return; }
+      onLibRow(k);
     });
   });
 
   const inp=el.querySelector('.lib-edit');
   if(inp){
-    inp.addEventListener('input',e=>patchLine(LIB_EDIT_ID, e.target.value));
+    inp.addEventListener('input',e=>patchLine(LIB_EDIT_K, e.target.value));
     inp.addEventListener('keydown',e=>{
       if(e.key==='Enter'||e.key==='Escape'){ e.preventDefault(); closeLibEdit(); }
     });
     inp.addEventListener('blur',closeLibEdit);
   }
+  updateScopeCount();
+}
+function updateScopeCount(){
+  const n=orderedScope().length;
+  const el=document.getElementById('sc-count');
+  if(el)el.textContent = n===0 ? 'nothing on the sheet' : (n===1?'1 line on the sheet':n+' lines on the sheet');
 }
 
 // ========== RENDER PAPER ==========
 function render(){
   const CO=COMPANIES[val('f-company')]||COMPANIES.mci;
   const isAppraiser=val('f-audience')==='appraiser';
-  const grouped=document.getElementById('f-grouped').checked;
 
   const lhHtml=CO.lines.map(l=>l.gap
     ? '<div class="lh-gap"></div>'
@@ -644,28 +608,16 @@ function render(){
   if(isAppraiser){
     const fee=money(val('f-fee'));
     if(fee)details.push(['Fee (labor and material included)', fee]);
-    const paid=val('f-paid');
-    if(paid)details.push(['Payment status', paid]);
+    details.push(['Payment status', 'Paid in full']);   // fixed on the appraiser copy
   }
   const detailsHtml=details.filter(([,v])=>v)
     .map(([k,v])=>`<div class="db-line">${escapeHtml(k)}: ${escapeHtml(v)}</div>`).join('');
 
-  // --- Scope list ---
-  const lines=SCOPE.filter(s=>(s.text||'').trim());
-  let scopeHtml;
-  if(!lines.length){
-    scopeHtml='<div class="scope-empty">Click scope lines in the library to build the list.</div>';
-  }else if(grouped){
-    // Group in LIBRARY order; a category with nothing in it is skipped.
-    scopeHtml=CATS.map(cat=>{
-      const inCat=lines.filter(s=>s.cat===cat);
-      if(!inCat.length)return '';
-      return `<div class="scope-grp">${escapeHtml(cat)}</div>`
-        + `<ul class="scope-ul">${inCat.map(s=>`<li>${escapeHtml(s.text)}</li>`).join('')}</ul>`;
-    }).join('');
-  }else{
-    scopeHtml=`<ul class="scope-ul">${lines.map(s=>`<li>${escapeHtml(s.text)}</li>`).join('')}</ul>`;
-  }
+  // --- Scope list — one flat bullet list, in library order ---
+  const lines=orderedScope();
+  const scopeHtml = lines.length
+    ? `<ul class="scope-ul">${lines.map(s=>`<li>${escapeHtml(s.text)}</li>`).join('')}</ul>`
+    : '<div class="scope-empty">Click scope lines in the library to build the list.</div>';
 
   // --- Signature block: 2nd signer on the left, 1st on the right ---
   const s1=val('f-sig1'), s1t=val('f-sig1t'), s2=val('f-sig2'), s2t=val('f-sig2t');
@@ -690,6 +642,7 @@ function render(){
     </div>
   `;
   reportPages();
+  updateScopeCount();
 }
 
 // Keep the 760px sheet inside its column on narrow windows. `zoom` (not
@@ -747,16 +700,17 @@ function onAudienceChange(){
 // ========== RESET ==========
 function resetForm(){
   if(!confirm('Clear this SOW and start over?'))return;
-  SCOPE=[]; LIB_EDIT_ID=null;
+  SCOPE=[]; LIB_EDIT_K=null;
+  // Drop any custom lines this session added to the library.
+  for(const c of LIB) c.items=c.items.filter(i=>!i.custom);
   ['f-addr','f-fee','f-custom','lib-q','f-start','f-end'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('f-grouped').checked=false;
   document.getElementById('f-audience').value='buyer';
   document.getElementById('f-paper').value='letter';
   seedDefaults();
   setPageSize();
   setPageSize();
   onAudienceChange();
-  renderScopeRows(); renderLibrary(); render();
+  renderLibrary(); render();
 }
 
 // Defaults that match how every past SOW was written.
@@ -768,7 +722,6 @@ function seedDefaults(){
   document.getElementById('f-sig1t').value='Project Manager';
   document.getElementById('f-sig2').value='';
   document.getElementById('f-sig2t').value='General Contractor';
-  document.getElementById('f-paid').value='Paid in full';
 }
 
 // ========== INIT ==========
@@ -777,11 +730,10 @@ function seedDefaults(){
   if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
   window.renderSidebar('sow');
   document.getElementById('f-custom-cat').innerHTML=
-    CATS.map(c=>`<option value="${escapeHtml(c)}"${c==='Additional Work'?' selected':''}>${escapeHtml(c)}</option>`).join('');
+    LIB.map(c=>`<option value="${escapeHtml(c.cat)}"${c.cat==='Additional Work'?' selected':''}>${escapeHtml(c.cat)}</option>`).join('');
   seedDefaults();
   setPageSize();
   onAudienceChange();
-  renderScopeRows();
   renderLibrary();
   render();
   fitPaper();
