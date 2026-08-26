@@ -221,13 +221,14 @@ let sel=TODAY, view='2w', collapsed={}, ovCtx=null;
 const CAT={
   structural :['#EDEBFA','#3D3593'],
   finishes   :['#E1F2EC','#12604A'],
-  closeout   :['#EFEFEE','#5F5E5A'],
+  closeout   :['#E4E3DC','#5F5E5A'],   // NOT #EFEFEE — that is 3 values off the
+                                       // empty cell (--bg-alt #F2F1EF) and vanishes
   procurement:['#FAECE7','#993C1D'],
 };
 // Build-level marks (the header dot, a collapsed build's single bar) are not a
 // trade and get no category, so they stay neutral rather than borrowing a
 // colour that would then mean something.
-const NEUTRAL=['#EFEFEE','#5F5E5A'];
+const NEUTRAL=['#D8D7D0','#4A4945'];
 function colOf(key){return CAT[tplOf(key).category]||NEUTRAL;}
 
 async function loadAll(){
