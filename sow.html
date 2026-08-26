@@ -158,7 +158,10 @@ body { overflow:hidden; height:100vh; }
 .scope-ul li.drop-above { box-shadow:inset 0 2px 0 -1px var(--accent); }
 .scope-ul li.drop-below { box-shadow:inset 0 -2px 0 -1px var(--accent); }
 .scope-empty { color:#a2a2a2; font-style:italic; }
-.doc-sign { margin-top:auto; padding-top:26px; }
+.doc-sign { padding-top:40px; }   /* ~2 blank lines below the last scope line —
+                                     NOT margin-top:auto, which pinned it to the
+                                     bottom of the page and left a huge gap on a
+                                     short scope. */
 .doc-sign .sg-regards { margin-bottom:30px; }
 .doc-sign .sg-row { display:flex; gap:40px; }
 .doc-sign .sg-who { flex:1; min-width:0; }
