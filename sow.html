@@ -240,12 +240,19 @@ body { overflow:hidden; height:100vh; }
         <input type="text" id="f-customer" oninput="render()" placeholder="Dotty Homes">
       </div>
       <div class="fld">
+        <label>Property</label>
+        <select id="f-deal" onchange="onDealPick()">
+          <option value="">Loading the selling pipeline…</option>
+        </select>
+        <div class="hint" id="deal-hint">Fills the address, COE date, and listing date. Everything stays editable after.</div>
+      </div>
+      <div class="fld">
         <label>Property address</label>
         <input type="text" id="f-addr" oninput="render()" placeholder="17422 Vierra Ave, Cerritos, CA 90703">
       </div>
       <div class="fld-row">
-        <div class="fld"><label>Date started</label><input type="date" id="f-start" oninput="render()"></div>
-        <div class="fld"><label>Date completed</label><input type="date" id="f-end" oninput="render()"></div>
+        <div class="fld"><label>Date started <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-4)">(COE)</span></label><input type="date" id="f-start" oninput="render()"></div>
+        <div class="fld"><label>Date completed <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-4)">(listed)</span></label><input type="date" id="f-end" oninput="render()"></div>
       </div>
       <div class="fld">
         <label>Contractor / Project Manager</label>
@@ -735,6 +742,108 @@ if(window.ResizeObserver){
   new ResizeObserver(fitPaper).observe(document.querySelector('.q-preview-wrap'));
 }
 
+// ========== SELLING-PIPELINE PROPERTY PICKER ==========
+// A SOW gets written once the work is done and the house is on the market, so
+// the picker offers exactly Backstage's Selling column. That's not
+// `phase='selling'` — pipeline.html buckets by the MLS match, not the manual
+// phase flag: a deal is Selling iff its phase is under_construction or selling
+// AND it has a relist_mls (i.e. "Mark as our listing" has been run). Same
+// predicate here so the two surfaces can't disagree.
+//
+// Filled from the deal:
+//   Property address  <- properties.address / city / zip (state is always CA)
+//   Date started      <- deals.actual_close_date        (COE on the buy side)
+//   Date completed    <- deals.list_date, else properties.list_date
+// The list_date fallback mirrors project-detail.html: the manual override on
+// the deal wins, otherwise the listing's own date from the hotsheet import.
+let DEALS=[];
+
+async function loadDeals(){
+  const sel=document.getElementById('f-deal');
+  const hint=document.getElementById('deal-hint');
+  try{
+    const {data:deals, error}=await sb.from('deals')
+      .select('id, phase, buy_side_mls, relist_mls, actual_close_date, list_date')
+      .in('phase',['under_construction','selling'])
+      .not('relist_mls','is',null);
+    if(error)throw error;
+
+    const mls=new Set();
+    for(const d of (deals||[])){
+      if(d.relist_mls)mls.add(d.relist_mls);
+      if(d.buy_side_mls)mls.add(d.buy_side_mls);
+    }
+    // No PostgREST embed here: deals has two FKs to properties, which makes
+    // `select('*, properties(*)')` ambiguous. Batch-fetch and map, same as
+    // pipeline.html does.
+    const byMls={};
+    if(mls.size){
+      const {data:props, error:pErr}=await sb.from('properties')
+        .select('mls, address, city, zip, list_date')
+        .in('mls', Array.from(mls));
+      if(pErr)throw pErr;
+      for(const r of (props||[]))byMls[r.mls]=r;
+    }
+
+    DEALS=(deals||[]).map(d=>{
+      const prop=byMls[d.relist_mls] || byMls[d.buy_side_mls] || null;
+      return {
+        id: d.id,
+        addr: prop ? fullAddress(prop) : '',
+        label: prop ? [prop.address, titleCaseCity(prop.city)].filter(Boolean).join(', ') : '(no property record)',
+        coe: d.actual_close_date || '',
+        listed: d.list_date || (prop ? prop.list_date : '') || '',
+      };
+    }).filter(d=>d.addr);
+    // Newest listing first — the SOW you're writing is almost always the one
+    // that just went on the market.
+    DEALS.sort((a,b)=>String(b.listed).localeCompare(String(a.listed)));
+
+    sel.innerHTML='<option value="">— pick a property —</option>'
+      + DEALS.map((d,i)=>`<option value="${i}">${escapeHtml(d.label)}</option>`).join('');
+    if(!DEALS.length){
+      sel.innerHTML='<option value="">— nothing in the selling pipeline —</option>';
+      hint.textContent='No deals are in the Selling column right now. Type the address and dates below.';
+    }
+  }catch(err){
+    console.error('[sow] deal load failed', err);
+    sel.innerHTML='<option value="">— couldn\'t load deals —</option>';
+    hint.textContent='Could not reach the pipeline. Type the address and dates below.';
+    hint.style.color='var(--red)';
+  }
+}
+// "17422 Vierra Ave, Cerritos, CA 90703" — every market Dotty works is CA, and
+// properties carries no state column. City comes out of the import uppercased
+// ("CERRITOS"), so it gets title-cased back for the letter; the street line is
+// stored properly cased already and is left alone.
+function titleCaseCity(c){
+  return String(c||'').toLowerCase().replace(/\b[a-z]/g, ch=>ch.toUpperCase());
+}
+function fullAddress(p){
+  const line=[p.address, titleCaseCity(p.city)].filter(Boolean).join(', ');
+  if(!line)return '';
+  return line + ', CA' + (p.zip ? ' '+p.zip : '');
+}
+function onDealPick(){
+  const i=document.getElementById('f-deal').value;
+  const hint=document.getElementById('deal-hint');
+  hint.style.color='';
+  if(i===''){ hint.textContent='Fills the address, COE date, and listing date. Everything stays editable after.'; return; }
+  const d=DEALS[Number(i)];
+  if(!d)return;
+  document.getElementById('f-addr').value=d.addr;
+  document.getElementById('f-start').value=d.coe;
+  document.getElementById('f-end').value=d.listed;
+  const missing=[];
+  if(!d.coe)missing.push('COE date');
+  if(!d.listed)missing.push('listing date');
+  hint.textContent = missing.length
+    ? 'Filled. No '+missing.join(' or ')+' on this deal — fill it in below.'
+    : 'Filled from the deal. Everything stays editable.';
+  if(missing.length)hint.style.color='var(--red)';
+  render();
+}
+
 // ========== PAPER SIZE ==========
 // Letter (11in) vs Legal (14in). The originals in `sow rr/` are 14in pages —
 // that's how ~26 scope lines fit on one sheet. @page can't be toggled with a
@@ -776,7 +885,8 @@ function resetForm(){
   SCOPE=[]; LIB_EDIT_K=null;
   // Drop any custom lines this session added to the library.
   for(const c of LIB) c.items=c.items.filter(i=>!i.custom);
-  ['f-addr','f-fee','f-custom','lib-q','f-start','f-end'].forEach(id=>document.getElementById(id).value='');
+  ['f-addr','f-fee','f-custom','lib-q','f-start','f-end','f-deal'].forEach(id=>document.getElementById(id).value='');
+  onDealPick();   // resets the picker hint
   document.getElementById('f-audience').value='buyer';
   document.getElementById('f-paper').value='letter';
   seedDefaults();
@@ -810,6 +920,7 @@ function seedDefaults(){
   renderLibrary();
   render();
   fitPaper();
+  loadDeals();    // non-blocking: the form is usable before the pipeline answers
 })();
 </script>
 </body>
