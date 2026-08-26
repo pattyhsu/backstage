@@ -163,8 +163,6 @@ body { overflow:hidden; height:100vh; }
                                      bottom of the page and left a huge gap on a
                                      short scope. */
 .doc-sign .sg-regards { margin-bottom:30px; }
-.doc-sign .sg-row { display:flex; gap:40px; }
-.doc-sign .sg-who { flex:1; min-width:0; }
 
 /* === PRINT === */
 @media print {
@@ -292,11 +290,6 @@ body { overflow:hidden; height:100vh; }
         <div class="fld"><label>Name</label><input type="text" id="f-sig1" oninput="render()" placeholder="Jack Dioses"></div>
         <div class="fld"><label>Title</label><input type="text" id="f-sig1t" oninput="render()" placeholder="Project Manager"></div>
       </div>
-      <div class="fld-row">
-        <div class="fld"><label>2nd name (opt.)</label><input type="text" id="f-sig2" oninput="render()" placeholder="Alex Flores"></div>
-        <div class="fld"><label>Title</label><input type="text" id="f-sig2t" oninput="render()" placeholder="General Contractor"></div>
-      </div>
-      <div class="hint" style="margin-top:-4px">When a 2nd name is set it prints on the left, the 1st name on the right — matching the two-signer letters.</div>
 
     </div>
 
@@ -660,12 +653,8 @@ function render(){
         `<li draggable="true" data-k="${escapeHtml(s.k)}">${escapeHtml(s.text)}</li>`).join('')}</ul>`
     : '<div class="scope-empty">Click scope lines in the library to build the list.</div>';
 
-  // --- Signature block: 2nd signer on the left, 1st on the right ---
-  const s1=val('f-sig1'), s1t=val('f-sig1t'), s2=val('f-sig2'), s2t=val('f-sig2t');
-  const who=(n,t)=>`<div class="sg-who"><div class="sg-name">${escapeHtml(n)}</div><div class="sg-title">${escapeHtml(t)}</div></div>`;
-  const signers=[];
-  if(s2)signers.push(who(s2,s2t));
-  if(s1)signers.push(who(s1,s1t));
+  // --- Sign-off: one signer ---
+  const s1=val('f-sig1'), s1t=val('f-sig1t');
 
   const re=(val('f-re')||'').trim();
 
@@ -679,7 +668,8 @@ function render(){
     </div>
     <div class="doc-sign">
       <div class="sg-regards">Regards,</div>
-      ${signers.length?`<div class="sg-row">${signers.join('')}</div>`:''}
+      ${s1?`<div class="sg-name">${escapeHtml(s1)}</div>`:''}
+      ${s1t?`<div class="sg-title">${escapeHtml(s1t)}</div>`:''}
     </div>
   `;
   bindScopeDrag();
@@ -906,8 +896,6 @@ function seedDefaults(){
   document.getElementById('f-pm').value='Jack Dioses';
   document.getElementById('f-sig1').value='Jack Dioses';
   document.getElementById('f-sig1t').value='Project Manager';
-  document.getElementById('f-sig2').value='';
-  document.getElementById('f-sig2t').value='General Contractor';
 }
 
 // ========== INIT ==========
