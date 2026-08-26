@@ -218,21 +218,17 @@ body { overflow:hidden; height:100vh; }
         <label>Audience</label>
         <select id="f-audience" onchange="onAudienceChange()">
           <option value="buyer">For buyer — no cost shown</option>
-          <option value="appraiser">For appraiser — fee + payment status</option>
+          <option value="appraiser">For appraiser — cost shown</option>
         </select>
-        <div class="hint">Appraiser copy adds the “Fee (labor and material included)” and “Payment status” lines.</div>
       </div>
-      <div class="fld">
-        <label>Paper</label>
-        <select id="f-paper" onchange="setPageSize()">
-          <option value="letter">Letter — 8.5 × 11</option>
-          <option value="legal">Legal — 8.5 × 14</option>
-        </select>
-        <div class="hint" id="paper-hint"></div>
-      </div>
-      <div class="fld">
-        <label>RE line</label>
-        <input type="text" id="f-re" oninput="render()" placeholder="Alterations and Improvements">
+      <!-- Cost lines are the whole difference between the two copies, so they
+           sit right under the switch that turns them on. -->
+      <div id="cost-fields" style="display:none">
+        <div class="fld">
+          <label>Fee — labor &amp; material</label>
+          <input type="text" id="f-fee" oninput="render()" placeholder="210000">
+          <div class="hint">Digits only; prints as $210,000. The appraiser copy also carries “Payment status: Paid in full”.</div>
+        </div>
       </div>
 
       <div class="sec-label">Project</div>
@@ -258,13 +254,7 @@ body { overflow:hidden; height:100vh; }
       <div class="fld">
         <label>Contractor / Project Manager</label>
         <input type="text" id="f-pm" oninput="render()" placeholder="Jack Dioses">
-      </div>
-      <div id="cost-fields" style="display:none">
-        <div class="fld">
-          <label>Fee — labor &amp; material</label>
-          <input type="text" id="f-fee" oninput="render()" placeholder="210000">
-          <div class="hint">Digits only; prints as $210,000. The appraiser copy always carries “Payment status: Paid in full”.</div>
-        </div>
+        <div class="hint">Also signs the letter — there's no separate signature field.</div>
       </div>
 
       <div class="sec-label">Scope <span class="sl-note" id="sc-count">nothing on the sheet</span></div>
@@ -274,21 +264,19 @@ body { overflow:hidden; height:100vh; }
       </div>
       <div class="hint">Click a line to put it on the sheet — it stays editable right there, so type to tweak the wording and hit Enter. The <b>✓</b> takes it back off; the <b>+</b> adds without opening the field.</div>
       <div class="hint" style="margin-top:5px">Lines land in this list's order. To put one somewhere else, <b>drag it on the sheet</b> — that reorders this document only.</div>
-      <div class="fld-row" style="margin-top:11px">
-        <div class="fld" style="flex:1.6">
-          <label>Add your own line</label>
-          <input type="text" id="f-custom" placeholder="Type a line, press Enter" onkeydown="if(event.key==='Enter'){addCustom();}">
-        </div>
-        <div class="fld" style="flex:1">
-          <label>File it under</label>
-          <select id="f-custom-cat"></select>
-        </div>
+      <div class="fld" style="margin-top:11px">
+        <label>Add your own line</label>
+        <input type="text" id="f-custom" placeholder="Type a line, press Enter" onkeydown="if(event.key==='Enter'){addCustom();}">
+        <div class="hint">Lands at the end of the scope — drag it up the sheet from there.</div>
       </div>
 
-      <div class="sec-label">Signature</div>
-      <div class="fld-row">
-        <div class="fld"><label>Name</label><input type="text" id="f-sig1" oninput="render()" placeholder="Jack Dioses"></div>
-        <div class="fld"><label>Title</label><input type="text" id="f-sig1t" oninput="render()" placeholder="Project Manager"></div>
+      <div class="sec-label">Paper</div>
+      <div class="fld">
+        <select id="f-paper" onchange="setPageSize()">
+          <option value="letter">Letter — 8.5 × 11</option>
+          <option value="legal">Legal — 8.5 × 14</option>
+        </select>
+        <div class="hint" id="paper-hint"></div>
       </div>
 
     </div>
@@ -340,6 +328,13 @@ const COMPANIES = {
     pm: '',
   },
 };
+
+// Constant on every letter in `sow rr/`, so it's baked in rather than being a
+// field that only ever holds one value.
+const RE_LINE='Alterations and Improvements';
+// The Contractor / Project Manager signs the letter; the title under the name
+// is always this in the source letters.
+const SIGNER_TITLE='Project Manager';
 
 // ========== SCOPE LIBRARY ==========
 // Every line below is lifted verbatim (or lightly normalized) from a real Dotty
@@ -514,7 +509,7 @@ function addCustom(){
   const f=document.getElementById('f-custom');
   const t=(f.value||'').trim();
   if(!t)return;
-  const cat=val('f-custom-cat')||LIB[LIB.length-1].cat;
+  const cat=LIB[LIB.length-1].cat;   // "Additional Work" — the end of the sheet
   const k='C:'+(++CSEQ);
   libCat(cat).items.push({k:k, t:t, custom:true});
   insertByLibOrder({k:k, text:t, cat:cat});
@@ -653,14 +648,13 @@ function render(){
         `<li draggable="true" data-k="${escapeHtml(s.k)}">${escapeHtml(s.text)}</li>`).join('')}</ul>`
     : '<div class="scope-empty">Click scope lines in the library to build the list.</div>';
 
-  // --- Sign-off: one signer ---
-  const s1=val('f-sig1'), s1t=val('f-sig1t');
+  // --- Sign-off: the Contractor / Project Manager signs; no separate field ---
+  const s1=val('f-pm');
 
-  const re=(val('f-re')||'').trim();
 
   document.getElementById('paper').innerHTML=`
     <div class="lh">${lhHtml}</div>
-    ${re?`<div class="doc-re">RE- ${escapeHtml(re)}</div>`:''}
+    <div class="doc-re">RE- ${escapeHtml(RE_LINE)}</div>
     ${detailsHtml?`<div class="doc-block"><div class="db-cap">Project Details:</div>${detailsHtml}</div>`:''}
     <div class="doc-block">
       <div class="doc-scope-cap">Completed scope of work:</div>
@@ -668,8 +662,7 @@ function render(){
     </div>
     <div class="doc-sign">
       <div class="sg-regards">Regards,</div>
-      ${s1?`<div class="sg-name">${escapeHtml(s1)}</div>`:''}
-      ${s1t?`<div class="sg-title">${escapeHtml(s1t)}</div>`:''}
+      ${s1?`<div class="sg-name">${escapeHtml(s1)}</div><div class="sg-title">${escapeHtml(SIGNER_TITLE)}</div>`:''}
     </div>
   `;
   bindScopeDrag();
@@ -892,10 +885,7 @@ function resetForm(){
 // Defaults that match how every past SOW was written.
 function seedDefaults(){
   document.getElementById('f-customer').value='Dotty Homes';
-  document.getElementById('f-re').value='Alterations and Improvements';
   document.getElementById('f-pm').value='Jack Dioses';
-  document.getElementById('f-sig1').value='Jack Dioses';
-  document.getElementById('f-sig1t').value='Project Manager';
 }
 
 // ========== INIT ==========
@@ -903,8 +893,6 @@ function seedDefaults(){
   await window.authGate();
   if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
   window.renderSidebar('sow');
-  document.getElementById('f-custom-cat').innerHTML=
-    LIB.map(c=>`<option value="${escapeHtml(c.cat)}"${c.cat==='Additional Work'?' selected':''}>${escapeHtml(c.cat)}</option>`).join('');
   seedDefaults();
   setPageSize();
   onAudienceChange();
