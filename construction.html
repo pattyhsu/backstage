@@ -212,7 +212,23 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;',
 let TODAY=todayStr();
 let deals=[], propByMls={}, tpl=[], milestones=[], workers=[], skills=[], assigns=[], costs={}, crews=[];
 let sel=TODAY, view='2w', collapsed={}, ovCtx=null;
-const COL=[['#EFEFEE','#5F5E5A'],['#E1F2EC','#12604A'],['#EDEBFA','#3D3593'],['#FAECE7','#993C1D']];
+// Colour says WHICH KIND OF WORK — the same language the project page's build
+// schedule speaks: structural purple, finishes green, closeout grey. These are
+// the very same four pairs as before; they were just keyed to the build's sort
+// position, so whichever site happened to land second wore "finishes green"
+// across all of its trades and the two surfaces flatly contradicted each other.
+// [pale cell, ink for chips + counts]
+const CAT={
+  structural :['#EDEBFA','#3D3593'],
+  finishes   :['#E1F2EC','#12604A'],
+  closeout   :['#EFEFEE','#5F5E5A'],
+  procurement:['#FAECE7','#993C1D'],
+};
+// Build-level marks (the header dot, a collapsed build's single bar) are not a
+// trade and get no category, so they stay neutral rather than borrowing a
+// colour that would then mean something.
+const NEUTRAL=['#EFEFEE','#5F5E5A'];
+function colOf(key){return CAT[tplOf(key).category]||NEUTRAL;}
 
 async function loadAll(){
   const {data:cr}=await sb.from('crews').select('id, name, kind, active');
@@ -221,7 +237,7 @@ async function loadAll(){
     .select('id, buy_side_mls, construction_start_date, actual_close_date, crew_id, plan_baselined_at')
     .eq('phase','under_construction');
   deals=(dl||[]).filter(x=>startOf(x)).sort((a,b)=>startOf(a)<startOf(b)?-1:1);
-  deals.forEach((x,i)=>{x._i=i; if(!(x.id in collapsed))collapsed[x.id]=!isOurs(x);});
+  deals.forEach(x=>{ if(!(x.id in collapsed))collapsed[x.id]=!isOurs(x); });
 
   const mlss=deals.map(x=>x.buy_side_mls).filter(Boolean);
   if(mlss.length){
@@ -351,7 +367,7 @@ function render(){
 
   let body='';
   for(const deal of deals){
-    const [bg,fg]=COL[deal._i%COL.length];
+    const [dealBg,dealFg]=NEUTRAL;
     const open=openTrades(deal), done=doneTrades(deal);
     const fin=finishOf(deal), base=baselineOf(deal);
     const over=(fin&&base)?diff(base,fin):null;
@@ -360,7 +376,7 @@ function render(){
     const bud=(c.rehab_budget&&c.rehab_budget>0)?Math.round((c.rehab_actual||0)/c.rehab_budget*100):0;
     const col=!!collapsed[deal.id];
     body+=`<div class="ph"><span class="car" onclick="toggleCollapse('${deal.id}')">${col?'▸':'▾'}</span>
-      <span><span class="dot" style="background:${fg}"></span><span class="nm">${esc(addrOf(deal))}</span>
+      <span><span class="dot" style="background:${dealFg}"></span><span class="nm">${esc(addrOf(deal))}</span>
       ${isOurs(deal)?'':'<span class="tag">'+esc(crewName(deal))+'</span>'}</span>
       <span class="meta">done: ${done.length?done.map(m=>esc(nameOf(m))).join(' · '):'nothing marked complete yet'}</span>
       <span class="meta">rehab ${money(c.rehab_actual||0)} of ${c.rehab_budget?money(c.rehab_budget):'—'} · ${bud}%</span>
@@ -380,7 +396,7 @@ function render(){
       for(const x of D){
         const mon=d(x).getDay()===1?'<span class="mon"></span>':'';
         cs+=(s0&&s0<=x&&x<=e0)
-          ? `<span class="cellw">${mon}<div class="bar" style="background:${bg};color:${fg}">${x===s0||x===D[0]?open.length+' trades':''}</div></span>`
+          ? `<span class="cellw">${mon}<div class="bar" style="background:${dealBg};color:${dealFg}">${x===s0||x===D[0]?open.length+' trades':''}</div></span>`
           : `<span class="cellw">${mon}<div class="rcell"></div></span>`;
       }
       body+=`<div class="r" style="${gt}"><span class="lb" style="color:var(--text-4);font-style:italic">${isOurs(deal)?'collapsed':'not our labour'}</span>${cs}</div>`;
@@ -389,6 +405,7 @@ function render(){
 
     for(const m of open){
       const t=tplOf(m.milestone_key), sp=spanOf(deal,m);
+      const [bg,fg]=colOf(m.milestone_key);
       const crew=t.default_crew_size==null?0:t.default_crew_size;
       let cells='';
       for(const x of D){
