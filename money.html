@@ -594,7 +594,6 @@ async function loadData() {
     capitalSources,
     capitalSourceBalances,
     dealLoans,
-    dealScores,
     cashRunway,
     portfolioOverhead,
     qboSyncState,
@@ -608,7 +607,6 @@ async function loadData() {
     sb.from('capital_sources').select('*').eq('active', true),
     sb.from('capital_source_balances_v1').select('*'),
     sb.from('deal_loans').select('id, deal_id, capital_source_id, loan_purpose, status, loan_amount, rate_apr, origination_date, funded_date, term_months, maturity_date'),
-    sb.from('deal_scores').select('mls, rehab_estimate'),
     // Cash runway: fetch wide window (90d back / 90d forward) so we can client-side filter to ±30/60/90.
     sb.from('cash_runway_v1').select('*'),
     // TTM overhead — last 365 days for monthly-avg projection.
@@ -636,7 +634,6 @@ async function loadData() {
     ['capital_sources', capitalSources.error],
     ['capital_source_balances_v1', capitalSourceBalances.error],
     ['deal_loans', dealLoans.error],
-    ['deal_scores', dealScores.error],
     ['cash_runway_v1', cashRunway.error],
     ['portfolio_overhead_v1', portfolioOverhead.error],
     ['qbo_sync_state', qboSyncState.error],
@@ -664,13 +661,42 @@ async function loadData() {
     throw new Error(msg);
   }
 
+  // Rehab estimates (Tab 2's "Rehab budget" reference column) — fetched
+  // AFTER deals, keyed on the MLS numbers we actually need.
+  //
+  // Read deal_scores_latest, NOT deal_scores: the raw table is append-only
+  // (one row per listing per nightly underwriter run, ~59.5K rows), so an
+  // unfiltered select got cut off at PostgREST's 1000-row cap and returned an
+  // arbitrary slice of history — most deals had no rehab estimate at all, and
+  // the ones that did could be showing a stale run. Same defect as the
+  // "ungraded" bug in mls-deals.html / wholesaler-deals.html
+  // (see bulkLoadDealScores). The view is one row per MLS but still ~3.9K
+  // rows, so the IN filter is what keeps this under the cap, not the view.
+  const scoreMls = Array.from(new Set(
+    (deals.data || []).flatMap(d => [d.buy_side_mls, d.relist_mls]).filter(Boolean)
+  ));
+  let dealScoreRows = [];
+  if (scoreMls.length) {
+    // Chunked for URL length / cap headroom as the deal count grows.
+    const CHUNK = 200, chunks = [];
+    for (let i = 0; i < scoreMls.length; i += CHUNK) chunks.push(scoreMls.slice(i, i + CHUNK));
+    const scoreResults = await Promise.all(chunks.map(chunk =>
+      sb.from('deal_scores_latest').select('mls, rehab_estimate').in('mls', chunk)));
+    // Soft dep (deal_scores_latest view) — it only feeds a reference column,
+    // so a missing view leaves that column blank rather than killing the page.
+    for (const { data, error } of scoreResults) {
+      if (error) console.warn('[money] deal_scores_latest not available; Rehab budget column will be blank:', error.message);
+      else dealScoreRows = dealScoreRows.concat(data || []);
+    }
+  }
+
   window.MC_DATA = {
     dealPnl: dealPnl.data || [],
     deals: deals.data || [],
     capitalSources: capitalSources.data || [],
     capitalSourceBalances: capitalSourceBalances.data || [],
     dealLoans: dealLoans.data || [],
-    dealScores: dealScores.data || [],
+    dealScores: dealScoreRows,
     cashRunway: cashRunway.data || [],
     portfolioOverhead: portfolioOverhead.data || [],
     lastSyncAt: (qboSyncState.data && qboSyncState.data[0]) ? qboSyncState.data[0].last_sync_at : null,
