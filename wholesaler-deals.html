@@ -1454,10 +1454,17 @@ function refreshRowDePill(mls){
   if(el)el.innerHTML=renderAgentDeCardPill(l);
 }
 async function ensureDealScore(mls,mid){
-  if(!dealScoreCache[mls]||dealScoreCache[mls].state==='pending'){
+  // Refetch whenever there's no resolved row: uncached, still pending, OR a
+  // previous 'missing'. 'missing' used to stick for the whole session, so one
+  // bad bulk pass left a scored listing reading "ungraded" until a reload —
+  // and the detail view, where this single-row query is cheap, never retried.
+  const st0=dealScoreCache[mls]&&dealScoreCache[mls].state;
+  if(!st0||st0==='pending'||st0==='missing'){
     if(!dealScoreCache[mls])dealScoreCache[mls]={state:'pending'};
     try{
-      const{data,error}=await sb.from('deal_scores').select('*').eq('mls',mls).order('computed_at',{ascending:false}).limit(1).maybeSingle();
+      // deal_scores_latest is DISTINCT ON (mls) over the append-only
+      // deal_scores history — already one row per listing, so no order/limit.
+      const{data,error}=await sb.from('deal_scores_latest').select('*').eq('mls',mls).maybeSingle();
       if(error){dealScoreCache[mls]={state:'missing'};}
       else if(!data){dealScoreCache[mls]={state:'missing'};}
       else{dealScoreCache[mls]={state:(data.status==='error'?'error':'ok'),row:data};}
@@ -1474,7 +1481,8 @@ async function ensureDealScore(mls,mid){
 }
 async function bulkLoadDealScores(mlses){
   // Single bulk fetch for every uncached MLS currently on screen. Same
-  // cache shape as ensureDealScore's per-MLS path; 'missing' sticks.
+  // cache shape as ensureDealScore's per-MLS path; a 'missing' here is
+  // recoverable — opening the detail refetches that one MLS.
   const need=Array.from(new Set(mlses)).filter(m=>m&&!dealScoreCache[m]);
   if(!need.length)return;
   need.forEach(m=>{dealScoreCache[m]={state:'pending'};});
@@ -1482,12 +1490,19 @@ async function bulkLoadDealScores(mlses){
     // Chunk the IN list (can be ~2000 MLS on a full load) into parallel
     // queries — a single 2000-element IN makes an enormous URL and one heavy
     // scan. Any MLS not returned by its chunk falls through to 'missing'.
+    // Read deal_scores_latest, NOT deal_scores: the raw table is append-only
+    // (one row per listing per nightly run), so a 200-MLS IN asked for
+    // thousands of history rows and got cut off at PostgREST's 1000-row cap —
+    // newest-first, that window reached back only ~4-7 days, and every listing
+    // whose latest score was older than the cutoff came back absent and
+    // rendered "ungraded" despite having a grade. The view is one row per MLS,
+    // so a chunk is <=CHUNK rows and can't truncate.
     const CHUNK=200,chunks=[];
     for(let i=0;i<need.length;i+=CHUNK)chunks.push(need.slice(i,i+CHUNK));
     const results=await Promise.all(chunks.map(chunk=>
-      sb.from('deal_scores').select('mls,status,grade,spread,spread_pct,breakdown_json,error_message,computed_at').in('mls',chunk).order('computed_at',{ascending:false})));
+      sb.from('deal_scores_latest').select('mls,status,grade,spread,spread_pct,breakdown_json,error_message,computed_at').in('mls',chunk)));
     const seen={};
-    results.forEach(({data,error})=>{if(error)console.error('bulkLoadDealScores',error);(data||[]).forEach(r=>{if(!seen[r.mls])seen[r.mls]=r;});});
+    results.forEach(({data,error})=>{if(error)console.error('bulkLoadDealScores',error);(data||[]).forEach(r=>{seen[r.mls]=r;});});
     need.forEach(m=>{
       if(seen[m])dealScoreCache[m]={state:(seen[m].status==='error'?'error':'ok'),row:seen[m]};
       else dealScoreCache[m]={state:'missing'};
