@@ -87,8 +87,13 @@ h2 { font-size:14.5px; font-weight:600; }
 .dcell.off { background:var(--bg-alt); }
 .dcell.off:hover { outline:1px solid var(--border-strong); outline-offset:-1px; }
 .dcell.extra { background:var(--accent-dim2); outline:1px solid var(--accent); outline-offset:-1px; }
-.chip { font-size:8.5px; font-weight:700; padding:0 3px; border-radius:2px;
+.chip { position:relative; font-size:8.5px; font-weight:700; padding:0 3px; border-radius:2px;
   background:rgba(255,255,255,.9); line-height:12px; }
+/* A day that cost extra. A dot rather than a number because the grid cell is
+   34px wide and already carries two initials — the amount is one click away. */
+.chip.ot::after { content:''; position:absolute; top:0; right:0; width:3px; height:3px;
+  border-radius:50%; background:var(--amber); }
+.hf { font-size:9px; font-weight:600; opacity:.8; }
 .ph { grid-column:1/-1; display:flex; align-items:baseline; gap:9px; padding:13px 0 4px; font-size:12px; flex-wrap:wrap; }
 .ph .nm { font-weight:600; } .ph .meta { color:var(--text-4); font-size:11px; }
 .ph .slip { color:var(--red); font-weight:600; font-size:11px; }
@@ -166,6 +171,38 @@ h2 { font-size:14.5px; font-weight:600; }
 .wr .rt { margin-left:auto; font-size:11.5px; color:var(--text-4); }
 .wr .st { font-size:11px; color:var(--amber); }
 .wr.on { background:var(--accent-dim); } .wr.on .nm { color:var(--accent); font-weight:700; }
+/* Half-day and overtime controls, on the row of the person they apply to.
+   They appear only once someone is on the trade, so choosing who is still one
+   click and the fine print stays out of the way until it is relevant. */
+.wr { flex-wrap:wrap; }
+.wrc { display:none; width:100%; align-items:center; gap:7px; padding-top:8px; }
+.wr.on .wrc { display:flex; }
+.fr { display:flex; border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+.fr b { font-size:11px; font-weight:500; padding:2px 8px; cursor:pointer; color:var(--text-3);
+  background:var(--bg); border-right:1px solid var(--border); }
+.fr b:last-child { border-right:none; }
+.fr b:hover { background:var(--bg-alt); }
+.fr b.on { background:var(--accent); color:#fff; font-weight:700; }
+.otw { display:flex; align-items:center; gap:3px; font-size:11px; color:var(--text-4); }
+.otw input { width:54px; font:inherit; font-size:11.5px; padding:2px 5px; text-align:right;
+  border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text); }
+.otw input:focus { outline:none; border-color:var(--accent); }
+.wrc .pay { margin-left:auto; font-size:11.5px; font-weight:600; color:var(--text-2);
+  font-variant-numeric:tabular-nums; }
+.pc.ot .rt { color:var(--amber); font-weight:600; }
+.pc .nmc { cursor:pointer; }
+.pc .nmc:hover { text-decoration:underline; }
+/* Roster editing lives in the skills matrix rather than a second list of the
+   same ten people: the name and the rate are already printed there. */
+.rs-in { font:inherit; width:100%; border:1px solid transparent; border-radius:4px;
+  background:none; color:inherit; padding:1px 3px; }
+.rs-in:hover { border-color:var(--border); }
+.rs-in:focus { outline:none; border-color:var(--accent); background:var(--bg); }
+.rs-x { text-align:center; font-size:10.5px; color:var(--text-4); cursor:pointer; user-select:none; }
+.rs-x:hover { color:var(--red); }
+.rs-row.gone { opacity:.45; }
+.rs-row.gone .rs-c { pointer-events:none; }
+.rs-row.gone .rs-x:hover { color:var(--green); }
 </style>
 </head>
 <body>
@@ -210,7 +247,11 @@ function titleCase(s){return String(s||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
 
 let TODAY=todayStr();
-let deals=[], propByMls={}, tpl=[], milestones=[], workers=[], skills=[], assigns=[], costs={}, crews=[];
+// `workers` is who you can assign today; `roster` is everyone who ever could,
+// retired people included. They have to be separate: a retired worker must not
+// appear in the bench or the assign sheet, but every day they already worked
+// still has to resolve to a name and a cost, and workerById reads `roster`.
+let deals=[], propByMls={}, tpl=[], milestones=[], workers=[], roster=[], skills=[], assigns=[], costs={}, crews=[];
 let sel=TODAY, view='2w', collapsed={}, ovCtx=null;
 // Colour says WHICH KIND OF WORK — the same language the project page's build
 // schedule speaks: structural purple, finishes green, closeout grey. These are
@@ -260,8 +301,9 @@ async function loadAll(){
       .select('deal_id, rehab_budget, rehab_actual').in('deal_id',ids);
     costs={}; for(const r of (c||[]))costs[r.deal_id]=r;
   }
-  const {data:w}=await sb.from('workers').select('id, name, daily_rate').eq('active',true).order('name');
-  workers=w||[];
+  const {data:w}=await sb.from('workers').select('id, name, daily_rate, active').order('name');
+  roster=w||[];
+  workers=roster.filter(x=>x.active);
   const {data:sk}=await sb.from('worker_trades').select('id, worker_id, milestone_key');
   skills=sk||[];
   await loadAssignments();
@@ -271,7 +313,7 @@ async function loadAll(){
 async function loadAssignments(){
   const D=days(), lo=[D[0],sel].sort()[0], hi=[D[D.length-1],sel].sort().slice(-1)[0];
   const {data:a}=await sb.from('deal_work_assignments')
-    .select('id, deal_id, milestone_key, work_date, worker_id').gte('work_date',lo).lte('work_date',hi);
+    .select(ASSIGN_COLS).gte('work_date',lo).lte('work_date',hi);
   assigns=a||[];
 }
 
@@ -291,7 +333,24 @@ function tradeNameOf(dealId,key){
   const m=milestones.find(x=>x.deal_id===dealId&&x.milestone_key===key);
   return m?nameOf(m):(tplOf(key).display_name||key);
 }
-function workerById(id){return workers.find(w=>w.id===id)||null;}
+function workerById(id){return roster.find(w=>w.id===id)||null;}
+// pay_amount is a generated column — rate_applied x day_fraction + extra_pay,
+// computed by the database so this page and project-detail cannot disagree
+// about what a day cost. rate_applied is the rate frozen at assign time, which
+// is why editing someone's rate in the roster below does not restate June.
+const ASSIGN_COLS='id, deal_id, milestone_key, work_date, worker_id, day_fraction, extra_pay, rate_applied, pay_amount';
+const FRACS=[0.25,0.5,0.75,1], FRG={0.25:'\u00BC',0.5:'\u00BD',0.75:'\u00BE',1:'1'};
+function frac(a){const v=Number(a&&a.day_fraction);return isFinite(v)&&v>0?v:1;}
+function payOf(a){
+  const v=Number(a&&a.pay_amount);
+  if(isFinite(v))return v;
+  const w=workerById(a.worker_id);
+  return (a&&a.rate_applied!=null?Number(a.rate_applied):Number(w?w.daily_rate:0))*frac(a)+Number((a&&a.extra_pay)||0);
+}
+function otOf(a){return Number((a&&a.extra_pay)||0);}
+function fracTag(a){return frac(a)===1?'':`<i class="hf">${FRG[frac(a)]||frac(a)}</i>`;}
+// 7.5 people, not 7.50 and not 8.
+function num(n){return String(Number(Number(n||0).toFixed(2)));}
 function canDo(wid,key){return skills.some(s=>s.worker_id===wid&&s.milestone_key===key);}
 function staffedTrades(){return tpl.filter(t=>t.category!=='procurement'&&(t.default_crew_size||0)>0);}
 
@@ -336,7 +395,12 @@ function assignedTo(dealId,key,day){
   return assigns.filter(a=>a.deal_id===dealId&&a.milestone_key===key&&a.work_date===(day||sel))
     .map(a=>({a,w:workerById(a.worker_id)})).filter(x=>x.w);
 }
-function busyOn(wid,day){return assigns.filter(a=>a.worker_id===wid&&a.work_date===day).length;}
+// How much of a person's day is spoken for. Sums fractions rather than
+// counting rows, which is what makes half-at-Moore + half-at-Carnaby a full
+// day rather than a double-booking. Float tolerance because 0.25 x 4 is not
+// reliably 1 in binary.
+function busyOn(wid,day){return assigns.filter(a=>a.worker_id===wid&&a.work_date===day).reduce((s,a)=>s+frac(a),0);}
+const FULL=0.9999, OVER=1.0001;
 // A few days of lead-in before today. The board is a planning surface, so the
 // forward horizon stays a full two weeks — the lookback is added, not traded
 // against it. Deliberately a fixed window rather than a scrollable history:
@@ -420,7 +484,7 @@ function render(){
         const who=assignedTo(deal.id,m.milestone_key,x);
         const clickable=(isOurs(deal)&&crew)?` onclick="openOv('${deal.id}','${esc(m.milestone_key)}','${x}')"`:'';
         const inner=who.length
-          ? who.map(p=>`<span class="chip" style="color:${fg}">${esc(p.w.name.slice(0,2))}</span>`).join('')
+          ? who.map(p=>`<span class="chip${otOf(p.a)?' ot':''}" style="color:${fg}" title="${esc(p.w.name)} · ${num(frac(p.a))==='1'?'full day':num(frac(p.a))+' of a day'}${otOf(p.a)?' · +'+money(otOf(p.a)):''} · ${money(payOf(p.a))}">${esc(p.w.name.slice(0,2))}${fracTag(p.a)}</span>`).join('')
           : (on?(crew?`<span class="chip" style="color:${fg};background:none;opacity:.55">${crew}</span>`
                      :'<span class="chip" style="background:none;color:#9b9b95;font-weight:400">s</span>'):'');
         const cls='dcell'+(on?'':' off')+((who.length&&!on)?' extra':'');
@@ -435,9 +499,9 @@ function render(){
     ld+=`<span class="n${v>workers.length?' over':(v?'':' zero')}">${v||''}</span>`;}
   ld+='</div>';
   let ac=`<div class="r" style="${gt}"><span class="lb">Assigned</span>`;
-  for(const x of D){const v=assigns.filter(a=>a.work_date===x).length;
+  for(const x of D){const v=assigns.filter(a=>a.work_date===x).reduce((s,a)=>s+frac(a),0);
     let need=0;for(const dl of ourDeals())need+=demandOn(dl,x);
-    ac+=`<span class="n zero" style="${v&&v<need?'color:var(--amber);font-weight:700':(v?'color:var(--green);font-weight:700':'')}">${v||''}</span>`;}
+    ac+=`<span class="n zero" style="${v&&v<need?'color:var(--amber);font-weight:700':(v?'color:var(--green);font-weight:700':'')}">${v?num(v):''}</span>`;}
   ac+='</div>';
 
   // ---- day panel ----
@@ -469,13 +533,16 @@ function render(){
     for(const {m,off} of tr){
       const t=tplOf(m.milestone_key), crew=t.default_crew_size||0, sp=spanOf(deal,m);
       const who=assignedTo(deal.id,m.milestone_key,sel);
-      got+=who.length;
-      for(const p of who)cost+=Number(p.w.daily_rate||0);
-      const cls=off?'':(crew?(who.length>=crew?'met':'short'):'');
+      // Person-days, not heads: two people at half a day each is one day of
+      // work against a trade that asked for one, and reads as met.
+      const pd=who.reduce((s,p)=>s+frac(p.a),0);
+      got+=pd;
+      for(const p of who)cost+=payOf(p.a);
+      const cls=off?'':(crew?(pd>=crew-0.0001?'met':'short'):'');
       rows+=`<div class="tr"><div class="tn">${esc(nameOf(m))}${off?' <span class="offtag">off plan</span>':''}<em>${sp?(sp.s===sp.e?md(sp.s):md(sp.s)+' – '+md(sp.e)):''}</em></div>
-        <div class="need ${cls}">${who.length}${(crew&&!off)?' / '+crew:''}</div>
-        <div class="chips">${who.map(p=>{const db=busyOn(p.w.id,sel)>1;
-          return `<span class="pc${db?' dbl':''}">${esc(p.w.name)}<span class="rt">${money(p.w.daily_rate)}</span><span class="x" onclick="unassign('${p.a.id}')">&#10005;</span></span>`;}).join('')}
+        <div class="need ${cls}">${num(pd)}${(crew&&!off)?' / '+crew:''}</div>
+        <div class="chips">${who.map(p=>{const db=busyOn(p.w.id,sel)>OVER, ot=otOf(p.a);
+          return `<span class="pc${db?' dbl':''}${ot?' ot':''}"><span class="nmc" onclick="openOv('${deal.id}','${esc(m.milestone_key)}','${sel}')" title="Change the half-day or the overtime">${esc(p.w.name)}${fracTag(p.a)}</span><span class="rt" title="${money(p.a.rate_applied!=null?p.a.rate_applied:0)} rate${frac(p.a)===1?'':' \u00d7 '+num(frac(p.a))}${ot?' + '+money(ot)+' extra':''}">${money(payOf(p.a))}</span><span class="x" onclick="unassign('${p.a.id}')">&#10005;</span></span>`;}).join('')}
           ${crew?`<button class="addb" onclick="openOv('${deal.id}','${esc(m.milestone_key)}','${sel}')">+ assign</button>`:''}</div></div>`;
     }
     dayCost+=cost;
@@ -485,21 +552,36 @@ function render(){
       <div class="rr"><div class="cost">${money(cost)}</div>${got} out · ${need} asked for by the plan</div></div>${rows}</div>`;
   }
   if(!sites)sites='<div class="site" style="text-align:center;color:var(--text-4);font-style:italic">Nothing on our crew this day.</div>';
-  const out=new Set(assigns.filter(a=>a.work_date===sel).map(a=>a.worker_id));
-  const bench=workers.filter(w=>!out.has(w.id));
-  const dbl=workers.filter(w=>busyOn(w.id,sel)>1);
+  // Someone on a half-day is half available, so the bench is "not fully
+  // booked" rather than "has no row today" — the whole reason for tracking a
+  // fraction is that the other half is still yours to send somewhere.
+  const bench=workers.filter(w=>busyOn(w.id,sel)<FULL);
+  const dbl=roster.filter(w=>busyOn(w.id,sel)>OVER);
 
   // ---- roster ----
-  const T=staffedTrades(), sgt=`grid-template-columns:88px 44px repeat(${T.length},minmax(15px,1fr))`;
+  const T=staffedTrades(), sgt=`grid-template-columns:84px 48px repeat(${T.length},minmax(15px,1fr)) 15px`;
   let sh=`<div class="rs-row" style="${sgt}"><span></span><span></span>`;
   for(const t of T)sh+=`<span class="rs-h" title="${esc(t.display_name)}">${esc(t.display_name.replace(/ (complete|done|installed)\b.*$/i,'').replace(/,.*$/,'').slice(0,11))}</span>`;
-  sh+='</div>';
+  sh+='<span></span></div>';
+  // Retired people stay listed, greyed and read-only, so it is obvious that
+  // Alonso still exists and can come back — and so the rate his old days were
+  // costed at is still visible. They are never deleted: worker_id is ON DELETE
+  // RESTRICT precisely so every day they worked keeps resolving.
   let srows='';
-  for(const w of workers){
+  for(const w of workers.concat(roster.filter(x=>!x.active))){
+    const off=!w.active;
     let cs='';
     for(const t of T)cs+=`<span class="rs-c${canDo(w.id,t.milestone_key)?' on':''}" data-skill="${w.id}|${esc(t.milestone_key)}"></span>`;
-    srows+=`<div class="rs-row" style="${sgt}"><span style="font-size:12px">${esc(w.name)}</span><span style="font-size:10.5px;color:var(--text-4)">${money(w.daily_rate)}</span>${cs}</div>`;
+    srows+=`<div class="rs-row${off?' gone':''}" style="${sgt}">`
+      +`<input class="rs-in" style="font-size:12px" value="${esc(w.name)}" data-wname="${w.id}"${off?' disabled':''}>`
+      +`<input class="rs-in" style="font-size:10.5px;color:var(--text-4);text-align:right" value="${Math.round(Number(w.daily_rate||0))}" data-wrate="${w.id}"${off?' disabled':''}>`
+      +cs
+      +`<span class="rs-x" data-wtog="${w.id}" title="${off?'Bring '+esc(w.name)+' back onto the roster':'Retire '+esc(w.name)+' — every day already worked is kept'}">${off?'\u21ba':'\u2715'}</span></div>`;
   }
+  const addRow=`<div class="rs-row" style="grid-template-columns:84px 48px 1fr;gap:5px;margin-top:9px;padding-top:9px;border-top:1px solid var(--border)">
+      <input class="rs-in" id="nwName" placeholder="Name" style="font-size:12px;border-color:var(--border)">
+      <input class="rs-in" id="nwRate" placeholder="$/day" style="font-size:11px;text-align:right;border-color:var(--border)" inputmode="numeric">
+      <button class="addb" id="nwAdd" style="justify-self:start">+ Add to roster</button></div>`;
 
   document.getElementById('page').innerHTML=`
     <div class="sh"><h2>${view==='2w'?'The next two weeks':'Full runway'}</h2>
@@ -519,10 +601,11 @@ function render(){
         ${dbl.length?`<div class="note warn">${dbl.map(w=>esc(w.name)).join(', ')} ${dbl.length===1?'is':'are'} in two places today.</div>`:''}
       </div>
       <div>
-        <div class="sh"><h2>Crew &amp; skills</h2><span class="sub">click a square to mark a trade</span></div>
-        <div class="card">${sh}${srows}</div>
+        <div class="sh"><h2>Crew &amp; skills</h2><span class="sub">click a square to mark a trade &middot; edit a name or rate in place</span></div>
+        <div class="card">${sh}${srows}${addRow}</div>
         <div class="bench"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Not assigned <span style="font-weight:400;color:var(--text-4)">${bench.length} of ${workers.length} free on ${md(sel)}</span></div>
-          <div class="chips">${bench.map(w=>`<span class="pc">${esc(w.name)}<span class="rt">${money(w.daily_rate)}</span></span>`).join('')||'<span style="font-size:12px;color:var(--text-4);font-style:italic">Everyone is out.</span>'}</div></div>
+          <div class="chips">${bench.map(w=>{const b=busyOn(w.id,sel);
+            return `<span class="pc">${esc(w.name)}<span class="rt">${b?num(1-b)+' of a day left':money(w.daily_rate)}</span></span>`;}).join('')||'<span style="font-size:12px;color:var(--text-4);font-style:italic">Everyone is out.</span>'}</div></div>
       </div>
     </div>`;
   wire();
@@ -547,7 +630,93 @@ function wire(){
       render();
     });
   });
+  // Name and rate save on blur, not per keystroke. A rate edit deliberately
+  // does NOT restate past days: rate_applied was frozen onto every assignment
+  // when it was made, so this only affects days assigned from here on.
+  document.querySelectorAll('.rs-in[data-wname]').forEach(el=>{
+    el.addEventListener('change',()=>saveWorker(el.dataset.wname,{name:el.value.trim()},el));
+  });
+  document.querySelectorAll('.rs-in[data-wrate]').forEach(el=>{
+    el.addEventListener('change',()=>saveWorker(el.dataset.wrate,{daily_rate:el.value},el));
+  });
+  document.querySelectorAll('.rs-x[data-wtog]').forEach(el=>{
+    el.addEventListener('click',()=>toggleRetired(el.dataset.wtog));
+  });
+  const add=document.getElementById('nwAdd');
+  if(add)add.addEventListener('click',addWorker);
 }
+
+// Retiring, never deleting. deal_work_assignments.worker_id is ON DELETE
+// RESTRICT, so a delete would either be refused or would strand history; and
+// the roster is a record of what a build cost, not just of who is here now.
+async function toggleRetired(id){
+  const w=roster.find(x=>x.id===id); if(!w)return;
+  const days=assigns.filter(a=>a.worker_id===id).length;
+  if(w.active && !confirm('Retire '+w.name+'?\n\n'
+    +'They come off the bench, the assign sheet and the skills matrix straight away. '
+    +'Every day they have already worked is kept, at the rate it was booked at'
+    +(days?' — including '+days+' in the window on screen.':'.')
+    +'\n\nYou can bring them back at any time.'))return;
+  const {error}=await sb.from('workers').update({active:!w.active, updated_at:new Date().toISOString()}).eq('id',id);
+  if(error){alert('Failed: '+error.message);return;}
+  w.active=!w.active;
+  workers=roster.filter(x=>x.active);
+  render();
+}
+
+async function saveWorker(id,patch,el){
+  const w=roster.find(x=>x.id===id); if(!w)return;
+  if('daily_rate' in patch){
+    const v=Number(String(patch.daily_rate).replace(/[$,\s]/g,''));
+    if(!isFinite(v)||v<0){alert('A daily rate has to be a number, and not a negative one.');el.value=Math.round(Number(w.daily_rate||0));return;}
+    if(v===Number(w.daily_rate))return;
+    patch={daily_rate:v};
+  }
+  if('name' in patch){
+    if(!patch.name){alert('A name cannot be blank.');el.value=w.name;return;}
+    if(patch.name===w.name)return;
+  }
+  const {error}=await sb.from('workers').update({...patch, updated_at:new Date().toISOString()}).eq('id',id);
+  if(error){
+    alert(/duplicate|23505/i.test(error.message||'')
+      ? 'Someone on the roster is already called that.'
+      : 'Save failed: '+error.message);
+    el.value=('name' in patch)?w.name:Math.round(Number(w.daily_rate||0));
+    return;
+  }
+  Object.assign(w,patch);
+  render();
+}
+
+// workers.name is UNIQUE, so re-hiring by typing the name again collides with
+// the retired row rather than creating a second one. That is the right
+// constraint — two Alonsos would split his history — so this offers the
+// restore instead of reporting a conflict.
+async function addWorker(){
+  const nEl=document.getElementById('nwName'), rEl=document.getElementById('nwRate');
+  const name=nEl.value.trim(), rate=Number(String(rEl.value).replace(/[$,\s]/g,''));
+  if(!name){alert('Give them a name first.');nEl.focus();return;}
+  if(!isFinite(rate)||rate<=0){alert('What do they cost per day?');rEl.focus();return;}
+  const dupe=roster.find(x=>x.name.toLowerCase()===name.toLowerCase());
+  if(dupe){
+    if(dupe.active){alert(dupe.name+' is already on the roster.');return;}
+    if(!confirm(dupe.name+' is on the roster but retired.\n\nBring them back'
+      +(rate===Number(dupe.daily_rate)?'':' at '+money(rate))+'?'))return;
+    const {error}=await sb.from('workers').update({active:true, daily_rate:rate, updated_at:new Date().toISOString()}).eq('id',dupe.id);
+    if(error){alert('Failed: '+error.message);return;}
+    dupe.active=true; dupe.daily_rate=rate;
+  } else {
+    const {data,error}=await sb.from('workers').insert({name, daily_rate:rate})
+      .select('id, name, daily_rate, active');
+    if(error){alert('Add failed: '+error.message);return;}
+    if(data&&data[0])roster.push(data[0]);
+  }
+  roster.sort((a,b)=>a.name<b.name?-1:1);
+  workers=roster.filter(x=>x.active);
+  nEl.value=''; rEl.value='';
+  render();
+}
+
 function toggleCollapse(id){collapsed[id]=!collapsed[id];render();}
 async function step(n){sel=addDays(sel,n);await loadAssignments();render();}
 async function goDay(x){sel=x;await loadAssignments();render();}
@@ -609,15 +778,33 @@ function renderOv(){
   document.getElementById('ovb').innerHTML=workers.map(w=>{
     const el=assigns.find(a=>a.worker_id===w.id&&a.work_date===ovCtx.day
       &&!(a.deal_id===ovCtx.dealId&&a.milestone_key===ovCtx.key));
-    const st=el?`<span class="st">on ${esc(el.deal_id===ovCtx.dealId
+    // What "already spoken for" means now depends on how much of their day is
+    // left: someone on a half-day elsewhere is available for this one.
+    const busy=busyOn(w.id,ovCtx.day), mine=assigns.find(a=>a.deal_id===ovCtx.dealId
+      &&a.milestone_key===ovCtx.key&&a.work_date===ovCtx.day&&a.worker_id===w.id);
+    const left=busy-(mine?frac(mine):0);
+    const st=el?`<span class="st"${left<FULL?' style="color:var(--text-4)"':''}>${left<FULL?num(left)+' of a day on ':'on '}${esc(el.deal_id===ovCtx.dealId
       ? tradeNameOf(el.deal_id, el.milestone_key)
       : addrOf(deals.find(x=>x.id===el.deal_id)||{}))}</span>`:'';
     const sk=canDo(w.id,ovCtx.key)?'<span class="st" style="color:var(--green)">trained for this</span>':'';
+    const ctl=mine?`<div class="wrc">
+      <div class="fr">${FRACS.map(v=>`<b class="${frac(mine)===v?'on':''}" data-fr="${mine.id}|${v}" title="${v===1?'A whole day':v+' of a day'}">${FRG[v]}</b>`).join('')}</div>
+      <span class="otw" title="Flat dollars agreed on top of the day. Leave it empty when the extra hours were not extra pay.">+$<input type="number" min="0" max="2000" step="5" placeholder="0" value="${otOf(mine)||''}" data-xp="${mine.id}"></span>
+      <span class="pay">${money(payOf(mine))}</span></div>`:'';
     return `<div class="wr${here.has(w.id)?' on':''}" data-worker="${w.id}">
-      <span class="nm">${esc(w.name)}</span>${sk}${st}<span class="rt">${money(w.daily_rate)}</span></div>`;
+      <span class="nm">${esc(w.name)}</span>${sk}${st}<span class="rt">${money(w.daily_rate)}</span>${ctl}</div>`;
   }).join('');
   document.querySelectorAll('#ovb .wr').forEach(el=>{
-    el.addEventListener('click',()=>toggleWorker(el.dataset.worker));
+    // The controls sit inside the row, and the row is the toggle — without
+    // this, setting a half-day would immediately unassign the person.
+    el.addEventListener('click',e=>{ if(e.target.closest('.wrc'))return;
+      toggleWorker(el.dataset.worker); });
+  });
+  document.querySelectorAll('#ovb .fr b[data-fr]').forEach(el=>{
+    el.addEventListener('click',()=>{const [id,v]=el.dataset.fr.split('|');setFraction(id,Number(v));});
+  });
+  document.querySelectorAll('#ovb input[data-xp]').forEach(el=>{
+    el.addEventListener('change',()=>setExtra(el.dataset.xp, el.value, el));
   });
 }
 // In-flight guard: the write is async, so rapid clicks on one person raced and
@@ -639,18 +826,45 @@ async function _toggleWorker(workerId){
   } else {
     const {data,error}=await sb.from('deal_work_assignments')
       .insert({deal_id:dealId, milestone_key:key, work_date:day, worker_id:workerId})
-      .select('id, deal_id, milestone_key, work_date, worker_id');
+      .select(ASSIGN_COLS);
     if(error){
       // Already there — assigned from project-detail, another tab, or a click
       // the guard missed. That's the state asked for, so adopt it.
       if(error.code==='23505'||/duplicate key/i.test(error.message||'')){
         const {data:again}=await sb.from('deal_work_assignments')
-          .select('id, deal_id, milestone_key, work_date, worker_id')
+          .select(ASSIGN_COLS)
           .eq('deal_id',dealId).eq('milestone_key',key).eq('work_date',day).eq('worker_id',workerId).limit(1);
         if(again&&again[0]&&!assigns.some(a=>a.id===again[0].id))assigns.push(again[0]);
       } else { alert('Assign failed: '+error.message); return; }
     } else if(data&&data[0]){ assigns.push(data[0]); }
   }
+  renderOv(); render();
+  document.getElementById('ov').classList.add('open');
+}
+// Both of these re-select pay_amount rather than computing it here: it is a
+// generated column, so the database is the only thing that should be saying
+// what a day cost.
+async function setFraction(id,v){
+  const a=assigns.find(x=>x.id===id); if(!a||frac(a)===v)return;
+  const {data,error}=await sb.from('deal_work_assignments')
+    .update({day_fraction:v}).eq('id',id).select(ASSIGN_COLS);
+  if(error){alert('Save failed: '+error.message);return;}
+  if(data&&data[0])Object.assign(a,data[0]);
+  renderOv(); render();
+  document.getElementById('ov').classList.add('open');
+}
+async function setExtra(id,raw,el){
+  const a=assigns.find(x=>x.id===id); if(!a)return;
+  const v=String(raw).trim()===''?0:Number(String(raw).replace(/[$,\s]/g,''));
+  if(!isFinite(v)||v<0||v>2000){
+    alert('Overtime is a flat amount between $0 and $2,000. Leave it empty for a day where the extra hours were not extra pay.');
+    el.value=otOf(a)||''; return;
+  }
+  if(v===otOf(a))return;
+  const {data,error}=await sb.from('deal_work_assignments')
+    .update({extra_pay:v}).eq('id',id).select(ASSIGN_COLS);
+  if(error){alert('Save failed: '+error.message);el.value=otOf(a)||'';return;}
+  if(data&&data[0])Object.assign(a,data[0]);
   renderOv(); render();
   document.getElementById('ov').classList.add('open');
 }

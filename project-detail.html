@@ -485,6 +485,25 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .cp-rt { margin-left:auto; font-size:11.5px; color:var(--text-4); font-variant-numeric:tabular-nums; }
 .cp-row.on { background:var(--accent-dim); }
 .cp-row.on .cp-nm { color:var(--accent); font-weight:600; }
+/* Half-day and overtime — the same controls the Construction hub shows, on the
+   same rows. They have to exist on both pages or the two surfaces disagree
+   about what a day was. */
+.cp-row { flex-wrap:wrap; }
+.cp-ctl { display:none; width:100%; align-items:center; gap:7px; padding-top:8px; }
+.cp-row.on .cp-ctl { display:flex; }
+.cp-fr { display:flex; border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+.cp-fr b { font-size:11px; font-weight:500; padding:2px 8px; cursor:pointer; color:var(--text-3);
+  background:#fff; border-right:1px solid var(--border); }
+.cp-fr b:last-child { border-right:none; }
+.cp-fr b:hover { background:var(--bg); }
+.cp-fr b.on { background:var(--accent); color:#fff; font-weight:700; }
+.cp-ot { display:flex; align-items:center; gap:3px; font-size:11px; color:var(--text-4); }
+.cp-ot input { width:54px; font:inherit; font-size:11.5px; padding:2px 5px; text-align:right;
+  border:1px solid var(--border); border-radius:5px; background:#fff; color:var(--text); }
+.cp-ot input:focus { outline:none; border-color:var(--accent); }
+.cp-pay { margin-left:auto; font-size:11.5px; font-weight:600; color:var(--text-2);
+  font-variant-numeric:tabular-nums; }
+.gg-c .hf { font-size:8px; font-weight:600; opacity:.85; }
 .gg-help { font-size:11px; color:var(--text-4); margin-top:11px; font-style:italic; }
 .ms-na { font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4);
   cursor:pointer; padding:1px 5px; border:1px solid var(--border); border-radius:3px; text-align:center;
@@ -1202,7 +1221,10 @@ let dealMilestones=[];
 let constructionTemplate=[];   // Brief CC — construction_v2 rows (key, offset, order)
 let dealWorkDays=[];           // Brief CC — deal_work_days rows (which days each trade worked)
 let dealAssignments=[];        // Brief CC — deal_work_assignments: the NAMED people, shared with construction.html
-let rosterWorkers=[];          // Brief CC — workers roster (owner-only; empty for other roles)
+let rosterWorkers=[];          // who can be assigned today — active only, drives the picker
+let rosterAll=[];              // everyone who ever could, retired included. A day Alonso
+                               // worked still has to resolve to a name and a cost after he
+                               // comes off the roster, and namedOn() drops what it can't resolve.
 let awayAssignments=[];        // Brief CC — the same people booked on OTHER builds in this window
 let awayDealLabel={};          // deal_id → the street we'd say out loud ("Moore St")
 let crewList=[];               // Brief CC — crews (our own vs a fixed-price sub crew)
@@ -1334,7 +1356,7 @@ async function loadProject(){
   // vice versa. Both are owner-only, so a non-owner just sees counts.
   try {
     const {data:as, error:aErr}=await sb.from('deal_work_assignments')
-      .select('id, milestone_key, work_date, worker_id')
+      .select(ASSIGN_COLS)
       .eq('deal_id', dealRow.id);
     dealAssignments=aErr?[]:(as||[]);
   } catch(e){ dealAssignments=[]; }
@@ -1344,9 +1366,10 @@ async function loadProject(){
   } catch(e){ crewList=[]; }
   try {
     const {data:wk, error:kErr}=await sb.from('workers')
-      .select('id, name, daily_rate').eq('active',true).order('name');
-    rosterWorkers=kErr?[]:(wk||[]);
-  } catch(e){ rosterWorkers=[]; }
+      .select('id, name, daily_rate, active').order('name');
+    rosterAll=kErr?[]:(wk||[]);
+    rosterWorkers=rosterAll.filter(w=>w.active);
+  } catch(e){ rosterAll=[]; rosterWorkers=[]; }
 
   // 5e. Brief CC — the clash that actually costs a day: someone already booked
   // on ANOTHER build. This page used to check only its own rows, so a crew
@@ -1360,7 +1383,7 @@ async function loadProject(){
         .flatMap(m=>[m.planned_start, m.planned_end, m.due_date])
         .filter(Boolean).concat([todayStr()]).sort();
       const {data:aw}=await sb.from('deal_work_assignments')
-        .select('deal_id, work_date, worker_id')
+        .select('deal_id, work_date, worker_id, day_fraction')
         .neq('deal_id', dealRow.id)
         .gte('work_date', span[0]).lte('work_date', span[span.length-1]);
       awayAssignments=aw||[];
@@ -1855,7 +1878,17 @@ function spanDaysOf(m, start){
   const e=(start&&m.due_date)?daysBetween(start,m.due_date):(t.default_offset_days||0);
   return {s:Math.max(0,e-dur+1), e, planned:false};
 }
-function workerById(id){return rosterWorkers.find(w=>w.id===id)||null;}
+// pay_amount is generated in the database (rate_applied x day_fraction +
+// extra_pay), so this page and the Construction hub cannot drift on what a day
+// cost. rate_applied is frozen at assign time — editing a rate on the hub does
+// not restate days already worked.
+const ASSIGN_COLS='id, milestone_key, work_date, worker_id, day_fraction, extra_pay, rate_applied, pay_amount';
+const CP_FRACS=[0.25,0.5,0.75,1], CP_FRG={0.25:'\u00BC',0.5:'\u00BD',0.75:'\u00BE',1:'1'};
+function assignFrac(a){const v=Number(a&&a.day_fraction);return isFinite(v)&&v>0?v:1;}
+function assignOt(a){return Number((a&&a.extra_pay)||0);}
+function personDays(list){return list.reduce((s,x)=>s+assignFrac(x.a||x),0);}
+function fmtDays(n){return String(Number(Number(n||0).toFixed(2)));}
+function workerById(id){return rosterAll.find(w=>w.id===id)||null;}
 function initialsOf(w){return w?w.name.slice(0,2):'?';}
 // Who is named on a trade for a day. This is the shared record; the typed
 // crew_count on deal_work_days is only the fallback for a day where nobody
@@ -2145,18 +2178,24 @@ function renderBuildSchedule(st){
         const date=addDays(st.start||today, i);
         const people=namedOn(m.milestone_key, date);
         const did=people.length>0 || wmap.has(i);
-        const n=people.length ? people.length : (wmap.has(i)?wmap.get(i):null);
+        const pd=personDays(people);
+        const n=people.length ? pd : (wmap.has(i)?wmap.get(i):null);
         const cls=['gg-c', planned?'plan':'', did?'work':'', i===todayIdx?'now':''].filter(Boolean).join(' ');
         const bg=did?color:(planned?color+'2E':'');
         const tip=people.length
-          ? `${m.display_name} · ${fmtMD(date)} · ${people.map(x=>x.w.name).join(', ')}`
+          ? `${m.display_name} · ${fmtMD(date)} · ${people.map(x=>x.w.name+(assignFrac(x.a)===1?'':' '+CP_FRG[assignFrac(x.a)])+(assignOt(x.a)?' +$'+assignOt(x.a):'')).join(', ')}`
           : (did
-              ? `${m.display_name} · ${fmtMD(date)} · ${n===0?'outside crew':n+(n===1?' person':' people')}`
+              ? `${m.display_name} · ${fmtMD(date)} · ${n===0?'outside crew':fmtDays(n)+(n===1?' person':' people')}`
               : `${m.display_name} · ${fmtMD(date)}${planned?' · planned '+planCrew:''}`);
         // One initial when a single person is named, otherwise the headcount —
         // a 17px cell can't hold three names, and the tooltip carries them.
-        const label=people.length===1 ? initialsOf(people[0].w)
-                  : (did ? (n===0?'·':String(n)) : '');
+        // One initial when a single person is named, otherwise the person-days
+        // — a 17px cell can't hold three names, and the tooltip carries them.
+        // A part-day is marked, because "Ge" on two cells the same day is
+        // otherwise indistinguishable from being in two places at once.
+        const label=people.length===1
+          ? initialsOf(people[0].w)+(assignFrac(people[0].a)===1?'':`<i class="hf">${CP_FRG[assignFrac(people[0].a)]}</i>`)
+          : (did ? (n===0?'·':fmtDays(n)) : '');
         cells+=`<i class="${cls}" data-wd-key="${escapeHtml(m.milestone_key)}" data-wd-date="${date}"`
              +` data-wd-plan="${planCrew}" data-wd-crew="${did?n:''}" data-wd-named="${people.length}"`
              +(bg?` style="background:${bg}"`:'')
@@ -2202,7 +2241,7 @@ function renderBuildSchedule(st){
   for(const a of dealAssignments){
     const off=st.start?daysBetween(st.start, a.work_date):null;
     if(off==null || off<0 || off>=cols)continue;
-    actualByDay[off]+=1; anyActual=true;
+    actualByDay[off]+=assignFrac(a); anyActual=true;
     countedDays.add(a.milestone_key+'|'+a.work_date);
   }
   for(const w of dealWorkDays){
@@ -2217,8 +2256,8 @@ function renderBuildSchedule(st){
   let actualCells='';
   for(let i=0;i<cols;i++){
     const a=actualByDay[i], pl=crewByDay[i];
-    const short=(pl>0 && a<pl), over=(a>pl && pl>0);
-    actualCells+=`<span class="gg-hc${i===todayIdx?' now':''}${short?' short':''}${over?' over':''}">${a||''}</span>`;
+    const short=(pl>0 && a<pl-0.0001), over=(a>pl+0.0001 && pl>0);
+    actualCells+=`<span class="gg-hc${i===todayIdx?' now':''}${short?' short':''}${over?' over':''}">${a?fmtDays(a):''}</span>`;
   }
   const crewRow=`<div class="gg-row gg-crewrow">
     <span></span>
@@ -2337,15 +2376,33 @@ function renderCrewPicker(){
     const away=awayAssignments.find(a=>a.worker_id===w.id && a.work_date===pickerCtx.date);
     const busy=dealAssignments.find(a=>a.worker_id===w.id && a.work_date===pickerCtx.date
       && a.milestone_key!==pickerCtx.key);
-    const st=away ? 'on '+(awayDealLabel[away.deal_id]||'another build')+' today'
-           : busy ? 'on '+tradeName(busy.milestone_key)+' today' : '';
+    // A part-day elsewhere is not the same warning as a full day elsewhere —
+    // it says how much of them is still going spare.
+    const el2=away||busy, elFrac=el2?assignFrac(el2):1;
+    const where=away ? (awayDealLabel[away.deal_id]||'another build') : busy ? tradeName(busy.milestone_key) : '';
+    const st=el2 ? (elFrac===1 ? 'on '+where+' today' : fmtDays(elFrac)+' of a day on '+where) : '';
+    const mine=dealAssignments.find(a=>a.worker_id===w.id && a.work_date===pickerCtx.date
+      && a.milestone_key===pickerCtx.key);
+    const ctl=mine?`<div class="cp-ctl">
+      <div class="cp-fr">${CP_FRACS.map(v=>`<b class="${assignFrac(mine)===v?'on':''}" data-cpfr="${mine.id}|${v}" title="${v===1?'A whole day':v+' of a day'}">${CP_FRG[v]}</b>`).join('')}</div>
+      <span class="cp-ot" title="Flat dollars agreed on top of the day. Leave it empty when the extra hours were not extra pay.">+$<input type="number" min="0" max="2000" step="5" placeholder="0" value="${assignOt(mine)||''}" data-cpxp="${mine.id}"></span>
+      <span class="cp-pay">$${Math.round(Number(mine.pay_amount||0)).toLocaleString()}</span></div>`:'';
     return `<div class="cp-row${here.has(w.id)?' on':''}" data-cp="${escapeHtml(w.id)}">
       <span class="cp-nm">${escapeHtml(w.name)}</span>
-      ${st?`<span class="cp-st">${escapeHtml(st)}</span>`:''}
-      <span class="cp-rt">$${Number(w.daily_rate||0).toLocaleString()}</span></div>`;
+      ${st?`<span class="cp-st"${elFrac===1?'':' style="color:var(--text-4)"'}>${escapeHtml(st)}</span>`:''}
+      <span class="cp-rt">$${Number(w.daily_rate||0).toLocaleString()}</span>${ctl}</div>`;
   }).join('');
   document.querySelectorAll('#cpBody .cp-row').forEach(el=>{
-    el.addEventListener('click', ()=>toggleCrew(el.dataset.cp));
+    // The controls live inside the row, and the row is the toggle — without
+    // this, setting a half-day would immediately unassign the person.
+    el.addEventListener('click', e=>{ if(e.target.closest('.cp-ctl'))return;
+      toggleCrew(el.dataset.cp); });
+  });
+  document.querySelectorAll('#cpBody .cp-fr b[data-cpfr]').forEach(el=>{
+    el.addEventListener('click', ()=>{const [id,v]=el.dataset.cpfr.split('|');setCrewFraction(id, Number(v));});
+  });
+  document.querySelectorAll('#cpBody input[data-cpxp]').forEach(el=>{
+    el.addEventListener('change', ()=>setCrewExtra(el.dataset.cpxp, el.value, el));
   });
 }
 // In-flight guard. The write is async and the local list only updates after
@@ -2367,14 +2424,14 @@ async function toggleCrew(workerId){
     } else {
       const {data, error}=await sb.from('deal_work_assignments')
         .insert({deal_id: currentDeal.id, milestone_key: key, work_date: date, worker_id: workerId})
-        .select('id, milestone_key, work_date, worker_id');
+        .select(ASSIGN_COLS);
       if(error){
         // 23505: the row is already there — assigned from the hub, another tab,
         // or a click this guard didn't catch. That's the state the user asked
         // for, so adopt it instead of reporting a failure.
         if(error.code==='23505' || /duplicate key/i.test(error.message||'')){
           const {data:again}=await sb.from('deal_work_assignments')
-            .select('id, milestone_key, work_date, worker_id')
+            .select(ASSIGN_COLS)
             .eq('deal_id', currentDeal.id).eq('milestone_key', key)
             .eq('work_date', date).eq('worker_id', workerId).limit(1);
           if(again && again[0] && !dealAssignments.some(a=>a.id===again[0].id))dealAssignments.push(again[0]);
@@ -2393,6 +2450,34 @@ async function toggleCrew(workerId){
   } finally {
     crewBusy.delete(token);
   }
+}
+// Both re-select pay_amount instead of computing it: it is a generated column,
+// so the database stays the only thing that says what a day cost.
+async function setCrewFraction(id, v){
+  const a=dealAssignments.find(x=>x.id===id);
+  if(!a || assignFrac(a)===v)return;
+  const {data, error}=await sb.from('deal_work_assignments')
+    .update({day_fraction:v}).eq('id', id).select(ASSIGN_COLS);
+  if(error){alert('Save failed: '+error.message);return;}
+  if(data && data[0])Object.assign(a, data[0]);
+  renderCrewPicker(); renderPage();
+  const el=document.getElementById('crewPick'); if(el)el.classList.add('open');
+}
+async function setCrewExtra(id, raw, el){
+  const a=dealAssignments.find(x=>x.id===id);
+  if(!a)return;
+  const v=String(raw).trim()===''?0:Number(String(raw).replace(/[$,\s]/g,''));
+  if(!isFinite(v) || v<0 || v>2000){
+    alert('Overtime is a flat amount between $0 and $2,000. Leave it empty for a day where the extra hours were not extra pay.');
+    el.value=assignOt(a)||''; return;
+  }
+  if(v===assignOt(a))return;
+  const {data, error}=await sb.from('deal_work_assignments')
+    .update({extra_pay:v}).eq('id', id).select(ASSIGN_COLS);
+  if(error){alert('Save failed: '+error.message); el.value=assignOt(a)||''; return;}
+  if(data && data[0])Object.assign(a, data[0]);
+  renderCrewPicker(); renderPage();
+  const el2=document.getElementById('crewPick'); if(el2)el2.classList.add('open');
 }
 window.closeCrewPicker=closeCrewPicker;
 
