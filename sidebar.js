@@ -137,6 +137,11 @@
     html += '</div>';
 
     el.innerHTML = html;
+
+    // 意見箱 — feedback.js appends its own button just above the footer and owns
+    // everything behind it (modal, styles, the owner-only inbox). Optional by
+    // design: a page that hasn't loaded feedback.js still renders a working nav.
+    if (window.renderFeedback) window.renderFeedback(el);
   }
 
   function escapeHtml(s) {
