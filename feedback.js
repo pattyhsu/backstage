@@ -64,11 +64,16 @@
     var st = document.createElement('style');
     st.id = 'fbStyles';
     st.textContent = [
-      '.fb-btn{display:flex;align-items:center;gap:10px;width:calc(100% - 24px);margin:0 12px 4px;padding:8px 8px;background:none;border:none;border-radius:var(--radius,8px);cursor:pointer;font:inherit;font-size:13px;font-weight:500;color:var(--text-4,#85857E);text-align:left;}',
+      '.fb-btn{display:flex;align-items:center;gap:10px;width:calc(100% - 24px);margin:auto 12px 4px;padding:8px 8px;background:none;border:none;border-radius:var(--radius,8px);cursor:pointer;font:inherit;font-size:13px;font-weight:500;color:var(--text-4,#85857E);text-align:left;}',
       '.fb-btn:hover{background:var(--bg-alt,#F2F1EF);color:var(--text-2,#3A3A35);}',
       '.fb-btn svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}',
       '.fb-btn .fb-badge{margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent,#9C7C3C);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;}',
-      '.bs-sidebar.collapsed .fb-btn{justify-content:center;width:auto;margin:0 auto 4px;}',
+      '.bs-sidebar.collapsed .fb-btn{justify-content:center;width:auto;margin:auto auto 4px;}',
+      // The footer claims the sidebar's free space with its own margin-top:auto. Hand
+      // that job to the button instead, so the pair sits together at the bottom
+      // rather than splitting the gap between them. Higher specificity than the
+      // page's inline rule, and injected later, so it wins on both counts.
+      '.bs-sidebar .side-footer{margin-top:0;}',
       '.bs-sidebar.collapsed .fb-btn .fb-label,.bs-sidebar.collapsed .fb-btn .fb-badge{display:none;}',
 
       '.fb-bg{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.22);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:20px;}',
@@ -160,6 +165,7 @@
       return;
     }
     state.err = null;
+    state.draft = '';   // cleared only on success — a failed send keeps their words
     state.sent = true;
     paintBody();
     refreshBadge();
@@ -238,7 +244,7 @@
         b.querySelector('#fbCount').textContent = els.ta.value.length + ' / 2000';
         b.querySelector('#fbSend').disabled = !els.ta.value.trim() || state.sending;
       };
-      b.querySelector('#fbSend').onclick = function () { state.draft = ''; submit(); };
+      b.querySelector('#fbSend').onclick = function () { submit(); };
       els.ta.focus();
       return;
     }
