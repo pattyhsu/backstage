@@ -185,7 +185,7 @@ h2 { font-size:14.5px; font-weight:600; }
 .fr b:hover { background:var(--bg-alt); }
 .fr b.on { background:var(--accent); color:#fff; font-weight:700; }
 .otw { display:flex; align-items:center; gap:3px; font-size:11px; color:var(--text-4); }
-.otw input { width:54px; font:inherit; font-size:11.5px; padding:2px 5px; text-align:right;
+.otw input { width:44px; font:inherit; font-size:11.5px; padding:2px 5px; text-align:right;
   border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text); }
 .otw input:focus { outline:none; border-color:var(--accent); }
 .wrc .pay { margin-left:auto; font-size:11.5px; font-weight:600; color:var(--text-2);
@@ -335,20 +335,34 @@ function tradeNameOf(dealId,key){
   return m?nameOf(m):(tplOf(key).display_name||key);
 }
 function workerById(id){return roster.find(w=>w.id===id)||null;}
-// pay_amount is a generated column — rate_applied x day_fraction + extra_pay,
-// computed by the database so this page and project-detail cannot disagree
-// about what a day cost. rate_applied is the rate frozen at assign time, which
-// is why editing someone's rate in the roster below does not restate June.
-const ASSIGN_COLS='id, deal_id, milestone_key, work_date, worker_id, day_fraction, extra_pay, rate_applied, pay_amount';
+// pay_amount is a generated column — rate x day_fraction + rate/8 x ot_hours x
+// ot_multiplier — computed by the database so this page and project-detail
+// cannot disagree about what a day cost. rate_applied is the rate frozen at
+// assign time, which is why editing a rate in the roster below does not
+// restate June.
+const ASSIGN_COLS='id, deal_id, milestone_key, work_date, worker_id, day_fraction, ot_hours, ot_multiplier, rate_applied, pay_amount';
 const FRACS=[0.25,0.5,0.75,1], FRG={0.25:'\u00BC',0.5:'\u00BD',0.75:'\u00BE',1:'1'};
+// A standard day, for turning a daily rate into an hourly one. Mirrors the
+// constant in the generated column (mig 20260904063724) — change one and you
+// must change the other, which is why it is named in both places.
+const DAY_HOURS=8;
+const OT_MULTS=[1,1.5];
 function frac(a){const v=Number(a&&a.day_fraction);return isFinite(v)&&v>0?v:1;}
+function rateOf(a){
+  if(a&&a.rate_applied!=null)return Number(a.rate_applied);
+  const w=workerById(a&&a.worker_id);
+  return Number(w?w.daily_rate:0);
+}
+function otHrs(a){return Number((a&&a.ot_hours)||0);}
+function otMult(a){const v=Number(a&&a.ot_multiplier);return v===1.5?1.5:1;}
+function otPay(a){return Math.round(rateOf(a)/DAY_HOURS*otHrs(a)*otMult(a)*100)/100;}
 function payOf(a){
   const v=Number(a&&a.pay_amount);
   if(isFinite(v))return v;
-  const w=workerById(a.worker_id);
-  return (a&&a.rate_applied!=null?Number(a.rate_applied):Number(w?w.daily_rate:0))*frac(a)+Number((a&&a.extra_pay)||0);
+  return rateOf(a)*frac(a)+otPay(a);
 }
-function otOf(a){return Number((a&&a.extra_pay)||0);}
+// Reads as "2h" and "1.5h", never "2.00h".
+function hrs(n){return String(Number(Number(n||0).toFixed(2)))+'h';}
 function fracTag(a){return frac(a)===1?'':`<i class="hf">${FRG[frac(a)]||frac(a)}</i>`;}
 // 7.5 people, not 7.50 and not 8.
 function num(n){return String(Number(Number(n||0).toFixed(2)));}
@@ -485,7 +499,7 @@ function render(){
         const who=assignedTo(deal.id,m.milestone_key,x);
         const clickable=(isOurs(deal)&&crew)?` onclick="openOv('${deal.id}','${esc(m.milestone_key)}','${x}')"`:'';
         const inner=who.length
-          ? who.map(p=>`<span class="chip${otOf(p.a)?' ot':''}" style="color:${fg}" title="${esc(p.w.name)} · ${num(frac(p.a))==='1'?'full day':num(frac(p.a))+' of a day'}${otOf(p.a)?' · +'+money(otOf(p.a)):''} · ${money(payOf(p.a))}">${esc(p.w.name.slice(0,2))}${fracTag(p.a)}</span>`).join('')
+          ? who.map(p=>`<span class="chip${otHrs(p.a)?' ot':''}" style="color:${fg}" title="${esc(p.w.name)} · ${num(frac(p.a))==='1'?'full day':num(frac(p.a))+' of a day'}${otHrs(p.a)?' · +'+hrs(otHrs(p.a))+(otMult(p.a)===1.5?' at 1.5\u00d7':' at the normal rate')+' = '+money(otPay(p.a)):''} · ${money(payOf(p.a))}">${esc(p.w.name.slice(0,2))}${fracTag(p.a)}</span>`).join('')
           : (on?(crew?`<span class="chip" style="color:${fg};background:none;opacity:.55">${crew}</span>`
                      :'<span class="chip" style="background:none;color:#9b9b95;font-weight:400">s</span>'):'');
         const cls='dcell'+(on?'':' off')+((who.length&&!on)?' extra':'');
@@ -542,8 +556,8 @@ function render(){
       const cls=off?'':(crew?(pd>=crew-0.0001?'met':'short'):'');
       rows+=`<div class="tr"><div class="tn">${esc(nameOf(m))}${off?' <span class="offtag">off plan</span>':''}<em>${sp?(sp.s===sp.e?md(sp.s):md(sp.s)+' – '+md(sp.e)):''}</em></div>
         <div class="need ${cls}">${num(pd)}${(crew&&!off)?' / '+crew:''}</div>
-        <div class="chips">${who.map(p=>{const db=busyOn(p.w.id,sel)>OVER, ot=otOf(p.a);
-          return `<span class="pc${db?' dbl':''}${ot?' ot':''}"><span class="nmc" onclick="openOv('${deal.id}','${esc(m.milestone_key)}','${sel}')" title="Change the half-day or the overtime">${esc(p.w.name)}${fracTag(p.a)}</span><span class="rt" title="${money(p.a.rate_applied!=null?p.a.rate_applied:0)} rate${frac(p.a)===1?'':' \u00d7 '+num(frac(p.a))}${ot?' + '+money(ot)+' extra':''}">${money(payOf(p.a))}</span><span class="x" onclick="unassign('${p.a.id}')">&#10005;</span></span>`;}).join('')}
+        <div class="chips">${who.map(p=>{const db=busyOn(p.w.id,sel)>OVER, ot=otHrs(p.a);
+          return `<span class="pc${db?' dbl':''}${ot?' ot':''}"><span class="nmc" onclick="openOv('${deal.id}','${esc(m.milestone_key)}','${sel}')" title="Change the half-day or the overtime">${esc(p.w.name)}${fracTag(p.a)}${ot?`<i class="hf">+${hrs(ot)}</i>`:''}</span><span class="rt" title="${money(rateOf(p.a))} rate${frac(p.a)===1?'':' \u00d7 '+num(frac(p.a))}${ot?' + '+hrs(ot)+' at '+(otMult(p.a)===1.5?'1.5\u00d7':'the normal rate')+' = '+money(otPay(p.a)):''}">${money(payOf(p.a))}</span><span class="x" onclick="unassign('${p.a.id}')">&#10005;</span></span>`;}).join('')}
           ${crew?`<button class="addb" onclick="openOv('${deal.id}','${esc(m.milestone_key)}','${sel}')">+ assign</button>`:''}</div></div>`;
     }
     dayCost+=cost;
@@ -790,8 +804,9 @@ function renderOv(){
     const sk=canDo(w.id,ovCtx.key)?'<span class="st" style="color:var(--green)">trained for this</span>':'';
     const ctl=mine?`<div class="wrc">
       <div class="fr">${FRACS.map(v=>`<b class="${frac(mine)===v?'on':''}" data-fr="${mine.id}|${v}" title="${v===1?'A whole day':v+' of a day'}">${FRG[v]}</b>`).join('')}</div>
-      <span class="otw" title="Flat dollars agreed on top of the day. Leave it empty when the extra hours were not extra pay.">+$<input type="number" min="0" max="2000" step="5" placeholder="0" value="${otOf(mine)||''}" data-xp="${mine.id}"></span>
-      <span class="pay">${money(payOf(mine))}</span></div>`:'';
+      <span class="otw" title="Hours worked beyond the day. Leave it empty on a normal day.">+<input type="number" min="0" max="12" step="0.5" placeholder="0" value="${otHrs(mine)||''}" data-oth="${mine.id}">h</span>
+      ${otHrs(mine)?`<div class="fr" title="Were those hours paid at the premium, or at the same rate as the rest of the day?">${OT_MULTS.map(v=>`<b class="${otMult(mine)===v?'on':''}" data-otm="${mine.id}|${v}" title="${v===1?'Paid like any other hour':'Paid at time and a half'}">${v}\u00d7</b>`).join('')}</div>`:''}
+      <span class="pay" title="${money(rateOf(mine))} \u00f7 ${DAY_HOURS}h = ${money(rateOf(mine)/DAY_HOURS)}/hour">${money(payOf(mine))}</span></div>`:'';
     return `<div class="wr${here.has(w.id)?' on':''}" data-worker="${w.id}">
       <span class="nm">${esc(w.name)}</span>${sk}${st}<span class="rt">${money(w.daily_rate)}</span>${ctl}</div>`;
   }).join('');
@@ -804,8 +819,11 @@ function renderOv(){
   document.querySelectorAll('#ovb .fr b[data-fr]').forEach(el=>{
     el.addEventListener('click',()=>{const [id,v]=el.dataset.fr.split('|');setFraction(id,Number(v));});
   });
-  document.querySelectorAll('#ovb input[data-xp]').forEach(el=>{
-    el.addEventListener('change',()=>setExtra(el.dataset.xp, el.value, el));
+  document.querySelectorAll('#ovb input[data-oth]').forEach(el=>{
+    el.addEventListener('change',()=>setOtHours(el.dataset.oth, el.value, el));
+  });
+  document.querySelectorAll('#ovb .fr b[data-otm]').forEach(el=>{
+    el.addEventListener('click',()=>{const [id,v]=el.dataset.otm.split('|');setOtMult(id,Number(v));});
   });
 }
 // In-flight guard: the write is async, so rapid clicks on one person raced and
@@ -854,17 +872,30 @@ async function setFraction(id,v){
   renderOv(); render();
   document.getElementById('ov').classList.add('open');
 }
-async function setExtra(id,raw,el){
+async function setOtHours(id,raw,el){
   const a=assigns.find(x=>x.id===id); if(!a)return;
-  const v=String(raw).trim()===''?0:Number(String(raw).replace(/[$,\s]/g,''));
-  if(!isFinite(v)||v<0||v>2000){
-    alert('Overtime is a flat amount between $0 and $2,000. Leave it empty for a day where the extra hours were not extra pay.');
-    el.value=otOf(a)||''; return;
+  const v=String(raw).trim()===''?0:Number(String(raw).replace(/[h\s]/gi,''));
+  if(!isFinite(v)||v<0||v>12){
+    alert('Extra hours are a number between 0 and 12. Leave it empty on a normal day.');
+    el.value=otHrs(a)||''; return;
   }
-  if(v===otOf(a))return;
+  if(v===otHrs(a))return;
+  // Dropping back to no overtime takes the multiplier with it, so a day that
+  // was 1.5x doesn't sit there carrying a premium on zero hours — the toggle
+  // is hidden at that point and the stale value would be invisible.
+  const patch=v===0?{ot_hours:0, ot_multiplier:1}:{ot_hours:v};
   const {data,error}=await sb.from('deal_work_assignments')
-    .update({extra_pay:v}).eq('id',id).select(ASSIGN_COLS);
-  if(error){alert('Save failed: '+error.message);el.value=otOf(a)||'';return;}
+    .update(patch).eq('id',id).select(ASSIGN_COLS);
+  if(error){alert('Save failed: '+error.message);el.value=otHrs(a)||'';return;}
+  if(data&&data[0])Object.assign(a,data[0]);
+  renderOv(); render();
+  document.getElementById('ov').classList.add('open');
+}
+async function setOtMult(id,v){
+  const a=assigns.find(x=>x.id===id); if(!a||otMult(a)===v)return;
+  const {data,error}=await sb.from('deal_work_assignments')
+    .update({ot_multiplier:v}).eq('id',id).select(ASSIGN_COLS);
+  if(error){alert('Save failed: '+error.message);return;}
   if(data&&data[0])Object.assign(a,data[0]);
   renderOv(); render();
   document.getElementById('ov').classList.add('open');

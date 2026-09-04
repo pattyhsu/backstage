@@ -499,7 +499,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .cp-fr b:hover { background:var(--bg); }
 .cp-fr b.on { background:var(--accent); color:#fff; font-weight:700; }
 .cp-ot { display:flex; align-items:center; gap:3px; font-size:11px; color:var(--text-4); }
-.cp-ot input { width:54px; font:inherit; font-size:11.5px; padding:2px 5px; text-align:right;
+.cp-ot input { width:44px; font:inherit; font-size:11.5px; padding:2px 5px; text-align:right;
   border:1px solid var(--border); border-radius:5px; background:#fff; color:var(--text); }
 .cp-ot input:focus { outline:none; border-color:var(--accent); }
 .cp-pay { margin-left:auto; font-size:11.5px; font-weight:600; color:var(--text-2);
@@ -1879,14 +1879,20 @@ function spanDaysOf(m, start){
   const e=(start&&m.due_date)?daysBetween(start,m.due_date):(t.default_offset_days||0);
   return {s:Math.max(0,e-dur+1), e, planned:false};
 }
-// pay_amount is generated in the database (rate_applied x day_fraction +
-// extra_pay), so this page and the Construction hub cannot drift on what a day
-// cost. rate_applied is frozen at assign time — editing a rate on the hub does
-// not restate days already worked.
-const ASSIGN_COLS='id, milestone_key, work_date, worker_id, day_fraction, extra_pay, rate_applied, pay_amount';
+// pay_amount is generated in the database (rate x day_fraction + rate/8 x
+// ot_hours x ot_multiplier), so this page and the Construction hub cannot drift
+// on what a day cost. rate_applied is frozen at assign time — editing a rate on
+// the hub does not restate days already worked.
+const ASSIGN_COLS='id, milestone_key, work_date, worker_id, day_fraction, ot_hours, ot_multiplier, rate_applied, pay_amount';
 const CP_FRACS=[0.25,0.5,0.75,1], CP_FRG={0.25:'\u00BC',0.5:'\u00BD',0.75:'\u00BE',1:'1'};
+// A standard day, for turning a daily rate into an hourly one. Mirrors the
+// constant in the generated column (mig 20260904063724) and the one on the
+// Construction hub — three places, named in each, changed together.
+const CP_DAY_HOURS=8, CP_OT_MULTS=[1,1.5];
 function assignFrac(a){const v=Number(a&&a.day_fraction);return isFinite(v)&&v>0?v:1;}
-function assignOt(a){return Number((a&&a.extra_pay)||0);}
+function assignOtHrs(a){return Number((a&&a.ot_hours)||0);}
+function assignOtMult(a){const v=Number(a&&a.ot_multiplier);return v===1.5?1.5:1;}
+function fmtHrs(n){return String(Number(Number(n||0).toFixed(2)))+'h';}
 function personDays(list){return list.reduce((s,x)=>s+assignFrac(x.a||x),0);}
 function fmtDays(n){return String(Number(Number(n||0).toFixed(2)));}
 function workerById(id){return rosterAll.find(w=>w.id===id)||null;}
@@ -2184,7 +2190,7 @@ function renderBuildSchedule(st){
         const cls=['gg-c', planned?'plan':'', did?'work':'', i===todayIdx?'now':''].filter(Boolean).join(' ');
         const bg=did?color:(planned?color+'2E':'');
         const tip=people.length
-          ? `${m.display_name} · ${fmtMD(date)} · ${people.map(x=>x.w.name+(assignFrac(x.a)===1?'':' '+CP_FRG[assignFrac(x.a)])+(assignOt(x.a)?' +$'+assignOt(x.a):'')).join(', ')}`
+          ? `${m.display_name} · ${fmtMD(date)} · ${people.map(x=>x.w.name+(assignFrac(x.a)===1?'':' '+CP_FRG[assignFrac(x.a)])+(assignOtHrs(x.a)?' +'+fmtHrs(assignOtHrs(x.a))+(assignOtMult(x.a)===1.5?' @1.5\u00d7':''):'')).join(', ')}`
           : (did
               ? `${m.display_name} · ${fmtMD(date)} · ${n===0?'outside crew':fmtDays(n)+(n===1?' person':' people')}`
               : `${m.display_name} · ${fmtMD(date)}${planned?' · planned '+planCrew:''}`);
@@ -2386,8 +2392,9 @@ function renderCrewPicker(){
       && a.milestone_key===pickerCtx.key);
     const ctl=mine?`<div class="cp-ctl">
       <div class="cp-fr">${CP_FRACS.map(v=>`<b class="${assignFrac(mine)===v?'on':''}" data-cpfr="${mine.id}|${v}" title="${v===1?'A whole day':v+' of a day'}">${CP_FRG[v]}</b>`).join('')}</div>
-      <span class="cp-ot" title="Flat dollars agreed on top of the day. Leave it empty when the extra hours were not extra pay.">+$<input type="number" min="0" max="2000" step="5" placeholder="0" value="${assignOt(mine)||''}" data-cpxp="${mine.id}"></span>
-      <span class="cp-pay">$${Math.round(Number(mine.pay_amount||0)).toLocaleString()}</span></div>`:'';
+      <span class="cp-ot" title="Hours worked beyond the day. Leave it empty on a normal day.">+<input type="number" min="0" max="12" step="0.5" placeholder="0" value="${assignOtHrs(mine)||''}" data-cpoth="${mine.id}">h</span>
+      ${assignOtHrs(mine)?`<div class="cp-fr" title="Were those hours paid at the premium, or at the same rate as the rest of the day?">${CP_OT_MULTS.map(v=>`<b class="${assignOtMult(mine)===v?'on':''}" data-cpotm="${mine.id}|${v}" title="${v===1?'Paid like any other hour':'Paid at time and a half'}">${v}\u00d7</b>`).join('')}</div>`:''}
+      <span class="cp-pay" title="$${Number(mine.rate_applied||0).toLocaleString()} \u00f7 ${CP_DAY_HOURS}h">$${Math.round(Number(mine.pay_amount||0)).toLocaleString()}</span></div>`:'';
     return `<div class="cp-row${here.has(w.id)?' on':''}" data-cp="${escapeHtml(w.id)}">
       <span class="cp-nm">${escapeHtml(w.name)}</span>
       ${st?`<span class="cp-st"${elFrac===1?'':' style="color:var(--text-4)"'}>${escapeHtml(st)}</span>`:''}
@@ -2402,8 +2409,11 @@ function renderCrewPicker(){
   document.querySelectorAll('#cpBody .cp-fr b[data-cpfr]').forEach(el=>{
     el.addEventListener('click', ()=>{const [id,v]=el.dataset.cpfr.split('|');setCrewFraction(id, Number(v));});
   });
-  document.querySelectorAll('#cpBody input[data-cpxp]').forEach(el=>{
-    el.addEventListener('change', ()=>setCrewExtra(el.dataset.cpxp, el.value, el));
+  document.querySelectorAll('#cpBody input[data-cpoth]').forEach(el=>{
+    el.addEventListener('change', ()=>setCrewOtHours(el.dataset.cpoth, el.value, el));
+  });
+  document.querySelectorAll('#cpBody .cp-fr b[data-cpotm]').forEach(el=>{
+    el.addEventListener('click', ()=>{const [id,v]=el.dataset.cpotm.split('|');setCrewOtMult(id, Number(v));});
   });
 }
 // In-flight guard. The write is async and the local list only updates after
@@ -2464,18 +2474,31 @@ async function setCrewFraction(id, v){
   renderCrewPicker(); renderPage();
   const el=document.getElementById('crewPick'); if(el)el.classList.add('open');
 }
-async function setCrewExtra(id, raw, el){
+async function setCrewOtHours(id, raw, el){
   const a=dealAssignments.find(x=>x.id===id);
   if(!a)return;
-  const v=String(raw).trim()===''?0:Number(String(raw).replace(/[$,\s]/g,''));
-  if(!isFinite(v) || v<0 || v>2000){
-    alert('Overtime is a flat amount between $0 and $2,000. Leave it empty for a day where the extra hours were not extra pay.');
-    el.value=assignOt(a)||''; return;
+  const v=String(raw).trim()===''?0:Number(String(raw).replace(/[h\s]/gi,''));
+  if(!isFinite(v) || v<0 || v>12){
+    alert('Extra hours are a number between 0 and 12. Leave it empty on a normal day.');
+    el.value=assignOtHrs(a)||''; return;
   }
-  if(v===assignOt(a))return;
+  if(v===assignOtHrs(a))return;
+  // Clearing the hours clears the multiplier too — the toggle is hidden at
+  // zero, so a stale 1.5x would sit there invisible.
+  const patch=v===0?{ot_hours:0, ot_multiplier:1}:{ot_hours:v};
   const {data, error}=await sb.from('deal_work_assignments')
-    .update({extra_pay:v}).eq('id', id).select(ASSIGN_COLS);
-  if(error){alert('Save failed: '+error.message); el.value=assignOt(a)||''; return;}
+    .update(patch).eq('id', id).select(ASSIGN_COLS);
+  if(error){alert('Save failed: '+error.message); el.value=assignOtHrs(a)||''; return;}
+  if(data && data[0])Object.assign(a, data[0]);
+  renderCrewPicker(); renderPage();
+  const el2=document.getElementById('crewPick'); if(el2)el2.classList.add('open');
+}
+async function setCrewOtMult(id, v){
+  const a=dealAssignments.find(x=>x.id===id);
+  if(!a || assignOtMult(a)===v)return;
+  const {data, error}=await sb.from('deal_work_assignments')
+    .update({ot_multiplier:v}).eq('id', id).select(ASSIGN_COLS);
+  if(error){alert('Save failed: '+error.message); return;}
   if(data && data[0])Object.assign(a, data[0]);
   renderCrewPicker(); renderPage();
   const el2=document.getElementById('crewPick'); if(el2)el2.classList.add('open');
