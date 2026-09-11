@@ -294,6 +294,10 @@ body { overflow:hidden; height:100vh; }
 .lt-shareholder { background:var(--accent-dim2); color:var(--accent); }
 .lt-loan     { background:var(--bg-inset); color:var(--text-3); }
 .lt-cash     { background:var(--green-bg); color:var(--green); }
+/* Amber, not the cash green: the whole point of the row is that this money is
+   NOT spendable. It cannot collide with the NEEDS REVIEW marker — that one is
+   bare amber text in the name cell, never a pill. */
+.lt-invest   { background:var(--amber-bg); color:var(--amber); }
 
 .mat-ok   { color:var(--text-4); font-size:11px; }
 .mat-warn { color:var(--amber);  font-size:11px; font-weight:700; }
@@ -1800,8 +1804,39 @@ function renderCapital() {
       return (a.name || '').localeCompare(b.name || '');
     });
 
+  // === Assets held at cost — not cash, and emphatically not debt ===
+  // `Robinhood Cash (Patty)` is $151,643.51 of STOCK at cost basis (the
+  // account is worth ~$200K today; the appreciation is deliberately
+  // unrecorded). QBO cannot be retyped — 241 transactions since 2014 require a
+  // Cash-type account — so migration 20260911T120000 gave it
+  // source_type='investment' on our side instead.
+  //
+  // Both halves of this matter. Dropping it out of `cashRows` is the fix: it
+  // was 42% of the household cash total, which read $364,236.85 and now reads
+  // $212,593.34, and the Net-liquidation hero above rests on that figure. But
+  // `debtRows` used to be everything that is NOT cash, so the relabel ALONE
+  // would have moved a stock portfolio into the debt table wearing a type
+  // pill, as though Patty had borrowed it. The exclusion here is the
+  // load-bearing half: that bucket must mean debt.
+  //
+  // It still renders — one row, below the cash block — because $151,643.51 is
+  // a real asset and silently dropping it would be its own kind of wrong. What
+  // it may not claim is Available: the margin line against this same brokerage
+  // account (`Patty Robinhood`, $200,000 cap) already contributes to that
+  // column, and counting the collateral too would count one asset's borrowing
+  // capacity twice.
+  const investmentRows = csActive
+    .filter(s => s.source_type === 'investment')
+    .slice()
+    .sort((a, b) => {
+      const av = a.live_balance == null ? -Infinity : a.live_balance;
+      const bv = b.live_balance == null ? -Infinity : b.live_balance;
+      if (av !== bv) return bv - av;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
   const debtRows = csActive
-    .filter(s => s.source_type !== 'cash')
+    .filter(s => s.source_type !== 'cash' && s.source_type !== 'investment')
     .slice()
     .sort((a, b) => {
       if (a.is_shareholder_loan && !b.is_shareholder_loan) return -1;
@@ -1944,6 +1979,32 @@ function renderCapital() {
         }).join('')
     : '';
 
+  // === Investment rows (assets held at cost) ===
+  // Top level, not inside the cash fold — it is not cash, and hiding it behind
+  // a toggle labelled "Total Cash" would be the second-best way to lose it.
+  // The balance goes in the Posted column, which for this row is exactly what
+  // it says: QBO's posted GL figure, the cost basis. It does NOT wear
+  // .cash-posted — that class mutes a cash account's GL figure because the
+  // Bank figure beside it is the headline. Here there is no Bank figure; this
+  // number IS the row.
+  //
+  // Every other column is a dash ON PURPOSE, and none of the dashes feeds a
+  // total: Bank (no bank feed), For Review (no feed to be behind), and
+  // Available (see the comment on `investmentRows`). The sub-label carries the
+  // one sentence a reader needs, so nothing here depends on remembering why.
+  const investmentRowsHtml = investmentRows.map(s => {
+    const live = s.live_balance;
+    return '<tr>'
+      + '<td class="left lender-cell">' + escapeHtml(s.name || '')
+      +   '<div class="lender-sub">Held at cost &mdash; not spendable without a sale</div></td>'
+      + '<td class="left"><span class="lender-type-pill lt-invest">Investment</span></td>'
+      + '<td><span class="bank-stale">&mdash;</span></td>'
+      + '<td>' + (live != null ? fmtK(live) : '—') + '</td>'
+      + '<td><span class="bank-stale">&mdash;</span></td>'
+      + '<td><span class="bank-stale">&mdash;</span></td>'
+      + '</tr>';
+  }).join('');
+
   // === Debt rows (HELOC, margin, private loans) ===
   const debtRowsHtml = debtRows.map(s => {
     const cap = s.max_exposure_dollars;
@@ -2029,6 +2090,7 @@ function renderCapital() {
     + cashAggregateRowHtml
     + cashDetailRowsHtml
     + cashClassSectionHtml
+    + investmentRowsHtml
     + debtRowsHtml
     + '<tr class="totals-row">'
     + '  <td class="left">Total own capital</td>'
