@@ -1953,10 +1953,21 @@ function renderCapital() {
 
     if (cap != null) totalCap += cap;
     if (drawn != null) {
+      // totalDrawn NETS on purpose. drawn_balance is signed as of migration
+      // 20260910T120000: negative means the counterparty owes us (Karyn
+      // -$59,680.21, Gail -$46.00 at the time of writing). Netting is right
+      // here — netToOwner below subtracts this, so a receivable correctly
+      // raises the net position rather than being discarded.
       totalDrawn += drawn;
-      if (rate != null) {
-        weightedRateNum += drawn * rate;
-        weightedRateDen += drawn;
+      // The RATE, however, must clamp. A negative weight inverts that
+      // source's contribution and corrupts the blend: Karyn at -$59,680 x 8%
+      // would pull the blended rate down as though she were lending us money
+      // at a discount. This was correct only while the view floored drawn at
+      // zero; the floor is gone, so the clamp lives here now.
+      const weight = Math.max(0, drawn);
+      if (rate != null && weight > 0) {
+        weightedRateNum += weight * rate;
+        weightedRateDen += weight;
       }
     }
     if (avail != null) totalAvailable += avail;
@@ -1978,7 +1989,9 @@ function renderCapital() {
 
     let drawnCell = '—';
     if (cap != null && drawn != null) {
-      const pctDrawn = cap > 0 ? Math.min(1, drawn / cap) : 0;
+      // Clamped both ends: a signed drawn_balance can be negative, and a
+      // negative width is not a bar.
+      const pctDrawn = cap > 0 ? Math.max(0, Math.min(1, drawn / cap)) : 0;
       drawnCell = '<span class="deployed-bar"><span style="width:' + Math.round(pctDrawn * 100) + '%"></span></span>' + fmtK(drawn);
     } else if (drawn != null) {
       drawnCell = fmtK(drawn);
