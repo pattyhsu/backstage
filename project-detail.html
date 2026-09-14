@@ -3728,7 +3728,18 @@ function renderListPriceCalc(){
   const costBasis=listPriceCostBasis();
   const loan=dealLoans.find(l=>l.status==='funded'||l.status==='pending');
   const loanPayoff=loan?loan.loan_amount||0:0;
-  const listPrice=d.list_price||Math.round((costBasis+loanPayoff)*1.2);
+  /* THE MLS IS THE LIST PRICE; deals.list_price IS A SNAPSHOT.
+     `deals.list_price` is written once, when the relist is attached in
+     mls-deals.html, and nothing refreshes it — so a price reduction never
+     reaches it. The relist property row is rewritten by the hotsheet import
+     every day. Reading the snapshot first is how this card came to show
+     2121 S 3rd at $1,780,888 while the house was on the market at $1,750,888
+     (Patty, 2026-09-14: "that list price tab should update with the MLS").
+     The deal row stays as the fallback for a deal marked selling before its
+     relist MLS is linked. Same precedence as finances/_flips.js's sellPrice. */
+  const relistRow=d.relist_mls?propertiesByMls[d.relist_mls]:null;
+  const listPrice=(relistRow&&relistRow.list_price)||d.list_price
+    ||Math.round((costBasis+loanPayoff)*1.2);
   const listVal='$'+Math.round(listPrice).toLocaleString();
   // Restyled into the offer-math two-column layout: inputs left, a 6-bucket
   // Closed-tab P&L on the right (grey gradient + green profit, om-bd chrome).
