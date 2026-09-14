@@ -2012,7 +2012,10 @@ function renderConstructionSection(){
   const cost=dealCost||{};
   const rehabActual=(pnl.rehab_actual!=null)?pnl.rehab_actual:d.rehab_actual;
   const rehabBudget=(cost.rehab_budget!=null)?cost.rehab_budget
-    :(pnl.rehab_budget!=null)?pnl.rehab_budget:d.rehab_budget;
+    :pnl.rehab_budget;  // deals.rehab_budget dropped — nothing ever wrote it,
+                        // and deal_pnl_v1.rehab_budget now comes from
+                        // deal_budgets, which is the table the budget editor
+                        // and the snapshot trigger actually maintain.
   const budgetPct=(rehabActual!=null && rehabBudget && rehabBudget>0)
     ? Math.round((rehabActual/rehabBudget)*100) : 0;
   const budgetLabel=(rehabActual!=null?FD(rehabActual):'$0')+' / '+(rehabBudget!=null?FD(rehabBudget):'—')+' · '+budgetPct+'%';
