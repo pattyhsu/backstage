@@ -182,6 +182,8 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .et-lbl { font-size:10px; color:var(--text-4); font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
 .et-val { font-size:14px; font-weight:700; color:var(--text); cursor:text; padding:1px 3px; border-radius:3px; width:max-content; }
 .et-val:hover { background:var(--accent-dim); }
+.et-val.ro { cursor:default; }
+.et-val.ro:hover { background:none; }
 .et-val.editing { background:var(--bg); padding:0; }
 .et-val input { font:inherit; border:1px solid var(--accent); border-radius:3px; padding:1px 4px; outline:none; background:var(--bg); width:130px; }
 .et-aux { font-size:11px; color:var(--text-4); font-family:var(--mono); }
@@ -191,7 +193,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .escrow-cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start; }
 .esc-col { display:flex; flex-direction:column; gap:14px; }
 .esc-col .sect { margin-bottom:0; }
-.escrow-cols .et-grid { grid-template-columns:repeat(3,1fr); gap:12px 14px; }   /* 3 anchor dates only */
+.escrow-cols .et-grid { grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px 14px; }  /* contract price + 3 anchor dates: 2x2 in the column, 4-across when it goes full width */
 @media(max-width:860px){ .escrow-cols { grid-template-columns:1fr; } }
 
 /* Escrow checklist list */
@@ -697,6 +699,11 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
   border-radius:0; padding:2px 2px 16px; margin-top:14px; gap:34px; }
 .uw-val { font-size:17px; letter-spacing:-.015em; }
 .uw-val.large { font-size:19px; }
+/* Escrow's contract-price cell borrows .uw-val purely for the click-to-edit
+   wiring — size + hover follow its .et-val date siblings, not the uw bar. */
+.et-val.uw-val { font-size:14px; letter-spacing:-.01em; }
+.et-val.uw-val:hover { background:var(--accent-dim); }
+.et-val.uw-val.ro:hover { background:none; }
 
 /* 4 — Stat strips: hairline-divided cells, value-forward */
 .cash-grid { gap:1px; background:var(--border); border:1px solid var(--border);
@@ -2863,6 +2870,17 @@ function renderEscrowSection(){
   const rel=d=>d==null?'':(d>0?d+' days ago':(d===0?'today':'in '+Math.abs(d)+'d'));
   const relF=d=>d==null?'':(d>0?'in '+d+'d':(d===0?'today':Math.abs(d)+'d ago'));
   const ckHtml=renderChecklistBlock('in_escrow');
+  // Contract price — same stat ('bought' → deals.purchase_price) the owner-only
+  // underwriting bar edits, reusing wireUwEdits()'s `.uw-val[data-stat]` binding
+  // and therefore _commitUwEdit/_saveUwValue's validation + save. Visible to
+  // everyone; only owners get the data-stat that makes it editable.
+  const priceVal=d.purchase_price;
+  const priceEditable=docIsOwner();
+  const priceAttrs=priceEditable?' tabindex="0" data-stat="bought"':'';
+  const priceCls='et-val uw-val'+(priceEditable?'':' ro');
+  const priceHtml=priceVal==null
+    ? `<div class="${priceCls}" style="color:var(--text-4)"${priceAttrs}>&mdash; not set</div>`
+    : `<div class="${priceCls}"${priceAttrs}>${FD(priceVal)}${priceEditable?'<span class="uw-clear" data-clear-stat="bought" title="Clear value">\u00d7</span>':''}</div>`;
   return `
     <div class="phase-hide" id="escrowSect">
       <div class="escrow-cols">
@@ -2871,10 +2889,11 @@ function renderEscrowSection(){
         <div class="esc-col">
           <div class="sect">
             <div class="sect-h">
-              <h2>Escrow Timeline</h2>
-              <span class="sub">3-anchor schedule · click to edit</span>
+              <h2>Escrow</h2>
+              <span class="sub">contract price + 3-anchor schedule · click to edit</span>
             </div>
             <div class="et-grid">
+              <div class="et-cell"><div class="et-lbl">Contract price</div>${priceHtml}<div class="et-aux">${priceVal!=null?'under contract':''}</div></div>
               <div class="et-cell"><div class="et-lbl">Started</div><div class="et-val" data-escrow-field="escrow_start_date">${startStr||'—'}</div><div class="et-aux">${rel(daysIn)}</div></div>
               <div class="et-cell"><div class="et-lbl">Contingency removed</div><div class="et-val" data-escrow-field="contingency_removal_date">${crdStr||'—'}</div><div class="et-aux ${daysToCRD!=null && daysToCRD<=7 && daysToCRD>=0?'et-deadline':''}">${relF(daysToCRD)}</div></div>
               <div class="et-cell"><div class="et-lbl">Target close</div><div class="et-val" data-escrow-field="target_close_date">${closeStr||'—'}</div><div class="et-aux">${relF(daysToClose)}</div></div>
