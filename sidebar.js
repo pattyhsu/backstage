@@ -63,18 +63,6 @@
       ],
     },
     {
-      label: 'Insights',
-      ownerOnly: true,
-      items: [
-        // money.html was DELETED 2026-09-15. Its Per-Deal P&L and Capital
-        // Position tabs live in the finances app now; Cash Runway is being
-        // built there. This crosses an origin, so it costs a second
-        // sign-in — Supabase keeps its session per-origin.
-        // See dotty-agents plans/phase5_finance_cutover.md.
-        { key: 'money', label: 'Finances', href: 'https://finances.dottyhomes.com/deal-pnl.html', icon: iconMoney() },
-      ],
-    },
-    {
       label: 'Corporate Docs',
       ownerOnly: true,
       items: [
@@ -162,7 +150,6 @@
   function iconCondition()    { return '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg>'; }
   function iconInsights()     { return '<svg viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>'; }
   function iconImport()       { return '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'; }
-  function iconMoney()        { return '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><path d="M15.5 9H10.25a1.75 1.75 0 000 3.5h3.5a1.75 1.75 0 010 3.5H8.5"/></svg>'; }
   function iconCorpDocs()     { return '<svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>'; }
   function iconQuote()        { return '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg>'; }
   function iconSow()          { return '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="8.5 12.5 9.5 13.5 11.5 11.5"/><polyline points="8.5 17 9.5 18 11.5 16"/><line x1="13.5" y1="13" x2="16.5" y2="13"/><line x1="13.5" y1="17.5" x2="16.5" y2="17.5"/></svg>'; }
