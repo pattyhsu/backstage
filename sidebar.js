@@ -66,7 +66,12 @@
       label: 'Insights',
       ownerOnly: true,
       items: [
-        { key: 'money', label: 'Money', href: 'money.html', icon: iconMoney() },
+        // money.html was DELETED 2026-09-15. Its Per-Deal P&L and Capital
+        // Position tabs live in the finances app now; Cash Runway is being
+        // built there. This crosses an origin, so it costs a second
+        // sign-in — Supabase keeps its session per-origin.
+        // See dotty-agents plans/phase5_finance_cutover.md.
+        { key: 'money', label: 'Finances', href: 'https://finances.dottyhomes.com/deal-pnl.html', icon: iconMoney() },
       ],
     },
     {

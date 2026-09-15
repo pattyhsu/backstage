@@ -1705,7 +1705,7 @@ function renderPage(){
 
   // === Sold banner ===
   const soldBannerHtml=(phase==='sold')
-    ? `<div class="sold-banner">This deal closed${d.sale_close_date?' on '+fmtDate(d.sale_close_date):''} · final P&L on <a href="money.html">Money page →</a></div>`
+    ? `<div class="sold-banner">This deal closed${d.sale_close_date?' on '+fmtDate(d.sale_close_date):''} · final P&L on <a href="https://finances.dottyhomes.com/deal-pnl.html">Deal P&L →</a></div>`
     : '';
 
   // === Render full page ===
@@ -2758,7 +2758,7 @@ function renderSpendingTree(){
   BUCKETS.forEach(b=>{ b.total=Number(pnl[b.pnlKey]||0); });
   const total=BUCKETS.reduce((s,b)=>s+b.total,0);
   if(total<=0){
-    return `${hdr('no expenses yet')}<div class="sp-empty">No rehab expenses synced yet. Run QBO sync from <a href="money.html" style="color:var(--accent)">Money</a>.</div>`;
+    return `${hdr('no expenses yet')}<div class="sp-empty">No rehab expenses synced yet. Run QBO sync from <a href="https://finances.dottyhomes.com/deal-pnl.html" style="color:var(--accent)">Deal P&L</a>.</div>`;
   }
   // Group line items by bucket → deepest account-path segment.
   const lines={};
