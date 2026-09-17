@@ -2878,15 +2878,21 @@ async function decorateListingsWithDeals(){
       // generated", not Postgres 42P01) — swallow any error to 0 rows.
       const docsQuery=sb.from('deal_documents').select('deal_id').in('deal_id',pursuingIds)
         .then(r=>(r&&!r.error&&r.data)?r.data:[],()=>[]);
-      const[histRes,msRes,ckRes,lnRes,exRes,dcRes]=await Promise.all([
+      const[histRes,msRes,ckRes,lnRes,dcRes]=await Promise.all([
         sb.from('deals_phase_history').select('deal_id').in('deal_id',pursuingIds),
         sb.from('deal_milestones').select('deal_id').in('deal_id',pursuingIds).eq('completed',true),
         sb.from('deal_phase_checklist_items').select('deal_id').in('deal_id',pursuingIds).eq('completed',true),
         sb.from('deal_loans').select('deal_id').in('deal_id',pursuingIds),
-        sb.from('deal_expenses').select('deal_id').in('deal_id',pursuingIds),
+        // deal_expenses was dropped from this guard 2026-09-17. It moved to the
+        // finance project (Phase 5) and dotty's copy is frozen pending retirement,
+        // so this read was about to start throwing — and the loop below rethrows,
+        // which would have broken deletion entirely. It could never block anything
+        // anyway: a pursuing deal has no QBO project, so it has no expense rows.
+        // Verified against the live table — of 41 deals carrying expenses, 35 are
+        // sold, 5 under_construction, 1 selling, 0 pursuing.
         docsQuery,
       ]);
-      for(const r of [histRes,msRes,ckRes,lnRes,exRes]){
+      for(const r of [histRes,msRes,ckRes,lnRes]){
         if(r&&r.error)throw r.error;
       }
       const histCount={};for(const r of (histRes.data||[]))histCount[r.deal_id]=(histCount[r.deal_id]||0)+1;
@@ -2894,7 +2900,6 @@ async function decorateListingsWithDeals(){
       for(const r of (msRes.data||[]))blocked.add(r.deal_id);
       for(const r of (ckRes.data||[]))blocked.add(r.deal_id);
       for(const r of (lnRes.data||[]))blocked.add(r.deal_id);
-      for(const r of (exRes.data||[]))blocked.add(r.deal_id);
       for(const r of (dcRes||[]))blocked.add(r.deal_id);
       for(const id of pursuingIds){
         const d=dealById[id];
