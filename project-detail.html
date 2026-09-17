@@ -1240,11 +1240,9 @@ let phaseChecklistItems=[];
 let userNameMap=new Map();
 let dealLoans=[];
 let capitalSources=[];
-let dealExpenses=[];
 let dealPnl=null;
 let dealCost=null;        // v_deal_cost_breakdown row (same rehab_budget source as Pipeline)
 let dealOffers=[];        // persisted seller_offers rows for this deal
-let bucketByAccount={};   // qbo_account_name → bucket (acquisition/rehab_*/financing/holding/disposition)
 let saving=false;
 let uwCtx=null;
 let lastArvRow=null;
@@ -1429,27 +1427,6 @@ async function loadProject(){
   // 7. Deal loans + capital sources.
   await loadDealLoans();
   await loadCapitalSources();
-
-  // 8. Deal expenses (spending tree — under_construction phase). Graceful fallback.
-  try {
-    const {data:exps}=await sb.from('deal_expenses')
-      .select('id, deal_id, qbo_account_name, qbo_account_path, amount, expense_recognition_date')
-      .eq('deal_id', dealRow.id);
-    dealExpenses=exps||[];
-  } catch(e){
-    dealExpenses=[];
-  }
-
-  // 8b. QBO account → bucket map (acquisition / rehab_* / financing / holding /
-  // disposition). Drives the 4-bucket Selling breakdown so it sections expenses
-  // identically to money.html. Graceful fallback → bucket totals still render.
-  try {
-    const {data:cats}=await sb.from('qbo_account_categories').select('qbo_account_name, bucket');
-    bucketByAccount={};
-    for(const c of (cats||[])){ if(c.qbo_account_name)bucketByAccount[c.qbo_account_name]=c.bucket; }
-  } catch(e){
-    bucketByAccount={};
-  }
 
   // 9. Deal P&L rollup (canonical money-layer cost basis: acquisition + rehab
   // + financing + holding + disposition actuals). Used by the List Price
@@ -2726,26 +2703,11 @@ async function _commitDealFieldEdit(field, val){
   await loadProject();
 }
 
-// Map a deal_expenses row to one of the 4 rehab buckets by its QBO account path.
-// Mirrors the deal_pnl_v1 view's bucketing; non-rehab accounts (acquisition /
-// financing / holding) return null and are excluded from the rehab breakdown.
-function rehabBucketOf(e){
-  const p=e.qbo_account_path||[];
-  const top=(p[0]||'').toLowerCase();
-  const sub=(p[1]||'').toLowerCase();
-  if(top==='construction costs'){
-    if(sub.includes('labor'))return 'rehab_labor';
-    if(sub.includes('material'))return 'rehab_materials';
-    return 'rehab_materials';
-  }
-  if(top==='legal & soft services')return 'rehab_soft';
-  if(top==='employee meals'||top==='employee gas')return 'rehab_other';
-  return null;
-}
-// Spent-to-date: iOS composition bar (blue gradient) + grouped ledger over the 4
-// rehab buckets. Bucket TOTALS are the canonical deal_pnl_v1 rollup (QBO actuals);
-// line items are the QBO accounts under each bucket, from deal_expenses, labelled
-// by the deepest account-path segment (e.g. "Crew Labor", "General Materials").
+// Spent-to-date: iOS composition bar (blue gradient) + the 4 rehab buckets with
+// their totals, from the canonical deal_pnl_v1 rollup (QBO actuals). The
+// per-account itemization used to be read here from the deal-expense table, which is
+// local to the finances app now, so the account-level drill-down lives on Deal
+// P&L and this panel links there.
 function renderSpendingTree(){
   const pnl=dealPnl||{};
   const BUCKETS=[
@@ -2760,33 +2722,19 @@ function renderSpendingTree(){
   if(total<=0){
     return `${hdr('no expenses yet')}<div class="sp-empty">No rehab expenses synced yet. Run QBO sync from <a href="https://finances.dottyhomes.com/deal-pnl.html" style="color:var(--accent)">Deal P&L</a>.</div>`;
   }
-  // Group line items by bucket → deepest account-path segment.
-  const lines={};
-  for(const e of (dealExpenses||[])){
-    const bk=rehabBucketOf(e); if(!bk)continue;
-    const p=e.qbo_account_path||[];
-    const acct=p.length?p[p.length-1]:(e.qbo_account_name||'(unmapped)');
-    (lines[bk]=lines[bk]||{})[acct]=(lines[bk][acct]||0)+Number(e.amount||0);
-  }
   const fmtD=n=>'$'+Math.round(n).toLocaleString();
-  let lineCount=0;
-  const comp=BUCKETS.filter(b=>b.total>0)
+  const shown=BUCKETS.filter(b=>b.total>0);
+  const comp=shown
     .map(b=>`<div class="comp-seg" style="background:${b.color};flex:${Math.max(1,Math.round(b.total))}"></div>`).join('');
-  const ledger=BUCKETS.filter(b=>b.total>0).map(b=>{
+  const ledger=shown.map(b=>{
     const pct=Math.round(b.total/total*100);
-    const accts={...(lines[b.key]||{})};
-    // Reconcile mapped line items to the authoritative P&L bucket total.
-    const mapped=Object.values(accts).reduce((s,v)=>s+v,0);
-    if(b.total-mapped>1)accts['Misc']=(accts['Misc']||0)+(b.total-mapped);
-    const entries=Object.entries(accts).sort((x,y)=>y[1]-x[1]);
-    lineCount+=entries.length;
-    const rows=entries.map(([acct,amt])=>`<div class="led-row"><span class="nm">${escapeHtml(acct)}</span><span class="amt">${fmtD(amt)}</span></div>`).join('');
-    return `<div class="led-grp"><div class="led-head"><span class="led-sw" style="background:${b.color}"></span><span class="led-name">${b.name}</span><span class="led-pct">${pct}%</span><span class="led-sub">${fmtD(b.total)}</span></div>${rows}</div>`;
+    return `<div class="led-grp"><div class="led-head"><span class="led-sw" style="background:${b.color}"></span><span class="led-name">${b.name}</span><span class="led-pct">${pct}%</span><span class="led-sub">${fmtD(b.total)}</span></div></div>`;
   }).join('');
   return `
-    ${hdr(lineCount+' line items')}
+    ${hdr(shown.length+' buckets · '+fmtD(total))}
     <div class="comp-bar">${comp}</div>
     <div id="ledger">${ledger}</div>
+    <div class="sp-empty">Account-level detail lives on <a href="https://finances.dottyhomes.com/deal-pnl.html" style="color:var(--accent)">Deal P&L</a>.</div>
   `;
 }
 
@@ -3852,17 +3800,10 @@ function wireListPriceCalc(){
   const carryAnchor=d.actual_close_date||d.escrow_start_date||(loan&&loan.funded_date)||null;
   const daysHeld=carryAnchor?Math.max(0, daysBetween(carryAnchor, todayStr())||0):0;
 
-  // Booked holding-bucket actuals EXCEPT property tax (which we project): property
-  // insurance, utilities, HOA, etc. Each is its own QBO category, so it's pulled
-  // as an ACTUAL — never estimated. Grouped by top-level account for display.
-  const holdCats={}; let holdActual=0;
-  for(const e of (dealExpenses||[])){
-    if(bucketByAccount[e.qbo_account_name]!=='holding')continue;
-    if(/propert\w*\s*tax/i.test(e.qbo_account_name||''))continue;   // tax is projected, skip actual
-    const amt=Number(e.amount||0); holdActual+=amt;
-    const top=(Array.isArray(e.qbo_account_path)&&e.qbo_account_path.length)?e.qbo_account_path[0]:String(e.qbo_account_name||'').split(':')[0];
-    holdCats[top]=(holdCats[top]||0)+amt;
-  }
+  // Carry here is PROJECTION ONLY — hard-money interest + property tax, both
+  // computed above. The booked holding actuals (insurance, utilities, HOA) used to
+  // be added from the deal-expense table; that read is gone, so they are not shown on
+  // this page at all. Deal P&L carries them.
 
   const F  = n => (n<0?'-$':'$') + Math.abs(Math.round(n)).toLocaleString();
   const FS = n => (n>=0?'+$':'-$') + Math.abs(Math.round(n)).toLocaleString();
@@ -3892,49 +3833,11 @@ function wireListPriceCalc(){
     _offerSaveTimers[o.id]=setTimeout(()=>persistOffer(o),600);
   }
 
-  // 4-bucket breakdown — same buckets + QBO drill-down as money.html, so the
-  // numbers reconcile everywhere. ACQ + REHAB are actuals from deal_expenses
-  // (nested by qbo_account_path); CARRY + DISP are projected (this is a forward
-  // P&L, not booked actuals), shown with their formula sub-lines.
-  function bucketIs(e, set){ return set.indexOf(bucketByAccount[e.qbo_account_name])>=0; }
-  // Nest expenses (matching `set` of QBO buckets) by account path, reconcile the
-  // mapped sum to the authoritative deal_pnl bucket total, and emit qbo-line rows.
-  function actualTree(label, color, total, set, pctBase, detailLoaded){
-    // When the owner-only deal_expenses / qbo_account_categories tables aren't
-    // readable (worker session or lapsed token), show the bucket TOTAL alone —
-    // never a misleading "Other = full total" child. The caller adds one hint
-    // row explaining why the itemization is missing.
-    if(!detailLoaded) return sectionRow(label,color,total,pctBase,false);
-    const nodes={}; let mapped=0;
-    for(const e of (dealExpenses||[])){
-      if(!bucketIs(e,set))continue;
-      const amt=Number(e.amount||0); mapped+=amt;
-      const path=(Array.isArray(e.qbo_account_path)&&e.qbo_account_path.length)
-        ? e.qbo_account_path : String(e.qbo_account_name||'').split(':');
-      let lvl=nodes;
-      for(let i=0;i<path.length;i++){
-        const k=path[i];
-        if(!lvl[k])lvl[k]={name:k,amount:0,children:{}};
-        lvl[k].amount+=amt;
-        if(i===path.length-1)break;
-        lvl=lvl[k].children;
-      }
-    }
-    if(total-mapped>1){ nodes['Other']=nodes['Other']||{name:'Other',amount:0,children:{}}; nodes['Other'].amount+=(total-mapped); }
-    const secCollapsed=sellCollapsed.has(label);
-    const out=[sectionRow(label,color,total,pctBase,true,secCollapsed)];
-    const emit=(n,depth,keyPrefix,hidden)=>{
-      const hasKids=Object.keys(n.children).length>0;
-      const key=keyPrefix+'/'+n.name;
-      const collapsed=hasKids && sellCollapsed.has(key);
-      const pct=pctBase>0?n.amount/pctBase*100:0;
-      out.push(`<div class="qbo-line l${Math.min(depth,2)}${hasKids?' collapsible':''}${collapsed?' collapsed':''}${hidden?' hidden':''}${n.amount<0?' neg-line':''}" data-depth="${depth+1}" data-key="${escapeHtml(key)}"><span class="cat"><span class="caret"></span>${escapeHtml(n.name)}</span><span class="amt">${F(n.amount)}</span><span class="pct">${Math.abs(pct)<0.05?'—':pct.toFixed(1)+'%'}</span></div>`);
-      const childHidden=hidden||collapsed;
-      Object.values(n.children).sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount)).forEach(k=>emit(k,depth+1,key,childHidden));
-    };
-    Object.values(nodes).sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount)).forEach(t=>emit(t,0,label,secCollapsed));
-    return out.join('');
-  }
+  // 4-bucket breakdown — same buckets as Deal P&L, so the numbers reconcile
+  // everywhere. ACQ + REHAB are deal_pnl_v1 actuals shown as bucket TOTALS ONLY;
+  // their per-account drill-down lives on Deal P&L (the expense table is local to that
+  // app). CARRY + DISP are projected (this is a forward P&L, not booked actuals),
+  // shown with their formula sub-lines.
   function sectionRow(label,color,total,pctBase,collapsible,collapsed){
     if(collapsible===undefined)collapsible=true;
     const pct=pctBase>0?(total/pctBase*100).toFixed(1)+'%':'';
@@ -3947,23 +3850,16 @@ function wireListPriceCalc(){
   function renderSellBd(c){
     const COL={acq:'#6B7280', rehab:'#9CA3AF', carry:'#C7C7CC', disp:'#D8D7D2'};
     const list=c.list;
-    // Detail is itemizable only when BOTH owner-only tables loaded. If either is
-    // empty (worker / lapsed session), ACQ + REHAB render as totals-only + hint.
-    const detailLoaded=!!(dealExpenses && dealExpenses.length && Object.keys(bucketByAccount).length);
     // Composition bar — one segment per bucket + green net.
     const seg=(amt,color,round)=>`<div class="om-bd-seg" style="background:${color};flex:${Math.max(amt,1)}${round?';border-radius:0 7px 7px 0':''}"></div>`;
     const bar=seg(purchase,COL.acq)+seg(rehab,COL.rehab)+seg(c.carry,COL.carry)+seg(c.disposition,COL.disp)
             +seg(Math.abs(c.profit),'var(--green)',true);
-    // Carry: HM interest + property tax are PROJECTED (accrue daily, not cleanly
-    // booked); insurance / utilities / HOA are pulled from QBO ACTUALS.
+    // Carry: HM interest + property tax, both PROJECTED (they accrue daily and
+    // aren't cleanly booked). Booked holding actuals (insurance / utilities / HOA)
+    // are not shown here — see Deal P&L.
     const carryCol=sellCollapsed.has('Carry');
     let carryTree=sectionRow('Carry',COL.carry,c.carry,list,true,carryCol)
       +leafRow('Hard money interest', c.totalDays+' days @ '+F(DAILY_INTEREST)+'/day · projected', c.financing, list, carryCol);
-    if(detailLoaded){
-      Object.keys(holdCats).sort((a,b)=>holdCats[b]-holdCats[a]).forEach(k=>{
-        carryTree+=leafRow(k, 'actual', holdCats[k], list, carryCol);
-      });
-    }
     carryTree+=leafRow('Property taxes', c.totalDays+' days @ '+F(DAILY_TAX)+'/day · projected', c.propTax, list, carryCol);
     const dispCol=sellCollapsed.has('Disposition');
     const dispTree=sectionRow('Disposition',COL.disp,c.disposition,list,true,dispCol)
@@ -3974,9 +3870,9 @@ function wireListPriceCalc(){
       <div class="om-bd-top"><span class="lbl">Sale price</span><span class="val">${F(list)}</span></div>
       <div class="om-bd-bar">${bar}</div>
       <div class="qbo-list">
-        ${actualTree('Acquisition',COL.acq,purchase,['acquisition'],list,detailLoaded)}
-        ${actualTree('Rehab',COL.rehab,rehab,['rehab_labor','rehab_materials','rehab_soft','rehab_other'],list,detailLoaded)}
-        ${detailLoaded?'':`<div class="qbo-line muted" data-depth="0"><span class="cat"><span class="caret"></span>Acquisition & Rehab itemization needs owner sign-in — totals shown</span><span class="amt"></span><span class="pct"></span></div>`}
+        ${sectionRow('Acquisition',COL.acq,purchase,list,false)}
+        ${sectionRow('Rehab',COL.rehab,rehab,list,false)}
+        <div class="qbo-line muted" data-depth="0"><span class="cat"><span class="caret"></span>Acquisition &amp; Rehab itemization lives on <a href="https://finances.dottyhomes.com/deal-pnl.html" style="color:var(--accent)">Deal P&amp;L</a></span><span class="amt"></span><span class="pct"></span></div>
         ${carryTree}
         ${dispTree}
         <div class="qbo-line total" data-depth="0"><span class="cat"><span class="caret"></span>All-in cost</span><span class="amt">${F(c.allOut)}</span><span class="pct">${list>0?(c.allOut/list*100).toFixed(1)+'%':''}</span></div>
@@ -4018,7 +3914,7 @@ function wireListPriceCalc(){
       const g=f=>Number(row.querySelector(`[data-f="${f}"]`).value)||0;
       const price=g('price');
       const dispo=price*g('comm')/100 + price*clo/100 + g('concess');
-      const carry=(daysHeld+Math.max(0,g('days')))*DAILY_CARRY + holdActual;
+      const carry=(daysHeld+Math.max(0,g('days')))*DAILY_CARRY;
       return price - (FIXED + carry + dispo);
     });
     const best=Math.max(...profits);
@@ -4035,13 +3931,13 @@ function wireListPriceCalc(){
     const totalDays=daysHeld+Math.max(0,days);            // ownership → projected close
     const financing=totalDays*DAILY_INTEREST;             // HM interest — projected
     const propTax  =totalDays*DAILY_TAX;                  // property tax — projected
-    const carry=financing+holdActual+propTax;             // + insurance/utilities (actual)
+    const carry=financing+propTax;                        // projected only — see note above
     const commission=list*comm/100, closing=list*clo/100;
     const disposition=commission+closing+conc;
     const allOut=FIXED+carry+disposition, profit=list-allOut;
     const basis=allOut;                                   // all-in projected cost basis
     document.getElementById('slBasisHelp').textContent=
-      `${F(FIXED+carry)} all-in before sale costs · ${totalDays} days held @ ${F(DAILY_INTEREST)} interest + ${F(DAILY_TAX)} tax /day${holdActual>0?' + '+F(holdActual)+' booked insurance':''} →`;
+      `${F(FIXED+carry)} all-in before sale costs · ${totalDays} days held @ ${F(DAILY_INTEREST)} interest + ${F(DAILY_TAX)} tax /day →`;
     renderSellBd({list,comm,clo,conc,days,totalDays,financing,propTax,carry,disposition,allOut,profit,basis});
     document.getElementById('slFoot').innerHTML=
       `<span><b>Net proceeds</b> ${F(list-disposition)} <span class="dim">at close, before loan payoff</span></span>`+
