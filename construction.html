@@ -213,7 +213,7 @@ h2 { font-size:14.5px; font-weight:600; }
   <div class="hdr">
     <h1>Construction</h1><span class="sub" id="hsub"></span>
     <div class="right">
-      <span class="sw"><button class="btn on" id="v2w">2 weeks</button><button class="btn" id="vfull">Full runway</button></span>
+      <span class="sw"><button class="btn" id="v1w">1 week</button><button class="btn on" id="v2w">2 weeks</button><button class="btn" id="vfull">Full runway</button></span>
     </div>
   </div>
   <div id="page"><div class="empty">Loading…</div></div>
@@ -253,7 +253,11 @@ let TODAY=todayStr();
 // appear in the bench or the assign sheet, but every day they already worked
 // still has to resolve to a name and a cost, and workerById reads `roster`.
 let deals=[], propByMls={}, tpl=[], milestones=[], workers=[], roster=[], skills=[], assigns=[], costs={}, crews=[];
-let sel=TODAY, view='2w', collapsed={}, ovCtx=null;
+// The view you last looked at, kept per-browser. Private-mode and blocked-storage
+// browsers throw on access, so both ends are guarded and fall back to two weeks.
+const VIEW_KEY='backstage.construction.view';
+function savedView(){try{const v=localStorage.getItem(VIEW_KEY);return (v==='1w'||v==='2w'||v==='full')?v:'2w';}catch(e){return '2w';}}
+let sel=TODAY, view=savedView(), collapsed={}, ovCtx=null;
 // Colour says WHICH KIND OF WORK — the same language the project page's build
 // schedule speaks: structural purple, finishes green, closeout grey. These are
 // the very same four pairs as before; they were just keyed to the build's sort
@@ -422,8 +426,11 @@ const FULL=0.9999, OVER=1.0001;
 // "what did we actually get done" is always a question about the last few
 // days, and paging would put a where-am-I state on a glance surface.
 const LOOKBACK=4;
+// Forward horizon of each dated view. One week is the crew-assignment week;
+// two weeks is the planning window. Both keep the same lookback.
+const HORIZON={'1w':7,'2w':14};
 function days(){
-  if(view==='2w')return Array.from({length:LOOKBACK+14},(_,i)=>addDays(TODAY,i-LOOKBACK));
+  if(HORIZON[view])return Array.from({length:LOOKBACK+HORIZON[view]},(_,i)=>addDays(TODAY,i-LOOKBACK));
   let last=TODAY;
   for(const dl of deals){const f=finishOf(dl); if(f&&f>last)last=f;}
   const n=Math.max(13, diff(TODAY,last)||13);
@@ -432,16 +439,17 @@ function days(){
 
 function render(){
   const D=days(), N=D.length;
-  const gt=`grid-template-columns:196px repeat(${N},minmax(${view==='2w'?'34':'19'}px,1fr))`;
+  const colw=view==='1w'?56:view==='2w'?34:19;
+  const gt=`grid-template-columns:196px repeat(${N},minmax(${colw}px,1fr))`;
   document.getElementById('hsub').textContent=
     deals.length+(deals.length===1?' build':' builds')+' · '+ourDeals().length+' on our crew';
-  document.getElementById('v2w').classList.toggle('on',view==='2w');
-  document.getElementById('vfull').classList.toggle('on',view==='full');
+  for(const [id,v] of [['v1w','1w'],['v2w','2w'],['vfull','full']])
+    document.getElementById(id).classList.toggle('on',view===v);
   if(!deals.length){document.getElementById('page').innerHTML='<div class="empty">No builds under construction.</div>';return;}
 
   let hd=`<div class="r" style="${gt}"><span class="lb"></span>`;
   for(const x of D){const dow=d(x).getDay();
-    const lab=x===TODAY?'today':((view==='2w'||dow===1)?md(x):'');
+    const lab=x===TODAY?'today':((view!=='full'||dow===1)?md(x):'');
     hd+=`<span class="hd${dow===0?' sun':''}${x===TODAY?' t0':''}"><em>${DOW[dow]}</em>${lab}</span>`;}
   hd+='</div>';
 
@@ -599,9 +607,9 @@ function render(){
       <button class="addb" id="nwAdd" style="justify-self:start">+ Add to roster</button></div>`;
 
   document.getElementById('page').innerHTML=`
-    <div class="sh"><h2>${view==='2w'?'The next two weeks':'Full runway'}</h2>
-      <span class="sub">${view==='2w'?'plus the last four days — every day is clickable, inside the plan or not':'the committed plan, out to the last trade'}</span></div>
-    <div class="card"><div style="min-width:${196+N*(view==='2w'?34:19)}px">${hd}${body}${ld}${ac}</div></div>
+    <div class="sh"><h2>${view==='1w'?'The next week':view==='2w'?'The next two weeks':'Full runway'}</h2>
+      <span class="sub">${view==='full'?'the committed plan, out to the last trade':'plus the last four days — every day is clickable, inside the plan or not'}</span></div>
+    <div class="card"><div style="min-width:${196+N*colw}px">${hd}${body}${ld}${ac}</div></div>
     <div class="cols">
       <div>
         <div class="sh"><h2>Who goes where</h2><span class="sub">${dayCost?money(dayCost)+' in crew labour':''}</span>
@@ -735,7 +743,7 @@ async function addWorker(){
 function toggleCollapse(id){collapsed[id]=!collapsed[id];render();}
 async function step(n){sel=addDays(sel,n);await loadAssignments();render();}
 async function goDay(x){sel=x;await loadAssignments();render();}
-async function setView(v){view=v;await loadAssignments();render();}
+async function setView(v){view=v;try{localStorage.setItem(VIEW_KEY,v);}catch(e){}await loadAssignments();render();}
 window.toggleCollapse=toggleCollapse; window.step=step; window.goDay=goDay;
 
 // Re-plan: push the remaining schedule so the earliest open trade starts on the
@@ -907,6 +915,7 @@ window.closeOv=closeOv;
   await window.authGate();
   if(!window.CURRENT_USER_ROLE)return;
   window.renderSidebar('construction');
+  document.getElementById('v1w').addEventListener('click',()=>setView('1w'));
   document.getElementById('v2w').addEventListener('click',()=>setView('2w'));
   document.getElementById('vfull').addEventListener('click',()=>setView('full'));
   document.getElementById('ov').addEventListener('click',e=>{if(e.target.id==='ov')closeOv();});
