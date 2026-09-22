@@ -954,7 +954,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
       </div>
       <div class="rpa-row-pair">
         <div class="rpa-field"><label for="rpa_emdDollars">EMD ($)</label><input type="text" id="rpa_emdDollars"></div>
-        <div class="rpa-field"><label for="rpa_emdPercent">EMD (%)</label><input type="text" id="rpa_emdPercent" placeholder="3.00"></div>
+        <div class="rpa-field"><label for="rpa_emdPercent">EMD (%)</label><input type="text" id="rpa_emdPercent" placeholder="2.00"></div>
       </div>
       <div class="rpa-row-pair">
         <div class="rpa-field"><label for="rpa_downPayment">Down Payment ($)</label><input type="text" id="rpa_downPayment"></div>
@@ -4619,7 +4619,7 @@ window.saveLoanFromModal=saveLoanFromModal;
 // ============================================================
 const RPA_DEFAULTS = {
   allCash: true,
-  emdPercent: "3.00",
+  emdPercent: "2.00",
   noInspection: false,
   noCRB: false,
   inspectionDays: "7",
@@ -4629,13 +4629,13 @@ const RPA_DEFAULTS = {
   isEntityBuyer: true,
   buyerEntity: "Dotty Homes",
   authorizedSigner: "Cheng Yuan Tsai",
-  signerTitle: "Manager",
+  signerTitle: "CEO",
   buyerInitials: "CYT",
   buyerSignature: "Cheng Yuan Tsai",
   buyerAgentName: "Hsin-Yih Hsu",
   buyerAgentLicense: "02099400",
-  buyerBrokerName: "Pellego, Inc.",
-  buyerBrokerLicense: "02043232",
+  buyerBrokerName: "Dotty Homeservices",
+  buyerBrokerLicense: "02431285",
   sellerAgentName: "",
   sellerAgentLicense: "",
   sellerBrokerName: "",
@@ -4844,6 +4844,15 @@ function rpaReadDomIntoValues(){
   });
 }
 
+// EMD = pct of price, rounded UP to the nearest $1,000. Rounding up rather
+// than to the cent is deliberate: the deposit is the buyer's money at risk and
+// a round number reads as a stronger offer. Mirrors
+// offers/inputs.py initial_deposit() in dotty-agents — keep the two in step.
+function rpaEmdFromPrice(price, pct){
+  if(isNaN(price)||isNaN(pct))return NaN;
+  return Math.ceil(price*pct/100/1000)*1000;
+}
+
 function rpaWireAutoCalc(){
   const priceEl=document.getElementById('rpa_purchasePrice');
   const pctEl=document.getElementById('rpa_emdPercent');
@@ -4855,7 +4864,7 @@ function rpaWireAutoCalc(){
     const price=parseFloat(rpaStripCommas(priceEl.value));
     const pct=parseFloat(pctEl.value);
     if(!isNaN(price) && !isNaN(pct)){
-      const emd=Math.round(price*pct/100);
+      const emd=rpaEmdFromPrice(price, pct);
       const dp=price-emd;
       emdEl.value=rpaAddCommas(String(emd));
       dpEl.value=rpaAddCommas(String(dp));
@@ -4948,7 +4957,7 @@ async function openRpaModal(){
   const price=parseFloat(rpaStripCommas(rpaValues.purchasePrice));
   const pct=parseFloat(rpaValues.emdPercent);
   if(!isNaN(price) && !isNaN(pct)){
-    const emd=Math.round(price*pct/100);
+    const emd=rpaEmdFromPrice(price, pct);
     rpaValues.emdDollars=String(emd);
     rpaValues.downPayment=String(price-emd);
   }
