@@ -10,7 +10,6 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="backstage.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="auth.js"></script>
 <script src="sidebar.js?v=20260901"></script>
 <script src="feedback.js?v=20260901b"></script>
@@ -652,6 +651,11 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .rpa-modal .rpa-email-preview .rpa-email-copy:hover { border-color:var(--accent); color:var(--accent); }
 .rpa-modal .rpa-email-preview textarea { width:100%; min-height:140px; font-family:var(--mono); font-size:11px; line-height:1.45; padding:8px 10px; border:1px solid var(--border); border-radius:4px; background:var(--bg-alt); color:var(--text-2); resize:vertical; box-sizing:border-box; }
 .rpa-modal .lm-msg { font-size:11px; min-height:14px; color:var(--red); margin-top:6px; }
+/* The same box carries validation errors (red) and live queue status
+   (neutral), so status rendering opts out of the red. */
+.rpa-modal .lm-msg.rpa-status { color:var(--text); line-height:1.6; }
+.rpa-modal .rpa-status-meta { color:var(--text-4); font-size:10px; }
+.rpa-modal .rpa-status-err { color:var(--red); }
 
 /* RPA inline button in cash sect header */
 .rpa-btn-inline { font-size:11px; font-weight:600; padding:3px 9px; border:1px solid var(--border); border-radius:5px; background:#fff; color:var(--text-2); cursor:pointer; font-family:inherit; margin-right:8px; transition:all .12s; }
@@ -915,8 +919,8 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 <!-- RPA Generator modal — fills CAR RPA PDF for the current deal -->
 <div class="rpa-modal-overlay" id="rpaModal" onclick="if(event.target===this)closeRpaModal()">
   <div class="rpa-modal">
-    <h3>Generate RPA</h3>
-    <p class="rpa-sub">Pre-filled from this deal. Edit any field, then Generate to download the PDF and open a Gmail draft.</p>
+    <h3>Write RPA in zipForm</h3>
+    <p class="rpa-sub">Pre-filled from this deal. Edit any field, then send it to the zipForm runner — it writes the real RPA and stops for review. A Gmail draft to the listing agent opens too.</p>
 
     <div class="rpa-section-h">Property</div>
     <div class="rpa-grid">
@@ -998,7 +1002,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
     <div class="lm-msg" id="rpaMsg"></div>
     <div class="lm-actions">
       <button class="lm-btn lm-btn-secondary" onclick="closeRpaModal()">Cancel</button>
-      <button class="lm-btn lm-btn-primary" id="rpaGenerateBtn" onclick="generateRpa()">Generate</button>
+      <button class="lm-btn lm-btn-primary" id="rpaGenerateBtn" onclick="queueZipformOffer()">Send via zipForm</button>
     </div>
     <div class="rpa-email-preview">
       <div class="rpa-email-head">
@@ -3333,7 +3337,7 @@ function renderCashSection(role, cfg){
     </div>
   `;
   const rpaBtnHtml=(currentDeal && currentDeal.phase==='pursuing')
-    ? `<button class="rpa-btn-inline" onclick="openRpaModal()" title="Fill CAR RPA for this deal">📄 Generate RPA</button>`
+    ? `<button class="rpa-btn-inline" onclick="openRpaModal()" title="Write the C.A.R. RPA for this deal in zipForm">📄 Write RPA</button>`
     : '';
   return `
     <div class="sect" id="cashSect">
@@ -4656,8 +4660,6 @@ const RPA_DEFAULTS = {
   apn: "",
 };
 
-const RPA_PDF_TEMPLATE_URL = 'https://photos.dottyhomes.com/templates/rpa_empty.pdf';
-
 const CITY_TO_COUNTY = {
   // LA County
   'pasadena':'Los Angeles','arcadia':'Los Angeles','san gabriel':'Los Angeles','alhambra':'Los Angeles',
@@ -4735,57 +4737,6 @@ function rpaFlipName(s){
   if(!first)return last;
   if(!last)return first;
   return first+' '+last;
-}
-
-const RPA_CR_TEMPLATE_URL='https://photos.dottyhomes.com/templates/cr_empty.pdf';
-
-// Fetches a PDF template, fills it with the given fieldMap, triggers a download.
-// alwaysWrite[] is the set of field names that should be written even when blank
-// (e.g. checkbox-style "X" markers we want to clear out from the template).
-async function rpaFillAndDownload(templateUrl, fieldMap, filename, alwaysWrite){
-  const resp=await fetch(templateUrl);
-  if(!resp.ok)throw new Error('HTTP '+resp.status);
-  const templateBytes=await resp.arrayBuffer();
-  const pdfDoc=await PDFLib.PDFDocument.load(templateBytes, {ignoreEncryption:true});
-  const form=pdfDoc.getForm();
-  const fieldLookup={};
-  form.getFields().forEach(f=>{fieldLookup[f.getName()]=f;});
-  const aw=alwaysWrite||[];
-  Object.keys(fieldMap).forEach(fieldName=>{
-    const value=fieldMap[fieldName];
-    if(!value && aw.indexOf(fieldName)===-1)return;
-    const field=fieldLookup[fieldName];
-    if(!field)return;
-    try{
-      const dict=field.acroField.dict;
-      const existingDA=dict.get(PDFLib.PDFName.of('DA'));
-      let daString='/Helv 10 Tf 0 g';
-      if(existingDA){
-        if(existingDA.decodeText)daString=existingDA.decodeText();
-        else if(existingDA.asString)daString=existingDA.asString();
-        else { daString=existingDA.toString().replace(/^\(/,'').replace(/\)$/,''); }
-      }
-      dict.set(PDFLib.PDFName.of('V'), PDFLib.PDFHexString.fromText(value));
-      dict.set(PDFLib.PDFName.of('DA'), PDFLib.PDFString.of(daString));
-      field.acroField.getWidgets().forEach(w=>{ w.dict.delete(PDFLib.PDFName.of('AP')); });
-    }catch(e){
-      console.warn('[rpa] field fill failed for', fieldName, e.message);
-    }
-  });
-  try{
-    const acroFormRef=pdfDoc.catalog.get(PDFLib.PDFName.of('AcroForm'));
-    const acroFormDict=acroFormRef instanceof PDFLib.PDFDict ? acroFormRef : pdfDoc.context.lookup(acroFormRef);
-    if(acroFormDict && acroFormDict.set){
-      acroFormDict.set(PDFLib.PDFName.of('NeedAppearances'), PDFLib.PDFBool.True);
-    }
-  }catch(e){}
-  const pdfBytes=await pdfDoc.save();
-  const blob=new Blob([pdfBytes], {type:'application/pdf'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url; a.download=filename;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 function rpaUpdateEmailPreview(){
@@ -4913,7 +4864,7 @@ async function rpaLookupAgent(name){
 
 async function openRpaModal(){
   if(!currentDeal || currentDeal.phase!=='pursuing'){
-    bsToast('RPA generator only available in the Pursuing phase');
+    bsToast('RPA writer only available in the Pursuing phase');
     return;
   }
   // Start from defaults (deep copy)
@@ -4989,6 +4940,7 @@ async function openRpaModal(){
 window.openRpaModal=openRpaModal;
 
 function closeRpaModal(){
+  zipformStopPolling();
   const overlay=document.getElementById('rpaModal');
   if(overlay)overlay.classList.remove('open');
   document.removeEventListener('keydown', _rpaKey);
@@ -5068,129 +5020,175 @@ function rpaUpsertAgent(v){
   }
 }
 
-async function generateRpa(){
+// ============================================================
+// SEND VIA ZIPFORM — write a row to the offer queue
+// ============================================================
+// This used to fill a PDF template in the browser and download it. The
+// downloaded PDF is dead weight now that the runner writes the offer
+// directly in zipForm: that PDF was never the document anyone signed, and
+// keeping a second rendering of the same terms meant two places to get the
+// brokerage, the licence and the deposit wrong — commit 7081dcb fixed four
+// such divergences on the PDF path alone, after they had reached real PDFs.
+//
+// So this writes ONE row and stops. offers/run_queue.py, on the host holding
+// the signed-in zipForm browser, claims it, fills the real RPA, and reports
+// status back on this row. The Gmail draft stays: that is the message to the
+// listing agent, not a copy of the contract.
+//
+// The runner is on-demand today (MacBook), so a row is allowed to sit in
+// `queued` until somebody runs it. The status line says exactly that rather
+// than implying something is already happening.
+
+const ZIPFORM_STATUS_TEXT = {
+  queued:          'Queued — waiting for the zipForm runner to pick it up.',
+  claimed:         'Runner picked it up — opening zipForm…',
+  filled:          'RPA filled and saved in zipForm.',
+  awaiting_review: 'Filled and ready for review in Authentisign — NOT sent.',
+  sent:            'Sent for signature via Authentisign.',
+  failed:          'Failed — see the error below; fix and re-queue.',
+  cancelled:       'Cancelled.',
+};
+const ZIPFORM_TERMINAL = ['awaiting_review','sent','failed','cancelled'];
+let _zipformPoll = null;
+
+function zipformStopPolling(){
+  if(_zipformPoll){ clearInterval(_zipformPoll); _zipformPoll=null; }
+}
+
+function zipformRenderStatus(row){
+  const msg=document.getElementById('rpaMsg');
+  if(!msg)return;
+  msg.classList.add('rpa-status');
+  const label=ZIPFORM_STATUS_TEXT[row.status]||row.status;
+  let html='<strong>'+label+'</strong>';
+  if(row.zipform_tid)html+='<br><span class="rpa-status-meta">zipForm transaction '+row.zipform_tid+'</span>';
+  if(row.error)html+='<br><span class="rpa-status-err">'+String(row.error).replace(/</g,'&lt;')+'</span>';
+  msg.innerHTML=html;
+}
+
+function zipformPollStatus(requestId){
+  zipformStopPolling();
+  let elapsed=0;
+  _zipformPoll=setInterval(async ()=>{
+    elapsed+=4;
+    const {data,error}=await sb.from('offer_requests')
+      .select('status,zipform_tid,error').eq('id',requestId).maybeSingle();
+    if(error||!data)return;
+    zipformRenderStatus(data);
+    if(ZIPFORM_TERMINAL.includes(data.status)){
+      zipformStopPolling();
+      bsToast(data.status==='failed' ? 'zipForm offer failed'
+                                     : 'zipForm offer '+data.status.replace('_',' '));
+      return;
+    }
+    // Stop nagging the DB after ten minutes. The row is still there and the
+    // runner will still process it; reopening the modal resumes the watch.
+    if(elapsed>=600){
+      zipformStopPolling();
+      const msg=document.getElementById('rpaMsg');
+      if(msg){ msg.classList.add('rpa-status');
+        msg.innerHTML='<strong>Still queued.</strong><br>'
+        +'<span class="rpa-status-meta">The runner has not picked it up yet. Run '
+        +'<code>python -m offers.run_queue</code> on the host with zipForm signed in, '
+        +'then reopen this modal to watch again.</span>'; }
+    }
+  }, 4000);
+}
+
+async function queueZipformOffer(){
   const msg=document.getElementById('rpaMsg');
   const btn=document.getElementById('rpaGenerateBtn');
-  if(msg)msg.textContent='';
+  // A watch left over from a previous submit would overwrite whatever this
+  // one writes four seconds later. That silently erased the "already a live
+  // request" error on a double submit — the guard held in the DB, but the
+  // person was told the offer had been queued.
+  zipformStopPolling();
+  if(msg){ msg.textContent=''; msg.classList.remove('rpa-status'); }
 
   rpaReadDomIntoValues();
   const v=rpaValues;
+  const p=primaryProperty();
 
-  // Validation
+  // The listing-side licences are validated HERE because the runner refuses
+  // without them (0 of 25,368 property rows carry a DRE, and they print on
+  // the contract). Better to say so while the human is still looking at the
+  // form than to queue a row that fails the moment it is claimed.
   const missing=[];
-  if(!v.propertyAddress || !v.propertyAddress.trim())missing.push('Street Address');
+  if(!p || !p.mls)missing.push('a property with an MLS number');
   if(!v.purchasePrice || !rpaStripCommas(v.purchasePrice).trim())missing.push('Offer Price');
   if(!v.sellerEmail || !v.sellerEmail.trim())missing.push('Seller / Agent Email');
+  if(!v.sellerAgentLicense || !v.sellerAgentLicense.trim())missing.push('Seller Agent License #');
+  if(!v.sellerBrokerLicense || !v.sellerBrokerLicense.trim())missing.push('Seller Broker License #');
   if(missing.length){
     if(msg)msg.textContent='Missing: '+missing.join(', ');
     return;
   }
 
-  if(typeof PDFLib==='undefined'){
-    if(msg)msg.textContent='PDF library not loaded. Refresh and try again.';
+  const price=parseFloat(rpaStripCommas(v.purchasePrice));
+  if(isNaN(price)||price<=0){
+    if(msg)msg.textContent='Offer Price is not a number.';
     return;
   }
 
   btn.disabled=true;
+  if(msg)msg.textContent='Queueing…';
 
-  function fmtPrice(val){
-    const n=parseFloat(rpaStripCommas(val));
-    if(isNaN(n))return val||'';
-    return n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
-  }
-  function fmtInt(val){
-    const n=parseFloat(rpaStripCommas(val));
-    if(isNaN(n))return val||'';
-    return n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
-  }
-
-  const userDate=v.offerDate || rpaTodayMDY();
-  const addrSafe=(v.propertyAddress||'Offer').trim();
-  const fullAddr=(v.propertyAddress||'')+', '+(v.city||'')+', CA '+(v.zip||'');
-
-  // RPA field map — corrected per template ("buyer initial", "entity buyer name", "buyer signature")
-  const rpaMap={
-    'street address': v.propertyAddress||'',
-    'full address': fullAddr,
-    'City': v.city||'',
-    'County': v.county||'',
-    'zipcode': v.zip||'',
-    'APN': v.apn||'',
-    'buyer': v.buyerName||'',
-    'entity buyer': v.isEntityBuyer?'X':'',
-    'entity buyer name': v.isEntityBuyer?(v.buyerEntity||''):'',
-    'authorized signer': v.isEntityBuyer?(v.authorizedSigner||''):'',
-    'authorized signer title': v.isEntityBuyer?(v.signerTitle||''):'',
-    'buyer initial': v.buyerInitials||'',
-    'buyer signature': v.buyerSignature||'',
-    'date': userDate,
-    'sign date': userDate,
-    'date number form': userDate,
-    'offer price': fmtPrice(v.purchasePrice),
-    'emd $': fmtInt(v.emdDollars),
-    'emd %': v.emdPercent||'',
-    'balance': fmtInt(v.downPayment),
-    'COE': v.coeDays||'',
-    'compensation': v.hasCompensation?'X':'',
-    'compensation %': v.hasCompensation?(v.compensationPercent||''):'',
-    'all cash': v.allCash?'X':'',
-    'no contingency': v.noCRB?'X':'',
-    'physical inspection days': v.inspectionDays||'',
-    'other terms': v.otherTerms||'',
-    'buyer agent': v.buyerAgentName||'',
-    'buyer agent #': v.buyerAgentLicense||'',
-    'buyer broker': v.buyerBrokerName||'',
-    'buyer broker #': v.buyerBrokerLicense||'',
-    'seller agent': v.sellerAgentName||'',
-    'seller agent #': v.sellerAgentLicense||'',
-    'seller broker': v.sellerBrokerName||'',
-    'seller broker #': v.sellerBrokerLicense||'',
+  // Commission goes as a PERCENT (2.5 means 2.5%); the deposit goes as a
+  // FRACTION (0.02 means 2%). That split is not cosmetic — it is the shape
+  // offers/config.py uses — and the modal shows the deposit as "2.00"
+  // meaning percent, so the division happens exactly once, here.
+  const emdPct=parseFloat(v.emdPercent);
+  const row={
+    mls: p.mls,
+    deal_id: (currentDeal && currentDeal.id) || null,
+    offer_price: price,
+    investigation_days: parseInt(v.inspectionDays,10) || null,
+    buyer_broker_comp_pct: v.hasCompensation ? (parseFloat(v.compensationPercent)||null) : 0,
+    deposit_pct: isNaN(emdPct) ? null : (emdPct/100),
+    coe_days: parseInt(v.coeDays,10) || null,
+    buyer_entity: v.isEntityBuyer ? (v.buyerEntity||v.buyerName||null) : null,
+    signer_title: v.isEntityBuyer ? (v.signerTitle||null) : null,
+    signer_name: v.authorizedSigner||null,
+    // signer_email is deliberately NOT sent. Authentisign mails the signature
+    // request to it, and the person clicking this button is usually not the
+    // person who signs for the entity. Left null, the runner falls back to
+    // offers/config.BUYER_SIGNER_EMAIL — one place, not two repos.
+    all_cash: !!v.allCash,
+    remove_all_contingencies: !!v.noCRB,
+    no_inspection_contingency: !!v.noInspection,
+    other_terms: v.otherTerms||null,
+    listing_agent_name: v.sellerAgentName||null,
+    listing_broker_firm: v.sellerBrokerName||null,
+    listing_agent_licence: v.sellerAgentLicense||null,
+    listing_broker_licence: v.sellerBrokerLicense||null,
+    requested_by: (window.CURRENT_USER && window.CURRENT_USER.id) || null,
   };
-  const rpaAlwaysWrite=['all cash','no contingency','compensation','compensation %','entity buyer'];
 
-  try{
-    await rpaFillAndDownload(RPA_PDF_TEMPLATE_URL, rpaMap, 'RPA ('+addrSafe+').pdf', rpaAlwaysWrite);
-  }catch(e){
-    btn.disabled=false;
-    console.error('[rpa] generate failed:', e);
-    if(msg)msg.textContent='RPA generation failed: '+e.message;
-    bsToast('RPA generation failed');
+  const {data,error}=await sb.from('offer_requests').insert(row).select('id,status').single();
+  btn.disabled=false;
+
+  if(error){
+    console.error('[zipform] queue insert failed:', error);
+    // The partial unique index allows only one live request per MLS, so a
+    // double-click cannot produce two offers on the same house.
+    if(error.code==='23505'){
+      if(msg)msg.textContent='There is already a live offer request on this property. '
+        +'Cancel or finish it before queueing another.';
+    }else{
+      if(msg)msg.textContent='Could not queue the offer: '+error.message;
+    }
+    bsToast('zipForm offer not queued');
     return;
   }
 
-  // Contingency Removal (CR) — only when "Remove All Contingency" is checked.
-  // Fills the same buyer/date/address info; seller name not captured anywhere
-  // in the modal so it's left blank for ink-fill.
-  let crGenerated=false;
-  if(v.noCRB){
-    const crMap={
-      'buyer': v.isEntityBuyer ? (v.buyerEntity||v.buyerName||'') : (v.buyerName||''),
-      'buyer signature': v.buyerSignature||'',
-      'date number form': userDate,
-      'sign date': userDate,
-      'full address': fullAddr,
-      // 'seller' intentionally left blank — no DB source, fill in pen.
-    };
-    try{
-      await rpaFillAndDownload(RPA_CR_TEMPLATE_URL, crMap, 'CR ('+addrSafe+').pdf', []);
-      crGenerated=true;
-    }catch(e){
-      console.error('[rpa] CR fill failed:', e);
-      bsToast('CR template fetch/fill failed — RPA still downloaded');
-    }
-  }
+  rpaUpsertAgent(v);      // fire-and-forget: remember this agent's DRE
+  rpaOpenGmailDraft(v);   // the message to the listing agent
 
-  // Fire-and-forget agent upsert
-  rpaUpsertAgent(v);
-
-  // Gmail draft (email body also visible/copyable in the modal preview pane)
-  rpaOpenGmailDraft(v);
-
-  btn.disabled=false;
-  closeRpaModal();
-  bsToast(crGenerated ? 'RPA + CR generated · Gmail opened' : 'RPA generated · Gmail opened');
+  zipformRenderStatus({status:'queued'});
+  zipformPollStatus(data.id);
+  bsToast('Offer queued for zipForm · Gmail opened');
 }
-window.generateRpa=generateRpa;
+window.queueZipformOffer=queueZipformOffer;
 
 // ============================================================
 // INIT
