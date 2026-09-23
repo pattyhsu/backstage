@@ -920,7 +920,7 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 <div class="rpa-modal-overlay" id="rpaModal" onclick="if(event.target===this)closeRpaModal()">
   <div class="rpa-modal">
     <h3>Write RPA in zipForm</h3>
-    <p class="rpa-sub">Pre-filled from this deal. Edit any field, then send it to the zipForm runner — it writes the real RPA and stops for review. A Gmail draft to the listing agent opens too.</p>
+    <p class="rpa-sub">Pre-filled from this deal. Edit any field, then send — the runner writes the real RPA in zipForm and sends it out through Authentisign for signature. A Gmail draft to the listing agent opens too.</p>
 
     <div class="rpa-section-h">Property</div>
     <div class="rpa-grid">
@@ -5038,13 +5038,21 @@ function rpaUpsertAgent(v){
 // The runner is on-demand today (MacBook), so a row is allowed to sit in
 // `queued` until somebody runs it. The status line says exactly that rather
 // than implying something is already happening.
+//
+// A run SENDS. This button first shipped stopping at `awaiting_review`, which
+// made the owner come back and approve a document she had already decided to
+// send — the same work, moved later. Clicking here now means the Authentisign
+// request lands in her inbox (2026-09-22).
 
 const ZIPFORM_STATUS_TEXT = {
   queued:          'Queued — waiting for the zipForm runner to pick it up.',
   claimed:         'Runner picked it up — opening zipForm…',
-  filled:          'RPA filled and saved in zipForm.',
-  awaiting_review: 'Filled and ready for review in Authentisign — NOT sent.',
-  sent:            'Sent for signature via Authentisign.',
+  filled:          'RPA filled and saved — sending for signature…',
+  // Not the normal path any more. A run sends; this only appears when the
+  // runner was started with --review-only, or when there was no signer
+  // address to send to.
+  awaiting_review: 'Filled but NOT sent — see the reason below.',
+  sent:            'Sent for signature via Authentisign — check your email.',
   failed:          'Failed — see the error below; fix and re-queue.',
   cancelled:       'Cancelled.',
 };
