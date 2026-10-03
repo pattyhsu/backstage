@@ -680,6 +680,10 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
    loan drives: the In Escrow "Daily holding cost" cell (where amount + rate get
    settled), the Under Construction "Cumulative carry" cell, and the Selling
    carry's hard-money row (where a loan gets extended or paid off). */
+.led-grp.carry-grp { border-top:1px solid var(--border); margin-top:4px; }
+.led-grp.carry-grp .led-name { color:var(--text-4); }
+.led-grp.carry-grp.loan-editable { cursor:pointer; }
+.led-grp.carry-grp.loan-editable:hover .led-name { color:var(--accent); }
 .cn-row.loan-editable { cursor:pointer; }
 .cn-row.loan-editable:hover .cn-name { color:var(--accent); }
 .cash-cell.loan-editable { cursor:pointer; }
@@ -2750,10 +2754,29 @@ function renderSpendingTree(){
   const hdr=(sub)=>`<div class="sect-h"><h2>Spent to date</h2><span class="sub">cost breakdown · ${sub}</span></div>`;
   BUCKETS.forEach(b=>{ b.total=Number(pnl[b.pnlKey]||0); });
   const total=BUCKETS.reduce((s,b)=>s+b.total,0);
-  if(total<=0){
-    return `${hdr('no expenses yet')}<div class="sp-empty">No rehab expenses synced yet. Run QBO sync from <a href="https://finances.dottyhomes.com/deal-pnl.html" style="color:var(--accent)">Deal P&L</a>.</div>`;
-  }
   const fmtD=n=>'$'+Math.round(n).toLocaleString();
+  // Carry is NOT a rehab bucket. It accrues daily on the loan and is never booked
+  // to a QBO rehab account, so it stays out of the composition bar and out of
+  // `total` — folding it in would inflate spend against the rehab budget the
+  // progress bar above measures. Same projection the Selling carry tree uses:
+  // days held since funding × interest/day. Doubles as the loan editor's door
+  // for this phase (the cash cells it would otherwise hang on are display:none
+  // here — see PHASE_CONFIG).
+  const loan=editableLoan();
+  const dailyInterest=loan?((loan.loan_amount||0)*(loan.rate_apr||0)/365):0;
+  const carryDays=(loan&&loan.funded_date)?Math.max(0, daysBetween(loan.funded_date, todayStr())||0):0;
+  const carryTotal=Math.round(dailyInterest*carryDays);
+  const carryDet=!loan ? 'no loan yet · click to add'
+    : dailyInterest<=0 ? 'loan on file · no amount or rate set'
+    : !loan.funded_date ? 'not funded yet · will accrue from the funding date'
+    : carryDays+' days @ '+fmtD(dailyInterest)+'/day · projected';
+  const carryHtml=`<div class="led-grp carry-grp loan-editable"${LOAN_EDIT_ATTR}><div class="led-head">`
+    +`<span class="led-sw" style="background:#C7C7CC"></span><span class="led-name">Carry</span>`
+    +`<span class="led-pct">${escapeHtml(carryDet)}</span>`
+    +`<span class="led-sub">${carryTotal>0?fmtD(carryTotal):'—'}</span></div></div>`;
+  if(total<=0){
+    return `${hdr('no expenses yet')}<div class="sp-empty">No rehab expenses synced yet. Run QBO sync from <a href="https://finances.dottyhomes.com/deal-pnl.html" style="color:var(--accent)">Deal P&L</a>.</div>${carryHtml}`;
+  }
   const shown=BUCKETS.filter(b=>b.total>0);
   const comp=shown
     .map(b=>`<div class="comp-seg" style="background:${b.color};flex:${Math.max(1,Math.round(b.total))}"></div>`).join('');
@@ -2765,6 +2788,7 @@ function renderSpendingTree(){
     ${hdr(shown.length+' buckets · '+fmtD(total))}
     <div class="comp-bar">${comp}</div>
     <div id="ledger">${ledger}</div>
+    ${carryHtml}
     <div class="sp-empty">Account-level detail lives on <a href="https://finances.dottyhomes.com/deal-pnl.html" style="color:var(--accent)">Deal P&L</a>.</div>
   `;
 }
