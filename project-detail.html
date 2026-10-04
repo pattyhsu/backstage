@@ -1086,6 +1086,9 @@ function scopeTierLabel(t){
 // ============================================================
 // PHASE_CONFIG — drives applyPhase(). Mirrors mockup PHASE_CONFIG.
 // ============================================================
+// No phase-level read-only: deliberately not implemented. Sold deals stay
+// editable (cash grid, loan-editor phase doors, final figures) — don't re-add a
+// readOnly flag that nothing enforces.
 const PHASE_CONFIG = {
   pursuing: {
     show: ['cashSect','offerCalc'],
@@ -1126,7 +1129,6 @@ const PHASE_CONFIG = {
     cashTitle: 'Final P&L',
     cashSub: 'closed deal — read only',
     loanStatus: 'paid_off',
-    readOnly: true,
   },
   lost: {
     show: ['cashSect','offerCalc'],
@@ -1134,12 +1136,10 @@ const PHASE_CONFIG = {
     cashTitle: 'Offer math (lost)',
     cashSub: 'deal lost — read only · kept for reference',
     loanStatus: 'none',
-    readOnly: true,
   },
   archived: {
     show: [],
     hide: ['uwBar','escrowSect','constructionSect','listingSect','offerCalc','lpCalc','cashGrid','docsSect','cashSect'],
-    readOnly: true,
   },
 };
 
@@ -2873,8 +2873,15 @@ function renderSpendingTree(){
   `;
 }
 
+// Guarded like wireLoanEdit(): the wire* block re-runs on every render and this
+// listener is on document. A repeat add of the same named function is a no-op
+// per the DOM spec, so today nothing stacks; the guard keeps it that way if the
+// handler is ever inlined as an arrow (which WOULD stack, toggling twice/click).
+let spTreeWired=false;
 function wireSpendingTree(){
+  if(spTreeWired)return;
   document.addEventListener('click', _spTreeClick);
+  spTreeWired=true;
 }
 
 // Which Selling-breakdown rows are collapsed, keyed by data-key. Persists across
@@ -4178,8 +4185,9 @@ function _loanEditClick(e){
   if(open && open.dataset.loanId===loan.id){open.remove();return;}
   openLoanEditPopover(loan.id, el);
 }
-// Guarded: the wire* block re-runs on every render, and this listener is on
-// document, so an unguarded add would stack a copy per render.
+// Guarded: the wire* block re-runs on every render and this listener is on
+// document. (A repeat add of the same named function is a spec no-op, so it
+// would not stack today; the guard makes once-only explicit and refactor-proof.)
 let loanEditWired=false;
 function wireLoanEdit(){
   if(loanEditWired)return;
