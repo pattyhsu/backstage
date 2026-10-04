@@ -2079,20 +2079,29 @@ function renderConstructionSection(){
 
   const spendHtml=renderSpendingTree();
 
-  // Design gates the build, and the gap from close is carry nobody counts.
-  // Shown inline so the cost is visible where the date is entered, rather
-  // than only in a report somebody has to go and look at.
+  // Crews start the day we TAKE OWNERSHIP — the buy-side close
+  // (actual_close_date), not the eventual sale (sale_close_date). So that
+  // date is design's deadline, not its start: design runs during the
+  // acquisition escrow (median ~30 days) and must land by then. A layout
+  // finalised after we own the house means crews standing around on carry.
   const _dd = (from,to) => (from&&to) ? daysBetween(from,to) : null;
-  const _designDays = _dd(d.actual_close_date, d.design_final_at);
-  const _openDays   = d.actual_close_date && !d.design_final_at
-    ? daysBetween(d.actual_close_date, todayStr()) : null;
-  const designAux = _designDays!=null ? `${_designDays}d from close`
-    : _openDays!=null ? `${_openDays}d open since close`
-    : 'from close';
-  const _plansDays = _dd(d.actual_close_date, d.plans_final_at);
+  const _vsClose = _dd(d.actual_close_date, d.design_final_at); // +late / -early
+  const _closePast = d.actual_close_date && d.actual_close_date <= todayStr();
+  const _toClose = d.actual_close_date && !d.design_final_at
+    ? daysBetween(todayStr(), d.actual_close_date) : null;
+  const designAux =
+    _vsClose!=null
+      ? (_vsClose > 0 ? `${_vsClose}d LATE — after we owned it`
+         : _vsClose === 0 ? 'on the day we took ownership'
+         : `${-_vsClose}d before we owned it`)
+    : _closePast ? `overdue — owned ${daysBetween(d.actual_close_date, todayStr())}d`
+    : _toClose!=null ? `${_toClose}d until we own it`
+    : 'due by ownership';
+  const _plansVs = _dd(d.actual_close_date, d.plans_final_at);
   const plansAux = d.plans_required===false ? 'not needed'
-    : _plansDays!=null ? `${_plansDays}d from close`
-    : d.plans_required===true ? 'outstanding' : '—';
+    : _plansVs!=null
+      ? (_plansVs > 0 ? `${_plansVs}d LATE` : `${-_plansVs}d before close`)
+    : d.plans_required===true ? (_closePast ? 'overdue' : 'outstanding') : '—';
 
   return `
     <div class="phase-hide" id="constructionSect">
@@ -2101,7 +2110,7 @@ function renderConstructionSection(){
         <!-- LEFT · dates + status bars + the milestone schedule -->
         <div class="esc-col">
           <div class="sect">
-            <div class="sect-h"><h2>Design</h2><span class="sub">gates the build · every day here is carry</span></div>
+            <div class="sect-h"><h2>Design</h2><span class="sub">done during escrow · due the day we take ownership, because crews start then</span></div>
             <div class="et-grid" style="margin-bottom:16px;grid-template-columns:1fr 1fr 1fr">
               <div class="et-cell"><div class="et-lbl">Layout final</div><div class="et-val" data-deal-field="design_final_at" data-deal-type="date">${d.design_final_at||'—'}</div><div class="et-aux">${designAux}</div></div>
               <div class="et-cell"><div class="et-lbl">Permit plans?</div>
