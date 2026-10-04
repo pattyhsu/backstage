@@ -900,7 +900,9 @@ function renderArvScoreRow(l,mid){
 
 function renderArvScoreCard(l,mid,src,av,active){
   const c=arvEstimateCache[l.mls];
-  const cachePending=!c||c.state==='pending';
+  // partial = list-columns-only row from loadArvEstimates; the full row is
+  // being fetched by ensureArvEstimate, which re-renders this card row.
+  const cachePending=!c||c.state==='pending'||!!c.partial;
   const cacheMissing=c&&c.state==='missing';
   const cacheErr=c&&c.state==='error';
 
@@ -987,7 +989,7 @@ function cardSubText(size,txt){return `<div style="font-size:${size};font-weight
 // by default. Renders nothing when nothing to show.
 function renderArvScoreDetail(l,mid,av){
   const c=arvEstimateCache[l.mls];
-  const cacheOk=c&&c.state==='ok';
+  const cacheOk=c&&c.state==='ok'&&!c.partial;
   const dc=dealScoreCache[l.mls];
   const parts=[];
   if(cacheOk&&av.isPerCity&&av.smartArv!=null)parts.push(renderSmartCompsDetail(l,av));
@@ -1251,45 +1253,57 @@ function setArvSource(mls,mid,src){
 }
 window.setArvSource=setArvSource;
 // ========== END ARV/SCORE CARDS ROW ==================================
-// Batch-fetch the latest ARV estimate (smart-comps + per-city) for every
-// loaded listing so the list ARV/GAP columns can prefer Comp ARV ->
-// Baseline ARV over the live comp value. Mirrors ensureArvEstimate's
-// shape (select * ordered by computed_at, status->state); chunks the IN()
-// filter and keeps the newest row per mls. ensureArvEstimate() reuses
-// these cached rows on expand (it skips any non-pending entry), so no
-// refetch. Re-renders when done to repaint the columns.
+// Batch-fetch the latest ARV estimate (Claude / smart-comps / per-city) for
+// every loaded lead so the list ARV column can prefer them. Uses the
+// arv_estimates_latest_for(text[]) RPC (dotty-agents migration
+// 20261004070000, same as mls-deals.html): newest row per mls, LIST COLUMNS
+// ONLY — mls, status, computed_at, per_city_arv, smart_comps_arv,
+// smart_comps_confidence, claude_generic_point, claude_dotty_point. The old
+// `select *` over every historical row pulled the big smart_comps_data /
+// per_city_data / claude_data / result_json blobs just to paint one number.
+// Entries are cached with partial:true — ensureArvEstimate() sees that flag
+// and fetches the full row on detail open (the cards row shows "pending"
+// until it lands), so the comps/Claude-ARV panels still get every field.
+// Repaints the ARV cells in place; a full render() only when the list is
+// sorted by ARV (the only list-order input that reads these values).
 async function loadArvEstimates(){
   const mlsList=listings.map(l=>l.mls).filter(Boolean);
   if(!mlsList.length)return;
-  const CHUNK=200;
+  const CHUNK=500;
   try{
     const chunks=[];
     for(let i=0;i<mlsList.length;i+=CHUNK)chunks.push(mlsList.slice(i,i+CHUNK));
-    // Fire the chunk fetches concurrently instead of serially (~10 chunks for a
-    // full list = ~10x round-trip latency saved before the ARV column fills in).
     const results=await Promise.all(chunks.map(chunk=>
-      sb.from('arv_estimates').select('*').in('mls',chunk).order('computed_at',{ascending:false})));
+      sb.rpc('arv_estimates_latest_for',{p_mls:chunk})));
     results.forEach(({data,error})=>{
       if(error){console.error('loadArvEstimates',error);return;}
       (data||[]).forEach(row=>{
-        // Rows arrive newest-first; first occurrence per mls is the latest.
-        // Don't clobber an entry already cached (e.g. from an expand).
+        // One row per mls. Don't clobber an entry already cached (e.g. a full
+        // row from a detail open, or a pending ensureArvEstimate fetch).
         if(arvEstimateCache[row.mls])return;
-        arvEstimateCache[row.mls]={state:(row.status==='error'?'error':'ok'),row};
+        arvEstimateCache[row.mls]={state:(row.status==='error'?'error':'ok'),row,partial:true};
       });
     });
   }catch(e){console.error('loadArvEstimates',e);}
-  render();
+  if(sort_.startsWith('arv-')){render();return;}
+  const byMls=new Map(listings.map(l=>[l.mls,l]));
+  document.querySelectorAll('[data-cell="arv"]').forEach(el=>{const l=byMls.get(el.dataset.mls);if(l)el.innerHTML=getArvLabel(l);});
 }
 async function ensureArvEstimate(mls,mid){
-  if(arvEstimateCache[mls]&&arvEstimateCache[mls].state!=='pending')return;
-  arvEstimateCache[mls]={state:'pending'};
+  const c0=arvEstimateCache[mls];
+  // A partial entry (list columns only, from loadArvEstimates) still needs the
+  // full row for the cards/detail panels. Keep it in place while fetching so
+  // the list ARV cell doesn't blank; loadingFull dedupes concurrent opens.
+  const wasPartial=!!(c0&&c0.partial);
+  if(c0&&c0.state!=='pending'&&!wasPartial)return;
+  if(wasPartial){if(c0.loadingFull)return;c0.loadingFull=true;}
+  else arvEstimateCache[mls]={state:'pending'};
   try{
     const {data,error}=await sb.from('arv_estimates').select('*').eq('mls',mls).order('computed_at',{ascending:false}).limit(1).maybeSingle();
-    if(error){arvEstimateCache[mls]={state:'missing'};}
+    if(error){arvEstimateCache[mls]=wasPartial?{state:c0.state,row:c0.row}:{state:'missing'};}
     else if(!data){arvEstimateCache[mls]={state:'missing'};}
     else{arvEstimateCache[mls]={state:(data.status==='error'?'error':'ok'),row:data};}
-  }catch(e){arvEstimateCache[mls]={state:'missing'};}
+  }catch(e){arvEstimateCache[mls]=wasPartial?{state:c0.state,row:c0.row}:{state:'missing'};}
   // Re-render the cards row in place — replaces what was previously a
   // handful of per-block re-renders (arv-est-, v4-arv-, smart-comps-,
   // la-palma-arv-, la-palma-smart-comps-, cypress-arv-, cypress-smart-comps-,
@@ -1298,9 +1312,11 @@ async function ensureArvEstimate(mls,mid){
   const rowEl=document.getElementById('arv-score-row-'+mid);
   if(rowEl&&listing)rowEl.outerHTML=renderArvScoreRow(listing,mid);
   // Re-seed the deal analyzer's ARV input now that smart_comps_arv /
-  // per_city_arv have loaded. Skip if user locked ARV.
+  // per_city_arv have loaded. Skip if user locked ARV, and skip when upgrading
+  // a partial entry: it already carried every field preferredArvFor reads, so
+  // the input was seeded with the same value and may since have been edited.
   const arvInputEl=document.getElementById('arv-'+mid);
-  if(arvInputEl&&listing&&!listing.lockedArv){
+  if(!wasPartial&&arvInputEl&&listing&&!listing.lockedArv){
     const cmL=getComps(listing);
     const pref=preferredArvFor(listing,cmL);
     setNumVal('arv-'+mid,pref.arv);
@@ -1491,17 +1507,19 @@ async function bulkLoadDealScores(mlses){
     // Chunk the IN list (can be ~2000 MLS on a full load) into parallel
     // queries — a single 2000-element IN makes an enormous URL and one heavy
     // scan. Any MLS not returned by its chunk falls through to 'missing'.
-    // Read deal_scores_latest, NOT deal_scores: the raw table is append-only
-    // (one row per listing per nightly run), so a 200-MLS IN asked for
-    // thousands of history rows and got cut off at PostgREST's 1000-row cap —
-    // newest-first, that window reached back only ~4-7 days, and every listing
-    // whose latest score was older than the cutoff came back absent and
-    // rendered "ungraded" despite having a grade. The view is one row per MLS,
-    // so a chunk is <=CHUNK rows and can't truncate.
-    const CHUNK=200,chunks=[];
+    // Latest-only, NOT the raw deal_scores table: it is append-only (one row
+    // per listing per nightly run), so a 200-MLS IN asked for thousands of
+    // history rows and got cut off at PostgREST's 1000-row cap — every listing
+    // whose latest score was older than the cutoff rendered "ungraded".
+    // deal_scores_latest_for(text[]) (migration 20261004070000) returns one row
+    // per MLS via a per-mls `order by computed_at desc limit 1` index probe —
+    // the deal_scores_latest view's DISTINCT ON was slow through PostgREST and
+    // chunks could hit the statement timeout. A chunk is <=CHUNK rows and
+    // can't truncate; the mls list goes in the POST body, not the URL.
+    const CHUNK=500,chunks=[];
     for(let i=0;i<need.length;i+=CHUNK)chunks.push(need.slice(i,i+CHUNK));
     const results=await Promise.all(chunks.map(chunk=>
-      sb.from('deal_scores_latest').select('mls,status,grade,spread,spread_pct,breakdown_json,error_message,computed_at').in('mls',chunk)));
+      sb.rpc('deal_scores_latest_for',{p_mls:chunk})));
     const seen={};
     results.forEach(({data,error})=>{if(error)console.error('bulkLoadDealScores',error);(data||[]).forEach(r=>{seen[r.mls]=r;});});
     need.forEach(m=>{
