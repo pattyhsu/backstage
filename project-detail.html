@@ -2079,6 +2079,21 @@ function renderConstructionSection(){
 
   const spendHtml=renderSpendingTree();
 
+  // Design gates the build, and the gap from close is carry nobody counts.
+  // Shown inline so the cost is visible where the date is entered, rather
+  // than only in a report somebody has to go and look at.
+  const _dd = (from,to) => (from&&to) ? daysBetween(from,to) : null;
+  const _designDays = _dd(d.actual_close_date, d.design_final_at);
+  const _openDays   = d.actual_close_date && !d.design_final_at
+    ? daysBetween(d.actual_close_date, todayStr()) : null;
+  const designAux = _designDays!=null ? `${_designDays}d from close`
+    : _openDays!=null ? `${_openDays}d open since close`
+    : 'from close';
+  const _plansDays = _dd(d.actual_close_date, d.plans_final_at);
+  const plansAux = d.plans_required===false ? 'not needed'
+    : _plansDays!=null ? `${_plansDays}d from close`
+    : d.plans_required===true ? 'outstanding' : '—';
+
   return `
     <div class="phase-hide" id="constructionSect">
       <div class="constr-cols">
@@ -2086,6 +2101,18 @@ function renderConstructionSection(){
         <!-- LEFT · dates + status bars + the milestone schedule -->
         <div class="esc-col">
           <div class="sect">
+            <div class="sect-h"><h2>Design</h2><span class="sub">gates the build · every day here is carry</span></div>
+            <div class="et-grid" style="margin-bottom:16px;grid-template-columns:1fr 1fr 1fr">
+              <div class="et-cell"><div class="et-lbl">Layout final</div><div class="et-val" data-deal-field="design_final_at" data-deal-type="date">${d.design_final_at||'—'}</div><div class="et-aux">${designAux}</div></div>
+              <div class="et-cell"><div class="et-lbl">Permit plans?</div>
+                <select class="crew-pick" id="plansRequiredSelect">
+                  <option value=""${d.plans_required==null?' selected':''}>— not decided</option>
+                  <option value="true"${d.plans_required===true?' selected':''}>Yes, needed</option>
+                  <option value="false"${d.plans_required===false?' selected':''}>No</option>
+                </select>
+                <div class="et-aux">blank is not "no"</div></div>
+              <div class="et-cell"><div class="et-lbl">Plans final</div><div class="et-val${d.plans_required===false?' dim':''}" data-deal-field="plans_final_at" data-deal-type="date">${d.plans_required===false?'n/a':(d.plans_final_at||'—')}</div><div class="et-aux">${plansAux}</div></div>
+            </div>
             <div class="sect-h"><h2>Construction</h2><span class="sub">how far in · how far behind · how much spent</span></div>
             <div class="et-grid" style="margin-bottom:16px;grid-template-columns:1fr 1fr 1fr">
               <div class="et-cell"><div class="et-lbl">Started</div><div class="et-val" data-deal-field="construction_start_date" data-deal-type="date">${d.construction_start_date||'—'}</div><div class="et-aux">day of close</div></div>
@@ -2710,10 +2737,26 @@ function wireCrewPick(){
     renderPage();
   });
 }
+function wirePlansRequired(){
+  const el=document.getElementById('plansRequiredSelect');
+  if(!el)return;
+  el.addEventListener('change', async ()=>{
+    // '' is "not decided" and must persist as NULL, not false — the whole
+    // reason this field exists is to tell "no permits needed" apart from
+    // "nobody has looked yet". Coercing blank to false would reintroduce the
+    // ambiguity the column was added to remove.
+    const v = el.value===''? null : el.value==='true';
+    const {error}=await sb.from('deals').update({plans_required:v, updated_at:new Date().toISOString()}).eq('id', currentDeal.id);
+    if(error){alert('Save failed: '+error.message);renderPage();return;}
+    currentDeal.plans_required=v;
+    renderPage();
+  });
+}
 function wireConstructionEdits(){
   document.querySelectorAll('.et-val[data-deal-field]').forEach(el=>{
     el.addEventListener('click', ()=>_beginDealFieldEdit(el));
   });
+  wirePlansRequired();
 }
 function _beginDealFieldEdit(el){
   if(el.classList.contains('editing'))return;
