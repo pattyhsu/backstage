@@ -217,7 +217,7 @@ function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'
 async function loadPipeline(){
   // Fetch all in-flight deals (exclude sold + archived).
   const {data:deals, error:dErr}=await sb.from('deals')
-    .select('id, phase, buy_side_mls, relist_mls, list_price, purchase_price, escrow_start_date, target_close_date, actual_close_date, construction_start_date, created_at')
+    .select('id, phase, buy_side_mls, relist_mls, list_price, purchase_price, escrow_start_date, target_close_date, actual_close_date, construction_start_date, list_date, created_at')
     .not('phase','in','(sold,archived,lost)')
     .order('created_at');
   if(dErr){console.error('[pipeline] deals load failed',dErr);renderError(dErr.message);return;}
@@ -235,7 +235,7 @@ async function loadPipeline(){
   const propsByMls={};
   if(allMls.size){
     const {data:props, error:pErr}=await sb.from('properties')
-      .select('mls, address, city, list_price, sale_price, sqft, beds, baths')
+      .select('mls, address, city, list_price, sale_price, sqft, beds, baths, list_date')
       .in('mls', Array.from(allMls));
     if(pErr){console.warn('[pipeline] properties load failed (non-fatal)',pErr);}
     for(const r of (props||[])){propsByMls[r.mls]=r;}
@@ -365,7 +365,13 @@ function renderBoard(deals, propsByMls, latestByDeal, costByDeal){
             if(n!=null)ageHtml=(n===0?'today':n+'d')+' in escrow';
           }
         } else if(phase!=='pursuing'){
-          let anchor=(phase==='under_construction')?(d.actual_close_date||d.construction_start_date):null;
+          let anchor=null;
+          if(phase==='under_construction')anchor=d.actual_close_date||d.construction_start_date;
+          // Selling: days on market from the list date (deals.list_date
+          // override, else the relist listing's own list_date) — same source
+          // as project-detail. The phase-history row is NOT a list date: it
+          // gets re-stamped whenever the deal re-enters 'selling'.
+          else if(phase==='selling')anchor=d.list_date||(d.relist_mls&&propsByMls[d.relist_mls]?propsByMls[d.relist_mls].list_date:null);
           if(!anchor)anchor=latest?latest.transitioned_at:d.created_at;
           const n=daysSince(anchor);
           if(n!=null){
