@@ -807,6 +807,17 @@ body { overflow:hidden; height:100vh; background:#FAFAF7; }
 .om-foot b { color:var(--text); }
 .om-foot .dim { color:var(--text-4); }
 
+/* ── "Sync QBO now" bar (owner only) — sits on every cost section ── */
+.qbo-sync { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:11.5px; color:var(--text-4); margin:-4px 0 10px; }
+.qbo-sync .qs-msg { min-width:0; }
+.qbo-sync .qs-msg.warn { color:var(--amber); }
+.qbo-sync .qs-msg.bad { color:var(--red); }
+.qbo-sync .qs-msg.good { color:var(--green); }
+.qbo-sync .qs-btn { margin-left:auto; font:inherit; font-size:11.5px; font-weight:600; color:var(--accent); background:transparent; border:1px solid var(--border); border-radius:6px; padding:3px 10px; cursor:pointer; }
+.qbo-sync .qs-btn:hover:not([disabled]) { background:var(--bg-inset); }
+.qbo-sync .qs-btn[disabled] { color:var(--text-4); cursor:default; }
+.qbo-sync .qs-link { color:var(--accent); cursor:pointer; text-decoration:underline; }
+
 /* ── Selling: 4-bucket cost breakdown (mirrors money.html QBO category tree) ── */
 .qbo-list { margin-top:12px; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
 .qbo-line { display:grid; grid-template-columns:1fr auto 46px; align-items:center; gap:10px; padding:6px 12px; font-size:12px; font-variant-numeric:tabular-nums; }
@@ -1282,6 +1293,9 @@ let lastDeCount=0;
 // DATA LOAD
 // ============================================================
 async function loadProject(){
+  // When this page's data was last read — the "Sync QBO now" bar offers
+  // "show new costs" only for a sync that finished after this.
+  window.__qsLoadedAt=Date.now();
   const {dealId, mls}=getQueryParams();
   // Each full (re)load defaults the viewed lifecycle stage to the deal's real
   // phase — so advancing the deal lands you on the new current stage. In-page
@@ -1812,6 +1826,7 @@ function renderPage(){
   wireEscrowEdits();
   wireListingEdits();
   wireSpendingTree();
+  wireQboSync();
   wireLoanEdit();
   wireDealDocs();
   wireConstructionEdits();
@@ -2855,7 +2870,7 @@ function renderSpendingTree(){
     +`<span class="led-pct">${escapeHtml(carryDet)}</span>`
     +`<span class="led-sub">${carryTotal>0?fmtD(carryTotal):'—'}</span></div></div>`;
   if(total<=0){
-    return `${hdr('no expenses yet')}<div class="sp-empty">No rehab expenses synced yet. Run QBO sync from <a href="https://finances.dottyhomes.com/deal-pnl.html" style="color:var(--accent)">Deal P&L</a>.</div>${carryHtml}`;
+    return `${hdr('no expenses yet')}${qboSyncBarHtml()}<div class="sp-empty">No rehab expenses synced yet. QuickBooks syncs nightly at 04:00${window.CURRENT_USER_ROLE==='owner'?', or press Sync QBO now':''}.</div>${carryHtml}`;
   }
   const shown=BUCKETS.filter(b=>b.total>0);
   const comp=shown
@@ -2866,6 +2881,7 @@ function renderSpendingTree(){
   }).join('');
   return `
     ${hdr(shown.length+' buckets · '+fmtD(total))}
+    ${qboSyncBarHtml()}
     <div class="comp-bar">${comp}</div>
     <div id="ledger">${ledger}</div>
     ${carryHtml}
@@ -2882,6 +2898,143 @@ function wireSpendingTree(){
   if(spTreeWired)return;
   document.addEventListener('click', _spTreeClick);
   spTreeWired=true;
+}
+
+// ── "Sync QBO now" (owner only) ─────────────────────────────────────────────
+// QuickBooks reaches these cost numbers through the Mac mini's QBO sync, which
+// runs at 04:00 and ends with the publish to the finance project. This button
+// asks for one NOW: request_qbo_sync() stamps public.qbo_sync_request
+// (dotty-agents migration 20261005215314); the mini's once-a-minute poller
+// claims it and runs the same scripts/run_qbo_sync.sh, which records a job_runs
+// row (job='qbo_sync', mode='ondemand'). Everything shown here is DERIVED from
+// those two light reads — there is no status column to drift:
+//   requested  sync_requested_at > sync_started_at   → waiting for the mini
+//   running    claimed, and the qbo_sync run since the claim is 'running'
+//   done/failed  that run's status
+// The server refuses a press while one is pending/running and for 5 min after
+// the last sync; the reason comes back and is shown, nothing is queued.
+// Owner-only twice over: the bar is not rendered for other roles, and the RPC
+// raises for anyone whose user_roles row is not 'owner'.
+const QBO_SYNC={req:null, runs:[], err:null, timer:null, wired:false, note:null, _started:false};
+const QS_POLL_ACTIVE_MS=10000, QS_POLL_IDLE_MS=60000, QS_CLOCK_SLACK_MS=120000;
+
+function _qsAgo(iso){
+  if(!iso)return 'never';
+  const m=Math.max(0, Math.round((Date.now()-new Date(iso).getTime())/60000));
+  if(m<1)return 'just now';
+  if(m<60)return m+' min ago';
+  const h=Math.round(m/60);
+  if(h<48)return h+'h ago';
+  return Math.round(h/24)+'d ago';
+}
+function _qsT(iso){ return iso?new Date(iso).getTime():null; }
+
+function qboSyncState(){
+  const r=QBO_SYNC.req||{}, runs=QBO_SYNC.runs||[];
+  const lastOk=runs.find(x=>x.status==='ok');
+  const now=Date.now();
+  const reqT=_qsT(r.sync_requested_at), startT=_qsT(r.sync_started_at);
+  const nightlyRunning=runs.find(x=>x.status==='running' && now-_qsT(x.started_at)<30*60000);
+  if(reqT && (!startT || startT<reqT)){
+    return {state: now-reqT>5*60000 ? 'stuck' : 'requested', lastOk, reqT};
+  }
+  if(startT){
+    const run=runs.slice().reverse().find(x=>_qsT(x.started_at)>=startT-QS_CLOCK_SLACK_MS);
+    if(!run){
+      // Claimed; the wrapper is pulling code / installing before it logs a run.
+      if(now-startT<10*60000)return {state:'running', lastOk};
+    } else if(run.status==='running'){
+      return {state: now-_qsT(run.started_at)>20*60000 ? 'stuck' : 'running', lastOk, run};
+    } else if(now-(_qsT(run.ended_at)||now)<30*60000){
+      return {state: run.status==='ok' ? 'done' : 'failed', lastOk, run};
+    }
+  }
+  if(nightlyRunning)return {state:'running', lastOk, run:nightlyRunning, nightly:true};
+  return {state:'idle', lastOk};
+}
+
+function qboSyncInner(){
+  if(QBO_SYNC.err && !QBO_SYNC.req)return `<span class="qs-msg">QBO sync status unavailable</span>`;
+  if(!QBO_SYNC.req)return `<span class="qs-msg">QBO sync status…</span>`;
+  const st=qboSyncState();
+  const last=st.lastOk?('QBO last synced '+_qsAgo(st.lastOk.ended_at)):'QBO not synced yet';
+  let msg=last, cls='', btn=true, label='Sync QBO now';
+  if(st.state==='requested'){ msg='Requested — waiting for the Mac mini (up to a minute)…'; btn=false; label='Requested'; }
+  else if(st.state==='running'){ msg=st.nightly?'Nightly QBO sync running…':'Syncing QuickBooks… usually 1–2 min'; btn=false; label='Syncing…'; }
+  else if(st.state==='stuck'){ msg='The Mac mini hasn\'t finished this — it may be asleep. The 04:00 sync will still run. '+last; cls='warn'; btn=false; label='Waiting'; }
+  else if(st.state==='done'){
+    const fresh=_qsT(st.run&&st.run.ended_at)>(window.__qsLoadedAt||0);
+    msg='✓ QBO synced '+_qsAgo(st.run.ended_at)+(fresh?' — <span class="qs-link" data-qbosync-reload>show new costs</span>':'');
+    cls='good';
+  }
+  else if(st.state==='failed'){ msg='QBO sync failed '+_qsAgo(st.run&&st.run.ended_at)+' — the alert is in Slack. '+last; cls='bad'; }
+  if(QBO_SYNC.note){ msg=QBO_SYNC.note+' · '+msg; }
+  return `<span class="qs-msg ${cls}">${msg}</span>`
+    +`<button type="button" class="qs-btn" data-qbosync-btn${btn?'':' disabled'}>${label}</button>`;
+}
+
+function qboSyncBarHtml(){
+  if(window.CURRENT_USER_ROLE!=='owner')return '';
+  return `<div class="qbo-sync" data-qbosync>${qboSyncInner()}</div>`;
+}
+function paintQboSync(){
+  document.querySelectorAll('[data-qbosync]').forEach(el=>{ el.innerHTML=qboSyncInner(); });
+}
+
+async function refreshQboSync(){
+  QBO_SYNC.timer=null;
+  if(window.CURRENT_USER_ROLE!=='owner')return;
+  // Skip the read while the tab is hidden — except the first one, so a page
+  // opened in a background tab still has a status when you switch to it.
+  if(!document.hidden || !QBO_SYNC.req){
+    try{
+      const [{data:req, error:e1}, {data:runs, error:e2}]=await Promise.all([
+        sb.from('qbo_sync_request').select('sync_requested_at, sync_started_at').eq('id',1).maybeSingle(),
+        sb.from('job_runs').select('status, started_at, ended_at, mode')
+          .eq('job','qbo_sync').neq('status','skipped')
+          .order('started_at',{ascending:false}).limit(10),
+      ]);
+      if(e1||e2)throw (e1||e2);
+      QBO_SYNC.req=req||{}; QBO_SYNC.runs=runs||[]; QBO_SYNC.err=null;
+    }catch(e){ QBO_SYNC.err=e; }
+    paintQboSync();
+  }
+  const s=QBO_SYNC.req?qboSyncState().state:'idle';
+  const active=(s==='requested'||s==='running'||s==='stuck');
+  QBO_SYNC.timer=setTimeout(refreshQboSync, active?QS_POLL_ACTIVE_MS:QS_POLL_IDLE_MS);
+}
+
+async function _qboSyncClick(e){
+  if(e.target.closest('[data-qbosync-reload]')){ QBO_SYNC.note=null; loadProject(); return; }
+  const b=e.target.closest('[data-qbosync-btn]');
+  if(!b||b.disabled)return;
+  b.disabled=true; b.textContent='Requesting…';
+  try{
+    const {data, error}=await sb.rpc('request_qbo_sync');
+    if(error)throw error;
+    const why={pending:'Already requested', running:'A sync is already running',
+               cooldown:'Synced moments ago — try again in '+Math.ceil(((data&&data.retry_after_s)||60)/60)+' min'};
+    QBO_SYNC.note=(data&&data.accepted)?null:(why[data&&data.reason]||'Not accepted');
+  }catch(err){
+    QBO_SYNC.note=(err&&err.code==='42501')?'Only an owner can sync QBO':'Could not request a sync';
+  }
+  if(QBO_SYNC.timer){ clearTimeout(QBO_SYNC.timer); QBO_SYNC.timer=null; }
+  await refreshQboSync();
+  setTimeout(()=>{ QBO_SYNC.note=null; paintQboSync(); }, 8000);
+}
+
+// Once-only, like wireSpendingTree(): this runs on every render. The click
+// listener is a named function on document (never stacks); the poll timer is a
+// single module-level handle, so re-renders repaint from cache instead of
+// starting a second poll loop.
+function wireQboSync(){
+  if(window.CURRENT_USER_ROLE!=='owner')return;
+  if(!QBO_SYNC.wired){
+    document.addEventListener('click', _qboSyncClick);
+    QBO_SYNC.wired=true;
+  }
+  if(QBO_SYNC.timer===null && !QBO_SYNC._started){ QBO_SYNC._started=true; refreshQboSync(); }
+  else paintQboSync();
 }
 
 // Which Selling-breakdown rows are collapsed, keyed by data-key. Persists across
@@ -3882,6 +4035,7 @@ function renderListPriceCalc(){
             </div>
           </div>
           <div class="om-col-r">
+            ${qboSyncBarHtml()}
             <div class="om-bd" id="slBd"></div>
             <div class="om-foot" id="slFoot"></div>
           </div>
