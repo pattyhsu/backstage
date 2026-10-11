@@ -563,8 +563,45 @@ async function findComps(listing){
   // Deduplicate by address: keep the first occurrence after the sort above
   // (school match → type priority → distance asc), so the kept row is the
   // strongest comp for that address, not the most recent.
-  // Strip street suffixes (ST, AVE, DR, etc.) so "13522 Carnaby" and "13522 Carnaby ST" match
-  const normAddr=s=>s.toLowerCase().replace(/\b(st|street|ave|avenue|blvd|boulevard|dr|drive|ln|lane|ct|court|cir|circle|pl|place|way|rd|road|ter|terrace)\b/g,'').replace(/[^a-z0-9]/g,'');
+  // Fold the street-type suffix (ST, AVE, DR, ...) so "13522 Carnaby" and
+  // "13522 Carnaby ST" are one comp. Only the LAST type token goes, and only
+  // when a non-numeric token survives it: a street whose NAME is a type word
+  // ("1535 Circle Dr", "100 Court St", and the real "545 N Avenue 67") would
+  // otherwise collapse to its bare house number, so two different houses
+  // would share a key and one comp would be dropped from the set below --
+  // which moves the displayed ARV when the dropped row was the max-$/sf one.
+  // A trailing unit ("#14", "Apt 312") is peeled so the suffix ends up last,
+  // then re-appended: it is never dropped, because Apt 311 and Apt 312 are
+  // different homes. Mirrors wholesaler_intake/intake.py::_norm_addr in
+  // dotty-agents (same vocabulary) -- keep the two in step if either grows.
+  // token -> canonical suffix (a Map, so a street token can never collide
+  // with an Object.prototype key).
+  const STREET_TYPES=new Map([['st','st'],['street','st'],['ave','ave'],['av','ave'],['avenue','ave'],['blvd','blvd'],['boulevard','blvd'],['rd','rd'],['road','rd'],['dr','dr'],['drive','dr'],['pl','pl'],['place','pl'],['way','way'],['ln','ln'],['lane','ln'],['walk','walk'],['ct','ct'],['court','ct'],['hwy','hwy'],['highway','hwy'],['cir','cir'],['circle','cir'],['ter','ter'],['terr','ter'],['terrace','ter'],['pkwy','pkwy'],['pky','pkwy'],['parkway','pkwy'],['diagonal','diagonal'],['canal','canal'],['mall','mall'],['plz','plz'],['plaza','plz'],['row','row'],['loop','loop'],['sq','sq'],['square','sq'],['trl','trl'],['trail','trl']]);
+  const UNIT_TOKENS=new Set(['unit','apt','apartment','ste','suite','spc','space','lot','bldg','fl','rm']);
+  const normAddr=s=>{
+    const raw=(s||'').toLowerCase(),cut=raw.search(/[#,]/);
+    const split=x=>x.replace(/[^a-z0-9]+/g,' ').trim().split(/\s+/).filter(Boolean);
+    let toks=split(cut<0?raw:raw.slice(0,cut)),tail=cut<0?[]:split(raw.slice(cut));
+    const u=toks.findIndex((t,i)=>i>0&&UNIT_TOKENS.has(t));
+    if(u>0){tail=toks.slice(u).concat(tail);toks=toks.slice(0,u);}
+    if(toks.length>1&&STREET_TYPES.has(toks[toks.length-1])){
+      const rest=toks.slice(0,-1);
+      if(rest.some(t=>!/^\d+$/.test(t))){
+        const dropped=STREET_TYPES.get(toks[toks.length-1]);
+        toks=rest;
+        // A doubled suffix ("1520 S Olive Ave AVE", "... Hwy Highway") is one
+        // MLS typo, not two streets -- those are two rows for ONE house at
+        // different $/sf, and keeping both lets the higher one set the max-$/sf
+        // ARV. Drop the repeat, but ONLY when it canonicalizes to the SAME
+        // suffix, so "2380 W Mall Ave" keeps "Mall".
+        if(toks.length>1&&STREET_TYPES.get(toks[toks.length-1])===dropped){
+          const rest2=toks.slice(0,-1);
+          if(rest2.some(t=>!/^\d+$/.test(t)))toks=rest2;
+        }
+      }
+    }
+    return toks.concat(tail).join('');
+  };
   const seen=new Set();
   const deduped=results.filter(c=>{const key=normAddr(c.addr);if(seen.has(key))return false;seen.add(key);return true;});
   const smPool=deduped.filter(c=>c.schoolMatch);
