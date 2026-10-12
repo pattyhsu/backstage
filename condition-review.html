@@ -375,7 +375,7 @@
 
     <div class="def-item">
       <div class="def-row"><span class="def-chip" style="background:#85857E">⊘</span><span class="def-name">Uncategorized</span></div>
-      <div class="def-desc">Can't be fairly graded — exterior-only or too few interior photos. Click the active tier again (or the <b>⊘ Uncat</b> button) to clear it; these land under the <b>Uncategorized</b> filter rather than being forced into a tier.</div>
+      <div class="def-desc">Can't be fairly graded — exterior-only or too few interior photos. Click a confirmed tier again (or the <b>⊘ Uncat</b> button) to clear it; these land under the <b>Uncategorized</b> filter rather than being forced into a tier.</div>
     </div>
 
   </div>
@@ -734,23 +734,24 @@ function renderCard(p){
 
   // Tier buttons: T1–T4 and T6 are single-action; T5's three sub-tiers (A/B/C)
   // are clustered into one tinted group. Clicking a sub-tier sets condition_tier=5
-  // AND value_driver_rooms_updated in a single override. Clicking the ALREADY-active
-  // button de-selects it → condition_tier=null (uncategorized). There is no bare
+  // AND value_driver_rooms_updated in a single override. Clicking the AI-suggested
+  // (unreviewed) tier confirms it as-is; clicking an already-CONFIRMED tier
+  // de-selects it → condition_tier=null (uncategorized). There is no bare
   // "T5-U" sub-tier — an ungradeable listing uses the ⊘ Uncat control (tier=null),
   // not a T5 with a null sub-tier.
   const t=p.condition_tier, sub=p.value_driver_rooms_updated;
   const mainBtn=(n)=>{
     const on=t===n;
     const cls=on?(isOverridden?'tier-btn overridden':'tier-btn active'):'tier-btn';
-    const click=on?`clearTier('${p.id}')`:`overrideTier('${p.id}',${n})`;
-    const title=on?'Click again to de-select (uncategorize)':'';
+    const click=!on?`overrideTier('${p.id}',${n})`:isOverridden?`clearTier('${p.id}')`:`markReviewed('${p.id}')`;
+    const title=!on?'':isOverridden?'Click again to de-select (uncategorize)':'AI tier — click to confirm';
     return `<button class="${cls}" title="${title}" onclick="${click}">T${n}</button>`;
   };
   const subBtn=(v,label)=>{
     const on=t===5 && sub===v;
     const cls=on?(isOverridden?'tier-btn sub overridden':'tier-btn sub active'):'tier-btn sub';
-    const title=on?'Click again to de-select (uncategorize)':SUBTIER[v].t;
-    const click=on?`clearTier('${p.id}')`:`setT5('${p.id}',${v})`;
+    const title=!on?SUBTIER[v].t:isOverridden?'Click again to de-select (uncategorize)':'AI tier — click to confirm';
+    const click=!on?`setT5('${p.id}',${v})`:isOverridden?`clearTier('${p.id}')`:`markReviewed('${p.id}')`;
     return `<button class="${cls}" title="${esc(title)}" onclick="${click}">${label}</button>`;
   };
   const tierBtns=`${mainBtn(1)}${mainBtn(2)}${mainBtn(3)}${mainBtn(4)}`
