@@ -1126,6 +1126,12 @@ function renderSmartCompsDetail(l,av){
   // analog, swapped HS→pool). Column auto-hides for cities that pass no
   // pool adjustment (Cerritos/Cypress/Diamond Bar/etc).
   const hasPoolAdj=comps.some(co=>co.pool_adjustment_pct!=null&&Math.abs(co.pool_adjustment_pct)>0.01);
+  // Orange smart-comps emits per-comp mills_adjustment_pct (2026-10): a comp
+  // whose Mills Act status (historic property-tax contract) differs from the
+  // subject's is restated onto the subject's status — about ±24% at the
+  // shipped scale. Column auto-hides for cities that pass no Mills Act
+  // adjustment.
+  const hasMillsAdj=comps.some(co=>co.mills_adjustment_pct!=null&&Math.abs(co.mills_adjustment_pct)>0.01);
   // Temple City smart-comps emits per-comp comp_total_adjustment_pct (the
   // cumulative normalization that drives the adjustment-trust down-weight,
   // temple_city_smart_comps Decision #11) + a top-level count of comps
@@ -1147,6 +1153,7 @@ function renderSmartCompsDetail(l,av){
       ${hasHsAdj?`<th style="text-align:right;padding:3px 4px">HS adj</th>`:''}
       ${hasElemAdj?`<th style="text-align:right;padding:3px 4px">Elem adj</th>`:''}
       ${hasPoolAdj?`<th style="text-align:right;padding:3px 4px">Pool adj</th>`:''}
+      ${hasMillsAdj?`<th style="text-align:right;padding:3px 4px" title="Mills Act adjustment: the comp's $/sf restated onto the subject's Mills Act status (a historic property-tax contract that transfers with the house). + means the subject has a contract and this comp doesn't; − the reverse. Already included in T6 @ subj.">Mills adj</th>`:''}
       ${hasTotalAdj?`<th style="text-align:right;padding:3px 4px">Total adj</th>`:''}
       <th style="text-align:right;padding:3px 4px">w</th></tr></thead>`;
     const body=comps.map(co=>{
@@ -1174,6 +1181,10 @@ function renderSmartCompsDetail(l,av){
       const poolStr=(poolPct==null||Math.abs(poolPct)<0.01)?'—':(poolPct>0?'+':'')+poolPct.toFixed(2)+'%';
       const poolCol=(poolPct==null||Math.abs(poolPct)<0.01)?'var(--text-4)':(poolPct>0?'var(--green)':'var(--red)');
       const poolCell=hasPoolAdj?`<td style="padding:3px 4px;text-align:right;color:${poolCol}">${poolStr}</td>`:'';
+      const millsPct=co.mills_adjustment_pct;
+      const millsStr=(millsPct==null||Math.abs(millsPct)<0.01)?'—':(millsPct>0?'+':'')+millsPct.toFixed(2)+'%';
+      const millsCol=(millsPct==null||Math.abs(millsPct)<0.01)?'var(--text-4)':(millsPct>0?'var(--green)':'var(--red)');
+      const millsCell=hasMillsAdj?`<td style="padding:3px 4px;text-align:right;color:${millsCol}">${millsStr}</td>`:'';
       const totPct=co.comp_total_adjustment_pct;
       const totStr=(totPct==null)?'—':totPct.toFixed(1)+'%';
       // Higher cumulative adjustment = lower trust (down-weighted). Amber past 25%.
@@ -1190,6 +1201,7 @@ function renderSmartCompsDetail(l,av){
         ${hsCell}
         ${elemCell}
         ${poolCell}
+        ${millsCell}
         ${totalCell}
         <td style="padding:3px 4px;text-align:right;color:var(--text-4)">${((co.weight||0)*100).toFixed(0)}%</td></tr>`;
     }).join('');
