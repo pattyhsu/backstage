@@ -14,6 +14,7 @@
 //     user display (avatar initial + display name).
 //   - Owner-only sections (INSIGHTS + ADMIN) are omitted entirely when
 //     window.CURRENT_USER_ROLE !== 'owner'. Not greyed — absent.
+//   - condition_reviewer sees only the Condition entry.
 //
 // No IIFE. The page owns when to render.
 
@@ -81,9 +82,11 @@
 
     for (const section of NAV) {
       if (section.ownerOnly && role !== 'owner') continue;
+      if (role === 'condition_reviewer' && !section.items.some(it => it.key === 'data')) continue;
       html += '<div class="side-section">';
       html += '<div class="side-section-label">' + escapeHtml(section.label) + '</div>';
       for (const it of section.items) {
+        if (role === 'condition_reviewer' && it.key !== 'data') continue;
         const isActive = it.key === activeKey;
         const disabled = !it.href;
         const cls = 'side-item' + (isActive ? ' active' : '') + (disabled ? ' disabled' : '');

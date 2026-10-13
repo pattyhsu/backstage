@@ -7,7 +7,7 @@
 <title>Condition Review — Backstage</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
-<script src="sidebar.js?v=20260901"></script>
+<script src="sidebar.js?v=20261013"></script>
 <script src="feedback.js?v=20260901b"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -1042,6 +1042,7 @@ function evenSample(total,count){
   await window.authGate();
   if(!window.CURRENT_USER_ROLE) return;  // authGate redirected; abort
   window.renderSidebar('data');
+  if(window.CURRENT_USER_ROLE==='condition_reviewer') document.querySelectorAll('.cond-tabs a.tab').forEach(a=>a.remove());
   // Deep-link: ?mls=A,B,C pre-loads a review set (e.g. an ARV re-tag shortlist)
   // into MLS-list mode. Set state before init() so its first load is filtered.
   const mlsParam=new URLSearchParams(location.search).get('mls');
