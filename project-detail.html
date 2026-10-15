@@ -4087,6 +4087,8 @@ function wireListPriceCalc(){
   const LOAN_BALANCE=loan?(loan.loan_amount||0):0;
   const LOAN_RATE=loan?(loan.rate_apr||0):0;
   const DAILY_INTEREST=LOAN_BALANCE*LOAN_RATE/365;             // hard-money interest / day
+  // Loans the sale proceeds must retire — every funded one, not just the first.
+  const PAYOFF_LOANS=dealLoans.filter(l=>l.status==='funded');
   // Carry estimates ONLY the two costs that accrue continuously and aren't
   // cleanly booked: hard-money interest + property tax (~1.2%/yr). Insurance,
   // utilities, etc. are their own QBO categories (booked as actuals) — never
@@ -4272,8 +4274,26 @@ function wireListPriceCalc(){
     document.getElementById('slBasisHelp').textContent=
       `${F(FIXED+carry)} all-in before sale costs · ${totalDays} days held @ ${F(DAILY_INTEREST)} interest + ${F(DAILY_TAX)} tax /day →`;
     renderSellBd({list,comm,clo,conc,days,totalDays,financing,propTax,carry,disposition,allOut,profit,basis});
+    // Cash to us at close = sale price − sale costs − loan payoff. Hard-money
+    // interest is paid monthly in arrears (the lender statements post it in
+    // 16 / 30 / 24-day chunks), so the payoff wire is principal + interest from
+    // the 1st of the closing month to the close date. Earlier months' interest
+    // was already paid out of pocket — it's in Carry, not in the payoff.
+    const gross=list-disposition;
+    let proceedsHtml=`<b>Net proceeds</b> ${F(gross)} <span class="dim">at close, before loan payoff</span>`;
+    if(PAYOFF_LOANS.length){
+      const closeDt=new Date(); closeDt.setDate(closeDt.getDate()+Math.max(0,days));
+      const stubDays=closeDt.getDate();
+      const principal=PAYOFF_LOANS.reduce((s,l)=>s+(l.loan_amount||0),0);
+      const stubInterest=PAYOFF_LOANS.reduce((s,l)=>s+(l.loan_amount||0)*(l.rate_apr||0)/365,0)*stubDays;
+      const payoff=principal+stubInterest, cash=gross-payoff;
+      const closeLbl=closeDt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      proceedsHtml=`<b>Net proceeds</b> <span style="font-weight:600;color:${cash>=0?'var(--green)':'var(--red)'}">${FS(cash)}</span> `+
+        `<span class="dim">cash to us · ${F(gross)} at close − ${F(payoff)} loan payoff `+
+        `(${F(principal)} principal + ${F(stubInterest)} interest, ${stubDays} days to ${closeLbl})</span>`;
+    }
     document.getElementById('slFoot').innerHTML=
-      `<span><b>Net proceeds</b> ${F(list-disposition)} <span class="dim">at close, before loan payoff</span></span>`+
+      `<span>${proceedsHtml}</span>`+
       `<span style="margin-left:auto;font-weight:600;color:${profit>=0?'var(--green)':'var(--red)'}">Profit ${FS(profit)} · ${Math.round(profit/basis*100)}% on cost</span>`;
     recomputeOffers();   // closing % is shared, so list-calc edits flow into the offers
   }
