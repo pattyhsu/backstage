@@ -4287,10 +4287,11 @@ function wireListPriceCalc(){
       const principal=PAYOFF_LOANS.reduce((s,l)=>s+(l.loan_amount||0),0);
       const stubInterest=PAYOFF_LOANS.reduce((s,l)=>s+(l.loan_amount||0)*(l.rate_apr||0)/365,0)*stubDays;
       const payoff=principal+stubInterest, cash=gross-payoff;
-      const closeLbl=closeDt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      const mon=closeDt.toLocaleDateString('en-US',{month:'short'});
+      const stubLbl=stubDays===1?`${mon} 1`:`${mon} 1–${stubDays}`;
       proceedsHtml=`<b>Net proceeds</b> <span style="font-weight:600;color:${cash>=0?'var(--green)':'var(--red)'}">${FS(cash)}</span> `+
         `<span class="dim">cash to us · ${F(gross)} at close − ${F(payoff)} loan payoff `+
-        `(${F(principal)} principal + ${F(stubInterest)} interest, ${stubDays} days to ${closeLbl})</span>`;
+        `(${F(principal)} principal + ${F(stubInterest)} ${stubLbl} interest)</span>`;
     }
     document.getElementById('slFoot').innerHTML=
       `<span>${proceedsHtml}</span>`+
