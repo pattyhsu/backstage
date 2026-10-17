@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Side Projects — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js?v=20261016"></script>
+<script src="feedback.js?v=20260901b"></script>
+<style>
+/* Shell + sidebar — verbatim from construction.html */
+.app-shell { display:flex; min-height:100vh; }
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; }
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-item.new-item .side-label::after { content:'new'; font-size:8.5px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; color:var(--accent); background:var(--accent-dim2); border-radius:3px; padding:1px 4px; margin-left:6px; vertical-align:1px; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.main-content { flex:1; min-width:0; padding:20px 24px 70px; }
+
+/* Mockup banner */
+  border-radius:var(--radius-sm); padding:5px 10px; margin-bottom:14px; }
+
+/* === SIDE PROJECTS === */
+
+button.btn { font:inherit; font-size:12px; padding:4px 10px; border:1px solid var(--border);
+  background:var(--bg); border-radius:var(--radius-sm); cursor:pointer; color:var(--text-2); }
+button.btn:hover { border-color:var(--border-hover); }
+button.btn.pri { background:var(--text); color:#fff; border-color:var(--text); font-weight:600; }
+button.btn.gold { color:var(--accent); border-color:var(--accent-dim2); background:var(--accent-dim); font-weight:600; }
+h2 { font-size:14.5px; font-weight:600; }
+.card { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px 14px; }
+
+/* Stage strip — same four stages as the table; click one to filter */
+
+.ytd { display:flex; gap:6px 18px; flex-wrap:wrap; font-size:11.5px; color:var(--text-4); margin:-4px 2px 18px; }
+.ytd b { color:var(--text-2); font-weight:600; }
+.ytd .lbl { font-weight:700; letter-spacing:.5px; text-transform:uppercase; font-size:10px; }
+
+/* Crew strip */
+.crew { display:grid; grid-template-columns:170px repeat(14,1fr); gap:1px; align-items:stretch; }
+.kind.flip { color:var(--text-3); background:var(--bg-alt); }
+.kind.side { color:var(--accent); background:var(--accent-dim2); }
+.crew .c { background:var(--bg-page); min-height:22px; font-size:9.5px; color:var(--text-3); display:grid; place-items:center; font-family:var(--mono); }
+.crew .c.flip { background:#E9EEF2; }
+.crew .c.side { background:var(--accent-dim2); color:var(--accent); }
+.crew .c.tot { background:transparent; font-weight:600; color:var(--text-3); }
+.crew .c.tot.over { background:var(--red-bg); color:var(--red); }
+.crew .c.today { box-shadow:inset 1px 0 0 var(--red); }
+
+/* Jobs table */
+.jobs { width:100%; border-collapse:collapse; table-layout:fixed; }
+.jobs th { font-size:9.5px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--text-4);
+  text-align:left; padding:6px 10px; border-bottom:1px solid var(--border); background:var(--bg); }
+.jobs th.num, .jobs td.num { text-align:right; }
+.jobs td { padding:9px 10px; border-bottom:1px solid var(--border); font-size:12.5px; vertical-align:middle; }
+.jobs tr.row { cursor:pointer; }
+.jobs tr.row:hover td { background:var(--bg-page); }
+.jobs tr.row.sel td { background:var(--accent-dim); }
+.client { font-weight:600; color:var(--text); }
+.addr { font-size:11.5px; color:var(--text-4); }
+.money { font-family:var(--mono); font-size:12px; }
+.of { font-size:11px; color:var(--text-4); font-family:var(--mono); } .margin.ok { color:var(--text-2); }
+.prog { display:flex; align-items:center; gap:6px; }
+.prog .bar { width:60px; height:5px; background:var(--bg-inset); border-radius:3px; overflow:hidden; }
+.prog .bar i { display:block; height:100%; background:var(--text-3); }
+.prog span { font-size:11px; color:var(--text-4); }
+.next { font-size:12px; color:var(--text-2); }
+.prog + .when { margin-top:4px; }
+.when { font-size:11px; color:var(--text-4); }
+.last { font-size:11px; color:var(--text-4); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.last .d { font-family:var(--mono); font-size:10.5px; margin-right:6px; }
+.next.late { color:var(--red); font-weight:500; }
+.next.soon { color:var(--amber); font-weight:500; }
+.dim { color:var(--text-4); }
+.lost td { opacity:.55; }
+
+/* Drawer */
+.main-content { padding:0 0 60px; }
+/* Pipeline's board, lifted */
+.pipe-hdr { padding:14px 20px 10px; border-bottom:1px solid var(--border); display:flex; align-items:baseline; justify-content:space-between; gap:16px; }
+.pipe-hdr h1 { font-size:14px; font-weight:700; letter-spacing:-.3px; color:var(--accent); margin:0; }
+.pipe-hdr h1 span { color:var(--text-3); font-weight:400; margin-left:6px; }
+.pipe-hdr .hdr-right { display:flex; align-items:baseline; gap:14px; }
+.lost-link { font-size:11px; color:var(--text-3); text-decoration:none; cursor:pointer; white-space:nowrap; }
+.lost-link:hover { color:var(--accent); }
+#boardView .ytd { margin:10px 22px 0; }
+.board { display:flex; gap:10px; padding:12px 20px 20px; align-items:stretch; min-height:62vh; }
+.col { flex:1 1 0; min-width:220px; display:flex; flex-direction:column; background:var(--bg-alt); border:1px solid var(--border); border-radius:8px; }
+.col-hdr { padding:10px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.col-hdr .name { font-size:11px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:var(--text-2); }
+.col-hdr .cnt { font-size:11px; font-weight:700; color:var(--text-3); font-family:var(--mono); padding:1px 7px; border-radius:9px; background:var(--bg); border:1px solid var(--border); }
+.col.col-lead { background:rgba(156,124,60,.07); } .col.col-lead .col-hdr .name { color:var(--accent); }
+.col.col-quoted { background:rgba(184,101,26,.07); } .col.col-quoted .col-hdr .name { color:var(--amber); }
+.col.col-active { background:rgba(40,115,168,.07); } .col.col-active .col-hdr .name { color:#2873A8; }
+.col-body { flex:1; padding:8px; display:flex; flex-direction:column; gap:6px; }
+.col-empty { font-size:11px; color:var(--text-4); text-align:center; padding:18px 8px; font-style:italic; }
+.board .card { display:block; padding:11px 13px; background:var(--bg); border:1px solid var(--border); border-radius:6px; text-decoration:none; color:inherit; transition:all .1s; }
+.board .card:hover { border-color:var(--border-hover); transform:translateY(-1px); box-shadow:0 2px 6px rgba(0,0,0,.04); }
+.card-row { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+.card-row.bot { margin-top:4px; }
+.board .card .addr { flex:1; min-width:0; font-size:13px; font-weight:600; color:var(--text); line-height:1.3; }
+.board .card .price { font-size:13px; font-weight:600; color:var(--accent); white-space:nowrap; }
+.board .card .price.due { color:var(--red); }
+.board .card .sub { font-size:11px; color:var(--text-3); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.board .card .age { font-size:11px; color:var(--text-4); white-space:nowrap; }
+.board .card .age.due { color:var(--red); font-weight:600; } .board .card .age.soon { color:var(--amber); font-weight:600; }
+.card-bar { margin-top:9px; padding-top:8px; border-top:1px solid var(--border); }
+.card-bar-cap { display:flex; justify-content:space-between; align-items:baseline; font-size:10px; margin-bottom:5px; gap:8px; }
+.card-bar-cap .cb-lbl { font-weight:600; color:var(--text-3); }
+.card-bar-cap .cb-num { color:var(--text-4); white-space:nowrap; }
+.card-bar-track { height:5px; border-radius:3px; background:var(--bg-inset); overflow:hidden; }
+.card-bar-fill { height:100%; border-radius:3px; }
+.card-clash { margin-top:7px; font-size:10.5px; font-weight:600; color:var(--red); }
+.card-bar-fill.ontrack { background:var(--blue); } .card-bar-fill.warn { background:var(--amber); } .card-bar-fill.over { background:var(--red); }
+/* Needs you — a strip above the board */
+.needs { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:12px 20px 0; }
+/* Past jobs / Lost popup */
+.lost-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:100; align-items:flex-start; justify-content:center; }
+.lost-overlay.open { display:flex; }
+.lost-card { background:var(--bg); border:1px solid var(--border); border-radius:10px; margin-top:84px; width:560px; max-width:90vw; max-height:72vh; display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,.2); }
+.lost-head { display:flex; align-items:center; justify-content:space-between; padding:13px 16px; border-bottom:1px solid var(--border); font-weight:700; font-size:13px; }
+.lost-x { border:none; background:none; cursor:pointer; font-size:15px; color:var(--text-3); }
+.lost-body { overflow-y:auto; padding:6px; }
+.lost-row { display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:9px 10px; border-radius:6px; text-decoration:none; color:inherit; }
+.lost-row:hover { background:var(--bg-inset); }
+.lr-addr { font-size:13px; font-weight:600; color:var(--text); }
+.lr-city { font-weight:400; color:var(--text-3); font-size:12px; }
+.lr-price { font-size:12px; font-weight:600; color:var(--text); white-space:nowrap; font-family:var(--mono); text-align:right; }
+.lr-m { display:block; font-size:11px; font-weight:500; color:var(--text-4); }
+.lr-m.g { color:var(--green); } .lr-m.r { color:var(--red); }
+.lost-hint { padding:9px 16px; border-top:1px solid var(--border); font-size:10.5px; color:var(--text-4); }
+/* One job, full page */
+.detail { max-width:1080px; margin:0 auto; padding:0 28px; }
+.topbar { display:flex; align-items:center; gap:14px; padding:9px 24px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.92); backdrop-filter:blur(20px); position:sticky; top:0; z-index:10; }
+.back-btn { background:none; border:1px solid var(--border); border-radius:5px; padding:4px 10px; font-size:12px; color:var(--text-3); text-decoration:none; white-space:nowrap; }
+.back-btn:hover { color:var(--text); border-color:var(--border-hover); text-decoration:none; }
+.topbar-right { margin-left:auto; display:flex; align-items:center; gap:14px; }
+.stage-tabs { display:flex; gap:3px; background:var(--bg-inset); padding:3px; border-radius:99px; }
+.stage-tab { border:none; background:transparent; font-family:var(--sans); font-size:12.5px; font-weight:600; color:var(--text-3); padding:5px 15px; border-radius:99px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:7px; }
+.stage-tab:hover { color:var(--text); }
+.stage-tab.on { background:var(--bg); box-shadow:var(--shadow-sm); color:var(--text-2); }
+.stage-tab.cur { font-weight:700; }
+.stage-tab.cur[data-k="lead"] { color:var(--accent); } .stage-tab.cur[data-k="quoted"] { color:var(--amber); }
+.stage-tab.cur[data-k="active"] { color:var(--blue); } .stage-tab.cur[data-k="complete"] { color:var(--green); } .stage-tab.cur[data-k="lost"] { color:var(--red); }
+.stage-tab.future { color:var(--text-4); }
+.stage-tab .here-dot { width:6px; height:6px; border-radius:50%; background:currentColor; display:inline-block; }
+.topbar-lost { background:#fff; border:1px solid var(--border); border-radius:6px; padding:6px 12px; font:12px var(--sans); font-weight:600; color:var(--text-3); cursor:pointer; }
+.topbar-won { background:var(--text); border:1px solid var(--text); border-radius:6px; padding:6px 12px; font:12px var(--sans); font-weight:600; color:#fff; cursor:pointer; }
+.topbar-won:hover { background:var(--green); border-color:var(--green); }
+.won-intro { padding:10px 16px 0; font-size:12px; color:var(--text-3); }
+.won-lines { padding:4px 4px 8px; }
+.won-l { display:grid; grid-template-columns:18px 1fr auto; gap:8px; align-items:center; padding:7px 6px; border-bottom:1px solid var(--bg-alt); font-size:13px; cursor:pointer; }
+.won-l .qn { font-family:var(--mono); font-size:12px; }
+.won-l:has(input:not(:checked)) span { color:var(--text-4); text-decoration:line-through; }
+.won-terms { padding:6px 10px; }
+.won-terms label { display:flex; flex-direction:column; gap:4px; font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:var(--text-4); }
+.won-terms select { font:inherit; font-size:12.5px; text-transform:none; letter-spacing:0; font-weight:400; color:var(--text); padding:6px 8px; border:1px solid var(--border); border-radius:var(--radius-sm); }
+.won-sum { padding:10px 10px 4px; }
+.won-foot { display:flex; justify-content:flex-end; gap:6px; padding:10px 16px; border-top:1px solid var(--border); }
+.won-foot .btn[disabled] { opacity:.45; cursor:not-allowed; }
+.ql.ro.declined span { color:var(--text-4); }
+.ql.ro.declined > span:first-child { text-decoration:line-through; }
+.tagdec { font-size:9px; font-weight:700; color:var(--text-4); background:var(--bg-alt); border-radius:3px; padding:1px 5px; text-decoration:none; display:inline-block; }
+.topbar-lost:hover { border-color:var(--red); color:var(--red); }
+.jh { padding:20px 2px 14px !important; border-bottom:1px solid var(--border) !important; }
+.jh-title { font-size:16px; font-weight:800; color:var(--text); line-height:1.2; }
+.jh-sub { font-size:11.5px; color:var(--text-3); display:flex; gap:14px; flex-wrap:wrap; margin-top:5px; }
+.jh-sub a { color:var(--text-3); }
+.jh-tag { font-size:10px; font-weight:700; color:var(--accent); background:var(--accent-dim2); border-radius:3px; padding:1px 6px; }
+.detail .dw-h { position:static; padding:16px 2px 14px; background:none; }
+.detail .dw-h .x { display:none; }
+.detail .stages { max-width:640px; }
+.detail .sp-h, .detail .sp-acts { border-radius:var(--radius); }
+.dp-cols { columns:2 440px; column-gap:16px; padding:16px 0 0; }
+.dp-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px 0 0; align-items:start; }
+.dp-col > .dw-s { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg); margin:0 0 16px; padding:14px 18px; display:block; }
+@media (max-width:900px) { .dp-2 { grid-template-columns:1fr; } }
+.dp-cols > .dw-s, .dp-cols > .upcoming { break-inside:avoid; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg); margin:0 0 16px; display:block; }
+.dp-cols > .dw-s { padding:14px 18px; }
+.dp-cols > .upcoming { padding:12px 16px; }
+.detail:has(.nf) { max-width:760px; }
+/* empty detail pane: what needs you, instead of a blank panel */
+.dw-h { padding:18px 22px 14px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); z-index:2; }
+.dw-h .top { display:flex; align-items:center; gap:8px; }
+.dw-h h3 { font-size:17px; font-weight:600; }
+.dw-h .x { margin-left:auto; background:none; border:none; font-size:20px; color:var(--text-4); cursor:pointer; line-height:1; }
+.dw-h .meta { font-size:12px; color:var(--text-3); margin-top:4px; }
+.dw-h .meta a { color:var(--text-3); }
+.stages { display:flex; margin-top:12px; border:1px solid var(--border); border-radius:99px; overflow:hidden; }
+.stages button { flex:1; font:inherit; font-size:10.5px; font-weight:600; color:var(--text-4); background:var(--bg); border:none;
+  border-right:1px solid var(--border); padding:6px 0; cursor:pointer; position:relative; }
+.stages button:last-child { border-right:none; }
+.stages button:hover { background:var(--bg-page); color:var(--text-2); }
+.stages button.past { color:var(--text-3); background:var(--bg-page); }
+.stages button.past::before { content:'✓ '; color:var(--green); }
+.stages button.cur { color:var(--accent); background:var(--accent-dim2); }
+.stages button.cur::before { content:'● '; font-size:8px; vertical-align:1px; }
+.stages button.future { color:var(--border-strong); }
+.sumline { display:flex; gap:14px; margin-top:10px; font-size:11.5px; color:var(--text-4); flex-wrap:wrap; }
+.sumline b { font-family:var(--mono); font-weight:500; color:var(--text-2); font-size:11.5px; }
+.sumline b.g { color:var(--green); } .sumline b.r { color:var(--red); }
+.sp-h { display:flex; align-items:center; gap:8px; padding:12px 22px; background:var(--bg-page); border-bottom:1px solid var(--border); }
+.sp-h .nm { font-size:13px; font-weight:600; }
+.sp-h .when { margin-left:auto; font-size:11px; color:var(--text-4); font-family:var(--mono); }
+.pill { font-size:9.5px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; border-radius:3px; padding:1px 6px; }
+.pill.past { color:var(--green); background:var(--green-bg); }
+.pill.cur { color:var(--accent); background:var(--accent-dim2); }
+.pill.future { color:var(--text-4); background:var(--bg-alt); }
+.pill.lost { color:var(--red); background:var(--red-bg); }
+.pill.due { color:var(--amber); background:var(--amber-bg); }
+.drawer .dw-s:last-child { border-bottom:none; }
+.sp-acts { display:flex; gap:6px; flex-wrap:wrap; padding:12px 22px; border-bottom:1px solid var(--border); }
+.upcoming { margin:14px 22px; border:1px dashed var(--border-hover); border-radius:var(--radius); padding:12px 14px; font-size:12px; color:var(--text-3); }
+.upcoming h5 { font-size:12px; font-weight:600; color:var(--text-2); margin-bottom:6px; }
+.upcoming ul { padding-left:16px; } .upcoming li { padding:2px 0; }
+.upcoming .proj { margin-top:10px; padding-top:8px; border-top:1px dashed var(--border); }
+.ql { display:grid; grid-template-columns:1fr 84px 84px 40px 18px; gap:6px; align-items:center; padding:2px 0; font-size:12.5px; }
+.ql.ro { padding:5px 0; border-bottom:1px dashed var(--border); }
+.qhd span { font-size:9.5px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--text-4); }
+.qhd span:nth-child(2), .qhd span:nth-child(3), .qhd span:nth-child(4), .qhd span:nth-child(5) { text-align:right; }
+.ql input, .qterms select, .qterms input { font:inherit; font-size:12.5px; border:1px solid var(--border); border-radius:var(--radius-sm); padding:5px 7px; background:var(--bg); width:100%; min-width:0; color:var(--text); }
+.ql input:focus, .qterms select:focus, .qterms input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-dim2); }
+.ql .qn { font-family:var(--mono); font-size:12px; text-align:right; }
+.ql .qm { font-family:var(--mono); font-size:11px; text-align:right; color:var(--text-4); }
+.qm .g { color:var(--green); } .qm .r { color:var(--red); }
+.qx { border:none; background:none; color:var(--text-4); cursor:pointer; font-size:15px; line-height:1; padding:0; }
+.qx:hover { color:var(--red); }
+.qadd { display:inline-block; font-size:11.5px; color:var(--accent); cursor:pointer; margin:6px 0 2px; }
+.qtot { border-top:1px solid var(--border); margin-top:6px; padding-top:8px; font-weight:600; }
+.qsum { display:flex; justify-content:space-between; align-items:baseline; margin-top:8px; padding:8px 10px; background:var(--green-bg); border-radius:var(--radius-sm); font-size:12.5px; color:var(--text-2); }
+.qsum b { font-family:var(--mono); font-size:15px; font-weight:600; color:var(--green); }
+.qterms { display:grid; grid-template-columns:1fr 150px 190px; gap:8px; margin-top:12px; }
+.qterms label { font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:var(--text-4); display:flex; flex-direction:column; gap:4px; }
+.qterms select, .qterms input { text-transform:none; letter-spacing:0; font-weight:400; }
+.handoff { display:flex; gap:12px; align-items:center; margin-top:12px; padding:10px 12px; background:var(--bg-page); border-radius:var(--radius); }
+.handoff .btn { flex-shrink:0; text-decoration:none; }
+.handoff span { font-size:11.5px; color:var(--text-3); line-height:1.45; }
+.handoff b { font-weight:600; color:var(--text-2); }
+.nf label { display:flex; flex-direction:column; gap:4px; font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:var(--text-4); margin-bottom:10px; }
+.nf label.bare { margin-bottom:8px; }
+.nf input, .nf select, .nf textarea { font:inherit; font-size:12.5px; text-transform:none; letter-spacing:0; font-weight:400; color:var(--text);
+  border:1px solid var(--border); border-radius:var(--radius-sm); padding:6px 8px; background:var(--bg); width:100%; min-width:0; }
+.nf textarea { resize:vertical; line-height:1.45; }
+.nf input:focus, .nf select:focus, .nf textarea:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-dim2); }
+.nf2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.nf3 { display:grid; grid-template-columns:1.2fr .9fr 1.3fr; gap:10px; }
+.nf label.chk { flex-direction:row; align-items:center; gap:7px; text-transform:none; letter-spacing:0; font-weight:400; font-size:12px; color:var(--text-3); margin:0; }
+.nf label.chk input { width:auto; }
+.srcs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+.src { font:inherit; font-size:12px; padding:4px 10px; border:1px solid var(--border); border-radius:99px; background:var(--bg); color:var(--text-3); cursor:pointer; }
+.src:hover { border-color:var(--border-hover); }
+.src.on { background:var(--text); border-color:var(--text); color:#fff; }
+.match { display:flex; align-items:center; gap:10px; justify-content:space-between; font-size:12px; color:var(--text-3);
+  background:var(--accent-dim); border:1px solid var(--accent-dim2); border-radius:var(--radius-sm); padding:6px 6px 6px 10px; margin:-4px 0 10px; }
+.match b { color:var(--text); font-weight:600; }
+.match.ok { color:var(--green); background:var(--green-bg); border-color:transparent; padding:6px 10px; }
+.nf-acts { position:sticky; bottom:0; display:flex; gap:6px; align-items:center; justify-content:flex-end; padding:12px 22px; background:var(--bg); border-top:1px solid var(--border); }
+.nf-err { margin-right:auto; font-size:12px; color:var(--red); }
+.scope.steps li { align-items:flex-start; padding:5px 0; border-bottom:1px dashed var(--border); }
+.scope.steps li:last-child { border-bottom:none; }
+.scope.steps .ck { margin-top:2px; }
+.scope.steps .t { flex:1; min-width:0; display:flex; flex-direction:column; }
+.scope.steps li.done .t { text-decoration:none; }
+.scope.steps li.done .nm { color:var(--text-3); }
+.scope.steps .sub { font-size:10.5px; color:var(--text-4); margin-top:1px; }
+.scope.steps .sc { font-family:var(--mono); font-size:11.5px; text-align:right; white-space:nowrap; }
+.scope.steps .sc .g { color:var(--green); } .scope.steps .sc .r { color:var(--red); }
+.tagco { font-size:9px; font-weight:700; color:var(--accent); background:var(--accent-dim2); border-radius:3px; padding:1px 4px; margin-left:4px; vertical-align:1px; }
+.crew .c.pick { cursor:pointer; }
+.crew .c.pick:hover { outline:1.5px solid var(--accent); outline-offset:-1.5px; }
+.crew .c.side.open { background:repeating-linear-gradient(135deg, var(--accent-dim2) 0 4px, var(--bg) 4px 8px); color:var(--accent); font-weight:600; }
+.pop { position:fixed; z-index:30; width:300px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-md); padding:10px 12px; display:none; }
+.pop.on { display:block; }
+.sub.sched { cursor:pointer; } .sub.sched:hover { color:var(--accent); text-decoration:underline dotted; }
+.sub.sched:has(.sedit), .sub.sched:has(.sedit):hover { cursor:default; color:var(--text-4); text-decoration:none; }
+.sub .unst { color:var(--amber); }
+.sedit { display:flex; flex-direction:column; gap:6px; margin:5px 0 2px; padding:8px; background:var(--bg-page); border-radius:var(--radius-sm); font-size:10.5px; color:var(--text-3); text-decoration:none; cursor:default; }
+.se-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.se-row .se-cost { margin-left:auto; font-family:var(--mono); font-weight:500; font-size:11px; color:var(--text); }
+.se-lbl .samecrew { margin-left:8px; text-transform:none; letter-spacing:0; font-weight:500; color:var(--accent); cursor:pointer; }
+.dayrow { display:grid; grid-template-columns:62px 1fr auto; gap:8px; align-items:center; padding:4px 0; border-bottom:1px dashed var(--border); }
+.dayrow:last-of-type { border-bottom:none; }
+.dr-d { font-family:var(--mono); font-size:11px; color:var(--text-3); }
+.dr-p { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.dr-c { font-family:var(--mono); font-size:11px; color:var(--text-3); }
+.pp { display:inline-flex; align-items:center; gap:4px; font-size:11.5px; background:var(--text); color:#fff; border-radius:99px; padding:2px 4px 2px 9px; }
+.pp em { font-style:normal; font-size:10px; color:#F5C38A; }
+.pp.warn { background:var(--amber); }
+.pp .rmp { border:none; background:none; color:#fff; opacity:.7; cursor:pointer; font-size:13px; line-height:1; padding:0 3px; }
+.pp .rmp:hover { opacity:1; }
+.addp { font:inherit; font-size:11px; border:1px dashed var(--border-hover); border-radius:99px; padding:2px 6px; background:var(--bg); color:var(--text-3); cursor:pointer; width:64px; flex:none; }
+.se-lbl { font-size:9.5px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--text-4); margin-top:2px; }
+.cal-h { display:flex; align-items:center; justify-content:space-between; font-size:9.5px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--text-4); margin-bottom:4px; }
+.cal-nav { font:inherit; font-size:14px; line-height:1; background:var(--bg); border:1px solid var(--border); border-radius:4px; width:22px; height:20px; cursor:pointer; color:var(--text-3); }
+.cal { display:grid; grid-template-columns:repeat(7, 1fr); gap:3px; }
+.cal i { font-style:normal; font-size:9px; font-weight:700; color:var(--text-4); text-align:center; }
+.cd { font:inherit; font-family:var(--mono); font-size:11px; padding:4px 0; background:var(--bg); border:1px solid var(--border); border-radius:4px; cursor:pointer; color:var(--text-2); }
+.cd:hover { border-color:var(--accent); }
+.cd.sun { color:var(--text-4); background:var(--bg-alt); }
+.cd.t0 { border-color:var(--red); }
+.cd.on { background:var(--text); border-color:var(--text); color:#fff; }
+.cd.on.clash { background:var(--amber); border-color:var(--amber); }
+.sedit input { font:inherit; font-family:var(--mono); font-size:11px; width:52px; padding:2px 5px; border:1px solid var(--border); border-radius:4px; }
+.sedit .se-sub { width:150px; font-family:var(--sans); }
+.sedit .se-subamt { width:70px; }
+.sedit .btn { font-size:11px; padding:2px 8px; }
+.scope.steps .ck[data-si] { cursor:pointer; } .scope.steps .ck[data-si]:hover { border-color:var(--green); }
+.costform { display:flex; gap:5px; align-items:center; flex-wrap:wrap; padding:6px 0 8px 22px; list-style:none; }
+.costform.co { padding-left:0; }
+.costform input, .costform select { font:inherit; font-size:11.5px; padding:3px 6px; border:1px solid var(--border); border-radius:4px; background:var(--bg); }
+ .costform .co-p, .costform .co-c { width:80px; font-family:var(--mono); }
+ .costform .co-d { flex:1; min-width:120px; }
+.btn.mini, button.btn.mini { font-size:11px; padding:2px 8px; margin-top:4px; display:inline-block; text-decoration:none; }
+.alldone { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 11px; margin-bottom:8px; background:var(--green-bg); border-radius:var(--radius-sm); font-size:12.5px; color:var(--green); font-weight:500; }
+.alldone span { font-size:11px; color:var(--text-3); font-weight:400; }
+.alldone .btn { text-decoration:none; }
+/* column kinds: quoted is grey, QuickBooks is solid, planned is amber, projected is bold */
+
+.sub .pl { color:var(--amber); } .sub .pl.over { color:var(--red); font-weight:600; }
+.led-pct .qc { margin-left:6px; font-size:10.5px; color:var(--text-4); }
+.led-pct .qc .g { color:var(--green); } .led-pct .qc .r { color:var(--red); }
+.led-head { grid-template-columns:auto auto 1fr auto; }
+/* Progress card — copied from project-detail's Construction card */
+.cn-bars { display:flex; flex-direction:column; gap:14px; }
+.cn-bar2 { display:flex; flex-direction:column; gap:6px; }
+.cn-bar2-top { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+.cn-bar2 .lbl { font-size:11px; color:var(--text-4); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.cn-bar2 .pct { font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-2); font-weight:600; text-align:right; }
+.cn-bar2 .track { width:100%; height:8px; background:var(--bg-inset); border-radius:999px; overflow:hidden; }
+.cn-bar2 .fill { height:100%; border-radius:999px; }
+.cn-bar2 .fill.blue { background:var(--blue); } .cn-bar2 .fill.gold { background:var(--accent); } .cn-bar2 .fill.over { background:var(--red); }
+.cn-bar2 .bnote { font-size:11px; color:var(--text-4); } .cn-bar2 .bnote .r { color:var(--red); font-weight:600; }
+.pg-profit { margin-top:14px; padding-top:10px; border-top:1px solid var(--border); font-size:12.5px; color:var(--text-3); font-variant-numeric:tabular-nums; }
+.pg-profit b { color:var(--text); } .pg-profit b.g { color:var(--green); } .pg-profit b.r { color:var(--red); }
+.jlog > div { display:grid; grid-template-columns:44px 92px 1fr; gap:8px; align-items:baseline; padding:5px 0; border-bottom:1px dashed var(--border); font-size:12.5px; }
+.jlog > div:last-child { border-bottom:none; }
+.jlog .d { font-family:var(--mono); font-size:11px; color:var(--text-4); }
+.jlog .tg { font-size:9.5px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; color:var(--text-4); }
+.jlog .tg-change { color:var(--accent); } .jlog .tg-material { color:#2873A8; }
+.jlog .money { font-family:var(--mono); font-size:12px; }
+.noteform { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:8px; margin:-2px 0 10px; background:var(--bg-page); border-radius:var(--radius-sm); }
+.noteform input { font:inherit; font-size:12px; padding:4px 7px; border:1px solid var(--border); border-radius:4px; background:var(--bg); }
+.noteform input:focus { outline:none; border-color:var(--accent); }
+.noteform .nt-d, .noteform .nt-n { width:136px; font-family:var(--mono); font-size:11.5px; }
+.noteform .nt-tm { width:110px; font-family:var(--mono); font-size:11.5px; }
+.noteform .nt-t { flex:1; min-width:220px; }
+.noteform .nt-s { width:200px; }
+.noteform .nt-next { font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:var(--text-4); display:flex; align-items:center; gap:5px; }
+.noteform .nt-btns { margin-left:auto; display:flex; gap:5px; }
+.noteform .btn { font-size:11.5px; padding:3px 9px; }
+.alldone span { font-weight:400; color:var(--text-3); }
+.archive { display:flex; align-items:center; gap:10px; padding:14px 22px 22px; }
+.archive span { font-size:11px; color:var(--text-4); }
+.qbo-sync { display:flex; align-items:center; gap:10px; font-size:11.5px; color:var(--text-4); margin:-2px 0 10px; }
+.qbo-sync .qs-btn { margin-left:auto; font:inherit; font-size:11.5px; font-weight:600; color:var(--accent); background:transparent; border:1px solid var(--border); border-radius:6px; padding:3px 10px; cursor:pointer; }
+.comp-bar { display:flex; height:11px; border-radius:5px; overflow:hidden; background:#ECEBE8; margin-bottom:14px; }
+.comp-seg { height:100%; }
+.led-grp { padding-top:12px; border-top:1px solid var(--bg-alt); }
+.led-grp:first-of-type { padding-top:0; border-top:none; }
+.led-head { display:grid; grid-template-columns:auto auto 1fr auto; gap:8px; align-items:center; padding-bottom:6px; }
+.led-sw { width:9px; height:9px; border-radius:2px; }
+.led-name { font-size:12px; font-weight:600; color:var(--text-2); }
+.led-pct { font-size:10px; color:var(--text-4); font-variant-numeric:tabular-nums; }
+.led-sub { font-variant-numeric:tabular-nums; font-size:12px; font-weight:600; color:var(--text); text-align:right; }
+.led-row { display:grid; grid-template-columns:1fr auto; gap:10px; padding:4px 0 4px 17px; }
+.led-row .nm { font-size:12px; color:var(--text-3); }
+.led-row .amt { font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-2); font-weight:500; text-align:right; }
+.led-grp.nonrehab { border-top:1px solid var(--border); margin-top:4px; }
+.led-grp.nonrehab .led-name { color:var(--text-4); }
+.sp-empty { font-size:12px; color:var(--text-4); font-style:italic; padding:10px 0 0; }
+.sp-empty b { font-style:normal; font-weight:600; color:var(--text-3); }
+.note { font-size:12.5px; color:var(--text-2); line-height:1.5; background:var(--bg-page); border-radius:var(--radius-sm); padding:8px 10px; }
+.q { color:var(--text-4); font-size:11px; }
+.stars { color:#D9A520; letter-spacing:1px; }
+.vs { font-size:10.5px; color:var(--text-4); font-family:var(--mono); margin-left:6px; }
+.dw-s { padding:14px 22px; border-bottom:1px solid var(--border); }
+.dw-s h4 { font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--text-4); margin-bottom:8px; display:flex; align-items:center; }
+.dw-s h4 .r { margin-left:auto; text-transform:none; letter-spacing:0; font-weight:500; font-size:11px; }
+.dw-s h4 .r a { color:var(--accent); cursor:pointer; }
+.kv { display:grid; grid-template-columns:1fr auto; gap:3px 12px; font-size:12.5px; }
+.kv .l { color:var(--text-3); }
+.kv .v { font-family:var(--mono); font-size:12px; text-align:right; }
+.kv .tot { border-top:1px solid var(--border); padding-top:5px; margin-top:2px; font-weight:600; color:var(--text); }
+.kv .v.txt { font-family:var(--sans); font-size:12.5px; color:var(--text-2); }
+.kv .v.g { color:var(--green); } .kv .v.r { color:var(--red); }
+.scope li { list-style:none; display:flex; align-items:center; gap:8px; font-size:12.5px; padding:3px 0; }
+.scope .ck { width:14px; height:14px; border:1.5px solid var(--border-strong); border-radius:3px; display:grid; place-items:center; flex-shrink:0; }
+.scope .ck.on { background:var(--green); border-color:var(--green); }
+.scope .ck.on::after { content:''; width:6px; height:3px; border:solid #fff; border-width:0 0 1.5px 1.5px; transform:rotate(-45deg) translate(1px,-1px); }
+.scope li.done .t { color:var(--text-4); text-decoration:line-through; }
+.scope .who { margin-left:auto; font-size:10.5px; color:var(--text-4); }
+.scope .when { font-size:10.5px; color:var(--text-4); width:62px; text-align:right; }
+.pays { width:100%; border-collapse:collapse; font-size:12px; }
+.pays td { padding:5px 0; border-bottom:1px dashed var(--border); }
+.pays tr:last-child td { border-bottom:none; }
+.pays td.num { text-align:right; font-family:var(--mono); }
+.pays td.pd { width:56px; font-variant-numeric:tabular-nums; } .pays td.pm { color:var(--text-3); }
+.st { font-size:9.5px; font-weight:700; border-radius:3px; padding:1px 5px; letter-spacing:.3px; text-transform:uppercase; }
+.st.paid { color:var(--green); background:var(--green-bg); }
+.st.due { color:var(--amber); background:var(--amber-bg); }
+.st.late { color:var(--red); background:var(--red-bg); }
+.st.sched { color:var(--text-4); background:var(--bg-alt); }
+.photos { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.ph { aspect-ratio:4/3; border-radius:var(--radius-sm); background:repeating-linear-gradient(135deg,var(--bg-alt) 0 6px,var(--bg-page) 6px 12px); display:grid; place-items:end start; padding:4px; font-size:9.5px; color:var(--text-4); }
+.log { font-size:12px; }
+.log div { display:flex; gap:10px; padding:3px 0; }
+.log .d { color:var(--text-4); width:44px; flex-shrink:0; font-family:var(--mono); font-size:11px; }
+/* QuickBooks sync bar — same as project-detail */
+.qbo-sync { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:11.5px; color:var(--text-4); margin:-4px 0 10px; }
+.qbo-sync .qs-msg { min-width:0; }
+.qbo-sync .qs-msg.warn { color:var(--amber); }
+.qbo-sync .qs-msg.bad { color:var(--red); }
+.qbo-sync .qs-msg.good { color:var(--green); }
+.qbo-sync .qs-btn { margin-left:auto; font:inherit; font-size:11.5px; font-weight:600; color:var(--accent); background:transparent; border:1px solid var(--border); border-radius:6px; padding:3px 10px; cursor:pointer; }
+.qbo-sync .qs-btn:hover:not([disabled]) { background:var(--bg-inset); }
+.qbo-sync .qs-btn[disabled] { color:var(--text-4); cursor:default; }
+.qbo-sync .qs-link { color:var(--accent); cursor:pointer; text-decoration:underline; }
+/* link a job to its QuickBooks customer */
+.qlink { display:flex; gap:8px; margin:10px 0 4px; }
+.qlink select { flex:1; min-width:0; font:inherit; font-size:12.5px; padding:6px 8px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); }
+.handoff .btn[disabled] { opacity:.5; cursor:default; }
+#toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px); background:var(--text); color:var(--bg); font-size:12.5px; padding:9px 14px; border-radius:8px; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:200; max-width:min(560px, calc(100vw - 32px)); }
+#toast.on { opacity:1; transform:translateX(-50%) translateY(0); }
+
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <div class="bs-sidebar" id="bsSidebar"></div>
+
+  <main class="main-content">
+    <!-- Board — same shape as Pipeline: one column per stage, history behind links -->
+    <div id="boardView">
+      <div class="pipe-hdr">
+        <h1>Side Projects <span id="boardSummary"></span></h1>
+        <div class="hdr-right">
+          <a class="lost-link" id="pastLink" href="#" onclick="openList('past');return false;">Past jobs</a>
+          <a class="lost-link" id="lostLink" href="#" onclick="openList('lost');return false;">Lost</a>
+          <button class="btn pri" id="newJob">+ New job</button>
+        </div>
+      </div>
+      <div class="ytd" id="ytd"></div>
+      <div class="board" id="board"></div>
+    </div>
+    <!-- One job, full page — like project-detail -->
+    <div id="detailView" hidden>
+      <div class="topbar"><a class="back-btn" href="#" onclick="closeDrawer();return false;">← Side Projects</a>
+        <div class="topbar-right"><div class="stage-tabs" id="stageTabs"></div><span id="topbarExtra"></span></div></div>
+      <div class="detail" id="drawer"></div>
+    </div>
+  </main>
+</div>
+<div class="lost-overlay" id="wonOverlay" onclick="if(event.target===this)closeWon()"><div class="lost-card"><div class="lost-head"><span id="wonTitle"></span><button class="lost-x" onclick="closeWon()">✕</button></div>
+  <div class="won-intro">Tick what the client said yes to.</div><div class="lost-body" id="wonBody" onchange="wonRecalc()"></div>
+  <div class="won-foot"><button class="btn" onclick="closeWon()">Cancel</button><button class="btn pri" id="wonGo" onclick="confirmWon()">Mark won → In progress</button></div></div></div>
+<div class="lost-overlay" id="lostOverlay" onclick="if(event.target===this)closeLost()"><div class="lost-card"><div class="lost-head"><span id="lostTitle"></span><button class="lost-x" onclick="closeLost()">✕</button></div>
+  <div class="won-terms" style="padding:12px 16px 4px"><label>Why<select id="lostReason"><option value="">— pick one —</option><option>Went with a cheaper bid</option><option>Went with someone else</option><option>Timing didn’t work</option><option>Decided not to do it</option><option>Never heard back</option><option>Other</option></select></label></div>
+  <div class="won-terms" style="padding:4px 16px 12px"><label>Details (optional)<input id="lostDetail" placeholder="e.g. ~$5,500 from a kit installer"></label></div>
+  <div class="won-foot"><button class="btn" onclick="closeLost()">Cancel</button><button class="btn pri" onclick="confirmLost()">Mark lost</button></div></div></div>
+<div class="lost-overlay" id="listOverlay" onclick="if(event.target===this)closeList()"><div class="lost-card"><div class="lost-head"><span id="listTitle"></span><button class="lost-x" onclick="closeList()">✕</button></div><div class="lost-body" id="listBody"></div><div class="lost-hint" id="listHint"></div></div></div>
+
+<script>
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+
+// ---------- formatting + dates (LA calendar days, stored as YYYY-MM-DD) ----------
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const fmt = n => (n < 0 ? '−$' : '$') + Math.abs(Math.round(n || 0)).toLocaleString();
+const num = v => +String(v == null ? '' : v).replace(/[^\d.-]/g, '') || 0;
+const todayISO = () => new Intl.DateTimeFormat('en-CA', { timeZone:'America/Los_Angeles' }).format(new Date());
+const TODAY = todayISO(), CUR_Y = +TODAY.slice(0, 4);
+const D = iso => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); };
+const ISO = dt => dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+const md = iso => { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); return m + '/' + d + (y !== CUR_Y ? '/' + String(y).slice(2) : ''); };
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const dmd = iso => iso ? DOW[D(iso).getDay()] + ' ' + md(iso) : '';
+const daysBetween = (a, b) => Math.round((D(b) - D(a)) / 864e5);
+const addDays = (iso, n) => { const x = D(iso); x.setDate(x.getDate() + n); return ISO(x); };
+const nd = n => n + (n === 1 ? ' day' : ' days');
+const span = (a, b) => b ? md(a) + ' → ' + md(b) + ' · ' + nd(daysBetween(a, b)) : a === TODAY ? 'since today' : 'since ' + md(a) + ' · ' + nd(daysBetween(a, TODAY));
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmtYM = iso => iso ? MONTHS[+iso.slice(5, 7) - 1] + ' ' + iso.slice(0, 4) : '';
+const ymRange = (a, b) => !a ? '' : !b || fmtYM(a) === fmtYM(b) ? fmtYM(a) : a.slice(0, 4) === b.slice(0, 4) ? MONTHS[+a.slice(5, 7) - 1] + ' – ' + fmtYM(b) : fmtYM(a) + ' – ' + fmtYM(b);
+function fmtDates(ds) {   // 10/12 → 10/14, 10/16 — a Sunday off doesn't break a run
+  const runs = [];
+  ds.forEach(d => { const r = runs[runs.length - 1], gap = r ? daysBetween(r[1], d) : 9;
+    if (r && (gap === 1 || (gap === 2 && D(r[1]).getDay() === 6))) r[1] = d; else runs.push([d, d]); });
+  return runs.map(r => r[0] === r[1] ? md(r[0]) : md(r[0]) + ' → ' + md(r[1])).join(', ');
+}
+const fmtTime = t => { if (!t) return ''; const [h, m] = t.split(':').map(Number); if (isNaN(h)) return t; return (h % 12 || 12) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? 'am' : 'pm'); };
+const pct = m => (m < 0 ? '−' : '') + Math.abs(m) + '%';
+const titleCase = s => String(s || '').toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
+
+// ---------- state, loaded from Supabase ----------
+let JOBS = [];          // side_jobs rows + tasks, log, QuickBooks money + payments
+let WORKERS = [];       // active crew, from `workers` (construction.html's roster)
+let WBY = {};           // worker id → { name, daily_rate }, including retired ones (old days still name them)
+let FLIP_DAYS = [];     // { worker_id, work_date, label } — the flips' crew plan, for clashes
+let CUSTOMERS = [];     // QuickBooks side-project customers: { id, name, last } (for linking a job)
+const STAGES = [{ k:'lead', label:'Lead' }, { k:'quoted', label:'Quoted' }, { k:'active', label:'Job' }, { k:'lost', label:'Lost' }];
+const RAIL = STAGES.slice(0, 3);
+const BOARD = [{ k:'lead', label:'Lead', cls:'col-lead' }, { k:'quoted', label:'Quoted', cls:'col-quoted' }, { k:'active', label:'Jobs', cls:'col-active' }];
+
+function must(res, what) {
+  if (res && res.error) { console.error(what, res.error); throw new Error((what ? what + ': ' : '') + res.error.message); }
+  return res ? res.data : null;
+}
+function toast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 5000);
+}
+// Every write goes through here: on failure say so and reload what the database has.
+async function write(what, fn) {
+  try { await fn(); }
+  catch (e) { toast('Couldn’t save — ' + (e.message || e)); }
+  await loadAll(); render();
+}
+
+async function loadAll() {
+  const lo = TODAY, hi = addDays(TODAY, 180);
+  const [jobs, tasks, days, log, money, pays, workers, assigns] = await Promise.all([
+    sb.from('side_jobs').select('*').order('came_in', { ascending:false }),
+    sb.from('side_job_tasks').select('*').order('sort_order'),
+    sb.from('side_job_task_days').select('task_id, work_date, worker_ids'),
+    sb.from('side_job_log').select('*').order('entry_date', { ascending:false }).order('created_at', { ascending:false }),
+    sb.from('side_project_money_v1').select('qbo_customer_id, customer_name, year, income, labor, materials, soft, other, first_date, last_date'),
+    sb.from('side_project_payments_v1').select('qbo_customer_id, txn_date, amount, deposited_to, description').order('txn_date'),
+    sb.from('workers').select('id, name, daily_rate, active').order('name'),
+    sb.from('deal_work_assignments').select('deal_id, work_date, worker_id').gte('work_date', lo).lte('work_date', hi),
+  ]);
+  [jobs, tasks, days, log, money, pays, workers, assigns].forEach((r, i) => must(r, ['side_jobs', 'tasks', 'task days', 'log', 'money', 'payments', 'workers', 'flip schedule'][i]));
+  WORKERS = workers.data.filter(w => w.active);
+  WBY = Object.fromEntries(workers.data.map(w => [w.id, w]));
+  // Flip labels: deal → buy-side MLS → property street
+  const dealIds = [...new Set(assigns.data.map(a => a.deal_id))];
+  let label = {};
+  if (dealIds.length) {
+    const deals = must(await sb.from('deals').select('id, buy_side_mls').in('id', dealIds), 'deals');
+    const mlss = deals.map(d => d.buy_side_mls).filter(Boolean);
+    const props = mlss.length ? must(await sb.from('properties').select('mls, address').in('mls', mlss), 'properties') : [];
+    const addr = Object.fromEntries(props.map(p => [p.mls, p.address]));
+    label = Object.fromEntries(deals.map(d => [d.id, titleCase((addr[d.buy_side_mls] || 'a flip').replace(/^\d+\s+/, ''))]));
+  }
+  FLIP_DAYS = assigns.data.map(a => ({ worker_id:a.worker_id, work_date:a.work_date, label:label[a.deal_id] || 'a flip' }));
+  // QuickBooks money per customer (sum of its years) + the current year's slice
+  const byCust = {};
+  money.data.forEach(r => {
+    const c = byCust[r.qbo_customer_id] = byCust[r.qbo_customer_id] || { name:r.customer_name, income:0, labor:0, materials:0, soft:0, other:0, first:null, last:null, y:{} };
+    ['income', 'labor', 'materials', 'soft', 'other'].forEach(k => c[k] += +r[k]);
+    if (!c.first || r.first_date < c.first) c.first = r.first_date;
+    if (!c.last || r.last_date > c.last) c.last = r.last_date;
+    if (r.customer_name && r.customer_name.includes(':')) c.name = r.customer_name;
+    c.y[r.year] = { income:+r.income, spent:+r.labor + +r.materials + +r.soft + +r.other };
+  });
+  const paysBy = {};
+  pays.data.forEach(p => (paysBy[p.qbo_customer_id] = paysBy[p.qbo_customer_id] || []).push(p));
+  const daysBy = {};
+  days.data.forEach(d => (daysBy[d.task_id] = daysBy[d.task_id] || []).push(d));
+  JOBS = jobs.data.map(j => Object.assign(j, {
+    tasks: tasks.data.filter(t => t.job_id === j.id).map(t => {
+      const ds = (daysBy[t.id] || []).sort((a, b) => a.work_date < b.work_date ? -1 : 1);
+      return Object.assign(t, { dates: ds.map(d => d.work_date), crewByDay: Object.fromEntries(ds.map(d => [d.work_date, d.worker_ids || []])) });
+    }),
+    log: log.data.filter(l => l.job_id === j.id),
+    money: j.qbo_customer_id ? byCust[j.qbo_customer_id] || null : null,
+    pays: j.qbo_customer_id ? paysBy[j.qbo_customer_id] || [] : [],
+  }));
+  JOBS.forEach(j => sortTasks(j));
+  const linked = new Set(JOBS.map(j => j.qbo_customer_id).filter(Boolean));
+  CUSTOMERS = Object.entries(byCust).filter(([id]) => !linked.has(id)).map(([id, c]) => ({ id, name:c.name, last:c.last }))
+    .sort((a, b) => (b.last || '').localeCompare(a.last || ''));
+}
+
+// ---------- what a job adds up to ----------
+const wonLines = j => (j.quote_lines || []).filter(l => !l.declined);
+const changeOrders = j => j.log.filter(l => l.kind === 'change_order').sort((a, b) => (a.co_no || 0) - (b.co_no || 0));
+const qTotals = lines => { const ls = lines.filter(l => !l.declined); return { price: ls.reduce((a, l) => a + num(l.price), 0), cost: ls.reduce((a, l) => a + num(l.cost), 0) }; };
+const contract = j => qTotals(j.quote_lines || []).price + changeOrders(j).reduce((a, c) => a + num(c.price), 0);
+const quotedCost = j => qTotals(j.quote_lines || []).cost + changeOrders(j).reduce((a, c) => a + num(c.cost), 0);
+const paid = j => j.money ? j.money.income : 0;
+const spent = j => j.money ? j.money.labor + j.money.materials + j.money.soft + j.money.other : 0;
+const paidUp = j => j.from_qbo ? !!j.work_done_on : !!(j.work_done_on && contract(j) && paid(j) >= contract(j));
+const isOpen = j => ['lead', 'quoted'].includes(j.stage) || (j.stage === 'active' && !paidUp(j));
+const onBoard = j => !j.archived_at && isOpen(j);
+const shortName = j => j.client_name.split(' ').pop();
+const firstDay = j => j.tasks.flatMap(x => x.dates).sort()[0];
+const entered = j => ({ lead:j.came_in, quoted:j.quote_sent_on, active:j.won_on, lost:j.lost_on });
+const dueFollow = j => j.log.find(l => l.kind === 'follow_up' && l.due);
+function sortTasks(j) { j.tasks.sort((a, b) => (a.dates[0] || '9999') .localeCompare(b.dates[0] || '9999') || (a.not_billed - b.not_billed) || a.sort_order - b.sort_order); }
+
+// ---------- crew ----------
+const wname = id => (WBY[id] || {}).name || '?';
+const rateOf = id => +((WBY[id] || {}).daily_rate || 0);
+const dayCrew = (x, d) => (x.crewByDay && x.crewByDay[d]) || [];
+const crewOf = x => [...new Set(x.dates.flatMap(d => dayCrew(x, d)))];
+const crewCost = x => x.dates.reduce((a, d) => a + dayCrew(x, d).reduce((b, w) => b + rateOf(w), 0), 0);
+const taskCost = x => crewCost(x) + (x.sub_name && x.sub_cost ? +x.sub_cost : 0);   // what the task costs us in people: crew days + the sub's price
+function busyOn(jobId, w, d) {   // is this person somewhere else that day?
+  const f = FLIP_DAYS.find(a => a.worker_id === w && a.work_date === d);
+  if (f) return 'on ' + f.label;
+  for (const j of JOBS) if (j.id !== jobId && j.stage === 'active' && !j.work_done_on && j.tasks.some(x => !x.done && dayCrew(x, d).includes(w))) return 'on ' + shortName(j);
+  return '';
+}
+function busyFor(jobId, x, w) {   // first clash for this person on any of the days they're on this task
+  for (const d of x.dates) if (d >= TODAY && dayCrew(x, d).includes(w)) { const b = busyOn(jobId, w, d); if (b) return b + ' ' + md(d); }
+  return '';
+}
+function jobClashes(j) {   // this job's people who are booked elsewhere the same day, from today on
+  const by = {};
+  j.tasks.filter(x => !x.done).forEach(x => x.dates.filter(d => d >= TODAY).forEach(d => dayCrew(x, d).forEach(w => {
+    const other = busyOn(j.id, w, d); if (!other) return;
+    const c = by[other] = by[other] || { other:other.replace(/^on /, ''), workers:new Set(), days:[] };
+    c.workers.add(wname(w)); if (!c.days.includes(d)) c.days.push(d);
+  })));
+  return Object.values(by).map(c => (c.days.sort(), c));
+}
+
+// ---------- board ----------
+let selected = null, viewStage = null;
+const sel = () => JOBS.find(x => x.id === selected);
+function spentBar(j) {   // spent (QuickBooks) against the quoted cost
+  const qc = quotedCost(j), s = spent(j), pct = qc ? s / qc : null, fill = pct == null ? '' : pct > 1 ? 'over' : !j.work_done_on && pct > .85 ? 'warn' : 'ontrack';
+  return '<div class="card-bar"><div class="card-bar-cap"><span class="cb-lbl">' + (pct == null ? 'Spent' : 'Spent vs quoted cost') + '</span><span class="cb-num">' +
+    (pct == null ? fmt(s) + ' · no quote yet' : fmt(s) + ' / ' + fmt(qc) + ' · ' + Math.round(pct * 100) + '%') + '</span></div>' +
+    '<div class="card-bar-track"><div class="card-bar-fill ' + fill + '" style="width:' + Math.min(100, Math.round((pct || 0) * 100)) + '%"></div></div></div>';
+}
+function leadNext(j) {
+  if (j.visit_notes) return ['Write the quote', 'soon'];
+  if (j.visit_date) return ['Site visit ' + dmd(j.visit_date) + (j.visit_time ? ', ' + fmtTime(j.visit_time) : ''), j.visit_date < TODAY ? 'due' : 'soon'];
+  return ['Schedule a site visit', 'soon'];
+}
+function cardHtml(j) {
+  const head = (right, cls) => '<div class="card-row"><span class="addr">' + esc(j.client_name) + '</span><span class="price' + (cls ? ' ' + cls : '') + '">' + right + '</span></div>';
+  const bot = (l, r, rcls) => '<div class="card-row bot"><span class="sub">' + esc(l) + '</span><span class="age' + (rcls ? ' ' + rcls : '') + '">' + r + '</span></div>';
+  let h = '';
+  if (j.stage === 'lead') { const [n, c] = leadNext(j); h = head(j.budget ? esc(j.budget) + ' budget' : '') + bot(j.address, esc(n), c); }
+  else if (j.stage === 'quoted') {
+    const due = dueFollow(j);
+    h = head(fmt(contract(j))) + bot(j.address, 'sent ' + md(j.quote_sent_on) + (due ? ' · follow up ' + md(due.entry_date) : ''), due ? (due.entry_date < TODAY ? 'due' : 'soon') : '');
+  } else if (j.work_done_on) {   // work's finished, money isn't all in
+    const owed = contract(j) - paid(j), since = daysBetween(j.work_done_on, TODAY), late = since > 14;
+    h = head(fmt(owed) + ' owed', late ? 'due' : '') + bot(j.address, 'work done ' + md(j.work_done_on) + (late ? ' · ' + nd(since) + ' ago' : ''), late ? 'due' : '') + spentBar(j);
+  } else {
+    const first = firstDay(j);
+    const age = j.from_qbo ? 'since ' + fmtYM(j.money && j.money.first || j.came_in) : !first ? 'not scheduled' : first > TODAY ? 'starts ' + md(first) : daysBetween(first, TODAY) + 'd in build';
+    h = head(contract(j) ? fmt(contract(j)) : 'no quote') + bot(j.address, age) + spentBar(j) +
+      jobClashes(j).map(c => '<div class="card-clash">' + [...c.workers].join(' & ') + ' also on ' + esc(c.other) + ' · ' + fmtDates(c.days) + '</div>').join('');
+  }
+  return '<a class="card" href="#" data-open="' + j.id + '">' + h + '</a>';
+}
+function renderJobs() {
+  const open = JOBS.filter(onBoard);
+  document.getElementById('board').innerHTML = BOARD.map(c => {
+    const rank = j => !j.work_done_on ? 0 : 1;
+    const js = open.filter(j => j.stage === c.k).sort((a, b) => rank(a) - rank(b) || (a.work_done_on || '').localeCompare(b.work_done_on || ''));
+    return '<div class="col ' + c.cls + '"><div class="col-hdr"><span class="name">' + c.label + '</span><span class="cnt">' + js.length + '</span></div>' +
+      '<div class="col-body">' + (js.length ? js.map(cardHtml).join('') : '<div class="col-empty">Nothing here</div>') + '</div></div>';
+  }).join('');
+  document.getElementById('boardSummary').textContent = '(' + open.length + ' open job' + (open.length === 1 ? '' : 's') + ')';
+  document.getElementById('pastLink').textContent = 'Past jobs (' + JOBS.filter(j => j.stage === 'active' && !onBoard(j) && !j.archived_at).length + ')';
+  document.getElementById('lostLink').textContent = 'Lost (' + JOBS.filter(j => j.stage === 'lost').length + ')';
+  renderYtd();
+}
+function renderYtd() {   // this year only, cash basis: QuickBooks money dated this year on linked jobs
+  let inc = 0, out = 0;
+  JOBS.forEach(j => { const y = j.money && j.money.y[CUR_Y]; if (y) { inc += y.income; out += y.spent; } });
+  const finished = JOBS.filter(j => j.work_done_on && j.work_done_on.startsWith(String(CUR_Y))).length;
+  const el = document.getElementById('ytd');
+  el.innerHTML = '<span class="lbl">' + CUR_Y + '</span><span><b>' + fmt(inc) + '</b> collected</span><span><b>' + fmt(out) + '</b> spent</span>' +
+    '<span><b>' + fmt(inc - out) + '</b> profit</span><span><b>' + finished + '</b> job' + (finished === 1 ? '' : 's') + ' finished</span>';
+  el.title = 'From QuickBooks, money in and out during ' + CUR_Y + '. Jobs in progress count their spending before their payments arrive.';
+}
+document.getElementById('board').addEventListener('click', e => { const c = e.target.closest('[data-open]'); if (c) { e.preventDefault(); openDrawer(c.dataset.open); } });
+
+// Past jobs / Lost — a popup list, like Pipeline's Past Deals
+function openList(kind) {
+  const js = kind === 'lost' ? JOBS.filter(j => j.stage === 'lost').sort((a, b) => (b.lost_on || '').localeCompare(a.lost_on || ''))
+    : JOBS.filter(j => j.stage === 'active' && !onBoard(j) && !j.archived_at).sort((a, b) => (b.work_done_on || '').localeCompare(a.work_done_on || ''));
+  document.getElementById('listTitle').textContent = (kind === 'lost' ? 'Lost' : 'Past jobs') + ' (' + js.length + ')';
+  document.getElementById('listBody').innerHTML = js.map(j => {
+    const p = paid(j), prof = p - spent(j), m = p ? Math.round(prof / p * 100) : 0;
+    const when = kind === 'lost' ? 'lost ' + md(j.lost_on) : j.money ? ymRange(j.money.first, j.money.last) : 'done ' + md(j.work_done_on);
+    return '<a class="lost-row" href="#" data-open="' + j.id + '"><span><span class="lr-addr">' + esc(j.client_name) + '</span> <span class="lr-city">' + esc(j.address) + '</span><br><span class="lr-city" style="font-size:11px">' + when + '</span></span>' +
+      '<span class="lr-price">' + (kind === 'lost' ? fmt(contract(j)) + ' quoted' : fmt(p) + ' <span class="lr-m ' + (m < 10 ? 'r' : m >= 30 ? 'g' : '') + '">' + fmt(prof) + ' · ' + pct(m) + '</span>') + '</span></a>';
+  }).join('') || '<div class="col-empty">Nothing here</div>';
+  document.getElementById('listHint').textContent = kind === 'lost' ? 'Quotes that didn’t turn into jobs.' : 'Work done and paid in full, newest first. Money comes from QuickBooks.';
+  document.getElementById('listOverlay').classList.add('open');
+}
+function closeList() { document.getElementById('listOverlay').classList.remove('open'); }
+document.getElementById('listBody').addEventListener('click', e => { const r = e.target.closest('[data-open]'); if (r) { e.preventDefault(); closeList(); openDrawer(r.dataset.open); } });
+
+// ---------- job page helpers ----------
+const kv = rows => '<div class="kv">' + rows.map(r => '<span class="l' + (r[2] ? ' ' + r[2] : '') + '">' + r[0] + '</span><span class="v' + (r[3] ? ' ' + r[3] : '') + (r[2] ? ' ' + r[2] : '') + (/^[\d$+−~]/.test(String(r[1])) ? '' : ' txt') + '">' + r[1] + '</span>').join('') + '</div>';
+const sec = (title, right, body) => '<div class="dw-s"><h4>' + title + (right ? '<span class="r">' + right + '</span>' : '') + '</h4>' + body + '</div>';
+const mTxt = (price, cost) => { if (!price) return '—'; const m = (price - cost) / price; return '<span class="' + (m >= .3 ? 'g' : m >= .2 ? '' : 'r') + '">' + Math.round(m * 100) + '%</span>'; };
+const logList = rows => '<div class="log">' + rows.map(l => '<div><span class="d">' + md(l.entry_date) + '</span><span' + (l.due ? ' style="color:var(--amber);font-weight:500"' : '') + '>' + esc(l.body) + '</span></div>').join('') + '</div>';
+function jobLog(j, live) {   // notes, materials and change orders in one list, newest first
+  const TAG = { note:'Note', change_order:'Change order', material:'Material' };
+  const rows = j.log.filter(l => l.kind !== 'follow_up');
+  const body = l => l.kind === 'change_order' ? '<b>CO-' + l.co_no + '</b> ' + esc(l.body) + ' <span class="money">+' + fmt(l.price) + '</span>'
+    : l.kind === 'material' ? esc(l.body) + (l.material_status ? ' <span class="dim">· ' + esc(l.material_status) + '</span>' : '') : esc(l.body);
+  return sec('Log', live ? '<a data-addnote="log">+ Note</a> · <a data-addnote="material">+ Material</a> · <a id="coAdd">+ Change order</a>' : null,
+    (live ? '<div id="coForm"></div>' : '') +
+    (rows.length ? '<div class="jlog">' + rows.map(l => '<div><span class="d">' + md(l.entry_date) + '</span><span class="tg tg-' + (l.kind === 'change_order' ? 'change' : l.kind) + '">' + TAG[l.kind] + '</span><span class="tx">' + body(l) + '</span></div>').join('') + '</div>'
+      : '<span class="q">Nothing logged yet.</span>'));
+}
+function payTable(j) {   // what came in — the date it landed, where it went, how much (from QuickBooks)
+  if (!j.qbo_customer_id) return '<div class="sp-empty" style="margin-top:0">Link the QuickBooks customer (in Spent to date) to see payments.</div>';
+  if (!j.pays.length) return '<div class="sp-empty" style="margin-top:0">Nothing received yet.</div>';
+  return '<table class="pays">' + j.pays.map(p => '<tr title="' + esc(p.description || '') + '"><td class="pd">' + md(p.txn_date) + '</td><td class="pm">' + esc(p.deposited_to || '') + '</td><td class="num">' + fmt(p.amount) + '</td></tr>').join('') + '</table>';
+}
+
+// ---------- QuickBooks sync bar (same as project-detail; owner only) ----------
+const QBO_SYNC = { req:null, runs:[], err:null, timer:null, wired:false, note:null, _started:false };
+const QS_POLL_ACTIVE_MS = 10000, QS_POLL_IDLE_MS = 60000, QS_CLOCK_SLACK_MS = 120000;
+function _qsAgo(iso) {
+  if (!iso) return 'never';
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (m < 1) return 'just now';
+  if (m < 60) return m + ' min ago';
+  const h = Math.round(m / 60);
+  return h < 48 ? h + 'h ago' : Math.round(h / 24) + 'd ago';
+}
+const _qsT = iso => iso ? new Date(iso).getTime() : null;
+function qboSyncState() {
+  const r = QBO_SYNC.req || {}, runs = QBO_SYNC.runs || [], lastOk = runs.find(x => x.status === 'ok'), now = Date.now();
+  const reqT = _qsT(r.sync_requested_at), startT = _qsT(r.sync_started_at);
+  const nightlyRunning = runs.find(x => x.status === 'running' && now - _qsT(x.started_at) < 30 * 60000);
+  if (reqT && (!startT || startT < reqT)) return { state: now - reqT > 5 * 60000 ? 'stuck' : 'requested', lastOk, reqT };
+  if (startT) {
+    const run = runs.slice().reverse().find(x => _qsT(x.started_at) >= startT - QS_CLOCK_SLACK_MS);
+    if (!run) { if (now - startT < 10 * 60000) return { state:'running', lastOk }; }
+    else if (run.status === 'running') return { state: now - _qsT(run.started_at) > 20 * 60000 ? 'stuck' : 'running', lastOk, run };
+    else if (now - (_qsT(run.ended_at) || now) < 30 * 60000) return { state: run.status === 'ok' ? 'done' : 'failed', lastOk, run };
+  }
+  if (nightlyRunning) return { state:'running', lastOk, run:nightlyRunning, nightly:true };
+  return { state:'idle', lastOk };
+}
+function qboSyncInner() {
+  if (QBO_SYNC.err && !QBO_SYNC.req) return '<span class="qs-msg">QBO sync status unavailable</span>';
+  if (!QBO_SYNC.req) return '<span class="qs-msg">QBO sync status…</span>';
+  const st = qboSyncState(), last = st.lastOk ? 'QBO last synced ' + _qsAgo(st.lastOk.ended_at) : 'QBO not synced yet';
+  let msg = last, cls = '', btn = true, label = 'Sync QBO now';
+  if (st.state === 'requested') { msg = 'Requested — waiting for the Mac mini (up to a minute)…'; btn = false; label = 'Requested'; }
+  else if (st.state === 'running') { msg = st.nightly ? 'Nightly QBO sync running…' : 'Syncing QuickBooks… usually 1–2 min'; btn = false; label = 'Syncing…'; }
+  else if (st.state === 'stuck') { msg = 'The Mac mini hasn’t finished this — it may be asleep. The 04:00 sync will still run. ' + last; cls = 'warn'; btn = false; label = 'Waiting'; }
+  else if (st.state === 'done') {
+    const fresh = _qsT(st.run && st.run.ended_at) > (window.__qsLoadedAt || 0);
+    msg = '✓ QBO synced ' + _qsAgo(st.run.ended_at) + (fresh ? ' — <span class="qs-link" data-qbosync-reload>show new numbers</span>' : ''); cls = 'good';
+  } else if (st.state === 'failed') { msg = 'QBO sync failed ' + _qsAgo(st.run && st.run.ended_at) + ' — the alert is in Slack. ' + last; cls = 'bad'; }
+  if (QBO_SYNC.note) msg = QBO_SYNC.note + ' · ' + msg;
+  return '<span class="qs-msg ' + cls + '">' + msg + '</span><button type="button" class="qs-btn" data-qbosync-btn' + (btn ? '' : ' disabled') + '>' + label + '</button>';
+}
+const qboSyncBarHtml = () => window.CURRENT_USER_ROLE === 'owner' ? '<div class="qbo-sync" data-qbosync>' + qboSyncInner() + '</div>' : '';
+const paintQboSync = () => document.querySelectorAll('[data-qbosync]').forEach(el => { el.innerHTML = qboSyncInner(); });
+async function refreshQboSync() {
+  QBO_SYNC.timer = null;
+  if (window.CURRENT_USER_ROLE !== 'owner') return;
+  if (!document.hidden || !QBO_SYNC.req) {
+    try {
+      const [{ data:req, error:e1 }, { data:runs, error:e2 }] = await Promise.all([
+        sb.from('qbo_sync_request').select('sync_requested_at, sync_started_at').eq('id', 1).maybeSingle(),
+        sb.from('job_runs').select('status, started_at, ended_at, mode').eq('job', 'qbo_sync').neq('status', 'skipped').order('started_at', { ascending:false }).limit(10),
+      ]);
+      if (e1 || e2) throw (e1 || e2);
+      QBO_SYNC.req = req || {}; QBO_SYNC.runs = runs || []; QBO_SYNC.err = null;
+    } catch (e) { QBO_SYNC.err = e; }
+    paintQboSync();
+  }
+  const s = QBO_SYNC.req ? qboSyncState().state : 'idle';
+  QBO_SYNC.timer = setTimeout(refreshQboSync, ['requested', 'running', 'stuck'].includes(s) ? QS_POLL_ACTIVE_MS : QS_POLL_IDLE_MS);
+}
+async function _qboSyncClick(e) {
+  if (e.target.closest('[data-qbosync-reload]')) { QBO_SYNC.note = null; window.__qsLoadedAt = Date.now(); await loadAll(); render(); return; }
+  const b = e.target.closest('[data-qbosync-btn]');
+  if (!b || b.disabled) return;
+  b.disabled = true; b.textContent = 'Requesting…';
+  try {
+    const { data, error } = await sb.rpc('request_qbo_sync');
+    if (error) throw error;
+    const why = { pending:'Already requested', running:'A sync is already running', cooldown:'Synced moments ago — try again in ' + Math.ceil(((data && data.retry_after_s) || 60) / 60) + ' min' };
+    QBO_SYNC.note = (data && data.accepted) ? null : (why[data && data.reason] || 'Not accepted');
+  } catch (err) { QBO_SYNC.note = (err && err.code === '42501') ? 'Only an owner can sync QBO' : 'Could not request a sync'; }
+  if (QBO_SYNC.timer) { clearTimeout(QBO_SYNC.timer); QBO_SYNC.timer = null; }
+  await refreshQboSync();
+  setTimeout(() => { QBO_SYNC.note = null; paintQboSync(); }, 8000);
+}
+function wireQboSync() {
+  if (window.CURRENT_USER_ROLE !== 'owner') return;
+  if (!QBO_SYNC.wired) { document.addEventListener('click', _qboSyncClick); QBO_SYNC.wired = true; }
+  if (QBO_SYNC.timer === null && !QBO_SYNC._started) { QBO_SYNC._started = true; refreshQboSync(); } else paintQboSync();
+}
+
+// ---------- Spent to date + Progress ----------
+function spentHtml(j) {
+  const sync = qboSyncBarHtml();
+  if (!j.qbo_customer_id) {
+    return sec('Spent to date', 'not linked yet', sync + '<div class="sp-empty" style="margin-top:0">Which QuickBooks customer is this job? Costs and payments tagged to it show up here.</div>' +
+      '<div class="qlink"><select id="qboCust"><option value="">Pick a QuickBooks customer…</option>' +
+      CUSTOMERS.map(c => '<option value="' + esc(c.id) + '">' + esc(c.name) + (c.last ? ' · last ' + md(c.last) : '') + '</option>').join('') +
+      '</select><button class="btn" id="qboLink">Link</button></div>' +
+      '<div class="sp-empty">Not in the list? Create the customer under Side Projects in QuickBooks, tag a receipt to it, and it appears after the next sync.</div>');
+  }
+  const b = j.money || { labor:0, materials:0, soft:0, other:0 };
+  const B = [['Labor', '#1D4ED8', b.labor], ['Materials', '#5B8DEF', b.materials], ['Soft costs', '#A9C4F5', b.soft], ['Other', '#D3E1FA', b.other]].filter(x => x[2] > 0);
+  const total = B.reduce((a, x) => a + x[2], 0);
+  if (!total) return sec('Spent to date', j.work_done_on ? 'none' : 'no expenses yet', sync + '<div class="sp-empty">' + (j.work_done_on ? 'No costs tagged to this customer in QuickBooks.' : 'Nothing tagged to this customer in QuickBooks yet. It syncs nightly at 04:00.') + '</div>');
+  const ledger = B.map(([n, c, v]) => '<div class="led-grp"><div class="led-head"><span class="led-sw" style="background:' + c + '"></span><span class="led-name">' + n + '</span><span class="led-pct">' + Math.round(v / total * 100) + '%</span><span class="led-sub">' + fmt(v) + '</span></div></div>').join('');
+  return sec('Spent to date', 'actual, from QuickBooks · ' + fmt(total), sync +
+    '<div class="comp-bar">' + B.map(([, c, v]) => '<div class="comp-seg" style="background:' + c + ';flex:' + Math.max(1, Math.round(v)) + '"></div>').join('') + '</div>' + ledger);
+}
+function progressHtml(j) {   // tasks done and money spent against the quoted cost, plus what it leaves us
+  const bar = (lbl, txt, pct, cls, note) => '<div class="cn-bar2"><div class="cn-bar2-top"><span class="lbl">' + lbl + '</span><span class="pct">' + txt + '</span></div>' +
+    '<div class="track"><div class="fill ' + cls + '" style="width:' + Math.max(0, Math.min(100, Math.round(pct))) + '%"></div></div>' + (note ? '<div class="bnote">' + note + '</div>' : '') + '</div>';
+  const nDone = j.tasks.filter(x => x.done).length, nAll = j.tasks.length;
+  const prog = bar('Tasks', nDone + ' of ' + nAll + ' tasks done · ' + (nAll ? Math.round(nDone / nAll * 100) : 0) + '%', nAll ? nDone / nAll * 100 : 0, 'blue');
+  const qc = quotedCost(j), s = spent(j), planned = j.tasks.filter(x => !x.done).reduce((a, x) => a + taskCost(x), 0), bp = qc ? s / qc * 100 : 0, over = s + planned - qc;
+  const budget = bar('Budget', fmt(s) + ' / ' + fmt(qc) + ' · ' + Math.round(bp) + '%', bp, bp > 100 ? 'over' : 'gold',
+    'spent (QuickBooks) of the quoted cost' + (!j.work_done_on && planned ? ' · crew + subs still planned ' + fmt(planned) +
+      (over > 0 ? ' · <span class="r">' + fmt(over) + ' over with those</span>' : '') : ''));
+  const coPrice = changeOrders(j).reduce((a, c) => a + num(c.price), 0), k = contract(j), cost = j.work_done_on ? s : qc, p = k - cost, m = k ? Math.round(p / k * 100) : 0;
+  const profit = '<div class="pg-profit">' + (j.work_done_on ? 'Profit' : 'Quoted profit') + ': contract ' + fmt(k) + (coPrice ? ' <span class="dim">(incl. change orders ' + fmt(coPrice) + ')</span>' : '') +
+    ' − ' + (j.work_done_on ? 'actual cost ' : 'quoted cost ') + fmt(cost) + ' = <b class="' + (p < 0 ? 'r' : m >= 30 ? 'g' : '') + '">' + (p < 0 ? '−' : '') + fmt(Math.abs(p)) + ' · ' + pct(m) + '</b>' +
+    (j.work_done_on ? ' <span class="dim">· quoted ' + fmt(k - qc) + '</span>' : '') + '</div>';
+  return sec('Progress', null, '<div class="cn-bars">' + prog + budget + '</div>' + profit);
+}
+// A job that predates the page: no quote or tasks on file — just its QuickBooks money
+function realView(j) {
+  const r = j.money || { income:0, labor:0, materials:0, soft:0, other:0 }, cost = r.labor + r.materials + r.soft + r.other, profit = r.income - cost, m = r.income ? profit / r.income : 0, going = !j.work_done_on;
+  const intro = going
+    ? '<div class="upcoming" style="margin-bottom:0"><h5>Not set up here yet</h5>Costs are coming in from QuickBooks' + (r.first ? ' since ' + fmtYM(r.first) : '') + '. This job has no quote or tasks on file.</div>'
+    : '<div class="upcoming" style="margin-bottom:0"><h5>From QuickBooks history</h5>No quote or tasks on file — this job was done before Side Projects existed. Its money comes from the QuickBooks customer' + (r.first ? ', ' + ymRange(r.first, r.last) : '') + '.</div>';
+  const rows = [['Client paid (Side Project Income)', fmt(r.income), '', r.income ? 'g' : ''], ['Total cost', fmt(cost)]];
+  if (!going || r.income) rows.push(['Profit', (profit < 0 ? '−' : '') + fmt(Math.abs(profit)), 'tot', profit < 0 ? 'r' : 'g'], ['Margin', r.income ? pct(Math.round(m * 100)) : '—', '', m >= .3 ? 'g' : m < .1 ? 'r' : '']);
+  return intro + sec('Money', null, kv(rows) + (j.learned_note ? '<div class="note" style="margin-top:10px">' + esc(j.learned_note) + '</div>' : '')) +
+    spentHtml(j) + sec('Payments', fmt(r.income) + ' in', payTable(j));
+}
+
+// ---------- one renderer per stage ----------
+const TERMS_ALL = ['50% deposit · 50% on completion', '30% deposit · 70% on completion', '50% deposit · 25% when tile is done · 25% on completion'];
+const STAGE_VIEW = {
+  lead(j) {
+    const done = !!j.visit_notes;
+    return sec('Inquiry', null, kv([['Came in', md(j.came_in)], ['Source', esc(j.source || '—')], ['Budget they mentioned', esc(j.budget || '—')]]) +
+        (j.ask ? '<div class="note" style="margin-top:8px">“' + esc(j.ask) + '”</div>' : '')) +
+      sec('Site visit', done ? '' : '<a data-addnote="resched">' + (j.visit_date ? 'Reschedule' : 'Schedule') + '</a>',
+        kv([['When', j.visit_date ? dmd(j.visit_date) + (j.visit_time ? ' · ' + fmtTime(j.visit_time) : '') : 'Not scheduled'], [done ? 'Who went' : 'Who’s going', esc(j.visit_who || '—')]]) +
+        (done ? '<div class="note" style="margin-top:8px">' + esc(j.visit_notes) + '</div>'
+          : '<div class="upcoming" style="margin:8px 0 0">After the visit, jot down measurements, what’s behind the walls, and anything that changes price. Those notes carry straight into the quote.</div>'));
+  },
+  quoted(j) {
+    const L = j.quote_lines || [], edit = j.stage === 'lead' || j.stage === 'quoted', t = qTotals(L);
+    const head = '<div class="ql qhd"><span>Headline</span><span>Our cost</span><span>Price</span><span>Margin</span><span></span></div>';
+    const rows = L.map((l, i) => edit
+      ? '<div class="ql" data-i="' + i + '"><input class="qh" value="' + esc(l.headline || '') + '" placeholder="e.g. Tile — shower walls + floor">' +
+        '<input class="qn qc" inputmode="numeric" value="' + (l.cost || '') + '" placeholder="0">' +
+        '<input class="qn qp" inputmode="numeric" value="' + (l.price || '') + '" placeholder="0">' +
+        '<span class="qm">' + mTxt(num(l.price), num(l.cost)) + '</span><button class="qx" title="Remove line">×</button></div>'
+      : '<div class="ql ro' + (l.declined ? ' declined' : '') + '"><span>' + esc(l.headline) + (l.declined ? ' <span class="tagdec">declined</span>' : '') + '</span><span class="qn">' + fmt(l.cost) + '</span><span class="qn">' + fmt(l.price) + '</span><span class="qm">' + mTxt(num(l.price), num(l.cost)) + '</span><span></span></div>').join('') +
+      (!edit && L.some(l => l.declined) ? '<div class="q" style="margin-top:6px">Declined lines stay here — offer them again later, or add one back as a change order.</div>' : '');
+    const tot = '<div class="ql qtot"><span>Total</span><span class="qn" id="qCost">' + fmt(t.cost) + '</span><span class="qn" id="qPrice">' + fmt(t.price) + '</span><span class="qm" id="qM">' + mTxt(t.price, t.cost) + '</span><span></span></div>';
+    const profit = '<div class="qsum"><span>' + (edit ? 'Quoted profit' : 'Profit as quoted') + '</span><b id="qProfit">' + fmt(t.price - t.cost) + '</b></div>';
+    const cos = changeOrders(j), coP = cos.reduce((a, c) => a + num(c.price), 0), coC = cos.reduce((a, c) => a + num(c.cost), 0);
+    const coNote = cos.length ? '<div class="q" style="margin-top:6px">Change orders since: +' + fmt(coP) + ' price, +' + fmt(coC) + ' cost → quoted profit <b>' + fmt(t.price + coP - t.cost - coC) + '</b></div>' : '';
+    const terms = edit
+      ? '<div class="qterms"><label>Payment terms<select id="qTerms"><option value=""' + (j.payment_terms ? '' : ' selected') + '>—</option>' + TERMS_ALL.concat(!j.payment_terms || TERMS_ALL.includes(j.payment_terms) ? [] : [j.payment_terms]).map(x => '<option' + (x === j.payment_terms ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
+        '<label>Good through<input type="date" id="qValid" value="' + (j.quote_valid_through || '') + '"></label>' +
+        '<label>Quote #<input id="qNo" value="' + esc(j.quote_no || '') + '" placeholder="from quote.html, e.g. QUO-2026-0019"></label></div>'
+      : kv([['Sent', md(j.quote_sent_on) || '—'], ['Accepted', md(j.won_on) || '—'], ['Payment terms', esc(j.payment_terms || '—')]]);
+    const handoff = '<div class="handoff"><a class="btn" href="quote.html" target="_blank">' + (j.quote_no ? 'Open ' + esc(j.quote_no) + ' in quote.html ↗' : 'Write it up in quote.html ↗') + '</a>' +
+      (j.stage === 'lead' ? '<button class="btn pri" id="markSent"' + (t.price ? '' : ' disabled title="Add a price first"') + '>Mark quote sent</button>' : '') + '</div>';
+    const follows = j.log.filter(l => l.kind === 'follow_up').slice().sort((a, b) => (a.due - b.due) || a.entry_date.localeCompare(b.entry_date) || (a.created_at || '').localeCompare(b.created_at || ''));
+    return sec('Quote', j.quote_no ? esc(j.quote_no) + (j.quote_sent_on ? ' · sent ' + md(j.quote_sent_on) : '') : j.quote_sent_on ? 'sent ' + md(j.quote_sent_on) : 'draft · not sent yet',
+        head + rows + (edit ? '<a class="qadd">+ Add line</a>' : '') + tot + profit + coNote + terms + handoff) +
+      (j.stage !== 'lead' ? sec('Follow-ups', j.stage === 'quoted' ? '<a data-addnote="follow">+ Note</a>' : '', follows.length ? logList(follows) : '<span class="q">No follow-ups yet.</span>') : '');
+  },
+  active(j, st) {   // two fixed columns — left: Tasks · right: Progress, Spent to date, Payments, Log
+    const live = st === 'cur';
+    let L = '', Rt = '';
+    const allDone = j.tasks.length && j.tasks.every(x => x.done);
+    L += sec('Tasks', null, '<ul class="scope steps">' +
+        (j.work_done_on ? '<div class="alldone">Work done ' + md(j.work_done_on) + (j.signoff ? ' · <span>' + esc(j.signoff) + '</span>' : '') + '</div>'
+          : live && allDone ? '<div class="alldone">Every task is done. <button class="btn pri" id="markDone">Mark work done</button><span>then collect the final payment</span></div>' : '') +
+        j.tasks.map((x, i) => stepRow(j, x, i, live && !j.work_done_on)).join('') + '</ul>' +
+        (live && !j.work_done_on ? '<a class="qadd sadd" data-addnote="task">+ Add task</a><span class="q" style="margin-left:8px">for work that isn’t a billed line, e.g. an inspection</span>' : ''));
+    Rt += progressHtml(j) + spentHtml(j);
+    Rt += sec('Payments', fmt(paid(j)) + ' of ' + fmt(contract(j)) + ' in', payTable(j));
+    Rt += jobLog(j, live);
+    if (paidUp(j)) {   // the job's over: warranty, review, what we learned, archive
+      const w = D(j.work_done_on); w.setFullYear(w.getFullYear() + 1);
+      L += sec('After the job', null, kv([['Workmanship warranty', 'through ' + MONTHS[w.getMonth()] + ' ' + w.getFullYear()],
+        ['Review', j.review_requested_on ? 'Requested ' + md(j.review_requested_on) : '<button class="btn mini" data-review="1">Request review</button>']]));
+      if (j.learned_note) L += sec('What we learned', null, '<div class="note">' + esc(j.learned_note) + '</div>');
+      if (!j.archived_at) L += '<div class="archive"><button class="btn" data-archive="1">Archive job</button><span>Hides it from Past jobs. Its numbers still count.</span></div>';
+    }
+    return '<div class="dp-2"><div class="dp-col">' + L + '</div><div class="dp-col">' + Rt + '</div></div>';
+  },
+  lost(j) {
+    return sec('Why we lost it', 'lost ' + md(j.lost_on), kv([['Reason', esc(j.lost_reason || '—')]]) + (j.lost_detail ? '<div class="note" style="margin-top:8px">' + esc(j.lost_detail) + '</div>' : '')) +
+      (j.lost_note ? sec('Note to self', null, '<div class="note">' + esc(j.lost_note) + '</div>') : '');
+  },
+};
+const UPCOMING = {
+  quoted: () => ['When you write the quote', ['Headlines with our cost and the price — the detail goes in quote.html', 'Payment terms', 'Follow-up log until they say yes']],
+  active: () => ['From the day they sign', ['Tasks from the quote — pick days, crew and subs', 'Progress — tasks done, spent vs quoted cost, quoted profit', 'Spent to date from QuickBooks', 'Payments as they land in QuickBooks', 'Change orders, materials and notes in the log']],
+};
+
+function openDrawer(id) {
+  selected = id; nj = null; ED = null;
+  viewStage = sel().stage;
+  renderJobs(); renderDrawer(); showDrawer();
+  history.replaceState(null, '', '?job=' + id);
+}
+function sumLine(j) {
+  if (j.from_qbo) return paid(j) ? '<div class="sumline"><span>Collected <b class="g">' + fmt(paid(j)) + '</b></span></div>' : '';
+  const k = contract(j);
+  if (j.stage === 'lead' || !k) return '';
+  if (j.stage === 'quoted' || j.stage === 'lost') return '<div class="sumline"><span>' + (j.stage === 'lost' ? 'Quoted' : 'Quote') + ' <b>' + fmt(k) + '</b></span></div>';
+  const p = paid(j);
+  return '<div class="sumline"><span>Contract <b>' + fmt(k) + '</b></span><span>Paid <b class="g">' + fmt(p) + '</b></span>' +
+    (k > p ? '<span>To go <b>' + fmt(k - p) + '</b></span>' : '') +
+    (j.target_done && !j.work_done_on ? '<span>Target done <b>' + dmd(j.target_done) + '</b></span>' : '') + '</div>';
+}
+function render() { renderJobs(); if (selected && sel()) renderDrawer(); else if (selected) closeDrawer(); }
+function renderDrawer() {
+  const j = sel(); if (!j) return;
+  const rail = j.stage === 'lost' ? [RAIL[0], RAIL[1], { k:'lost', label:'Lost' }] : RAIL;
+  const cIdx = rail.findIndex(s => s.k === j.stage);
+  const stateOf = i => i < cIdx ? 'past' : i === cIdx ? 'cur' : 'future';
+  if (!rail.some(s => s.k === viewStage)) viewStage = j.stage;
+  document.getElementById('stageTabs').innerHTML = j.from_qbo ? '' : rail.map((s, i) => '<button class="stage-tab ' + stateOf(i) + (s.k === viewStage ? ' on' : '') + '" data-k="' + s.k + '">' +
+    (stateOf(i) === 'cur' ? '<span class="here-dot"></span>' : '') + s.label + '</button>').join('');
+  document.getElementById('topbarExtra').innerHTML = (j.stage === 'quoted' && !j.from_qbo ? '<button class="topbar-won" onclick="openWon()">Mark won</button>' : '') +
+    (['lead', 'quoted'].includes(j.stage) && !j.from_qbo ? '<button class="topbar-lost" onclick="openLost()">Mark lost</button>' : '');
+  let h = '<div class="dw-h jh"><div class="jh-title">' + esc(j.client_name) + '</div>' +
+    '<div class="jh-sub"><span>' + esc(j.address || '') + '</span>' + (j.phone ? '<a href="tel:' + esc(j.phone.replace(/[^\d+]/g, '')) + '">' + esc(j.phone) + '</a>' : '') + (j.email ? '<a href="mailto:' + esc(j.email) + '">' + esc(j.email) + '</a>' : '') +
+      (j.from_qbo ? '<span class="jh-tag">from QuickBooks</span>' : '') + '</div>' + sumLine(j) + '</div>';
+
+  const vIdx = rail.findIndex(s => s.k === viewStage), stage = rail[vIdx];
+  const drafting = stage.k === 'quoted' && j.stage === 'lead';
+  if (drafting) ensureDraft(j);
+  const st = drafting ? 'cur' : stateOf(vIdx);
+  const E = entered(j), nextEntered = rail[vIdx + 1] && E[rail[vIdx + 1].k];
+  const owed = contract(j) - paid(j), wd = stage.k === 'active' && j.work_done_on, done = wd && paidUp(j);
+  const pill = drafting ? ['cur', 'draft'] : st === 'past' ? ['past', 'done'] : st === 'future' ? ['future', 'not yet']
+    : stage.k === 'lost' ? ['lost', 'closed'] : done ? ['past', j.from_qbo ? 'done' : 'paid in full'] : wd ? ['due', 'work done · ' + fmt(owed) + ' owed'] : ['cur', 'now'];
+  const when = !E[stage.k] ? '' : st === 'past' ? span(E[stage.k], nextEntered)
+    : stage.k === 'lost' ? md(j.lost_on) : wd ? 'work done ' + md(j.work_done_on) : span(E[stage.k]);
+  if (!j.from_qbo) h += '<div class="sp-h"><span class="nm">' + stage.label + '</span><span class="pill ' + pill[0] + '">' + pill[1] + '</span>' + (when ? '<span class="when">' + when + '</span>' : '') + '</div>';
+
+  if (st === 'cur' && !drafting && !j.from_qbo) {
+    const ACTS = { lead: j.visit_notes ? ['Write quote →'] : ['Write quote →', 'Log site visit'], quoted:[], active:[], lost:['Reopen'] }[stage.k];
+    if (ACTS.length) h += '<div class="sp-acts">' + ACTS.map((a, i) => '<button class="btn' + (i === 0 ? ' pri' : '') + '"' +
+      (a === 'Write quote →' ? ' data-writequote="1"' : '') + (a === 'Log site visit' ? ' data-addnote="visit"' : '') + (a === 'Reopen' ? ' onclick="reopenJob()"' : '') + '>' + a + '</button>').join('') + '</div>';
+  }
+  let body;
+  if (j.from_qbo) body = realView(j);
+  else if (stage.k === 'quoted' && j.stage === 'lost' && !qTotals(j.quote_lines || []).price) body = '<div class="upcoming">No quote was written for this one.</div>';
+  else if (st === 'future') {
+    const [title, items] = UPCOMING[stage.k](j);
+    body = '<div class="upcoming"><h5>' + title + ', this tab holds:</h5><ul>' + items.map(x => '<li>' + x + '</li>').join('') + '</ul></div>';
+  } else body = STAGE_VIEW[stage.k](j, st);
+  document.getElementById('drawer').innerHTML = h + (body.startsWith('<div class="dp-2">') ? body : '<div class="dp-cols">' + body + '</div>');
+  wireQboSync();
+}
+document.getElementById('stageTabs').addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (b) { viewStage = b.dataset.k; ED = null; renderDrawer(); } });
+
+// ---------- tasks: days + crew per day ----------
+function schedTxt(j, x) {
+  if (!x.dates.length) return x.along ? 'alongside the task before' : '<span class="unst">not scheduled — click to pick days and crew</span>';
+  const when = fmtDates(x.dates) + (x.dates.length > 1 ? ' · ' + x.dates.length + ' days' : '');
+  const crew = crewOf(x), same = x.dates.every(d => dayCrew(x, d).join() === dayCrew(x, x.dates[0]).join());
+  const ctxt = !crew.length ? '' : 'crew ' + fmt(crewCost(x)) + ' (' + (same ? crew.map(wname).join(', ') : x.dates.map(d => md(d) + ' ' + (dayCrew(x, d).map(wname).join(', ') || '—')).join(' · ')) + ')';
+  const sub = x.sub_name ? 'sub · ' + esc(x.sub_name) + (x.sub_cost ? ' ' + fmt(x.sub_cost) : '') : '';
+  const clash = !x.done ? crew.map(w => [wname(w), busyFor(j.id, x, w)]).filter(c => c[1]) : [];
+  return [when, ctxt, sub].filter(Boolean).join(' · ') +
+    (clash.length ? ' · <span class="unst">' + [...new Set(clash.map(c => c[1]))].map(w => clash.filter(c => c[1] === w).map(c => c[0]).join(' & ') + ' also ' + esc(w)).join(', ') + '</span>' : '');
+}
+function stepRow(j, x, i, live) {
+  return '<li class="' + (x.done ? 'done' : '') + '"><span class="ck' + (x.done ? ' on' : '') + '"' + (live ? ' data-si="' + i + '" title="' + (x.done ? 'Mark not done' : 'Mark done') + '"' : '') + '></span>' +
+    '<span class="t"><span class="nm">' + esc(x.name) + (x.co_no ? ' <span class="tagco">CO-' + x.co_no + '</span>' : '') + '</span>' +
+    '<span class="sub' + (live ? ' sched' : '') + '" data-si="' + i + '">' + schedTxt(j, x) + '</span></span><span class="sc">' + (x.not_billed ? '<span class="dim">not billed</span>' : '') + '</span></li>';
+}
+let ED = null;   // the task being edited: { x: draft copy, i, wk }
+function seditHtml(x, i) {
+  const start = x.dates[0] || (TODAY), wk = D(start); wk.setDate(wk.getDate() - ((wk.getDay() + 6) % 7));   // Monday of the task's first week
+  ED = { x: JSON.parse(JSON.stringify(x)), i, wk: ISO(wk) };
+  return '<span class="sedit">' + seInner() + '</span>';
+}
+function seInner() {
+  const x = ED.x;
+  return '<span class="se-cal">' + calHtml(x, ED.wk) + '</span>' + whoHtml() +
+    '<span class="se-row">Sub <input class="se-sub" value="' + esc(x.sub_name || '') + '" placeholder="e.g. Rios Plumbing"> charges $<input class="se-subamt" inputmode="numeric" value="' + (x.sub_cost || '') + '" placeholder="0"><b class="se-cost">' + seCost(x) + '</b>' +
+    '<button class="btn" data-secancel>Cancel</button><button class="btn pri se-ok">Save</button></span>';
+}
+function whoHtml() {   // one row per picked day — its people, who's busy elsewhere, what the day costs
+  const x = ED.x, jid = selected;
+  if (!x.dates.length) return '<span class="se-lbl">Who</span><span class="q">Pick days first.</span>';
+  return '<span class="se-lbl">Who, each day' + (x.dates.length > 1 ? ' <a class="samecrew">same people as ' + md(x.dates[0]) + ' every day</a>' : '') + '</span>' +
+    x.dates.map(d => {
+      const c = dayCrew(x, d), cost = c.reduce((a, w) => a + rateOf(w), 0);
+      return '<div class="dayrow"><span class="dr-d">' + dmd(d) + '</span><span class="dr-p">' +
+        c.map(w => { const b = busyOn(jid, w, d); return '<span class="pp' + (b ? ' warn' : '') + '">' + esc(wname(w)) + (b ? '<em>' + esc(b) + '</em>' : '') + '<button type="button" class="rmp" data-d="' + d + '" data-w="' + w + '">×</button></span>'; }).join('') +
+        '<select class="addp" data-d="' + d + '"><option value="">+ add</option>' +
+        WORKERS.filter(w => !c.includes(w.id)).map(w => { const b = busyOn(jid, w.id, d); return '<option value="' + w.id + '">' + esc(w.name) + ' $' + Math.round(w.daily_rate) + (b ? ' — ' + esc(b) : '') + '</option>'; }).join('') +
+        '</select></span><span class="dr-c">' + (cost ? fmt(cost) : '') + '</span></div>';
+    }).join('');
+}
+function calHtml(x, wkStart) {   // three weeks, Mon–Sun; tap days on/off
+  const d0 = D(wkStart), cells = [];
+  for (let i = 0; i < 21; i++) { const d = new Date(d0); d.setDate(d.getDate() + i); cells.push(d); }
+  const clash = k => dayCrew(x, k).some(w => busyOn(selected, w, k));
+  return '<span class="cal-h"><button type="button" class="cal-nav" data-dir="-1">‹</button><span>Days · tap to pick, skip any</span><button type="button" class="cal-nav" data-dir="1">›</button></span>' +
+    '<span class="cal">' + ['M','T','W','T','F','S','S'].map(l => '<i>' + l + '</i>').join('') +
+    cells.map((d, i) => { const k = ISO(d), on = x.dates.includes(k);
+      return '<button type="button" class="cd' + (on ? ' on' : '') + (d.getDay() === 0 ? ' sun' : '') + (k === TODAY ? ' t0' : '') + (on && clash(k) ? ' clash' : '') + '" data-d="' + k + '">' + (d.getDate() === 1 || i === 0 ? (d.getMonth() + 1) + '/' + d.getDate() : d.getDate()) + '</button>'; }).join('') +
+    '</span>';
+}
+function seCost(x) {
+  const n = x.dates.length, parts = [], crew = crewOf(x);
+  if (!n) return 'pick at least one day';
+  if (crew.length) parts.push(fmt(crewCost(x)) + ' crew');
+  if (x.sub_name && x.sub_cost) parts.push(fmt(x.sub_cost) + ' sub');
+  return n + (n > 1 ? ' days · ' : ' day · ') + (parts.length ? parts.join(' + ') + (parts.length > 1 ? ' = ' + fmt(taskCost(x)) : '') : 'no one assigned');
+}
+async function saveTaskSchedule(x) {
+  must(await sb.from('side_job_tasks').update({ sub_name: x.sub_name || null, sub_cost: x.sub_name && x.sub_cost ? x.sub_cost : null, along:false }).eq('id', x.id), 'task');
+  must(await sb.from('side_job_task_days').delete().eq('task_id', x.id), 'task days');
+  if (x.dates.length) must(await sb.from('side_job_task_days').insert(x.dates.map(d => ({ task_id:x.id, work_date:d, worker_ids:dayCrew(x, d) }))), 'task days');
+}
+
+// ---------- job page clicks ----------
+document.getElementById('drawer').addEventListener('click', e => {
+  const j = sel(); if (!j) return;
+  if (e.target.closest('[data-writequote]')) { viewStage = 'quoted'; ensureDraft(j); renderDrawer(); const q = document.querySelector('#drawer .qh'); if (q) q.focus(); return; }
+  const ck = e.target.closest('.steps .ck[data-si]');
+  if (ck) { const x = j.tasks[+ck.dataset.si]; write('task', async () => must(await sb.from('side_job_tasks').update({ done: !x.done }).eq('id', x.id))); return; }
+  if (e.target.id === 'markDone') {   // stays a Job — it leaves the board once the last payment is in
+    write('work done', async () => {
+      must(await sb.from('side_jobs').update({ work_done_on:TODAY, updated_at:new Date().toISOString() }).eq('id', j.id));
+      must(await sb.from('side_job_log').insert({ job_id:j.id, kind:'note', entry_date:TODAY, body:'Work done.', created_by:uid() }));
+    }); return;
+  }
+  if (e.target.closest('[data-review]')) { write('review', async () => must(await sb.from('side_jobs').update({ review_requested_on:TODAY }).eq('id', j.id))); return; }
+  if (e.target.closest('[data-archive]')) { write('archive', async () => must(await sb.from('side_jobs').update({ archived_at:new Date().toISOString() }).eq('id', j.id))).then(closeDrawer); return; }
+  if (e.target.id === 'qboLink') {
+    const v = document.getElementById('qboCust').value; if (!v) return;
+    write('link', async () => must(await sb.from('side_jobs').update({ qbo_customer_id:v, updated_at:new Date().toISOString() }).eq('id', j.id))); return;
+  }
+  if (e.target.id === 'markSent') { markSent(j); return; }
+  // change order
+  if (e.target.id === 'coAdd') {
+    document.getElementById('coForm').innerHTML = '<div class="costform co"><input class="co-d" placeholder="What changed — e.g. add a niche"><input class="co-p" placeholder="$ price">' +
+      '<input class="co-c" placeholder="$ our cost"><button class="btn pri co-ok">Add</button></div><div class="q" style="margin-top:4px">Adds to the contract and becomes its own task.</div>';
+    document.querySelector('#coForm .co-d').focus(); return;
+  }
+  if (e.target.closest('.co-ok')) {
+    const v = c => document.querySelector('#coForm ' + c).value.trim();
+    if (!v('.co-d') || !num(v('.co-p'))) return;
+    const n = Math.max(0, ...changeOrders(j).map(c => c.co_no || 0)) + 1;
+    write('change order', async () => {
+      must(await sb.from('side_job_log').insert({ job_id:j.id, kind:'change_order', entry_date:TODAY, body:v('.co-d'), co_no:n, price:num(v('.co-p')), cost:num(v('.co-c')), created_by:uid() }));
+      must(await sb.from('side_job_tasks').insert({ job_id:j.id, name:v('.co-d'), co_no:n, sort_order:j.tasks.length }));
+    }); return;
+  }
+  const sc = e.target.closest('.sub.sched');
+  if (sc && !sc.querySelector('.sedit')) {
+    document.querySelectorAll('#drawer .sedit').forEach(x => { x.closest('.sub').innerHTML = schedTxt(j, j.tasks[+x.closest('.sub').dataset.si]); });
+    sc.innerHTML = seditHtml(j.tasks[+sc.dataset.si], +sc.dataset.si); return;
+  }
+  const ed = e.target.closest('.sedit');
+  if (ed && ED) {
+    const x = ED.x, redraw = () => { ed.innerHTML = seInner(); };
+    const cd = e.target.closest('.cd'), nav = e.target.closest('.cal-nav'), rm = e.target.closest('.rmp');
+    if (cd) {   // a new day starts with the nearest earlier day's people
+      const d = cd.dataset.d;
+      if (x.dates.includes(d)) { x.dates = x.dates.filter(y => y !== d); delete x.crewByDay[d]; }
+      else { const prev = x.dates.filter(y => y < d).pop() || x.dates[0]; x.crewByDay[d] = prev ? dayCrew(x, prev).slice() : []; x.dates = x.dates.concat(d).sort(); }
+      redraw(); return;
+    }
+    if (nav) { ED.wk = addDays(ED.wk, 7 * +nav.dataset.dir); redraw(); return; }
+    if (rm) { x.crewByDay[rm.dataset.d] = dayCrew(x, rm.dataset.d).filter(w => w !== rm.dataset.w); redraw(); return; }
+    if (e.target.closest('.samecrew')) { const c = dayCrew(x, x.dates[0]); x.dates.forEach(d => x.crewByDay[d] = c.slice()); redraw(); return; }
+    if (e.target.closest('[data-secancel]')) { ED = null; ed.closest('.sub').innerHTML = schedTxt(j, j.tasks[+ed.closest('.sub').dataset.si]); return; }
+    if (e.target.closest('.se-ok')) { if (!x.dates.length && !x.sub_name) return; ED = null; write('schedule', () => saveTaskSchedule(x)); }
+    return;
+  }
+});
+document.getElementById('drawer').addEventListener('input', e => {   // sub name / price → live cost line
+  if (!e.target.matches('.se-sub, .se-subamt') || !ED) return;
+  const box = e.target.closest('.sedit');
+  ED.x.sub_name = box.querySelector('.se-sub').value.trim(); ED.x.sub_cost = num(box.querySelector('.se-subamt').value);
+  box.querySelector('.se-cost').textContent = seCost(ED.x);
+});
+document.getElementById('drawer').addEventListener('change', e => {   // + add a person to a day
+  const s = e.target.closest('.addp'); if (!s || !s.value || !ED) return;
+  ED.x.crewByDay[s.dataset.d] = dayCrew(ED.x, s.dataset.d).concat(s.value);
+  s.closest('.sedit').innerHTML = seInner();
+});
+const uid = () => (window.CURRENT_USER && window.CURRENT_USER.id) || null;
+
+// ---------- quote editing (saved as you type) ----------
+function ensureDraft(j) { if (!(j.quote_lines || []).length) j.quote_lines = [{ headline:'', cost:0, price:0 }, { headline:'', cost:0, price:0 }, { headline:'', cost:0, price:0 }]; }
+let qTimer = null;
+function saveQuoteSoon(j) {
+  clearTimeout(qTimer);
+  qTimer = setTimeout(async () => {
+    const lines = (j.quote_lines || []).filter(l => l.headline || num(l.price) || num(l.cost)).map(l => ({ headline:l.headline || '', cost:num(l.cost), price:num(l.price), declined:!!l.declined }));
+    const r = await sb.from('side_jobs').update({ quote_lines:lines, payment_terms:j.payment_terms || null, quote_valid_through:j.quote_valid_through || null, quote_no:j.quote_no || null, updated_at:new Date().toISOString() }).eq('id', j.id);
+    if (r.error) toast('Couldn’t save the quote — ' + r.error.message); else renderJobs();
+  }, 600);
+}
+function qRecalc() {
+  const j = sel();
+  document.querySelectorAll('#drawer .ql[data-i]').forEach(r => {
+    const l = j.quote_lines[+r.dataset.i];
+    l.headline = r.querySelector('.qh').value; l.price = num(r.querySelector('.qp').value); l.cost = num(r.querySelector('.qc').value);
+    r.querySelector('.qm').innerHTML = mTxt(l.price, l.cost);
+  });
+  const t = qTotals(j.quote_lines);
+  document.getElementById('qCost').textContent = fmt(t.cost);
+  document.getElementById('qPrice').textContent = fmt(t.price);
+  document.getElementById('qM').innerHTML = mTxt(t.price, t.cost);
+  document.getElementById('qProfit').textContent = fmt(t.price - t.cost);
+  const ms = document.getElementById('markSent'); if (ms) ms.disabled = !t.price;
+  saveQuoteSoon(j);
+}
+document.getElementById('drawer').addEventListener('input', e => {
+  const j = sel(); if (!j) return;
+  if (e.target.closest('.ql')) qRecalc();
+  if (e.target.id === 'qNo') { j.quote_no = e.target.value.trim(); saveQuoteSoon(j); }
+});
+document.getElementById('drawer').addEventListener('change', e => {
+  const j = sel(); if (!j) return;
+  if (e.target.id === 'qTerms') { j.payment_terms = e.target.value; saveQuoteSoon(j); }
+  if (e.target.id === 'qValid') { j.quote_valid_through = e.target.value; saveQuoteSoon(j); }
+});
+document.getElementById('drawer').addEventListener('click', e => {
+  const j = sel(); if (!j) return;
+  if (e.target.closest('.qx')) { j.quote_lines.splice(+e.target.closest('.ql').dataset.i, 1); renderDrawer(); qRecalc(); }
+  if (e.target.closest('.qadd:not(.sadd)')) { j.quote_lines.push({ headline:'', cost:0, price:0 }); renderDrawer(); const hs = document.querySelectorAll('#drawer .qh'); hs[hs.length - 1].focus(); }
+});
+function markSent(j) {
+  clearTimeout(qTimer);
+  const lines = (j.quote_lines || []).filter(l => l.headline || num(l.price)).map(l => ({ headline:l.headline || '', cost:num(l.cost), price:num(l.price), declined:false }));
+  write('quote sent', async () => {
+    must(await sb.from('side_jobs').update({ stage:'quoted', quote_sent_on:TODAY, quote_lines:lines, payment_terms:j.payment_terms || null, quote_valid_through:j.quote_valid_through || null, quote_no:j.quote_no || null, updated_at:new Date().toISOString() }).eq('id', j.id));
+    must(await sb.from('side_job_log').insert({ job_id:j.id, kind:'follow_up', entry_date:TODAY, body:'Sent.', created_by:uid() }));
+  }).then(() => { viewStage = 'quoted'; renderDrawer(); });
+}
+
+// ---------- Mark won / lost ----------
+// Mark won: tick what the client said yes to. Ticked lines become the contract and the tasks;
+// unticked ones stay on the quote as declined.
+function openWon() {
+  const j = sel(), L = j.quote_lines || [];
+  const terms = TERMS_ALL.concat(j.payment_terms && !TERMS_ALL.includes(j.payment_terms) ? [j.payment_terms] : []);
+  document.getElementById('wonBody').innerHTML =
+    '<div class="won-lines">' + L.map((l, i) => '<label class="won-l"><input type="checkbox" data-i="' + i + '" checked><span>' + esc(l.headline) + '</span><span class="qn">' + fmt(l.price) + '</span></label>').join('') + '</div>' +
+    '<div class="won-terms"><label>Payment terms<select id="wonTerms"><option value=""' + (j.payment_terms ? '' : ' selected') + '>— pick one —</option>' +
+      terms.map(t => '<option' + (t === j.payment_terms ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></label></div>' +
+    '<div class="won-terms"><label>Target done<input type="date" id="wonTarget" title="the date you told the client"></label></div>' +
+    '<div class="won-sum" id="wonSum"></div>';
+  document.getElementById('wonTitle').textContent = 'Mark won — ' + j.client_name;
+  document.getElementById('wonOverlay').classList.add('open');
+  wonRecalc();
+}
+function wonRecalc() {
+  const L = sel().quote_lines || [], on = [...document.querySelectorAll('#wonBody .won-l input')].filter(c => c.checked).map(c => L[+c.dataset.i]);
+  const price = on.reduce((a, l) => a + num(l.price), 0), cost = on.reduce((a, l) => a + num(l.cost), 0), terms = document.getElementById('wonTerms').value;
+  const dep = terms && price ? Math.round(price * (/30%/.test(terms) ? .3 : .5)) : null;
+  document.getElementById('wonSum').innerHTML = kv([['Contract', fmt(price), 'tot'], ['Quoted profit', fmt(price - cost) + (price ? ' · ' + Math.round((price - cost) / price * 100) + '%' : ''), '', 'g'],
+    ['Deposit due', dep ? fmt(dep) : terms ? '—' : 'pick payment terms', '', dep ? '' : 'r']]) +
+    (on.length < L.length ? '<div class="q" style="margin-top:6px">' + (L.length - on.length) + ' line' + (L.length - on.length > 1 ? 's' : '') + ' will stay on the quote as declined.</div>' : '');
+  document.getElementById('wonGo').disabled = !on.length || !terms;
+}
+function closeWon() { document.getElementById('wonOverlay').classList.remove('open'); }
+function confirmWon() {
+  const j = sel(), ticks = [...document.querySelectorAll('#wonBody .won-l input')].map(c => c.checked), terms = document.getElementById('wonTerms').value;
+  const lines = (j.quote_lines || []).map((l, i) => ({ headline:l.headline, cost:num(l.cost), price:num(l.price), declined:!ticks[i] }));
+  const won = lines.filter(l => !l.declined), target = document.getElementById('wonTarget').value || null;
+  closeWon();
+  write('mark won', async () => {
+    must(await sb.from('side_jobs').update({ stage:'active', won_on:TODAY, quote_lines:lines, payment_terms:terms, target_done:target, updated_at:new Date().toISOString() }).eq('id', j.id));
+    must(await sb.from('side_job_tasks').insert(won.map((l, i) => ({ job_id:j.id, name:l.headline, sort_order:i }))));
+    must(await sb.from('side_job_log').insert({ job_id:j.id, kind:'follow_up', entry_date:TODAY, body:'Won — ' + won.length + ' of ' + lines.length + ' lines' +
+      (won.length < lines.length ? ' (' + lines.filter(l => l.declined).map(l => l.headline).join(', ') + ' declined)' : '') + '.', created_by:uid() }));
+    must(await sb.from('side_job_log').update({ due:false }).eq('job_id', j.id).eq('due', true));
+  }).then(() => { viewStage = 'active'; renderDrawer(); });
+}
+function openLost() {
+  document.getElementById('lostTitle').textContent = 'Mark lost — ' + sel().client_name;
+  document.getElementById('lostReason').value = ''; document.getElementById('lostDetail').value = '';
+  document.getElementById('lostOverlay').classList.add('open');
+}
+function closeLost() { document.getElementById('lostOverlay').classList.remove('open'); }
+function confirmLost() {
+  const j = sel(), reason = document.getElementById('lostReason').value;
+  if (!reason) { document.getElementById('lostReason').focus(); return; }
+  const detail = document.getElementById('lostDetail').value.trim();
+  closeLost();
+  write('mark lost', async () => {
+    must(await sb.from('side_jobs').update({ stage:'lost', lost_on:TODAY, lost_from:j.stage, lost_reason:reason, lost_detail:detail || null, updated_at:new Date().toISOString() }).eq('id', j.id));
+    must(await sb.from('side_job_log').update({ due:false }).eq('job_id', j.id).eq('due', true));
+  }).then(() => { viewStage = 'lost'; renderDrawer(); });
+}
+function reopenJob() {
+  const j = sel(), back = j.lost_from || (qTotals(j.quote_lines || []).price ? 'quoted' : 'lead');
+  write('reopen', async () => must(await sb.from('side_jobs').update({ stage:back, lost_on:null, lost_from:null, lost_reason:null, lost_detail:null, updated_at:new Date().toISOString() }).eq('id', j.id)))
+    .then(() => { viewStage = back; renderDrawer(); });
+}
+
+// ---------- + Note / + Material / task / visit forms ----------
+document.getElementById('drawer').addEventListener('click', e => {
+  const j = sel(); if (!j) return;
+  const add = e.target.closest('[data-addnote]');
+  if (add) {
+    const kind = add.dataset.addnote;
+    const box = add.closest('.dw-s') || [...document.querySelectorAll('#drawer .dw-s')].find(x => x.querySelector('h4').textContent.startsWith('Site visit'));
+    const old = box.querySelector('.noteform'); if (old) { old.remove(); return; }
+    const html = kind === 'material'
+      ? '<input class="nt-t" placeholder="Item — e.g. 72&quot; vanity, Home Depot special order"><input class="nt-s" placeholder="Status — e.g. ordered · ETA 10/20">'
+      : kind === 'task' ? '<input class="nt-t" placeholder="Task — e.g. City inspection · pick days, crew or a sub after">'
+      : kind === 'visit' ? '<input class="nt-t" placeholder="What you found — measurements, what’s behind the walls, anything that changes price">'
+      : kind === 'resched' ? '<input type="date" class="nt-d" value="' + (j.visit_date || '') + '"><input type="time" class="nt-tm" value="' + esc(j.visit_time || '') + '"><input class="nt-t" placeholder="Who’s going" value="' + esc(j.visit_who || 'Patty') + '">'
+      : '<input type="date" class="nt-d" value="' + TODAY + '" title="date"><input class="nt-t" placeholder="' + (kind === 'follow' ? 'What happened — e.g. Called Raj, wants to start in November' : 'What happened — e.g. Tile delivered, two boxes short') + '">' +
+        (kind === 'follow' ? '<label class="nt-next">Next follow-up <input type="date" class="nt-n"></label>' : '');
+    box.querySelector('h4').insertAdjacentHTML('afterend', '<div class="noteform" data-kind="' + kind + '">' + html +
+      '<span class="nt-btns"><button class="btn" data-ntcancel>Cancel</button><button class="btn pri" data-ntsave>Save</button></span></div>');
+    box.querySelector('.noteform .nt-t').focus(); return;
+  }
+  if (e.target.closest('[data-ntcancel]')) { e.target.closest('.noteform').remove(); return; }
+  if (!e.target.closest('[data-ntsave]')) return;
+  const form = e.target.closest('.noteform'), kind = form.dataset.kind, v = c => ((form.querySelector(c) || {}).value || '').trim();
+  if (kind === 'resched' ? !v('.nt-d') : !v('.nt-t')) { form.querySelector(kind === 'resched' ? '.nt-d' : '.nt-t').focus(); return; }
+  const now = new Date().toISOString();
+  write(kind, async () => {
+    if (kind === 'follow') {
+      must(await sb.from('side_job_log').insert({ job_id:j.id, kind:'follow_up', entry_date:v('.nt-d') || TODAY, body:v('.nt-t'), created_by:uid() }));
+      if (v('.nt-n')) {   // a new follow-up date replaces the old one
+        must(await sb.from('side_job_log').delete().eq('job_id', j.id).eq('kind', 'follow_up').eq('due', true));
+        must(await sb.from('side_job_log').insert({ job_id:j.id, kind:'follow_up', entry_date:v('.nt-n'), body:'Follow-up due', due:true, created_by:uid() }));
+      }
+    } else if (kind === 'log') must(await sb.from('side_job_log').insert({ job_id:j.id, kind:'note', entry_date:v('.nt-d') || TODAY, body:v('.nt-t'), created_by:uid() }));
+    else if (kind === 'material') must(await sb.from('side_job_log').insert({ job_id:j.id, kind:'material', entry_date:TODAY, body:v('.nt-t'), material_status:v('.nt-s') || 'to order', created_by:uid() }));
+    else if (kind === 'task') must(await sb.from('side_job_tasks').insert({ job_id:j.id, name:v('.nt-t'), not_billed:true, sort_order:j.tasks.length }));
+    else if (kind === 'visit') must(await sb.from('side_jobs').update({ visit_notes:v('.nt-t'), visit_date:j.visit_date || TODAY, updated_at:now }).eq('id', j.id));
+    else if (kind === 'resched') must(await sb.from('side_jobs').update({ visit_date:v('.nt-d'), visit_time:v('.nt-tm') || null, visit_who:v('.nt-t') || null, updated_at:now }).eq('id', j.id));
+  });
+});
+
+function showDrawer() { document.getElementById('boardView').hidden = true; document.getElementById('detailView').hidden = false; window.scrollTo(0, 0); }
+function closeDrawer() {
+  selected = null; nj = null; ED = null;
+  document.getElementById('detailView').hidden = true; document.getElementById('boardView').hidden = false;
+  history.replaceState(null, '', location.pathname);
+  renderJobs();
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('listOverlay').classList.contains('open')) closeList();
+  else if (document.getElementById('wonOverlay').classList.contains('open')) closeWon();
+  else if (document.getElementById('lostOverlay').classList.contains('open')) closeLost();
+  else if (!ED && (selected || nj)) closeDrawer();
+});
+
+// ---------- + New job: intake form → creates a Lead ----------
+const SOURCES = ['Referral', 'Repeat client', 'Yelp', 'Google', 'Nextdoor', 'Saw our sign', 'Other'];
+let nj = null;   // the form's state
+function openNewJob() {
+  selected = null; renderJobs();
+  document.getElementById('stageTabs').innerHTML = ''; document.getElementById('topbarExtra').innerHTML = '';
+  nj = { source:null, match:null };
+  const pastClients = JOBS.filter(j => j.stage === 'active').filter((j, i, a) => a.findIndex(x => x.client_name === j.client_name) === i);
+  document.getElementById('drawer').innerHTML =
+    '<div class="dw-h"><div class="top"><h3>New job</h3><button class="x" onclick="closeDrawer()">×</button></div>' +
+    '<div class="meta" style="color:var(--text-4)">Starts as a lead. You can write the quote now or after the site visit.</div></div>' +
+    '<div class="dw-s nf"><h4>Client</h4>' +
+      '<label>Name<input id="njName" placeholder="e.g. Grace Wong" autocomplete="off"></label>' +
+      '<div id="njMatch"></div>' +
+      '<div class="nf2"><label>Phone<input id="njPhone" placeholder="(626) 555-0100"></label><label>Email<input id="njEmail" placeholder="optional"></label></div>' +
+      '<label>Job address<input id="njAddr" placeholder="Street, city"></label>' +
+    '</div>' +
+    '<div class="dw-s nf"><h4>What they want</h4>' +
+      '<label class="bare"><textarea id="njAsk" rows="3" placeholder="In their words — e.g. “Guest bath refresh: new vanity + toilet, regrout the tub. Wants it done before Thanksgiving.”"></textarea></label>' +
+      '<label style="max-width:200px">Budget they mentioned<input id="njBudget" placeholder="optional, e.g. ~$10k"></label>' +
+    '</div>' +
+    '<div class="dw-s nf"><h4>How they found us</h4>' +
+      '<div class="srcs">' + SOURCES.map(x => '<button type="button" class="src" data-src="' + x + '">' + x + '</button>').join('') + '</div>' +
+      '<label id="njRefWrap" style="display:none;max-width:260px">Referred by<select id="njRef"><option value="">Pick a past client…</option>' +
+        pastClients.map(j => '<option>' + esc(j.client_name) + '</option>').join('') + '<option>Someone else</option></select></label>' +
+    '</div>' +
+    '<div class="dw-s nf"><h4>Site visit <span class="r">optional</span></h4>' +
+      '<div class="nf3"><label>Date<input type="date" id="njDate"></label><label>Time<input type="time" id="njTime"></label>' +
+      '<label>Who’s going<input id="njWho" value="Patty"></label></div>' +
+      '<div class="q">Leave the date empty to just log the lead.</div>' +
+    '</div>' +
+    '<div class="nf-acts"><span class="nf-err" id="njErr"></span><button class="btn" onclick="closeDrawer()">Cancel</button>' +
+      '<button class="btn" onclick="createJob(true)">Create + write quote →</button><button class="btn pri" onclick="createJob(false)">Create lead</button></div>';
+  showDrawer();
+  setTimeout(() => document.getElementById('njName').focus(), 220);
+}
+document.getElementById('newJob').addEventListener('click', openNewJob);
+// Repeat client: typing a name we've worked for offers to fill in their details.
+document.getElementById('drawer').addEventListener('input', e => {
+  if (e.target.id !== 'njName' || !nj) return;
+  const q = e.target.value.trim().toLowerCase(), box = document.getElementById('njMatch');
+  const hit = q.length >= 3 && JOBS.find(j => j.client_name.toLowerCase().includes(q));
+  nj.match = hit || null;
+  box.innerHTML = hit ? '<div class="match"><span><b>' + esc(hit.client_name) + '</b> · ' + esc(hit.address || '') + ' · ' +
+      (hit.stage === 'active' && !isOpen(hit) ? 'past client' : 'open job') + '</span><button type="button" class="btn" id="njUse">Use their info</button></div>' : '';
+});
+document.getElementById('drawer').addEventListener('click', e => {
+  if (!nj) return;
+  if (e.target.id === 'njUse') {
+    const j = nj.match;
+    document.getElementById('njName').value = j.client_name;
+    document.getElementById('njPhone').value = j.phone || '';
+    document.getElementById('njEmail').value = j.email || '';
+    document.getElementById('njAddr').value = j.address || '';
+    pickSource('Repeat client');
+    document.getElementById('njMatch').innerHTML = '<div class="match ok">Filled in from ' + esc(j.client_name) + '’s earlier job.</div>';
+  }
+  const b = e.target.closest('.src'); if (b) pickSource(b.dataset.src);
+});
+function pickSource(x) {
+  nj.source = x;
+  document.querySelectorAll('#drawer .src').forEach(b => b.classList.toggle('on', b.dataset.src === x));
+  document.getElementById('njRefWrap').style.display = x === 'Referral' ? '' : 'none';
+}
+async function createJob(toQuote) {
+  const v = id => document.getElementById(id).value.trim();
+  const name = v('njName'), addr = v('njAddr'), ask = v('njAsk');
+  const miss = [!name && 'name', !addr && 'address', !ask && 'what they want'].filter(Boolean);
+  if (miss.length) { document.getElementById('njErr').textContent = 'Need ' + miss.join(', ') + '.'; return; }
+  const src = nj.source === 'Referral' && v('njRef') ? 'Referral · ' + v('njRef') : (nj.source || null);
+  const date = v('njDate') || null;
+  const r = await sb.from('side_jobs').insert({ stage:'lead', client_name:name, address:addr, phone:v('njPhone') || null, email:v('njEmail') || null,
+    came_in:TODAY, source:src, ask, budget:v('njBudget') || null, visit_date:date, visit_time:date ? v('njTime') || null : null, visit_who:date ? v('njWho') || null : null,
+    created_by:uid() }).select('id').single();
+  if (r.error) { document.getElementById('njErr').textContent = 'Couldn’t save — ' + r.error.message; return; }
+  nj = null;
+  await loadAll();
+  openDrawer(r.data.id);
+  if (toQuote) { viewStage = 'quoted'; ensureDraft(sel()); renderDrawer(); setTimeout(() => { const q = document.querySelector('#drawer .qh'); if (q) q.focus(); }, 220); }
+}
+
+// ---------- start ----------
+(async () => {
+  await window.authGate();
+  if (!window.CURRENT_USER_ROLE) return;   // authGate redirected
+  window.renderSidebar('sideprojects');
+  window.__qsLoadedAt = Date.now();
+  try { await loadAll(); }
+  catch (e) { document.getElementById('board').innerHTML = '<div class="col-empty">Couldn’t load side projects — ' + esc(e.message) + '</div>'; return; }
+  renderJobs();
+  const id = new URLSearchParams(location.search).get('job');
+  if (id && JOBS.some(j => j.id === id)) openDrawer(id);
+})();
+</script>
+</body>
+</html>
