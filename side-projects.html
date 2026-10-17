@@ -705,7 +705,7 @@ function openList(kind) {
     const p = paid(j), prof = p - spent(j), m = p ? Math.round(prof / p * 100) : 0;
     const when = kind === 'lost' ? 'lost ' + md(j.lost_on) : j.money ? ymRange(j.money.first, j.money.last) : 'done ' + md(j.work_done_on);
     return '<a class="lost-row" href="#" data-open="' + j.id + '"><span><span class="lr-addr">' + esc(j.client_name) + '</span> <span class="lr-city">' + esc(j.address) + '</span><br><span class="lr-city" style="font-size:11px">' + when + '</span></span>' +
-      '<span class="lr-price">' + (kind === 'lost' ? fmt(contract(j)) + ' quoted' : fmt(p) + ' <span class="lr-m ' + (m < 10 ? 'r' : m >= 30 ? 'g' : '') + '">' + fmt(prof) + ' · ' + pct(m) + '</span>') + '</span></a>';
+      '<span class="lr-price">' + (kind === 'lost' ? fmt(contract(j)) + ' quoted' : fmt(p) + ' <span class="lr-m ' + (prof < 0 ? 'r' : 'g') + '">' + fmt(prof) + ' · ' + pct(m) + '</span>') + '</span></a>';
   }).join('') || '<div class="col-empty">Nothing here</div>';
   document.getElementById('listHint').textContent = kind === 'lost' ? 'Quotes that didn’t turn into jobs.' : 'Work done and paid in full, newest first. Money comes from QuickBooks.';
   document.getElementById('listOverlay').classList.add('open');
@@ -844,7 +844,7 @@ function progressHtml(j) {   // tasks done and money spent against the quoted co
       (over > 0 ? ' · <span class="r">' + fmt(over) + ' over with those</span>' : '') : ''));
   const coPrice = changeOrders(j).reduce((a, c) => a + num(c.price), 0), k = contract(j), cost = j.work_done_on ? s : qc, p = k - cost, m = k ? Math.round(p / k * 100) : 0;
   const profit = '<div class="pg-profit">' + (j.work_done_on ? 'Profit' : 'Quoted profit') + ': contract ' + fmt(k) + (coPrice ? ' <span class="dim">(incl. change orders ' + fmt(coPrice) + ')</span>' : '') +
-    ' − ' + (j.work_done_on ? 'actual cost ' : 'quoted cost ') + fmt(cost) + ' = <b class="' + (p < 0 ? 'r' : m >= 30 ? 'g' : '') + '">' + (p < 0 ? '−' : '') + fmt(Math.abs(p)) + ' · ' + pct(m) + '</b>' +
+    ' − ' + (j.work_done_on ? 'actual cost ' : 'quoted cost ') + fmt(cost) + ' = <b class="' + (p < 0 ? 'r' : 'g') + '">' + (p < 0 ? '−' : '') + fmt(Math.abs(p)) + ' · ' + pct(m) + '</b>' +
     (j.work_done_on ? ' <span class="dim">· quoted ' + fmt(k - qc) + '</span>' : '') + '</div>';
   return sec('Progress', null, '<div class="cn-bars">' + prog + budget + '</div>' + profit);
 }
@@ -855,7 +855,7 @@ function realView(j) {
     ? '<div class="upcoming" style="margin-bottom:0"><h5>Not set up here yet</h5>Costs are coming in from QuickBooks' + (r.first ? ' since ' + fmtYM(r.first) : '') + '. This job has no quote or tasks on file.</div>'
     : '<div class="upcoming" style="margin-bottom:0"><h5>From QuickBooks history</h5>No quote or tasks on file — this job was done before Side Projects existed. Its money comes from the QuickBooks customer' + (r.first ? ', ' + ymRange(r.first, r.last) : '') + '.</div>';
   const rows = [['Client paid (Side Project Income)', fmt(r.income), '', r.income ? 'g' : ''], ['Total cost', fmt(cost)]];
-  if (!going || r.income) rows.push(['Profit', (profit < 0 ? '−' : '') + fmt(Math.abs(profit)), 'tot', profit < 0 ? 'r' : 'g'], ['Margin', r.income ? pct(Math.round(m * 100)) : '—', '', m >= .3 ? 'g' : m < .1 ? 'r' : '']);
+  if (!going || r.income) rows.push(['Profit', (profit < 0 ? '−' : '') + fmt(Math.abs(profit)), 'tot', profit < 0 ? 'r' : 'g'], ['Margin', r.income ? pct(Math.round(m * 100)) : '—', '', profit < 0 ? 'r' : 'g']);
   return intro + sec('Money', null, kv(rows) + (j.learned_note ? '<div class="note" style="margin-top:10px">' + esc(j.learned_note) + '</div>' : '')) +
     spentHtml(j) + sec('Payments', fmt(r.income) + ' in', payTable(j));
 }
@@ -1322,7 +1322,7 @@ function openNewJob() {
     '<div class="nf-acts"><span class="nf-err" id="njErr"></span><button class="btn" onclick="closeDrawer()">Cancel</button>' +
       '<button class="btn" onclick="createJob(true)">Create + write quote →</button><button class="btn pri" onclick="createJob(false)">Create lead</button></div>';
   showDrawer();
-  setTimeout(() => document.getElementById('njName').focus(), 220);
+  setTimeout(() => { const n = document.getElementById('njName'); if (n) n.focus(); }, 220);
 }
 document.getElementById('newJob').addEventListener('click', openNewJob);
 // Repeat client: typing a name we've worked for offers to fill in their details.

@@ -207,6 +207,8 @@ h2 { font-size:14.5px; font-weight:600; }
 /* Escrow fix: the booking sheet, and the trade label that opens it. */
 .lb .fixlb { cursor:pointer; } .lb .fixlb:hover { text-decoration:underline; }
 .tag.fix { color:#8A2E5C; background:#F8E6EF; }
+.tag.side { color:#4B3F99; background:#ECE8F8; }
+.ph .nm a { color:inherit; text-decoration:none; } .ph .nm a:hover { text-decoration:underline; }
 .fxf { padding:12px 17px 15px; display:flex; flex-direction:column; gap:10px; font-size:12px; }
 .fxf label { display:flex; flex-direction:column; gap:3px; color:var(--text-4); font-size:10.5px;
   font-weight:600; letter-spacing:.03em; text-transform:uppercase; }
@@ -346,8 +348,33 @@ async function loadAll(){
   workers=roster.filter(x=>x.active);
   const {data:sk}=await sb.from('worker_trades').select('id, worker_id, milestone_key');
   skills=sk||[];
+  await loadSideJobs();
   await loadAssignments();
 }
+// Side projects (side-projects.html): jobs for other homeowners, staffed from the
+// same roster. Read-only here — their days and crew are picked on the job's page
+// there — but they show on the board, count toward Crew needed / Assigned, and
+// make the people on them busy, so nobody gets sent to two places.
+let sideJobs=[];
+const SIDE=['#ECE8F8','#4B3F99'];
+async function loadSideJobs(){
+  sideJobs=[];
+  const {data:j,error}=await sb.from('side_jobs').select('id, client_name, address, target_done, work_done_on')
+    .eq('stage','active').eq('from_qbo',false).is('archived_at',null);
+  if(error||!j||!j.length)return;
+  const {data:t}=await sb.from('side_job_tasks').select('id, job_id, name, done, sub_name, sort_order').in('job_id',j.map(x=>x.id));
+  const tids=(t||[]).map(x=>x.id);
+  const {data:dd}=tids.length?await sb.from('side_job_task_days').select('task_id, work_date, worker_ids').in('task_id',tids):{data:[]};
+  sideJobs=j.map(x=>({...x, tasks:(t||[]).filter(k=>k.job_id===x.id)
+      .map(k=>({...k, days:Object.fromEntries((dd||[]).filter(r=>r.task_id===k.id).map(r=>[r.work_date, r.worker_ids||[]]))}))
+      .filter(k=>Object.keys(k.days).length)
+      .sort((a,b)=>Object.keys(a.days).sort()[0]<Object.keys(b.days).sort()[0]?-1:1)}))
+    .filter(x=>x.tasks.length);
+}
+// Who a side job has on a day (a person on two of its tasks that day is still one day).
+function sideOn(day){const out=[];for(const sj of sideJobs){const ids=new Set();for(const k of sj.tasks)for(const w of (k.days[day]||[]))ids.add(w);for(const w of ids)out.push({sj,w});}return out;}
+function sideBusy(wid,day){return sideOn(day).find(x=>x.w===wid)||null;}
+const sideUrl=sj=>'side-projects.html?job='+sj.id;
 // Assignments across the whole visible window, so the Assigned row shows what
 // is already covered ahead — not just the day on screen.
 async function loadAssignments(){
@@ -466,7 +493,7 @@ function assignedTo(dealId,key,day){
 // counting rows, which is what makes half-at-Moore + half-at-Carnaby a full
 // day rather than a double-booking. Float tolerance because 0.25 x 4 is not
 // reliably 1 in binary.
-function busyOn(wid,day){return assigns.filter(a=>a.worker_id===wid&&a.work_date===day).reduce((s,a)=>s+frac(a),0);}
+function busyOn(wid,day){return assigns.filter(a=>a.worker_id===wid&&a.work_date===day).reduce((s,a)=>s+frac(a),0)+(sideBusy(wid,day)?1:0);}
 const FULL=0.9999, OVER=1.0001;
 // A few days of lead-in before today. The board is a planning surface, so the
 // forward horizon stays a full two weeks — the lookback is added, not traded
@@ -490,10 +517,10 @@ function render(){
   const colw=view==='1w'?56:view==='2w'?34:19;
   const gt=`grid-template-columns:196px repeat(${N},minmax(${colw}px,1fr))`;
   document.getElementById('hsub').textContent=
-    deals.length+(deals.length===1?' build':' builds')+' · '+ourDeals().length+' on our crew';
+    deals.length+(deals.length===1?' build':' builds')+' · '+ourDeals().length+' on our crew'+(sideJobs.length?' · '+sideJobs.length+(sideJobs.length===1?' side project':' side projects'):'');
   for(const [id,v] of [['v1w','1w'],['v2w','2w'],['vfull','full']])
     document.getElementById(id).classList.toggle('on',view===v);
-  if(!deals.length){document.getElementById('page').innerHTML='<div class="empty">No builds under construction.</div>';return;}
+  if(!deals.length&&!sideJobs.length){document.getElementById('page').innerHTML='<div class="empty">No builds under construction.</div>';return;}
 
   let hd=`<div class="r" style="${gt}"><span class="lb"></span>`;
   for(const x of D){const dow=d(x).getDay();
@@ -569,13 +596,42 @@ function render(){
     }
   }
 
+  for(const sj of sideJobs){
+    const ts=sj.tasks.filter(k=>Object.keys(k.days).some(x=>D.includes(x)));
+    if(!ts.length)continue;
+    const [bg,fg]=SIDE;
+    body+=`<div class="ph"><span class="car"></span>
+      <span><span class="dot" style="background:${fg}"></span><span class="nm"><a href="${sideUrl(sj)}">${esc(sj.client_name)}</a></span>
+      <span class="tag side">side project</span></span>
+      <span class="meta">${esc(sj.address||'')}</span>
+      ${sj.work_done_on?`<span class="meta">work done ${md(sj.work_done_on)}</span>`:sj.target_done?`<span class="meta">target done ${md(sj.target_done)}</span>`:''}
+      <span class="meta">days and crew are set on <a href="${sideUrl(sj)}">Side Projects</a></span></div>`;
+    for(const k of ts){
+      const heads=Math.max(0,...Object.values(k.days).map(a=>a.length));
+      let cells='';
+      for(const x of D){
+        const mon=d(x).getDay()===1?'<span class="mon"></span>':'';
+        const on=x in k.days, ppl=on?k.days[x].map(workerById).filter(Boolean):[];
+        if(view==='full'){
+          cells+=on?`<span class="cellw">${mon}<div class="bar" style="background:${bg};color:${fg}">${ppl.length||''}</div></span>`
+                  :`<span class="cellw">${mon}<div class="rcell"></div></span>`;
+          continue;
+        }
+        const inner=ppl.length?ppl.map(w=>`<span class="chip" style="color:${fg}" title="${esc(w.name)} · ${money(w.daily_rate)}">${esc(w.name.slice(0,2))}</span>`).join('')
+          :(on&&k.sub_name?'<span class="chip" style="background:none;color:#9b9b95;font-weight:400">s</span>':'');
+        cells+=`<span class="cellw">${mon}<div class="dcell${on?'':' off'}" style="${on?'background:'+bg:''}" onclick="location.href='${sideUrl(sj)}'" title="Open on Side Projects">${inner}</div></span>`;
+      }
+      body+=`<div class="r" style="${gt}"><span class="lb">${k.done?'<span style="color:var(--text-4)">\u2713 </span>':''}${esc(k.name)} <span class="cw">${heads?heads+'p':k.sub_name?'sub':''}</span></span>${cells}</div>`;
+    }
+  }
+
   let ld=`<div class="r load" style="${gt}"><span class="lb">Crew needed</span>`;
-  for(const x of D){let v=0;for(const dl of ourDeals())v+=demandOn(dl,x);
+  for(const x of D){let v=sideOn(x).length;for(const dl of ourDeals())v+=demandOn(dl,x);
     ld+=`<span class="n${v>workers.length?' over':(v?'':' zero')}">${v||''}</span>`;}
   ld+='</div>';
   let ac=`<div class="r" style="${gt}"><span class="lb">Assigned</span>`;
-  for(const x of D){const v=assigns.filter(a=>a.work_date===x).reduce((s,a)=>s+frac(a),0);
-    let need=0;for(const dl of ourDeals())need+=demandOn(dl,x);
+  for(const x of D){const v=assigns.filter(a=>a.work_date===x).reduce((s,a)=>s+frac(a),0)+sideOn(x).length;
+    let need=sideOn(x).length;for(const dl of ourDeals())need+=demandOn(dl,x);
     ac+=`<span class="n zero" style="${v&&v<need?'color:var(--amber);font-weight:700':(v?'color:var(--green);font-weight:700':'')}">${v?num(v):''}</span>`;}
   ac+='</div>';
 
@@ -628,6 +684,25 @@ function render(){
       <div class="a"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a>, <span class="c">${esc(cityOf(deal))}</span></div>
       <div class="m">${selling(deal)?'in escrow':'day '+diff(startOf(deal),sel)} · ${tr.length} ${tr.length===1?'trade':'trades'}${extra.length?' · '+extra.length+' off plan':''}</div></div>
       <div class="rr"><div class="cost">${money(cost)}</div>${got} out · ${need} asked for by the plan</div></div>${rows}</div>`;
+  }
+  for(const sj of sideJobs){
+    const ts=sj.tasks.filter(k=>(k.days[sel]||[]).length);
+    if(!ts.length)continue;
+    let rows='',cost=0;
+    const ppl=new Set();
+    for(const k of ts){
+      const who=k.days[sel].map(workerById).filter(Boolean);
+      who.forEach(w=>{ if(!ppl.has(w.id)){ppl.add(w.id);cost+=Number(w.daily_rate||0);} });
+      rows+=`<div class="tr"><div class="tn">${esc(k.name)}${k.sub_name?`<em>+ sub · ${esc(k.sub_name)}</em>`:''}</div>
+        <div class="need">${who.length}</div>
+        <div class="chips">${who.map(w=>{const db=busyOn(w.id,sel)>OVER;return `<span class="pc${db?' dbl':''}"><span class="nmc">${esc(w.name)}</span><span class="rt">${money(w.daily_rate)}</span></span>`;}).join('')}
+          <a class="addb" href="${sideUrl(sj)}" style="text-decoration:none">edit on Side Projects</a></div></div>`;
+    }
+    dayCost+=cost;
+    sites+=`<div class="site"><div class="sitehd"><div>
+      <div class="a"><a href="${sideUrl(sj)}">${esc(sj.client_name)}</a>, <span class="c">${esc(sj.address||'')}</span> <span class="tag side">side project</span></div>
+      <div class="m">${ts.length} ${ts.length===1?'task':'tasks'}</div></div>
+      <div class="rr"><div class="cost">${money(cost)}</div>${ppl.size} out</div></div>${rows}</div>`;
   }
   if(!sites)sites='<div class="site" style="text-align:center;color:var(--text-4);font-style:italic">Nothing on our crew this day.</div>';
   // Someone on a half-day is half available, so the bench is "not fully
@@ -864,6 +939,8 @@ function renderOv(){
     const st=el?`<span class="st"${left<FULL?' style="color:var(--text-4)"':''}>${left<FULL?num(left)+' of a day on ':'on '}${esc(el.deal_id===ovCtx.dealId
       ? tradeNameOf(el.deal_id, el.milestone_key)
       : addrOf(deals.find(x=>x.id===el.deal_id)||{}))}</span>`:'';
+    const sj=!el&&sideBusy(w.id,ovCtx.day);
+    const st2=sj?`<span class="st">on ${esc(sj.sj.client_name)} (side project)</span>`:'';
     const sk=canDo(w.id,ovCtx.key)?'<span class="st" style="color:var(--green)">trained for this</span>':'';
     const ctl=mine?`<div class="wrc">
       <div class="fr">${FRACS.map(v=>`<b class="${frac(mine)===v?'on':''}" data-fr="${mine.id}|${v}" title="${v===1?'A whole day':v+' of a day'}">${FRG[v]}</b>`).join('')}</div>
@@ -871,7 +948,7 @@ function renderOv(){
       ${otHrs(mine)?`<div class="fr" title="Were those hours paid at the premium, or at the same rate as the rest of the day?">${OT_MULTS.map(v=>`<b class="${otMult(mine)===v?'on':''}" data-otm="${mine.id}|${v}" title="${v===1?'Paid like any other hour':'Paid at time and a half'}">${v}\u00d7</b>`).join('')}</div>`:''}
       <span class="pay" title="${money(rateOf(mine))} \u00f7 ${DAY_HOURS}h = ${money(rateOf(mine)/DAY_HOURS)}/hour">${money(payOf(mine))}</span></div>`:'';
     return `<div class="wr${here.has(w.id)?' on':''}" data-worker="${w.id}">
-      <span class="nm">${esc(w.name)}</span>${sk}${st}<span class="rt">${money(w.daily_rate)}</span>${ctl}</div>`;
+      <span class="nm">${esc(w.name)}</span>${sk}${st}${st2}<span class="rt">${money(w.daily_rate)}</span>${ctl}</div>`;
   }).join('');
   document.querySelectorAll('#ovb .wr').forEach(el=>{
     // The controls sit inside the row, and the row is the toggle — without
