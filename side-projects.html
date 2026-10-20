@@ -246,6 +246,10 @@ h2 { font-size:14.5px; font-weight:600; }
 .qm .g { color:var(--green); } .qm .r { color:var(--red); }
 .qx { border:none; background:none; color:var(--text-4); cursor:pointer; font-size:15px; line-height:1; padding:0; }
 .qx:hover { color:var(--red); }
+.qhw { display:flex; gap:8px; align-items:center; min-width:0; }
+.qdl { display:flex; gap:4px; align-items:center; font-size:10.5px; color:var(--text-4); white-space:nowrap; cursor:pointer; }
+.qdl input { width:auto !important; margin:0; }
+.ql.isdec .qh { color:var(--text-4); text-decoration:line-through; }
 .qadd { display:inline-block; font-size:11.5px; color:var(--accent); cursor:pointer; margin:6px 0 2px; }
 .qtot { border-top:1px solid var(--border); margin-top:6px; padding-top:8px; font-weight:600; }
 .qsum { display:flex; justify-content:space-between; align-items:baseline; margin-top:8px; padding:8px 10px; background:var(--green-bg); border-radius:var(--radius-sm); font-size:12.5px; color:var(--text-2); }
@@ -655,7 +659,7 @@ function jobClashes(j) {   // this job's people who are booked elsewhere the sam
 
 // ---------- board ----------
 let selected = null, viewStage = null;
-let SETUP = null, EDITING = false, RELINK = false;   // job being set up from QuickBooks · details form open · QuickBooks picker reopened
+let SETUP = null, EDITING = false, RELINK = false, QEDIT = null;   // … · job whose won quote is being edited   // job being set up from QuickBooks · details form open · QuickBooks picker reopened
 const sel = () => JOBS.find(x => x.id === selected);
 function spentBar(j) {   // spent (QuickBooks) against the quoted cost
   const qc = quotedCost(j), s = spent(j), pct = qc ? s / qc : null, fill = pct == null ? '' : pct > 1 ? 'over' : !j.work_done_on && pct > .85 ? 'warn' : 'ontrack';
@@ -900,10 +904,11 @@ const STAGE_VIEW = {
           : '<div class="upcoming" style="margin:8px 0 0">After the visit, jot down measurements, what’s behind the walls, and anything that changes price. Those notes carry straight into the quote.</div>'));
   },
   quoted(j, mode) {
-    const setup = mode === 'setup', L = j.quote_lines || [], edit = setup || j.stage === 'lead' || j.stage === 'quoted', t = qTotals(L);
+    const setup = mode === 'setup', qedit = QEDIT === j.id, L = j.quote_lines || [], edit = setup || qedit || j.stage === 'lead' || j.stage === 'quoted', t = qTotals(L);
     const head = '<div class="ql qhd"><span>Headline</span><span>Our cost</span><span>Price</span><span>Margin</span><span></span></div>';
     const rows = L.map((l, i) => edit
-      ? '<div class="ql" data-i="' + i + '"><input class="qh" value="' + esc(l.headline || '') + '" placeholder="e.g. Tile — shower walls + floor">' +
+      ? '<div class="ql' + (qedit && l.declined ? ' isdec' : '') + '" data-i="' + i + '">' + (qedit ? '<span class="qhw">' : '') + '<input class="qh" value="' + esc(l.headline || '') + '" placeholder="e.g. Tile — shower walls + floor">' +
+        (qedit ? '<label class="qdl" title="The client said no to this line — it stays on the quote, out of the contract"><input type="checkbox" class="qd"' + (l.declined ? ' checked' : '') + '>declined</label></span>' : '') +
         '<input class="qn qc" inputmode="numeric" value="' + (l.cost || '') + '" placeholder="0">' +
         '<input class="qn qp" inputmode="numeric" value="' + (l.price || '') + '" placeholder="0">' +
         '<span class="qm">' + mTxt(num(l.price), num(l.cost)) + '</span><button class="qx" title="Remove line">×</button></div>'
@@ -917,14 +922,17 @@ const STAGE_VIEW = {
       ? '<div class="qterms"><label>Payment terms<select id="qTerms"><option value=""' + (j.payment_terms ? '' : ' selected') + '>—</option>' + TERMS_ALL.concat(!j.payment_terms || TERMS_ALL.includes(j.payment_terms) ? [] : [j.payment_terms]).map(x => '<option' + (x === j.payment_terms ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
         '<label>Good through<input type="date" id="qValid" value="' + (j.quote_valid_through || '') + '"></label>' +
         '<label>Quote #<input id="qNo" value="' + esc(j.quote_no || '') + '" placeholder="from quote.html, e.g. QUO-2026-0019"></label></div>' +
-        (setup ? '<div class="qterms"><label>Target done<input type="date" id="setupTarget" value="' + (j.target_done || '') + '"></label></div>' : '')
+        (setup ? '<div class="qterms"><label>Target done<input type="date" id="setupTarget" value="' + (j.target_done || '') + '"></label></div>' : '') +
+        (qedit ? '<div class="qterms"><label>Sent<input type="date" id="qeSent" value="' + (j.quote_sent_on || '') + '"></label><label>Accepted<input type="date" id="qeWon" value="' + (j.won_on || '') + '"></label><span></span></div>' : '')
       : kv([['Sent', md(j.quote_sent_on) || '—'], ['Good through', md(j.quote_valid_through) || '—'], ['Accepted', md(j.won_on) || '—'], ['Payment terms', esc(j.payment_terms || '—')]]);
     const handoff = '<div class="handoff"><a class="btn" href="quote.html" target="_blank">' + (j.quote_no ? 'Open ' + esc(j.quote_no) + ' in quote.html ↗' : 'Write it up in quote.html ↗') + '</a>' +
-      (setup ? '<button class="btn" id="setupCancel">Cancel</button><button class="btn pri" id="setupGo">Set up job</button>'
+      (qedit ? '<span>New lines become tasks. Renaming a line doesn’t rename its task.</span><button class="btn" id="qeCancel">Cancel</button><button class="btn pri" id="qeSave">Save quote</button>'
+        : setup ? '<button class="btn" id="setupCancel">Cancel</button><button class="btn pri" id="setupGo">Set up job</button>'
         : j.stage === 'lead' ? '<button class="btn pri" id="markSent"' + (t.price ? '' : ' disabled title="Add a price first"') + '>Mark quote sent</button>' : '') + '</div>';
     const follows = j.log.filter(l => l.kind === 'follow_up').slice().sort((a, b) => (a.due - b.due) || a.entry_date.localeCompare(b.entry_date) || (a.created_at || '').localeCompare(b.created_at || ''));
     if (setup) return sec('Quote', 'the lines this job was sold on', head + rows + '<a class="qadd">+ Add line</a>' + tot + profit + terms + handoff);
-    return sec('Quote', j.quote_no ? esc(j.quote_no) + (j.quote_sent_on ? ' · sent ' + md(j.quote_sent_on) : '') : j.quote_sent_on ? 'sent ' + md(j.quote_sent_on) : 'draft · not sent yet',
+    const editLink = j.stage === 'active' && !qedit ? ' · <a data-qedit>Edit quote</a>' : '';
+    return sec('Quote', (j.quote_no ? esc(j.quote_no) + (j.quote_sent_on ? ' · sent ' + md(j.quote_sent_on) : '') : j.quote_sent_on ? 'sent ' + md(j.quote_sent_on) : 'draft · not sent yet') + editLink,
         head + rows + (edit ? '<a class="qadd">+ Add line</a>' : '') + tot + profit + coNote + terms + handoff) +
       (j.stage !== 'lead' ? sec('Follow-ups', j.stage === 'quoted' ? '<a data-addnote="follow">+ Note</a>' : '', follows.length ? logList(follows) : '<span class="q">No follow-ups yet.</span>') : '');
   },
@@ -962,6 +970,7 @@ const UPCOMING = {
 function openDrawer(id) {
   selected = id; nj = null; ED = null;
   viewStage = sel().stage;
+  if (QEDIT) { QEDIT = null; loadAll().then(render); }
   SETUP = null; EDITING = false; RELINK = false;
   renderJobs(); renderDrawer(); showDrawer();
   if (new URLSearchParams(location.search).get('job') !== id) history.pushState({ job:id }, '', '?job=' + id);
@@ -1034,7 +1043,9 @@ function renderDrawer() {
   document.getElementById('drawer').innerHTML = h + (body.startsWith('<div class="dp-2">') ? body : '<div class="dp-cols">' + body + '</div>');
   wireQboSync();
 }
-document.getElementById('stageTabs').addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (b) { viewStage = b.dataset.k; ED = null; renderDrawer(); } });
+document.getElementById('stageTabs').addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (!b) return;
+  viewStage = b.dataset.k; ED = null;
+  if (QEDIT) { QEDIT = null; loadAll().then(render); } else renderDrawer(); });
 
 // ---------- tasks: days + crew per day ----------
 function schedTxt(j, x) {
@@ -1104,6 +1115,26 @@ async function saveTaskSchedule(x) {
 // ---------- job page clicks ----------
 document.getElementById('drawer').addEventListener('click', e => {
   const j = sel(); if (!j) return;
+  // edit a won quote: lines, declined, terms, dates — saved on Save, thrown away on Cancel
+  if (e.target.closest('[data-qedit]')) { QEDIT = j.id; (j.quote_lines || []).forEach(l => { l._wasDeclined = !!l.declined; }); viewStage = 'quoted'; renderDrawer(); return; }
+  if (e.target.id === 'qeCancel') { QEDIT = null; loadAll().then(render); return; }
+  if (e.target.id === 'qeSave') {
+    const lines = (j.quote_lines || []).filter(l => (l.headline || '').trim() || num(l.price) || num(l.cost))
+      .map(l => ({ headline:(l.headline || '').trim(), cost:num(l.cost), price:num(l.price), declined:!!l.declined }));
+    if (!lines.some(l => !l.declined)) { toast('Keep at least one line that isn’t declined.'); return; }
+    const v = id => (document.getElementById(id) || {}).value || null;
+    const names = new Set(j.tasks.map(t => t.name.trim().toLowerCase()));
+    // Only lines added in this edit, or taken back from declined, become tasks — a renamed line keeps its task.
+    const fresh = (j.quote_lines || []).filter(l => !l.declined && (l.headline || '').trim() && (l._new || l._wasDeclined) && !names.has(l.headline.trim().toLowerCase()))
+      .map(l => ({ headline:l.headline.trim() }));
+    QEDIT = null;
+    write('quote', async () => {
+      must(await sb.from('side_jobs').update({ quote_lines:lines, payment_terms:v('qTerms'), quote_valid_through:v('qValid'), quote_no:v('qNo'),
+        quote_sent_on:v('qeSent') || j.quote_sent_on, won_on:v('qeWon') || j.won_on, updated_at:new Date().toISOString() }).eq('id', j.id));
+      if (fresh.length) must(await sb.from('side_job_tasks').insert(fresh.map((l, i) => ({ job_id:j.id, name:l.headline, sort_order:j.tasks.length + i }))));
+    });
+    return;
+  }
   // #9 set up a QuickBooks-only job
   if (e.target.closest('[data-setup]')) { SETUP = j.id; ensureDraft(j); renderDrawer(); const q = document.querySelector('#drawer .qh'); if (q) q.focus(); return; }
   if (e.target.id === 'setupCancel') { SETUP = null; renderDrawer(); return; }
@@ -1255,6 +1286,7 @@ function ensureDraft(j) { if (!(j.quote_lines || []).length) j.quote_lines = [{ 
 let qTimer = null;
 function saveQuoteSoon(j) {
   clearTimeout(qTimer);
+  if (QEDIT === j.id) return;
   qTimer = setTimeout(async () => {
     const lines = (j.quote_lines || []).filter(l => l.headline || num(l.price) || num(l.cost)).map(l => ({ headline:l.headline || '', cost:num(l.cost), price:num(l.price), declined:!!l.declined }));
     const r = await sb.from('side_jobs').update({ quote_lines:lines, payment_terms:j.payment_terms || null, quote_valid_through:j.quote_valid_through || null, quote_no:j.quote_no || null, updated_at:new Date().toISOString() }).eq('id', j.id);
@@ -1266,6 +1298,7 @@ function qRecalc() {
   document.querySelectorAll('#drawer .ql[data-i]').forEach(r => {
     const l = j.quote_lines[+r.dataset.i];
     l.headline = r.querySelector('.qh').value; l.price = num(r.querySelector('.qp').value); l.cost = num(r.querySelector('.qc').value);
+    const qd = r.querySelector('.qd'); if (qd) { l.declined = qd.checked; r.classList.toggle('isdec', qd.checked); }
     r.querySelector('.qm').innerHTML = mTxt(l.price, l.cost);
   });
   const t = qTotals(j.quote_lines);
@@ -1289,7 +1322,7 @@ document.getElementById('drawer').addEventListener('change', e => {
 document.getElementById('drawer').addEventListener('click', e => {
   const j = sel(); if (!j) return;
   if (e.target.closest('.qx')) { j.quote_lines.splice(+e.target.closest('.ql').dataset.i, 1); renderDrawer(); qRecalc(); }
-  if (e.target.closest('.qadd:not(.sadd)')) { j.quote_lines.push({ headline:'', cost:0, price:0 }); renderDrawer(); const hs = document.querySelectorAll('#drawer .qh'); hs[hs.length - 1].focus(); }
+  if (e.target.closest('.qadd:not(.sadd)')) { j.quote_lines.push({ headline:'', cost:0, price:0, _new: QEDIT === j.id }); renderDrawer(); const hs = document.querySelectorAll('#drawer .qh'); hs[hs.length - 1].focus(); }
 });
 function markSent(j) {
   clearTimeout(qTimer);
