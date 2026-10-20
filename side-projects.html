@@ -14,7 +14,8 @@
 <script src="feedback.js?v=20260901b"></script>
 <style>
 /* Shell + sidebar — verbatim from construction.html */
-.app-shell { display:flex; min-height:100vh; }
+body { overflow:hidden; height:100vh; }
+.app-shell { display:flex; height:100vh; }
 .bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; }
 .side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
 .side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
@@ -46,7 +47,7 @@
 .lock-btn:hover { color:var(--text); }
 .collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
 .collapse-btn:hover { color:var(--text); }
-.main-content { flex:1; min-width:0; padding:20px 24px 70px; }
+.main-content { flex:1; min-width:0; padding:20px 24px 70px; overflow-y:auto; }
 
 /* Mockup banner */
   border-radius:var(--radius-sm); padding:5px 10px; margin-bottom:14px; }
@@ -201,7 +202,7 @@ h2 { font-size:14.5px; font-weight:600; }
 .detail .dw-h { position:static; padding:16px 2px 14px; background:none; }
 .detail .dw-h .x { display:none; }
 .detail .stages { max-width:640px; }
-.detail .sp-h, .detail .sp-acts { border-radius:var(--radius); }
+.detail .sp-acts { border-radius:var(--radius); }
 .dp-cols { columns:2 440px; column-gap:16px; padding:16px 0 0; }
 .dp-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px 0 0; align-items:start; }
 .dp-col > .dw-s { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg); margin:0 0 16px; padding:14px 18px; display:block; }
@@ -230,9 +231,8 @@ h2 { font-size:14.5px; font-weight:600; }
 .sumline { display:flex; gap:14px; margin-top:10px; font-size:11.5px; color:var(--text-4); flex-wrap:wrap; }
 .sumline b { font-family:var(--mono); font-weight:500; color:var(--text-2); font-size:11.5px; }
 .sumline b.g { color:var(--green); } .sumline b.r { color:var(--red); }
-.sp-h { display:flex; align-items:center; gap:8px; padding:12px 22px; background:var(--bg-page); border-bottom:1px solid var(--border); }
-.sp-h .nm { font-size:13px; font-weight:600; }
-.sp-h .when { margin-left:auto; font-size:11px; color:var(--text-4); font-family:var(--mono); }
+.sl-st { margin-left:auto; display:flex; align-items:center; gap:7px; }
+.sl-st .sl-when { font-family:var(--mono); font-size:11px; color:var(--text-4); }
 .pill { font-size:9.5px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; border-radius:3px; padding:1px 6px; }
 .pill.past { color:var(--green); background:var(--green-bg); }
 .pill.cur { color:var(--accent); background:var(--accent-dim2); }
@@ -1028,15 +1028,16 @@ window.addEventListener('popstate', () => {   // browser Back/Forward between th
   if (id && JOBS.some(j => j.id === id)) { if (id !== selected) openDrawer(id); }
   else if (selected || nj) closeDrawer();
 });
-function sumLine(j) {
-  if (j.from_qbo) return paid(j) ? '<div class="sumline"><span>Collected <b class="g">' + fmt(paid(j)) + '</b></span></div>' : '';
+function sumLine(j, status) {   // the money line under the client, with the tab's status at the right end
+  const line = inner => inner || status ? '<div class="sumline">' + (inner || '') + (status || '') + '</div>' : '';
+  if (j.from_qbo) return line(paid(j) ? '<span>Collected <b class="g">' + fmt(paid(j)) + '</b></span>' : '');
   const k = contract(j);
-  if (j.stage === 'lead' || !k) return '';
-  if (j.stage === 'quoted' || j.stage === 'lost') return '<div class="sumline"><span>' + (j.stage === 'lost' ? 'Quoted' : 'Quote') + ' <b>' + fmt(k) + '</b></span></div>';
+  if (j.stage === 'lead' || !k) return line('');
+  if (j.stage === 'quoted' || j.stage === 'lost') return line('<span>' + (j.stage === 'lost' ? 'Quoted' : 'Quote') + ' <b>' + fmt(k) + '</b></span>');
   const p = paid(j);
-  return '<div class="sumline"><span>Contract <b>' + fmt(k) + '</b></span><span>Paid <b class="g">' + fmt(p) + '</b></span>' +
+  return line('<span>Contract <b>' + fmt(k) + '</b></span><span>Paid <b class="g">' + fmt(p) + '</b></span>' +
     (k > p ? '<span>To go <b>' + fmt(k - p) + '</b></span>' : '') +
-    (j.target_done && !j.work_done_on ? '<span>Target done <b>' + dmd(j.target_done) + '</b></span>' : '') + '</div>';
+    (j.target_done && !j.work_done_on ? '<span>Target done <b>' + dmd(j.target_done) + '</b></span>' : ''));
 }
 function editJobHtml(j) {   // client details, the inquiry, the target date — and delete for a job entered by mistake
   const f = (id, label, v, ph, type) => '<label>' + label + '<input id="' + id + '"' + (type ? ' type="' + type + '"' : '') + ' value="' + esc(v || '') + '"' + (ph ? ' placeholder="' + ph + '"' : '') + '></label>';
@@ -1060,10 +1061,6 @@ function renderDrawer() {
     (stateOf(i) === 'cur' ? '<span class="here-dot"></span>' : '') + s.label + '</button>').join('');
   document.getElementById('topbarExtra').innerHTML = (j.stage === 'quoted' && !j.from_qbo ? '<button class="topbar-won" onclick="openWon()">Mark won</button>' : '') +
     (['lead', 'quoted'].includes(j.stage) && !j.from_qbo ? '<button class="topbar-lost" onclick="openLost()">Mark lost</button>' : '');
-  let h = '<div class="dw-h jh"><div class="jh-title">' + esc(j.client_name) + '</div>' +
-    '<div class="jh-sub"><span>' + esc(j.address || '') + '</span>' + (j.phone ? '<a href="tel:' + esc(j.phone.replace(/[^\d+]/g, '')) + '">' + esc(j.phone) + '</a>' : '') + (j.email ? '<a href="mailto:' + esc(j.email) + '">' + esc(j.email) + '</a>' : '') +
-      (j.from_qbo ? '<span class="jh-tag">from QuickBooks</span>' : '') + (EDITING ? '' : '<a class="jh-edit" data-editjob>Edit details</a>') + '</div>' + sumLine(j) + (EDITING ? editJobHtml(j) : '') + '</div>';
-
   const vIdx = rail.findIndex(s => s.k === viewStage), stage = rail[vIdx];
   const drafting = stage.k === 'quoted' && j.stage === 'lead';
   if (drafting) ensureDraft(j);
@@ -1074,7 +1071,10 @@ function renderDrawer() {
     : stage.k === 'lost' ? ['lost', 'closed'] : done ? ['past', j.from_qbo ? 'done' : 'paid in full'] : wd ? ['due', 'work done · ' + fmt(owed) + ' owed'] : ['cur', 'now'];
   const when = !E[stage.k] ? '' : st === 'past' ? span(E[stage.k], nextEntered)
     : stage.k === 'lost' ? md(j.lost_on) : wd ? 'work done ' + md(j.work_done_on) : span(E[stage.k]);
-  if (!j.from_qbo) h += '<div class="sp-h"><span class="nm">' + stage.label + '</span><span class="pill ' + pill[0] + '">' + pill[1] + '</span>' + (when ? '<span class="when">' + when + '</span>' : '') + '</div>';
+  const status = j.from_qbo ? '' : '<span class="sl-st"><span class="pill ' + pill[0] + '">' + pill[1] + '</span>' + (when ? '<span class="sl-when">' + when + '</span>' : '') + '</span>';
+  let h = '<div class="dw-h jh"><div class="jh-title">' + esc(j.client_name) + '</div>' +
+    '<div class="jh-sub"><span>' + esc(j.address || '') + '</span>' + (j.phone ? '<a href="tel:' + esc(j.phone.replace(/[^\d+]/g, '')) + '">' + esc(j.phone) + '</a>' : '') + (j.email ? '<a href="mailto:' + esc(j.email) + '">' + esc(j.email) + '</a>' : '') +
+      (j.from_qbo ? '<span class="jh-tag">from QuickBooks</span>' : '') + (EDITING ? '' : '<a class="jh-edit" data-editjob>Edit details</a>') + '</div>' + sumLine(j, status) + (EDITING ? editJobHtml(j) : '') + '</div>';
 
   if (st === 'cur' && !drafting && !j.from_qbo) {
     const ACTS = { lead: j.visit_notes ? ['Write quote →'] : ['Write quote →', 'Log site visit'], quoted:[], active:[], lost:['Reopen'] }[stage.k];
@@ -1510,7 +1510,7 @@ document.getElementById('drawer').addEventListener('click', e => {
   });
 });
 
-function showDrawer() { document.getElementById('boardView').hidden = true; document.getElementById('detailView').hidden = false; window.scrollTo(0, 0); }
+function showDrawer() { document.getElementById('boardView').hidden = true; document.getElementById('detailView').hidden = false; document.querySelector('.main-content').scrollTop = 0; }
 function closeDrawer() {
   selected = null; nj = null; ED = null;
   document.getElementById('detailView').hidden = true; document.getElementById('boardView').hidden = false;
