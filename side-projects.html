@@ -293,6 +293,24 @@ h2 { font-size:14.5px; font-weight:600; }
 .nf-err { margin-right:auto; font-size:12px; color:var(--red); }
 .scope.steps li { align-items:flex-start; padding:5px 0; border-bottom:1px dashed var(--border); }
 .scope.steps li:last-child { border-bottom:none; }
+/* task table: name + three money columns; the days/crew editor opens under the row */
+.scope.steps li { flex-wrap:wrap; align-items:center; }
+.scope.steps .tc { width:82px; flex-shrink:0; text-align:right; font-family:var(--mono); font-size:11.5px; color:var(--text-2); }
+.scope.steps .tc.dim { color:var(--text-4); }
+.scope.steps li.thead { border-bottom:1px solid var(--border); padding:0 0 4px; }
+.scope.steps li.thead .t, .scope.steps li.thead .tc { font-family:var(--sans); font-size:9.5px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:var(--text-4); line-height:1.25; }
+.scope.steps li.thead .ckx, .scope.steps li.tfoot .ckx { width:14px; flex-shrink:0; }
+.scope.steps li.tfoot { border-top:1px solid var(--border); border-bottom:none; padding-top:6px; }
+.scope.steps li.tfoot .t, .scope.steps li.tfoot .tc { font-weight:700; color:var(--text); }
+.scope.steps .tname { cursor:default; }
+.scope.steps .tname.click { cursor:pointer; } .scope.steps .tname.click:hover { color:var(--accent); text-decoration:underline dotted; }
+.scope.steps .slot { flex-basis:100%; padding-left:22px; }
+.scope.steps .slot:empty { display:none; }
+.tflag { font-size:9.5px; font-weight:600; color:var(--text-4); margin-left:6px; }
+.tflag.warn { color:var(--amber); }
+.ontrack { font-size:11.5px; color:var(--text-3); margin-top:8px; }
+.ontrack b { font-family:var(--mono); font-weight:600; color:var(--text); } .ontrack .r { color:var(--red); } .ontrack .g { color:var(--green); }
+.sedit .se-mat { width:70px; }
 .scope.steps .ck { margin-top:2px; }
 .scope.steps .t { flex:1; min-width:0; display:flex; flex-direction:column; }
 .scope.steps li.done .t { text-decoration:none; }
@@ -646,6 +664,7 @@ const rateOf = id => +((WBY[id] || {}).daily_rate || 0);
 const dayCrew = (x, d) => (x.crewByDay && x.crewByDay[d]) || [];
 const crewOf = x => [...new Set(x.dates.flatMap(d => dayCrew(x, d)))];
 const crewCost = x => x.dates.reduce((a, d) => a + dayCrew(x, d).reduce((b, w) => b + rateOf(w), 0), 0);
+const laborSoFar = x => x.dates.filter(d => d <= TODAY).reduce((a, d) => a + dayCrew(x, d).reduce((b, w) => b + rateOf(w), 0), 0) + (x.done && x.sub_name && x.sub_cost ? +x.sub_cost : 0);   // crew days already worked + a finished sub
 const taskCost = x => crewCost(x) + (x.sub_name && x.sub_cost ? +x.sub_cost : 0);   // what the task costs us in people: crew days + the sub's price
 function busyOn(jobId, w, d) {   // is this person somewhere else that day?
   const f = FLIP_DAYS.find(a => a.worker_id === w && a.work_date === d);
@@ -953,7 +972,7 @@ const STAGE_VIEW = {
     L += sec('Tasks', null, '<ul class="scope steps">' +
         (j.work_done_on ? '<div class="alldone">Work done ' + md(j.work_done_on) + (j.signoff ? ' · <span>' + esc(j.signoff) + '</span>' : '') + (live ? ' <a data-undodone style="margin-left:auto;font-weight:400;font-size:11.5px">undo</a>' : '') + '</div>'
           : live && allDone ? '<div class="alldone">Every task is done. <button class="btn pri" id="markDone">Mark work done</button><span>then collect the final payment</span></div>' : '') +
-        j.tasks.map((x, i) => stepRow(j, x, i, live && !j.work_done_on)).join('') + '</ul>' +
+        taskTable(j, live && !j.work_done_on) + '</ul>' + onTrack(j) +
         (live && !j.work_done_on ? '<a class="qadd sadd" data-addnote="task">+ Add task</a><span class="q" style="margin-left:8px">for work that isn’t a billed line, e.g. an inspection</span>' : ''));
     Rt += progressHtml(j) + spentHtml(j);
     Rt += sec('Payments', fmt(paid(j)) + ' of ' + fmt(contract(j)) + ' in', payTable(j));
@@ -1058,20 +1077,31 @@ document.getElementById('stageTabs').addEventListener('click', e => { const b = 
   if (QEDIT) { QEDIT = null; loadAll().then(render); } else renderDrawer(); });
 
 // ---------- tasks: days + crew per day ----------
-function schedTxt(j, x) {
-  if (!x.dates.length) return x.along ? 'alongside the task before' : '<span class="unst">not scheduled — click to pick days and crew</span>';
-  const when = fmtDates(x.dates) + (x.dates.length > 1 ? ' · ' + x.dates.length + ' days' : '');
-  const crew = crewOf(x), same = x.dates.every(d => dayCrew(x, d).join() === dayCrew(x, x.dates[0]).join());
-  const ctxt = !crew.length ? '' : 'crew ' + fmt(crewCost(x)) + ' (' + (same ? crew.map(wname).join(', ') : x.dates.map(d => md(d) + ' ' + (dayCrew(x, d).map(wname).join(', ') || '—')).join(' · ')) + ')';
-  const sub = x.sub_name ? 'sub · ' + esc(x.sub_name) + (x.sub_cost ? ' ' + fmt(x.sub_cost) : '') : '';
-  const clash = !x.done ? crew.map(w => [wname(w), busyFor(j.id, x, w)]).filter(c => c[1]) : [];
-  return [when, ctxt, sub].filter(Boolean).join(' · ') +
-    (clash.length ? ' · <span class="unst">' + [...new Set(clash.map(c => c[1]))].map(w => clash.filter(c => c[1] === w).map(c => c[0]).join(' & ') + ' also ' + esc(w)).join(', ') + '</span>' : '');
-}
-function stepRow(j, x, i, live) {
+function stepRow(j, x, i, live) {   // one line per task: name + flags, then labor projected · labor spent · materials projected
+  const crew = crewOf(x), clash = !x.done ? crew.map(w => busyFor(j.id, x, w)).filter(Boolean) : [];
+  const flags = (x.co_no ? ' <span class="tagco">CO-' + x.co_no + '</span>' : '') +
+    (x.not_billed ? '<span class="tflag">not billed</span>' : '') +
+    (!x.dates.length && !x.along && !x.done ? '<span class="tflag warn">not scheduled</span>' : '') +
+    (clash.length ? '<span class="tflag warn" title="' + esc(clash.join(' · ')) + '">⚠ crew double-booked</span>' : '');
+  const lp = taskCost(x), ls = laborSoFar(x), mp = x.material_est;
   return '<li class="' + (x.done ? 'done' : '') + '"><span class="ck' + (x.done ? ' on' : '') + '"' + (live ? ' data-si="' + i + '" title="' + (x.done ? 'Mark not done' : 'Mark done') + '"' : '') + '></span>' +
-    '<span class="t"><span class="nm">' + esc(x.name) + (x.co_no ? ' <span class="tagco">CO-' + x.co_no + '</span>' : '') + '</span>' +
-    '<span class="sub' + (live ? ' sched' : '') + '" data-si="' + i + '">' + schedTxt(j, x) + '</span></span><span class="sc">' + (x.not_billed ? '<span class="dim">not billed</span>' : '') + '</span></li>';
+    '<span class="t"><span class="nm tname' + (live ? ' click' : '') + '" data-ti="' + i + '"' + (live ? ' title="Days, crew, sub, materials"' : '') + '>' + esc(x.name) + '</span>' + flags + '</span>' +
+    '<span class="tc' + (lp ? '' : ' dim') + '">' + (lp ? fmt(lp) : '—') + '</span><span class="tc' + (ls ? '' : ' dim') + '">' + (ls ? fmt(ls) : '—') + '</span>' +
+    '<span class="tc' + (mp != null ? '' : ' dim') + '">' + (mp != null ? fmt(mp) : '—') + '</span>' +
+    '<span class="sub slot" data-si="' + i + '"></span></li>';
+}
+function taskTable(j, live) {
+  const sum = f => j.tasks.reduce((a, x) => a + (f(x) || 0), 0), lp = sum(taskCost), ls = sum(laborSoFar), mp = sum(x => +x.material_est || 0);
+  return '<li class="thead"><span class="ckx"></span><span class="t">Task</span><span class="tc">Labor projected</span><span class="tc">Labor spent</span><span class="tc">Materials projected</span></li>' +
+    j.tasks.map((x, i) => stepRow(j, x, i, live)).join('') +
+    (j.tasks.length ? '<li class="tfoot"><span class="ckx"></span><span class="t">Total</span><span class="tc">' + fmt(lp) + '</span><span class="tc">' + fmt(ls) + '</span><span class="tc">' + fmt(mp) + '</span></li>' : '');
+}
+function onTrack(j) {   // the "are we on track" line under the task table
+  const sum = f => j.tasks.reduce((a, x) => a + (f(x) || 0), 0), proj = sum(taskCost) + sum(x => +x.material_est || 0);
+  const qc = quotedCost(j), missing = j.tasks.filter(x => x.material_est == null && !x.done).length;
+  return (j.tasks.length && qc ? '<div class="ontrack">Labor + materials projected <b>' + fmt(proj) + '</b> of <b>' + fmt(qc) + '</b> quoted cost · ' +
+      (proj > qc ? '<span class="r">' + fmt(proj - qc) + ' over</span>' : '<span class="g">' + fmt(qc - proj) + ' to spare</span>') +
+      (missing ? ' <span class="dim">· ' + missing + ' task' + (missing === 1 ? '' : 's') + ' without a materials number</span>' : '') + '</div>' : '');
 }
 let ED = null;   // the task being edited: { x: draft copy, i, wk }
 function seditHtml(x, i) {
@@ -1083,7 +1113,7 @@ function seInner() {
   const x = ED.x;
   return '<span class="se-top"><input class="se-name" value="' + esc(x.name) + '" title="Task name"><button class="btn danger" data-sedel>Delete task</button></span>' +
     '<span class="se-cal">' + calHtml(x, ED.wk) + '</span>' + whoHtml() +
-    '<span class="se-row">Sub <input class="se-sub" value="' + esc(x.sub_name || '') + '" placeholder="e.g. Rios Plumbing"> charges $<input class="se-subamt" inputmode="numeric" value="' + (x.sub_cost || '') + '" placeholder="0"><b class="se-cost">' + seCost(x) + '</b>' +
+    '<span class="se-row">Sub <input class="se-sub" value="' + esc(x.sub_name || '') + '" placeholder="e.g. Rios Plumbing"> charges $<input class="se-subamt" inputmode="numeric" value="' + (x.sub_cost || '') + '" placeholder="0"> · Materials $<input class="se-mat" inputmode="numeric" value="' + (x.material_est != null ? x.material_est : '') + '" placeholder="est."><b class="se-cost">' + seCost(x) + '</b>' +
     '<button class="btn" data-secancel>Cancel</button><button class="btn pri se-ok">Save</button></span>';
 }
 function whoHtml() {   // one row per picked day — its people, who's busy elsewhere, what the day costs
@@ -1117,7 +1147,7 @@ function seCost(x) {
   return n + (n > 1 ? ' days · ' : ' day · ') + (parts.length ? parts.join(' + ') + (parts.length > 1 ? ' = ' + fmt(taskCost(x)) : '') : 'no one assigned');
 }
 async function saveTaskSchedule(x) {
-  must(await sb.from('side_job_tasks').update({ name: x.name, sub_name: x.sub_name || null, sub_cost: x.sub_name && x.sub_cost ? x.sub_cost : null, along:false }).eq('id', x.id), 'task');
+  must(await sb.from('side_job_tasks').update({ name: x.name, material_est: x.material_est != null ? x.material_est : null, sub_name: x.sub_name || null, sub_cost: x.sub_name && x.sub_cost ? x.sub_cost : null, along:false }).eq('id', x.id), 'task');
   must(await sb.from('side_job_task_days').delete().eq('task_id', x.id), 'task days');
   if (x.dates.length) must(await sb.from('side_job_task_days').insert(x.dates.map(d => ({ task_id:x.id, work_date:d, worker_ids:dayCrew(x, d) }))), 'task days');
 }
@@ -1250,10 +1280,12 @@ document.getElementById('drawer').addEventListener('click', e => {
       must(await sb.from('side_job_tasks').insert({ job_id:j.id, name:v('.co-d'), co_no:n, sort_order:j.tasks.length }));
     }); return;
   }
-  const sc = e.target.closest('.sub.sched');
-  if (sc && !sc.querySelector('.sedit')) {
-    document.querySelectorAll('#drawer .sedit').forEach(x => { x.closest('.sub').innerHTML = schedTxt(j, j.tasks[+x.closest('.sub').dataset.si]); });
-    sc.innerHTML = seditHtml(j.tasks[+sc.dataset.si], +sc.dataset.si); return;
+  const tn = e.target.closest('.tname.click');
+  if (tn) {
+    const slot = tn.closest('li').querySelector('.slot');
+    if (slot.querySelector('.sedit')) { ED = null; slot.innerHTML = ''; return; }   // click the name again to close
+    document.querySelectorAll('#drawer .slot').forEach(x => { x.innerHTML = ''; });
+    slot.innerHTML = seditHtml(j.tasks[+tn.dataset.ti], +tn.dataset.ti); return;
   }
   const ed = e.target.closest('.sedit');
   if (ed && ED) {
@@ -1268,7 +1300,7 @@ document.getElementById('drawer').addEventListener('click', e => {
     if (nav) { ED.wk = addDays(ED.wk, 7 * +nav.dataset.dir); redraw(); return; }
     if (rm) { x.crewByDay[rm.dataset.d] = dayCrew(x, rm.dataset.d).filter(w => w !== rm.dataset.w); redraw(); return; }
     if (e.target.closest('.samecrew')) { const c = dayCrew(x, x.dates[0]); x.dates.forEach(d => x.crewByDay[d] = c.slice()); redraw(); return; }
-    if (e.target.closest('[data-secancel]')) { ED = null; ed.closest('.sub').innerHTML = schedTxt(j, j.tasks[+ed.closest('.sub').dataset.si]); return; }
+    if (e.target.closest('[data-secancel]')) { ED = null; ed.closest('.slot').innerHTML = ''; return; }
     if (e.target.closest('[data-sedel]')) {
       if (!confirm('Delete the task “' + x.name + '”? Its days and crew go with it.')) return;
       ED = null; write('delete task', async () => must(await sb.from('side_job_tasks').delete().eq('id', x.id))); return;
@@ -1279,6 +1311,7 @@ document.getElementById('drawer').addEventListener('click', e => {
 });
 document.getElementById('drawer').addEventListener('input', e => {   // sub name / price → live cost line
   if (e.target.matches('.se-name') && ED) { ED.x.name = e.target.value; return; }
+  if (e.target.matches('.se-mat') && ED) { ED.x.material_est = e.target.value.trim() === '' ? null : num(e.target.value); return; }
   if (!e.target.matches('.se-sub, .se-subamt') || !ED) return;
   const box = e.target.closest('.sedit');
   ED.x.sub_name = box.querySelector('.se-sub').value.trim(); ED.x.sub_cost = num(box.querySelector('.se-subamt').value);
