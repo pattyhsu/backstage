@@ -14,7 +14,9 @@
 //       3. Calls current_user_role() RPC.
 //       4. If role is NULL — signs out, flags not_invited, redirects
 //          to login.html. This is the invite-only backstop.
-//       5. On success — stashes role on window.CURRENT_USER_ROLE
+//       5. condition_reviewer on any page but condition-review.html is
+//          redirected there.
+//       6. On success — stashes role on window.CURRENT_USER_ROLE
 //          (consumed by future briefs S / U / X) and unhides <body>.
 //   - `window.signOut()` is exposed for the Lock button.
 //
@@ -99,6 +101,14 @@
       await sb.auth.signOut();
       sessionStorage.setItem('auth_rejection', 'not_invited');
       location.replace('/login.html');
+      return;
+    }
+
+    // condition_reviewer (hired condition taggers) gets exactly one page.
+    // The DB enforces the real boundary (condition_reviewer_fence policies);
+    // this just keeps them off pages that would render empty or error.
+    if (role === 'condition_reviewer' && location.pathname.replace(/^.*\//, '') !== 'condition-review.html') {
+      location.replace('/condition-review.html');
       return;
     }
 

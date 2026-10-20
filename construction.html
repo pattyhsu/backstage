@@ -204,6 +204,21 @@ h2 { font-size:14.5px; font-weight:600; }
 .rs-row.gone { opacity:.45; }
 .rs-row.gone .rs-c { pointer-events:none; }
 .rs-row.gone .rs-x:hover { color:var(--green); }
+/* Escrow fix: the booking sheet, and the trade label that opens it. */
+.lb .fixlb { cursor:pointer; } .lb .fixlb:hover { text-decoration:underline; }
+.tag.fix { color:#8A2E5C; background:#F8E6EF; }
+.tag.side { color:#4B3F99; background:#ECE8F8; }
+.ph .nm a { color:inherit; text-decoration:none; } .ph .nm a:hover { text-decoration:underline; }
+.fxf { padding:12px 17px 15px; display:flex; flex-direction:column; gap:10px; font-size:12px; }
+.fxf label { display:flex; flex-direction:column; gap:3px; color:var(--text-4); font-size:10.5px;
+  font-weight:600; letter-spacing:.03em; text-transform:uppercase; }
+.fxf select, .fxf input, .fxf textarea { font:inherit; font-size:12.5px; padding:5px 7px; border:1px solid var(--border);
+  border-radius:5px; background:var(--bg); color:var(--text); text-transform:none; letter-spacing:0; font-weight:400; }
+.fxf textarea { min-height:54px; resize:vertical; }
+.fxf .two { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.fxf .acts { display:flex; gap:7px; align-items:center; }
+.fxf .acts .go { border-color:var(--accent); background:var(--accent); color:#fff; font-weight:600; }
+.fxf .acts .rm { margin-left:auto; color:var(--text-4); }
 </style>
 </head>
 <body>
@@ -213,6 +228,7 @@ h2 { font-size:14.5px; font-weight:600; }
   <div class="hdr">
     <h1>Construction</h1><span class="sub" id="hsub"></span>
     <div class="right">
+      <button class="btn" id="fxNew" title="Book our crew back on a house in escrow">+ Escrow fix</button>
       <span class="sw"><button class="btn" id="v1w">1 week</button><button class="btn on" id="v2w">2 weeks</button><button class="btn" id="vfull">Full runway</button></span>
     </div>
   </div>
@@ -223,6 +239,18 @@ h2 { font-size:14.5px; font-weight:600; }
   <div class="ovh"><div><span id="ovt"></span><div class="ovs" id="ovs"></div></div>
     <button class="x" onclick="closeOv()">&#10005;</button></div>
   <div class="ovb" id="ovb"></div>
+</div></div>
+<div class="ov" id="fx"><div class="ovc">
+  <div class="ovh"><div><span id="fxt">Escrow fix</span><div class="ovs">our crew back on a house during escrow &mdash; staffed from the roster, whoever built it</div></div>
+    <button class="x" onclick="closeFx()">&#10005;</button></div>
+  <div class="fxf">
+    <label>House<select id="fxDeal"></select></label>
+    <div class="two"><label>From<input type="date" id="fxS"></label><label>To<input type="date" id="fxE"></label></div>
+    <label>What needs fixing<textarea id="fxN" placeholder="e.g. buyer inspection: GFCI in kitchen, re-caulk tub, adjust back door"></textarea></label>
+    <div class="acts"><button class="btn go" id="fxSave">Book it</button>
+      <button class="btn" id="fxDone" style="display:none">Mark done</button>
+      <button class="btn rm" id="fxDel" style="display:none">Unbook</button></div>
+  </div>
 </div></div>
 <script>
 const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
@@ -252,6 +280,7 @@ let TODAY=todayStr();
 // retired people included. They have to be separate: a retired worker must not
 // appear in the bench or the assign sheet, but every day they already worked
 // still has to resolve to a name and a cost, and workerById reads `roster`.
+let fixable=[];   // every house an escrow fix can be booked on: building or selling
 let deals=[], propByMls={}, tpl=[], milestones=[], workers=[], roster=[], skills=[], assigns=[], costs={}, crews=[];
 // The view you last looked at, kept per-browser. Private-mode and blocked-storage
 // browsers throw on access, so both ends are guarded and fall back to two weeks.
@@ -270,6 +299,7 @@ const CAT={
   closeout   :['#E4E3DC','#5F5E5A'],   // NOT #EFEFEE — that is 3 values off the
                                        // empty cell (--bg-alt #F2F1EF) and vanishes
   procurement:['#FAECE7','#993C1D'],
+  escrow_fix :['#F8E6EF','#8A2E5C'],   // back on a finished house — not part of the build
 };
 // Build-level marks (the header dot, a collapsed build's single bar) are not a
 // trade and get no category, so they stay neutral rather than borrowing a
@@ -280,13 +310,14 @@ function colOf(key){return CAT[tplOf(key).category]||NEUTRAL;}
 async function loadAll(){
   const {data:cr}=await sb.from('crews').select('id, name, kind, active');
   crews=cr||[];
+  // Selling deals are loaded too: a house in its sale escrow is off the build
+  // board unless our crew has an escrow fix booked on it.
   const {data:dl}=await sb.from('deals')
-    .select('id, buy_side_mls, construction_start_date, actual_close_date, crew_id, plan_baselined_at')
-    .eq('phase','under_construction');
-  deals=(dl||[]).filter(x=>startOf(x)).sort((a,b)=>startOf(a)<startOf(b)?-1:1);
-  deals.forEach(x=>{ if(!(x.id in collapsed))collapsed[x.id]=!isOurs(x); });
+    .select('id, phase, buy_side_mls, construction_start_date, actual_close_date, crew_id, plan_baselined_at')
+    .in('phase',['under_construction','selling']);
+  fixable=(dl||[]).filter(x=>x.phase==='selling'||startOf(x));
 
-  const mlss=deals.map(x=>x.buy_side_mls).filter(Boolean);
+  const mlss=fixable.map(x=>x.buy_side_mls).filter(Boolean);
   if(mlss.length){
     const {data:p}=await sb.from('properties').select('mls, address, city').in('mls',mlss);
     propByMls={}; for(const r of (p||[]))propByMls[r.mls]=r;
@@ -296,23 +327,54 @@ async function loadAll(){
     .eq('template_key','construction_v2').order('display_order');
   tpl=t||[];
 
-  const ids=deals.map(x=>x.id);
+  const ids=fixable.map(x=>x.id);
+  milestones=[];
   if(ids.length){
     const {data:m}=await sb.from('deal_milestones')
-      .select('deal_id, milestone_key, display_name, due_date, completed, not_applicable, planned_start, planned_end')
+      .select('id, deal_id, milestone_key, display_name, due_date, completed, not_applicable, planned_start, planned_end, notes')
       .in('deal_id',ids);
     milestones=m||[];
     const {data:c}=await sb.from('v_deal_cost_breakdown')
       .select('deal_id, rehab_budget, rehab_actual').in('deal_id',ids);
     costs={}; for(const r of (c||[]))costs[r.deal_id]=r;
   }
+  deals=fixable.filter(x=>x.phase==='under_construction'||bookedFix(x))
+    .sort((a,b)=>(startOf(a)||'')<(startOf(b)||'')?-1:1);
+  fixable.sort((a,b)=>addrOf(a)<addrOf(b)?-1:1);
+  // A sub's build stays folded — unless our crew is going back to it.
+  deals.forEach(x=>{ if(!(x.id in collapsed))collapsed[x.id]=!isOurs(x)&&!bookedFix(x); });
   const {data:w}=await sb.from('workers').select('id, name, daily_rate, active').order('name');
   roster=w||[];
   workers=roster.filter(x=>x.active);
   const {data:sk}=await sb.from('worker_trades').select('id, worker_id, milestone_key');
   skills=sk||[];
+  await loadSideJobs();
   await loadAssignments();
 }
+// Side projects (side-projects.html): jobs for other homeowners, staffed from the
+// same roster. Read-only here — their days and crew are picked on the job's page
+// there — but they show on the board, count toward Crew needed / Assigned, and
+// make the people on them busy, so nobody gets sent to two places.
+let sideJobs=[];
+const SIDE=['#ECE8F8','#4B3F99'];
+async function loadSideJobs(){
+  sideJobs=[];
+  const {data:j,error}=await sb.from('side_jobs').select('id, client_name, address, target_done, work_done_on')
+    .eq('stage','active').eq('from_qbo',false).is('archived_at',null);
+  if(error||!j||!j.length)return;
+  const {data:t}=await sb.from('side_job_tasks').select('id, job_id, name, done, sub_name, sort_order').in('job_id',j.map(x=>x.id));
+  const tids=(t||[]).map(x=>x.id);
+  const {data:dd}=tids.length?await sb.from('side_job_task_days').select('task_id, work_date, worker_ids').in('task_id',tids):{data:[]};
+  sideJobs=j.map(x=>({...x, tasks:(t||[]).filter(k=>k.job_id===x.id)
+      .map(k=>({...k, days:Object.fromEntries((dd||[]).filter(r=>r.task_id===k.id).map(r=>[r.work_date, r.worker_ids||[]]))}))
+      .filter(k=>Object.keys(k.days).length)
+      .sort((a,b)=>Object.keys(a.days).sort()[0]<Object.keys(b.days).sort()[0]?-1:1)}))
+    .filter(x=>x.tasks.length);
+}
+// Who a side job has on a day (a person on two of its tasks that day is still one day).
+function sideOn(day){const out=[];for(const sj of sideJobs){const ids=new Set();for(const k of sj.tasks)for(const w of (k.days[day]||[]))ids.add(w);for(const w of ids)out.push({sj,w});}return out;}
+function sideBusy(wid,day){return sideOn(day).find(x=>x.w===wid)||null;}
+const sideUrl=sj=>'side-projects.html?job='+sj.id;
 // Assignments across the whole visible window, so the Assigned row shows what
 // is already covered ahead — not just the day on screen.
 async function loadAssignments(){
@@ -326,7 +388,17 @@ function startOf(x){return x.construction_start_date||x.actual_close_date;}
 function crewOf(x){return crews.find(c=>c.id===x.crew_id)||null;}
 function isOurs(x){const c=crewOf(x);return !c||c.kind==='own';}
 function crewName(x){const c=crewOf(x);return c?c.name:'Dotty crew';}
-function ourDeals(){return deals.filter(isOurs);}
+function ourDeals(){return deals.filter(x=>isOurs(x)||bookedFix(x));}
+// Escrow fix is always ours: the point of it is our crew going back to a house
+// someone else built (Hart: Alfonso built it, we fixed it in escrow).
+function isFix(key){return tplOf(key).category==='escrow_fix';}
+function staffedByUs(deal,key){return isOurs(deal)||isFix(key);}
+function fixOf(deal){return milestones.find(m=>m.deal_id===deal.id&&isFix(m.milestone_key))||null;}
+// Every build seeds one, but its days depend on when the sale escrow opens, so
+// it stays off the board until someone books dates on it here.
+function openFix(deal){const m=fixOf(deal);return m&&!m.completed&&!m.not_applicable?m:null;}
+function bookedFix(deal){const m=openFix(deal);return m&&m.planned_start?m:null;}
+function selling(deal){return deal.phase==='selling';}
 function tplOf(k){return tpl.find(t=>t.milestone_key===k)||{};}
 function addrOf(x){const p=propByMls[x.buy_side_mls]||{};return p.address?titleCase(p.address):(x.buy_side_mls||'—');}
 function cityOf(x){const p=propByMls[x.buy_side_mls]||{};return titleCase(p.city||'');}
@@ -389,17 +461,20 @@ function openTrades(deal){
   return milestones.filter(m=>m.deal_id===deal.id && tplOf(m.milestone_key).milestone_key
       && tplOf(m.milestone_key).category!=='procurement'
       && (tplOf(m.milestone_key).default_duration_days||0)>0
+      && (!selling(deal)||isFix(m.milestone_key))
+      && (!isFix(m.milestone_key)||m.planned_start)
       && !m.completed && !m.not_applicable)
     .sort((a,b)=>(tplOf(a.milestone_key).display_order||0)-(tplOf(b.milestone_key).display_order||0));
 }
 function doneTrades(deal){
   return milestones.filter(m=>m.deal_id===deal.id && m.completed
       && tplOf(m.milestone_key).milestone_key            // in the construction template at all
-      && tplOf(m.milestone_key).category!=='procurement')
+      && tplOf(m.milestone_key).category!=='procurement'
+      && (!selling(deal)||isFix(m.milestone_key)))
     .sort((a,b)=>(tplOf(a.milestone_key).display_order||0)-(tplOf(b.milestone_key).display_order||0));
 }
 function finishOf(deal){
-  const sp=openTrades(deal).map(m=>spanOf(deal,m)).filter(Boolean).map(x=>x.e).sort();
+  const sp=openTrades(deal).filter(m=>!isFix(m.milestone_key)).map(m=>spanOf(deal,m)).filter(Boolean).map(x=>x.e).sort();
   return sp.length?sp[sp.length-1]:null;
 }
 function baselineOf(deal){const s=startOf(deal);return s?addDays(s,36):null;}
@@ -407,7 +482,7 @@ function runningOn(deal, day){
   return openTrades(deal).filter(m=>{const sp=spanOf(deal,m);return sp&&sp.s<=day&&day<=sp.e;});
 }
 function demandOn(deal, day){
-  let n=0; for(const m of runningOn(deal,day))n+=(tplOf(m.milestone_key).default_crew_size||0);
+  let n=0; for(const m of runningOn(deal,day))if(staffedByUs(deal,m.milestone_key))n+=(tplOf(m.milestone_key).default_crew_size||0);
   return n;
 }
 function assignedTo(dealId,key,day){
@@ -418,7 +493,7 @@ function assignedTo(dealId,key,day){
 // counting rows, which is what makes half-at-Moore + half-at-Carnaby a full
 // day rather than a double-booking. Float tolerance because 0.25 x 4 is not
 // reliably 1 in binary.
-function busyOn(wid,day){return assigns.filter(a=>a.worker_id===wid&&a.work_date===day).reduce((s,a)=>s+frac(a),0);}
+function busyOn(wid,day){return assigns.filter(a=>a.worker_id===wid&&a.work_date===day).reduce((s,a)=>s+frac(a),0)+(sideBusy(wid,day)?1:0);}
 const FULL=0.9999, OVER=1.0001;
 // A few days of lead-in before today. The board is a planning surface, so the
 // forward horizon stays a full two weeks — the lookback is added, not traded
@@ -442,10 +517,10 @@ function render(){
   const colw=view==='1w'?56:view==='2w'?34:19;
   const gt=`grid-template-columns:196px repeat(${N},minmax(${colw}px,1fr))`;
   document.getElementById('hsub').textContent=
-    deals.length+(deals.length===1?' build':' builds')+' · '+ourDeals().length+' on our crew';
+    deals.length+(deals.length===1?' build':' builds')+' · '+ourDeals().length+' on our crew'+(sideJobs.length?' · '+sideJobs.length+(sideJobs.length===1?' side project':' side projects'):'');
   for(const [id,v] of [['v1w','1w'],['v2w','2w'],['vfull','full']])
     document.getElementById(id).classList.toggle('on',view===v);
-  if(!deals.length){document.getElementById('page').innerHTML='<div class="empty">No builds under construction.</div>';return;}
+  if(!deals.length&&!sideJobs.length){document.getElementById('page').innerHTML='<div class="empty">No builds under construction.</div>';return;}
 
   let hd=`<div class="r" style="${gt}"><span class="lb"></span>`;
   for(const x of D){const dow=d(x).getDay();
@@ -465,17 +540,18 @@ function render(){
     const col=!!collapsed[deal.id];
     body+=`<div class="ph"><span class="car" onclick="toggleCollapse('${deal.id}')">${col?'▸':'▾'}</span>
       <span><span class="dot" style="background:${dealFg}"></span><span class="nm">${esc(addrOf(deal))}</span>
-      ${isOurs(deal)?'':'<span class="tag">'+esc(crewName(deal))+'</span>'}</span>
+      ${isOurs(deal)?'':'<span class="tag">'+esc(crewName(deal))+'</span>'}
+      ${selling(deal)?'<span class="tag fix">in escrow</span>':''}</span>
       <span class="meta">done: ${done.length?done.map(m=>esc(nameOf(m))).join(' · '):'nothing marked complete yet'}</span>
       <span class="meta">rehab ${money(c.rehab_actual||0)} of ${c.rehab_budget?money(c.rehab_budget):'—'} · ${bud}%</span>
       ${fin?(anyPlanned
         ? `<span class="slip">finishes ${md(fin)}${over>0?' — '+over+' past baseline':''}</span>`
         : `<span class="stale">baseline ran to ${md(fin)} — no committed plan, re-plan to schedule the rest</span>`):''}
       ${(anyPlanned&&deal.plan_baselined_at)?`<span class="meta">planned ${md(String(deal.plan_baselined_at).slice(0,10))}</span>`:''}
-      <span class="replan"><input type="date" id="rb-${deal.id}" value="${TODAY}">
+      ${selling(deal)?'':`<span class="replan"><input type="date" id="rb-${deal.id}" value="${TODAY}">
         <button onclick="rebaseline('${deal.id}')">Re-plan</button>
         ${anyPlanned?`<button class="clr" onclick="clearPlan('${deal.id}')" title="Back to baseline dates">Clear</button>`:''}
-      </span></div>`;
+      </span>`}</div>`;
 
     if(col){
       const ss=open.map(m=>spanOf(deal,m)).filter(Boolean);
@@ -505,7 +581,7 @@ function render(){
           continue;
         }
         const who=assignedTo(deal.id,m.milestone_key,x);
-        const clickable=(isOurs(deal)&&crew)?` onclick="openOv('${deal.id}','${esc(m.milestone_key)}','${x}')"`:'';
+        const clickable=(staffedByUs(deal,m.milestone_key)&&crew)?` onclick="openOv('${deal.id}','${esc(m.milestone_key)}','${x}')"`:'';
         const inner=who.length
           ? who.map(p=>`<span class="chip${otHrs(p.a)?' ot':''}" style="color:${fg}" title="${esc(p.w.name)} · ${num(frac(p.a))==='1'?'full day':num(frac(p.a))+' of a day'}${otHrs(p.a)?' · +'+hrs(otHrs(p.a))+(otMult(p.a)===1.5?' at 1.5\u00d7':' at the normal rate')+' = '+money(otPay(p.a)):''} · ${money(payOf(p.a))}">${esc(p.w.name.slice(0,2))}${fracTag(p.a)}</span>`).join('')
           : (on?(crew?`<span class="chip" style="color:${fg};background:none;opacity:.55">${crew}</span>`
@@ -513,17 +589,49 @@ function render(){
         const cls='dcell'+(on?'':' off')+((who.length&&!on)?' extra':'');
         cells+=`<span class="cellw">${mon}<div class="${cls}" style="${on?'background:'+bg:''}"${clickable}>${inner}</div></span>`;
       }
-      body+=`<div class="r" style="${gt}"><span class="lb">${esc(nameOf(m))} <span class="cw">${crew?crew+'p':'sub'}</span></span>${cells}</div>`;
+      const lbl=isFix(m.milestone_key)
+        ? `<span class="fixlb" onclick="openFx('${deal.id}')" title="${esc(m.notes||'Edit, mark done or remove')}">${esc(nameOf(m))}</span>`
+        : esc(nameOf(m));
+      body+=`<div class="r" style="${gt}"><span class="lb">${lbl} <span class="cw">${crew?crew+'p':'sub'}</span></span>${cells}</div>`;
+    }
+  }
+
+  for(const sj of sideJobs){
+    const ts=sj.tasks.filter(k=>Object.keys(k.days).some(x=>D.includes(x)));
+    if(!ts.length)continue;
+    const [bg,fg]=SIDE;
+    body+=`<div class="ph"><span class="car"></span>
+      <span><span class="dot" style="background:${fg}"></span><span class="nm"><a href="${sideUrl(sj)}">${esc(sj.client_name)}</a></span>
+      <span class="tag side">side project</span></span>
+      <span class="meta">${esc(sj.address||'')}</span>
+      ${sj.work_done_on?`<span class="meta">work done ${md(sj.work_done_on)}</span>`:sj.target_done?`<span class="meta">target done ${md(sj.target_done)}</span>`:''}
+      <span class="meta">days and crew are set on <a href="${sideUrl(sj)}">Side Projects</a></span></div>`;
+    for(const k of ts){
+      const heads=Math.max(0,...Object.values(k.days).map(a=>a.length));
+      let cells='';
+      for(const x of D){
+        const mon=d(x).getDay()===1?'<span class="mon"></span>':'';
+        const on=x in k.days, ppl=on?k.days[x].map(workerById).filter(Boolean):[];
+        if(view==='full'){
+          cells+=on?`<span class="cellw">${mon}<div class="bar" style="background:${bg};color:${fg}">${ppl.length||''}</div></span>`
+                  :`<span class="cellw">${mon}<div class="rcell"></div></span>`;
+          continue;
+        }
+        const inner=ppl.length?ppl.map(w=>`<span class="chip" style="color:${fg}" title="${esc(w.name)} · ${money(w.daily_rate)}">${esc(w.name.slice(0,2))}</span>`).join('')
+          :(on&&k.sub_name?'<span class="chip" style="background:none;color:#9b9b95;font-weight:400">s</span>':'');
+        cells+=`<span class="cellw">${mon}<div class="dcell${on?'':' off'}" style="${on?'background:'+bg:''}" onclick="location.href='${sideUrl(sj)}'" title="Open on Side Projects">${inner}</div></span>`;
+      }
+      body+=`<div class="r" style="${gt}"><span class="lb">${k.done?'<span style="color:var(--text-4)">\u2713 </span>':''}${esc(k.name)} <span class="cw">${heads?heads+'p':k.sub_name?'sub':''}</span></span>${cells}</div>`;
     }
   }
 
   let ld=`<div class="r load" style="${gt}"><span class="lb">Crew needed</span>`;
-  for(const x of D){let v=0;for(const dl of ourDeals())v+=demandOn(dl,x);
+  for(const x of D){let v=sideOn(x).length;for(const dl of ourDeals())v+=demandOn(dl,x);
     ld+=`<span class="n${v>workers.length?' over':(v?'':' zero')}">${v||''}</span>`;}
   ld+='</div>';
   let ac=`<div class="r" style="${gt}"><span class="lb">Assigned</span>`;
-  for(const x of D){const v=assigns.filter(a=>a.work_date===x).reduce((s,a)=>s+frac(a),0);
-    let need=0;for(const dl of ourDeals())need+=demandOn(dl,x);
+  for(const x of D){const v=assigns.filter(a=>a.work_date===x).reduce((s,a)=>s+frac(a),0)+sideOn(x).length;
+    let need=sideOn(x).length;for(const dl of ourDeals())need+=demandOn(dl,x);
     ac+=`<span class="n zero" style="${v&&v<need?'color:var(--amber);font-weight:700':(v?'color:var(--green);font-weight:700':'')}">${v?num(v):''}</span>`;}
   ac+='</div>';
 
@@ -538,21 +646,24 @@ function render(){
     // already stated by the Crew needed / Assigned rows above; repeating it here
     // as "0 / 2" made the panel mostly empty rows. To put the first person on a
     // trade, click its day cell in the grid.
-    const all=[...planned.map(m=>({m,off:false})), ...extra.map(m=>({m,off:true}))];
-    if(!isOurs(deal)){
-      if(!all.length)continue;
+    const both=[...planned.map(m=>({m,off:false})), ...extra.map(m=>({m,off:true}))];
+    // A sub's build splits: their trades go in the dashed "fixed price" card,
+    // an escrow fix on it is ours and gets a normal site card below.
+    const subAll=both.filter(x=>!staffedByUs(deal,x.m.milestone_key));
+    const all=both.filter(x=>staffedByUs(deal,x.m.milestone_key));
+    if(subAll.length){
       subs+=`<div class="site sub"><div class="sitehd"><div>
         <div class="a"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a>, <span class="c">${esc(cityOf(deal))}</span> <span class="tag">${esc(crewName(deal))}</span></div>
-        <div class="m">day ${diff(startOf(deal),sel)} · ${all.map(x=>esc(nameOf(x.m))).join(' · ')}</div></div>
+        <div class="m">day ${diff(startOf(deal),sel)} · ${subAll.map(x=>esc(nameOf(x.m))).join(' · ')}</div></div>
         <div class="rr" style="color:var(--amber);font-weight:700">fixed price<div style="font-weight:400;color:var(--text-4)">not staffed from our roster</div></div>
-      </div></div>`; continue;
+      </div></div>`;
     }
     const tr=all.filter(x=>assignedTo(deal.id,x.m.milestone_key,sel).length>0);
     if(!tr.length)continue;
     let rows='',cost=0,got=0;
     // The plan's ask counts every planned trade, staffed or not — otherwise
     // hiding the empty rows would also hide the shortfall they represent.
-    let need=0; for(const x of planned)need+=(tplOf(x.milestone_key).default_crew_size||0);
+    let need=0; for(const x of planned)if(staffedByUs(deal,x.milestone_key))need+=(tplOf(x.milestone_key).default_crew_size||0);
     for(const {m,off} of tr){
       const t=tplOf(m.milestone_key), crew=t.default_crew_size||0, sp=spanOf(deal,m);
       const who=assignedTo(deal.id,m.milestone_key,sel);
@@ -562,7 +673,7 @@ function render(){
       got+=pd;
       for(const p of who)cost+=payOf(p.a);
       const cls=off?'':(crew?(pd>=crew-0.0001?'met':'short'):'');
-      rows+=`<div class="tr"><div class="tn">${esc(nameOf(m))}${off?' <span class="offtag">off plan</span>':''}<em>${sp?(sp.s===sp.e?md(sp.s):md(sp.s)+' – '+md(sp.e)):''}</em></div>
+      rows+=`<div class="tr"><div class="tn">${esc(nameOf(m))}${off?' <span class="offtag">off plan</span>':''}<em>${sp?(sp.s===sp.e?md(sp.s):md(sp.s)+' – '+md(sp.e)):''}</em>${isFix(m.milestone_key)&&m.notes?`<em>${esc(m.notes)}</em>`:''}</div>
         <div class="need ${cls}">${num(pd)}${(crew&&!off)?' / '+crew:''}</div>
         <div class="chips">${who.map(p=>{const db=busyOn(p.w.id,sel)>OVER, ot=otHrs(p.a);
           return `<span class="pc${db?' dbl':''}${ot?' ot':''}"><span class="nmc" onclick="openOv('${deal.id}','${esc(m.milestone_key)}','${sel}')" title="Change the half-day or the overtime">${esc(p.w.name)}${fracTag(p.a)}${ot?`<i class="hf">+${hrs(ot)}</i>`:''}</span><span class="rt" title="${money(rateOf(p.a))} rate${frac(p.a)===1?'':' \u00d7 '+num(frac(p.a))}${ot?' + '+hrs(ot)+' at '+(otMult(p.a)===1.5?'1.5\u00d7':'the normal rate')+' = '+money(otPay(p.a)):''}">${money(payOf(p.a))}</span><span class="x" onclick="unassign('${p.a.id}')">&#10005;</span></span>`;}).join('')}
@@ -571,8 +682,27 @@ function render(){
     dayCost+=cost;
     sites+=`<div class="site"><div class="sitehd"><div>
       <div class="a"><a href="project-detail.html?deal=${deal.id}">${esc(addrOf(deal))}</a>, <span class="c">${esc(cityOf(deal))}</span></div>
-      <div class="m">day ${diff(startOf(deal),sel)} · ${tr.length} ${tr.length===1?'trade':'trades'}${extra.length?' · '+extra.length+' off plan':''}</div></div>
+      <div class="m">${selling(deal)?'in escrow':'day '+diff(startOf(deal),sel)} · ${tr.length} ${tr.length===1?'trade':'trades'}${extra.length?' · '+extra.length+' off plan':''}</div></div>
       <div class="rr"><div class="cost">${money(cost)}</div>${got} out · ${need} asked for by the plan</div></div>${rows}</div>`;
+  }
+  for(const sj of sideJobs){
+    const ts=sj.tasks.filter(k=>(k.days[sel]||[]).length);
+    if(!ts.length)continue;
+    let rows='',cost=0;
+    const ppl=new Set();
+    for(const k of ts){
+      const who=k.days[sel].map(workerById).filter(Boolean);
+      who.forEach(w=>{ if(!ppl.has(w.id)){ppl.add(w.id);cost+=Number(w.daily_rate||0);} });
+      rows+=`<div class="tr"><div class="tn">${esc(k.name)}${k.sub_name?`<em>+ sub · ${esc(k.sub_name)}</em>`:''}</div>
+        <div class="need">${who.length}</div>
+        <div class="chips">${who.map(w=>{const db=busyOn(w.id,sel)>OVER;return `<span class="pc${db?' dbl':''}"><span class="nmc">${esc(w.name)}</span><span class="rt">${money(w.daily_rate)}</span></span>`;}).join('')}
+          <a class="addb" href="${sideUrl(sj)}" style="text-decoration:none">edit on Side Projects</a></div></div>`;
+    }
+    dayCost+=cost;
+    sites+=`<div class="site"><div class="sitehd"><div>
+      <div class="a"><a href="${sideUrl(sj)}">${esc(sj.client_name)}</a>, <span class="c">${esc(sj.address||'')}</span> <span class="tag side">side project</span></div>
+      <div class="m">${ts.length} ${ts.length===1?'task':'tasks'}</div></div>
+      <div class="rr"><div class="cost">${money(cost)}</div>${ppl.size} out</div></div>${rows}</div>`;
   }
   if(!sites)sites='<div class="site" style="text-align:center;color:var(--text-4);font-style:italic">Nothing on our crew this day.</div>';
   // Someone on a half-day is half available, so the bench is "not fully
@@ -770,7 +900,7 @@ async function clearPlan(dealId){
   const deal=deals.find(x=>x.id===dealId);
   if(!confirm('Clear the committed plan for '+addrOf(deal)+'?\n\nIts trades go back to the original baseline dates. Nothing else changes.'))return;
   const {error}=await sb.from('deal_milestones')
-    .update({planned_start:null, planned_end:null}).eq('deal_id',dealId);
+    .update({planned_start:null, planned_end:null}).eq('deal_id',dealId).neq('milestone_key','escrow_fix');
   if(error){alert('Clear failed: '+error.message);return;}
   await sb.from('deals').update({plan_baselined_at:null}).eq('id',dealId);
   await loadAll(); render();
@@ -809,6 +939,8 @@ function renderOv(){
     const st=el?`<span class="st"${left<FULL?' style="color:var(--text-4)"':''}>${left<FULL?num(left)+' of a day on ':'on '}${esc(el.deal_id===ovCtx.dealId
       ? tradeNameOf(el.deal_id, el.milestone_key)
       : addrOf(deals.find(x=>x.id===el.deal_id)||{}))}</span>`:'';
+    const sj=!el&&sideBusy(w.id,ovCtx.day);
+    const st2=sj?`<span class="st">on ${esc(sj.sj.client_name)} (side project)</span>`:'';
     const sk=canDo(w.id,ovCtx.key)?'<span class="st" style="color:var(--green)">trained for this</span>':'';
     const ctl=mine?`<div class="wrc">
       <div class="fr">${FRACS.map(v=>`<b class="${frac(mine)===v?'on':''}" data-fr="${mine.id}|${v}" title="${v===1?'A whole day':v+' of a day'}">${FRG[v]}</b>`).join('')}</div>
@@ -816,7 +948,7 @@ function renderOv(){
       ${otHrs(mine)?`<div class="fr" title="Were those hours paid at the premium, or at the same rate as the rest of the day?">${OT_MULTS.map(v=>`<b class="${otMult(mine)===v?'on':''}" data-otm="${mine.id}|${v}" title="${v===1?'Paid like any other hour':'Paid at time and a half'}">${v}\u00d7</b>`).join('')}</div>`:''}
       <span class="pay" title="${money(rateOf(mine))} \u00f7 ${DAY_HOURS}h = ${money(rateOf(mine)/DAY_HOURS)}/hour">${money(payOf(mine))}</span></div>`:'';
     return `<div class="wr${here.has(w.id)?' on':''}" data-worker="${w.id}">
-      <span class="nm">${esc(w.name)}</span>${sk}${st}<span class="rt">${money(w.daily_rate)}</span>${ctl}</div>`;
+      <span class="nm">${esc(w.name)}</span>${sk}${st}${st2}<span class="rt">${money(w.daily_rate)}</span>${ctl}</div>`;
   }).join('');
   document.querySelectorAll('#ovb .wr').forEach(el=>{
     // The controls sit inside the row, and the row is the toggle — without
@@ -909,6 +1041,74 @@ async function setOtMult(id,v){
   document.getElementById('ov').classList.add('open');
 }
 function closeOv(){document.getElementById('ov').classList.remove('open');ovCtx=null;}
+
+// ---- escrow fix ----
+// Seeded on every build with construction_v2; booking just puts dates (and
+// what to fix) on that row. One per house (unique on deal + trade), so a
+// second round reopens it. planned_start/end carry the span; due_date mirrors
+// the end.
+function openFx(dealId){
+  const sel_=document.getElementById('fxDeal');
+  sel_.innerHTML=fixable.map(x=>`<option value="${x.id}">${esc(addrOf(x))}${selling(x)?' — in escrow':' — building'}${isOurs(x)?'':' ('+esc(crewName(x))+')'}</option>`).join('');
+  const first=dealId||(fixable.find(selling)||fixable[0]||{}).id;
+  if(first)sel_.value=first;
+  sel_.disabled=!!dealId;
+  fillFx();
+  document.getElementById('fx').classList.add('open');
+}
+function fillFx(){
+  const deal=fixable.find(x=>x.id===document.getElementById('fxDeal').value);
+  const m=deal&&fixOf(deal), live=!!(deal&&bookedFix(deal));
+  document.getElementById('fxt').textContent=live?'Escrow fix — '+addrOf(deal):'Escrow fix';
+  document.getElementById('fxS').value=live?m.planned_start:addDays(TODAY,1);
+  document.getElementById('fxE').value=live?(m.planned_end||m.planned_start):addDays(TODAY,1);
+  document.getElementById('fxN').value=(m&&!m.completed)?(m.notes||''):'';
+  document.getElementById('fxSave').textContent=live?'Save':'Book it';
+  document.getElementById('fxDone').style.display=live?'':'none';
+  document.getElementById('fxDel').style.display=live?'':'none';
+}
+function closeFx(){document.getElementById('fx').classList.remove('open');}
+window.openFx=openFx; window.closeFx=closeFx;
+async function saveFx(){
+  const dealId=document.getElementById('fxDeal').value;
+  const s=document.getElementById('fxS').value, e=document.getElementById('fxE').value;
+  if(!dealId||!s||!e){alert('Pick a house and the days.');return;}
+  if(e<s){alert('The last day is before the first.');return;}
+  const t=tplOf('escrow_fix');
+  if(!t.milestone_key){alert('The escrow-fix trade is not set up in the database yet.');return;}
+  const {error}=await sb.from('deal_milestones').upsert({
+    deal_id:dealId, milestone_key:'escrow_fix', display_name:t.display_name,
+    planned_start:s, planned_end:e, due_date:e,
+    notes:document.getElementById('fxN').value.trim()||null,
+    completed:false, completed_at:null, not_applicable:false, not_applicable_at:null,
+    updated_at:new Date().toISOString()
+  },{onConflict:'deal_id,milestone_key'});
+  if(error){alert('Save failed: '+error.message);return;}
+  delete collapsed[dealId];
+  closeFx(); await loadAll(); render();
+}
+async function doneFx(){
+  const deal=fixable.find(x=>x.id===document.getElementById('fxDeal').value), m=deal&&fixOf(deal);
+  if(!m)return;
+  const {error}=await sb.from('deal_milestones')
+    .update({completed:true, completed_at:new Date().toISOString(), updated_at:new Date().toISOString()}).eq('id',m.id);
+  if(error){alert('Save failed: '+error.message);return;}
+  closeFx(); await loadAll(); render();
+}
+// Unbooking takes the dates back off (the trade itself stays — every house has
+// one). Days already worked are labour that happened and stay on the house's
+// cost, so it refuses while there are any.
+async function delFx(){
+  const deal=fixable.find(x=>x.id===document.getElementById('fxDeal').value), m=deal&&fixOf(deal);
+  if(!m)return;
+  const {count}=await sb.from('deal_work_assignments').select('id',{count:'exact',head:true})
+    .eq('deal_id',deal.id).eq('milestone_key','escrow_fix');
+  if(count){alert('Our crew already has '+count+' day'+(count===1?'':'s')+' on this fix. Mark it done instead, or unassign them first.');return;}
+  if(!confirm('Take the escrow fix on '+addrOf(deal)+' off the schedule?'))return;
+  const {error}=await sb.from('deal_milestones').update({planned_start:null, planned_end:null, updated_at:new Date().toISOString()}).eq('id',m.id);
+  if(error){alert('Unbook failed: '+error.message);return;}
+  closeFx(); await loadAll(); render();
+}
 window.closeOv=closeOv;
 
 (async()=>{
@@ -919,6 +1119,12 @@ window.closeOv=closeOv;
   document.getElementById('v2w').addEventListener('click',()=>setView('2w'));
   document.getElementById('vfull').addEventListener('click',()=>setView('full'));
   document.getElementById('ov').addEventListener('click',e=>{if(e.target.id==='ov')closeOv();});
+  document.getElementById('fx').addEventListener('click',e=>{if(e.target.id==='fx')closeFx();});
+  document.getElementById('fxNew').addEventListener('click',()=>openFx(null));
+  document.getElementById('fxDeal').addEventListener('change',fillFx);
+  document.getElementById('fxSave').addEventListener('click',saveFx);
+  document.getElementById('fxDone').addEventListener('click',doneFx);
+  document.getElementById('fxDel').addEventListener('click',delFx);
   await loadAll();
   render();
 })();
