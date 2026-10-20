@@ -308,8 +308,8 @@ h2 { font-size:14.5px; font-weight:600; }
 .scope.steps .slot:empty { display:none; }
 .tflag { font-size:9.5px; font-weight:600; color:var(--text-4); margin-left:6px; }
 .tflag.warn { color:var(--amber); }
-.ontrack { font-size:11.5px; color:var(--text-3); margin-top:8px; }
-.ontrack b { font-family:var(--mono); font-weight:600; color:var(--text); } .ontrack .r { color:var(--red); } .ontrack .g { color:var(--green); }
+.trackline { font-size:11.5px; color:var(--text-3); margin-top:8px; }
+.trackline b { font-family:var(--mono); font-weight:600; color:var(--text); } .trackline .r { color:var(--red); } .trackline .g { color:var(--green); }
 .sedit .se-mat { width:70px; }
 .scope.steps input.tmat { width:82px; flex-shrink:0; text-align:right; font-family:var(--mono); font-size:11.5px; color:var(--text-2); border:1px solid transparent; border-radius:4px; background:transparent; padding:3px 4px; }
 .scope.steps input.tmat:hover { border-color:var(--border); background:var(--bg); }
@@ -1106,7 +1106,7 @@ function taskTable(j, live) {
 function onTrack(j) {   // the "are we on track" line under the task table
   const sum = f => j.tasks.reduce((a, x) => a + (f(x) || 0), 0), proj = sum(laborProj) + sum(x => +x.material_est || 0);
   const qc = quotedCost(j), missing = j.tasks.filter(x => x.material_est == null && !x.done).length;
-  return (j.tasks.length && qc ? '<div class="ontrack">Labor + materials projected <b>' + fmt(proj) + '</b> of <b>' + fmt(qc) + '</b> quoted cost · ' +
+  return (j.tasks.length && qc ? '<div class="trackline">Labor + materials projected <b>' + fmt(proj) + '</b> of <b>' + fmt(qc) + '</b> quoted cost · ' +
       (proj > qc ? '<span class="r">' + fmt(proj - qc) + ' over</span>' : '<span class="g">' + fmt(qc - proj) + ' to spare</span>') +
       (missing ? ' <span class="dim">· ' + missing + ' task' + (missing === 1 ? '' : 's') + ' without a materials number</span>' : '') + '</div>' : '');
 }
