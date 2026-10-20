@@ -311,6 +311,10 @@ h2 { font-size:14.5px; font-weight:600; }
 .ontrack { font-size:11.5px; color:var(--text-3); margin-top:8px; }
 .ontrack b { font-family:var(--mono); font-weight:600; color:var(--text); } .ontrack .r { color:var(--red); } .ontrack .g { color:var(--green); }
 .sedit .se-mat { width:70px; }
+.scope.steps input.tmat { width:82px; flex-shrink:0; text-align:right; font-family:var(--mono); font-size:11.5px; color:var(--text-2); border:1px solid transparent; border-radius:4px; background:transparent; padding:3px 4px; }
+.scope.steps input.tmat:hover { border-color:var(--border); background:var(--bg); }
+.scope.steps input.tmat:focus { outline:none; border-color:var(--accent); background:var(--bg); box-shadow:0 0 0 3px var(--accent-dim2); }
+.scope.steps input.tmat::placeholder { color:var(--text-4); }
 .scope.steps .ck { margin-top:2px; }
 .scope.steps .t { flex:1; min-width:0; display:flex; flex-direction:column; }
 .scope.steps li.done .t { text-decoration:none; }
@@ -1087,7 +1091,8 @@ function stepRow(j, x, i, live) {   // one line per task: name + flags, then lab
   return '<li class="' + (x.done ? 'done' : '') + '"><span class="ck' + (x.done ? ' on' : '') + '"' + (live ? ' data-si="' + i + '" title="' + (x.done ? 'Mark not done' : 'Mark done') + '"' : '') + '></span>' +
     '<span class="t"><span class="nm tname' + (live ? ' click' : '') + '" data-ti="' + i + '"' + (live ? ' title="Days, crew, sub, materials"' : '') + '>' + esc(x.name) + '</span>' + flags + '</span>' +
     '<span class="tc' + (lp ? '' : ' dim') + '">' + (lp ? fmt(lp) : '—') + '</span><span class="tc' + (ls ? '' : ' dim') + '">' + (ls ? fmt(ls) : '—') + '</span>' +
-    '<span class="tc' + (mp != null ? '' : ' dim') + '">' + (mp != null ? fmt(mp) : '—') + '</span>' +
+    (live ? '<input class="tmat" data-ti="' + i + '" inputmode="numeric" value="' + (mp != null ? fmt(mp) : '') + '" placeholder="$ add" title="Materials you expect this task to need">'
+      : '<span class="tc' + (mp != null ? '' : ' dim') + '">' + (mp != null ? fmt(mp) : '—') + '</span>') +
     '<span class="sub slot" data-si="' + i + '"></span></li>';
 }
 function taskTable(j, live) {
@@ -1317,6 +1322,14 @@ document.getElementById('drawer').addEventListener('input', e => {   // sub name
   ED.x.sub_name = box.querySelector('.se-sub').value.trim(); ED.x.sub_cost = num(box.querySelector('.se-subamt').value);
   box.querySelector('.se-cost').textContent = seCost(ED.x);
 });
+document.getElementById('drawer').addEventListener('change', e => {   // materials typed straight into the task table
+  const mi = e.target.closest('input.tmat'); if (!mi) return;
+  const j = sel(), x = j && j.tasks[+mi.dataset.ti]; if (!x) return;
+  const v = mi.value.trim() === '' ? null : num(mi.value);
+  if (v === (x.material_est == null ? null : +x.material_est)) return;
+  write('materials', async () => must(await sb.from('side_job_tasks').update({ material_est:v }).eq('id', x.id)));
+});
+document.getElementById('drawer').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input.tmat')) e.target.blur(); });
 document.getElementById('drawer').addEventListener('change', e => {   // + add a person to a day
   const s = e.target.closest('.addp'); if (!s || !s.value || !ED) return;
   ED.x.crewByDay[s.dataset.d] = dayCrew(ED.x, s.dataset.d).concat(s.value);
