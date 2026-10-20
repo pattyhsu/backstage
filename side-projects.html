@@ -355,6 +355,20 @@ h2 { font-size:14.5px; font-weight:600; }
 .pg-profit b { color:var(--text); } .pg-profit b.g { color:var(--green); } .pg-profit b.r { color:var(--red); }
 .jlog > div { display:grid; grid-template-columns:44px 92px 1fr; gap:8px; align-items:baseline; padding:5px 0; border-bottom:1px dashed var(--border); font-size:12.5px; }
 .jlog > div:last-child { border-bottom:none; }
+.jlog > div[data-log], .log > div[data-log] { cursor:pointer; border-radius:4px; }
+.jlog > div[data-log]:hover, .log > div[data-log]:hover { background:var(--bg-page); }
+.logedit { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:8px; margin:4px 0; background:var(--bg-page); border-radius:var(--radius-sm); }
+.logedit input { font:inherit; font-size:12px; padding:4px 7px; border:1px solid var(--border); border-radius:4px; background:var(--bg); }
+.logedit .le-d { width:136px; font-family:var(--mono); font-size:11.5px; } .logedit .le-t { flex:1; min-width:200px; } .logedit .le-n { width:90px; }
+.logedit .le-btns { margin-left:auto; display:flex; gap:5px; } .logedit .btn { font-size:11.5px; padding:3px 9px; }
+.btn.danger { color:var(--red); }
+.jh-edit { font-size:11.5px; color:var(--accent); cursor:pointer; }
+.editjob { padding:14px 0 0; }
+.editjob .ej-acts { display:flex; gap:6px; align-items:center; margin-top:4px; }
+.editjob .ej-acts .btn.danger { margin-right:auto; }
+.setup-cta { display:flex; gap:12px; align-items:center; margin-top:10px; }
+.se-top { display:flex; gap:6px; align-items:center; margin-bottom:8px; }
+.se-top input { flex:1; font:inherit; font-size:12.5px; font-weight:600; padding:4px 7px; border:1px solid var(--border); border-radius:4px; }
 .jlog .d { font-family:var(--mono); font-size:11px; color:var(--text-4); }
 .jlog .tg { font-size:9.5px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; color:var(--text-4); }
 .jlog .tg-change { color:var(--accent); } .jlog .tg-material { color:#2873A8; }
@@ -641,6 +655,7 @@ function jobClashes(j) {   // this job's people who are booked elsewhere the sam
 
 // ---------- board ----------
 let selected = null, viewStage = null;
+let SETUP = null, EDITING = false, RELINK = false;   // job being set up from QuickBooks · details form open · QuickBooks picker reopened
 const sel = () => JOBS.find(x => x.id === selected);
 function spentBar(j) {   // spent (QuickBooks) against the quoted cost
   const qc = quotedCost(j), s = spent(j), pct = qc ? s / qc : null, fill = pct == null ? '' : pct > 1 ? 'over' : !j.work_done_on && pct > .85 ? 'warn' : 'ontrack';
@@ -675,8 +690,9 @@ function cardHtml(j) {
 function renderJobs() {
   const open = JOBS.filter(onBoard);
   document.getElementById('board').innerHTML = BOARD.map(c => {
-    const rank = j => !j.work_done_on ? 0 : 1;
-    const js = open.filter(j => j.stage === c.k).sort((a, b) => rank(a) - rank(b) || (a.work_done_on || '').localeCompare(b.work_done_on || ''));
+    const rank = j => !j.work_done_on ? 0 : 1, due = j => (dueFollow(j) || {}).entry_date || '9999';
+    const js = open.filter(j => j.stage === c.k).sort(c.k === 'quoted' ? (a, b) => due(a).localeCompare(due(b)) || (a.quote_sent_on || '').localeCompare(b.quote_sent_on || '')
+      : (a, b) => rank(a) - rank(b) || (a.work_done_on || '').localeCompare(b.work_done_on || ''));
     return '<div class="col ' + c.cls + '"><div class="col-hdr"><span class="name">' + c.label + '</span><span class="cnt">' + js.length + '</span></div>' +
       '<div class="col-body">' + (js.length ? js.map(cardHtml).join('') : '<div class="col-empty">Nothing here</div>') + '</div></div>';
   }).join('');
@@ -717,16 +733,23 @@ document.getElementById('listBody').addEventListener('click', e => { const r = e
 const kv = rows => '<div class="kv">' + rows.map(r => '<span class="l' + (r[2] ? ' ' + r[2] : '') + '">' + r[0] + '</span><span class="v' + (r[3] ? ' ' + r[3] : '') + (r[2] ? ' ' + r[2] : '') + (/^[\d$+−~]/.test(String(r[1])) ? '' : ' txt') + '">' + r[1] + '</span>').join('') + '</div>';
 const sec = (title, right, body) => '<div class="dw-s"><h4>' + title + (right ? '<span class="r">' + right + '</span>' : '') + '</h4>' + body + '</div>';
 const mTxt = (price, cost) => { if (!price) return '—'; const m = (price - cost) / price; return '<span class="' + (m >= .3 ? 'g' : m >= .2 ? '' : 'r') + '">' + Math.round(m * 100) + '%</span>'; };
-const logList = rows => '<div class="log">' + rows.map(l => '<div><span class="d">' + md(l.entry_date) + '</span><span' + (l.due ? ' style="color:var(--amber);font-weight:500"' : '') + '>' + esc(l.body) + '</span></div>').join('') + '</div>';
+const logList = rows => '<div class="log">' + rows.map(l => '<div data-log="' + l.id + '" title="Click to edit or remove"><span class="d">' + md(l.entry_date) + '</span><span' + (l.due ? ' style="color:var(--amber);font-weight:500"' : '') + '>' + esc(l.body) + '</span></div>').join('') + '</div>';
 function jobLog(j, live) {   // notes, materials and change orders in one list, newest first
   const TAG = { note:'Note', change_order:'Change order', material:'Material' };
   const rows = j.log.filter(l => l.kind !== 'follow_up');
   const body = l => l.kind === 'change_order' ? '<b>CO-' + l.co_no + '</b> ' + esc(l.body) + ' <span class="money">+' + fmt(l.price) + '</span>'
     : l.kind === 'material' ? esc(l.body) + (l.material_status ? ' <span class="dim">· ' + esc(l.material_status) + '</span>' : '') : esc(l.body);
-  return sec('Log', live ? '<a data-addnote="log">+ Note</a> · <a data-addnote="material">+ Material</a> · <a id="coAdd">+ Change order</a>' : null,
-    (live ? '<div id="coForm"></div>' : '') +
-    (rows.length ? '<div class="jlog">' + rows.map(l => '<div><span class="d">' + md(l.entry_date) + '</span><span class="tg tg-' + (l.kind === 'change_order' ? 'change' : l.kind) + '">' + TAG[l.kind] + '</span><span class="tx">' + body(l) + '</span></div>').join('') + '</div>'
+  const more = live && !j.work_done_on;
+  return sec('Log', live ? '<a data-addnote="log">+ Note</a>' + (more ? ' · <a data-addnote="material">+ Material</a> · <a id="coAdd">+ Change order</a>' : '') : null,
+    (more ? '<div id="coForm"></div>' : '') +
+    (rows.length ? '<div class="jlog">' + rows.map(l => '<div data-log="' + l.id + '" title="Click to edit or remove"><span class="d">' + md(l.entry_date) + '</span><span class="tg tg-' + (l.kind === 'change_order' ? 'change' : l.kind) + '">' + TAG[l.kind] + '</span><span class="tx">' + body(l) + '</span></div>').join('') + '</div>'
       : '<span class="q">Nothing logged yet.</span>'));
+}
+function logEditHtml(l) {   // edit or remove one log / follow-up entry in place
+  const extra = l.kind === 'material' ? '<input class="le-s" value="' + esc(l.material_status || '') + '" placeholder="status">'
+    : l.kind === 'change_order' ? '<input class="le-n le-p" inputmode="numeric" value="' + (l.price || '') + '" placeholder="$ price"><input class="le-n le-c" inputmode="numeric" value="' + (l.cost || '') + '" placeholder="$ our cost">' : '';
+  return '<div class="logedit" data-logedit="' + l.id + '"><input type="date" class="le-d" value="' + l.entry_date + '"><input class="le-t" value="' + esc(l.body) + '">' + extra +
+    '<span class="le-btns"><button class="btn danger" data-ledel>Remove</button><button class="btn" data-lecancel>Cancel</button><button class="btn pri" data-lesave>Save</button></span></div>';
 }
 function payTable(j) {   // what came in — the date it landed, where it went, how much (from QuickBooks)
   if (!j.qbo_customer_id) return '<div class="sp-empty" style="margin-top:0">Link the QuickBooks customer (in Spent to date) to see payments.</div>';
@@ -818,19 +841,21 @@ function wireQboSync() {
 // ---------- Spent to date + Progress ----------
 function spentHtml(j) {
   const sync = qboSyncBarHtml();
-  if (!j.qbo_customer_id) {
-    return sec('Spent to date', 'not linked yet', sync + '<div class="sp-empty" style="margin-top:0">Which QuickBooks customer is this job? Costs and payments tagged to it show up here.</div>' +
-      '<div class="qlink"><select id="qboCust"><option value="">Pick a QuickBooks customer…</option>' +
-      CUSTOMERS.map(c => '<option value="' + esc(c.id) + '">' + esc(c.name) + (c.last ? ' · last ' + md(c.last) : '') + '</option>').join('') +
-      '</select><button class="btn" id="qboLink">Link</button></div>' +
+  if (!j.qbo_customer_id || RELINK) {
+    const cur = j.qbo_customer_id ? [{ id:j.qbo_customer_id, name:(j.money && j.money.name) || 'customer ' + j.qbo_customer_id, last:j.money && j.money.last }] : [];
+    return sec('Spent to date', RELINK ? '<a data-relink="0">keep the current link</a>' : 'not linked yet', sync + '<div class="sp-empty" style="margin-top:0">Which QuickBooks customer is this job? Costs and payments tagged to it show up here.</div>' +
+      '<div class="qlink"><select id="qboCust"><option value="">' + (RELINK ? 'Not linked' : 'Pick a QuickBooks customer…') + '</option>' +
+      cur.concat(CUSTOMERS).map(c => '<option value="' + esc(c.id) + '"' + (c.id === j.qbo_customer_id ? ' selected' : '') + '>' + esc(c.name) + (c.last ? ' · last ' + md(c.last) : '') + '</option>').join('') +
+      '</select><button class="btn" id="qboLink">' + (RELINK ? 'Save' : 'Link') + '</button></div>' +
       '<div class="sp-empty">Not in the list? Create the customer under Side Projects in QuickBooks, tag a receipt to it, and it appears after the next sync.</div>');
   }
   const b = j.money || { labor:0, materials:0, soft:0, other:0 };
   const B = [['Labor', '#1D4ED8', b.labor], ['Materials', '#5B8DEF', b.materials], ['Soft costs', '#A9C4F5', b.soft], ['Other', '#D3E1FA', b.other]].filter(x => x[2] > 0);
   const total = B.reduce((a, x) => a + x[2], 0);
-  if (!total) return sec('Spent to date', j.work_done_on ? 'none' : 'no expenses yet', sync + '<div class="sp-empty">' + (j.work_done_on ? 'No costs tagged to this customer in QuickBooks.' : 'Nothing tagged to this customer in QuickBooks yet. It syncs nightly at 04:00.') + '</div>');
+  const change = ' · <a data-relink="1" title="' + esc((j.money && j.money.name) || '') + '">change customer</a>';
+  if (!total) return sec('Spent to date', (j.work_done_on ? 'none' : 'no expenses yet') + change, sync + '<div class="sp-empty">' + (j.work_done_on ? 'No costs tagged to this customer in QuickBooks.' : 'Nothing tagged to this customer in QuickBooks yet. It syncs nightly at 04:00.') + '</div>');
   const ledger = B.map(([n, c, v]) => '<div class="led-grp"><div class="led-head"><span class="led-sw" style="background:' + c + '"></span><span class="led-name">' + n + '</span><span class="led-pct">' + Math.round(v / total * 100) + '%</span><span class="led-sub">' + fmt(v) + '</span></div></div>').join('');
-  return sec('Spent to date', 'actual, from QuickBooks · ' + fmt(total), sync +
+  return sec('Spent to date', 'actual, from QuickBooks · ' + fmt(total) + change, sync +
     '<div class="comp-bar">' + B.map(([, c, v]) => '<div class="comp-seg" style="background:' + c + ';flex:' + Math.max(1, Math.round(v)) + '"></div>').join('') + '</div>' + ledger);
 }
 function progressHtml(j) {   // tasks done and money spent against the quoted cost, plus what it leaves us
@@ -852,10 +877,12 @@ function progressHtml(j) {   // tasks done and money spent against the quoted co
 function realView(j) {
   const r = j.money || { income:0, labor:0, materials:0, soft:0, other:0 }, cost = r.labor + r.materials + r.soft + r.other, profit = r.income - cost, m = r.income ? profit / r.income : 0, going = !j.work_done_on;
   const intro = going
-    ? '<div class="upcoming" style="margin-bottom:0"><h5>Not set up here yet</h5>Costs are coming in from QuickBooks' + (r.first ? ' since ' + fmtYM(r.first) : '') + '. This job has no quote or tasks on file.</div>'
+    ? '<div class="upcoming" style="margin-bottom:0"><h5>Not set up here yet</h5>Costs are coming in from QuickBooks' + (r.first ? ' since ' + fmtYM(r.first) : '') + '. This job has no quote or tasks on file.' +
+      (SETUP === j.id ? '' : '<div class="setup-cta"><button class="btn pri" data-setup="1">Set up this job</button><span>Write its quote lines (our cost + price). They become its tasks, and it keeps its QuickBooks money.</span></div>') + '</div>'
     : '<div class="upcoming" style="margin-bottom:0"><h5>From QuickBooks history</h5>No quote or tasks on file — this job was done before Side Projects existed. Its money comes from the QuickBooks customer' + (r.first ? ', ' + ymRange(r.first, r.last) : '') + '.</div>';
   const rows = [['Client paid (Side Project Income)', fmt(r.income), '', r.income ? 'g' : ''], ['Total cost', fmt(cost)]];
   if (!going || r.income) rows.push(['Profit', (profit < 0 ? '−' : '') + fmt(Math.abs(profit)), 'tot', profit < 0 ? 'r' : 'g'], ['Margin', r.income ? pct(Math.round(m * 100)) : '—', '', profit < 0 ? 'r' : 'g']);
+  if (SETUP === j.id) return intro + STAGE_VIEW.quoted(j, 'setup') + spentHtml(j) + sec('Payments', fmt(r.income) + ' in', payTable(j));
   return intro + sec('Money', null, kv(rows) + (j.learned_note ? '<div class="note" style="margin-top:10px">' + esc(j.learned_note) + '</div>' : '')) +
     spentHtml(j) + sec('Payments', fmt(r.income) + ' in', payTable(j));
 }
@@ -867,13 +894,13 @@ const STAGE_VIEW = {
     const done = !!j.visit_notes;
     return sec('Inquiry', null, kv([['Came in', md(j.came_in)], ['Source', esc(j.source || '—')], ['Budget they mentioned', esc(j.budget || '—')]]) +
         (j.ask ? '<div class="note" style="margin-top:8px">“' + esc(j.ask) + '”</div>' : '')) +
-      sec('Site visit', done ? '' : '<a data-addnote="resched">' + (j.visit_date ? 'Reschedule' : 'Schedule') + '</a>',
+      sec('Site visit', done || j.stage !== 'lead' ? '' : '<a data-addnote="resched">' + (j.visit_date ? 'Reschedule' : 'Schedule') + '</a>',
         kv([['When', j.visit_date ? dmd(j.visit_date) + (j.visit_time ? ' · ' + fmtTime(j.visit_time) : '') : 'Not scheduled'], [done ? 'Who went' : 'Who’s going', esc(j.visit_who || '—')]]) +
         (done ? '<div class="note" style="margin-top:8px">' + esc(j.visit_notes) + '</div>'
           : '<div class="upcoming" style="margin:8px 0 0">After the visit, jot down measurements, what’s behind the walls, and anything that changes price. Those notes carry straight into the quote.</div>'));
   },
-  quoted(j) {
-    const L = j.quote_lines || [], edit = j.stage === 'lead' || j.stage === 'quoted', t = qTotals(L);
+  quoted(j, mode) {
+    const setup = mode === 'setup', L = j.quote_lines || [], edit = setup || j.stage === 'lead' || j.stage === 'quoted', t = qTotals(L);
     const head = '<div class="ql qhd"><span>Headline</span><span>Our cost</span><span>Price</span><span>Margin</span><span></span></div>';
     const rows = L.map((l, i) => edit
       ? '<div class="ql" data-i="' + i + '"><input class="qh" value="' + esc(l.headline || '') + '" placeholder="e.g. Tile — shower walls + floor">' +
@@ -889,11 +916,14 @@ const STAGE_VIEW = {
     const terms = edit
       ? '<div class="qterms"><label>Payment terms<select id="qTerms"><option value=""' + (j.payment_terms ? '' : ' selected') + '>—</option>' + TERMS_ALL.concat(!j.payment_terms || TERMS_ALL.includes(j.payment_terms) ? [] : [j.payment_terms]).map(x => '<option' + (x === j.payment_terms ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
         '<label>Good through<input type="date" id="qValid" value="' + (j.quote_valid_through || '') + '"></label>' +
-        '<label>Quote #<input id="qNo" value="' + esc(j.quote_no || '') + '" placeholder="from quote.html, e.g. QUO-2026-0019"></label></div>'
-      : kv([['Sent', md(j.quote_sent_on) || '—'], ['Accepted', md(j.won_on) || '—'], ['Payment terms', esc(j.payment_terms || '—')]]);
+        '<label>Quote #<input id="qNo" value="' + esc(j.quote_no || '') + '" placeholder="from quote.html, e.g. QUO-2026-0019"></label></div>' +
+        (setup ? '<div class="qterms"><label>Target done<input type="date" id="setupTarget" value="' + (j.target_done || '') + '"></label></div>' : '')
+      : kv([['Sent', md(j.quote_sent_on) || '—'], ['Good through', md(j.quote_valid_through) || '—'], ['Accepted', md(j.won_on) || '—'], ['Payment terms', esc(j.payment_terms || '—')]]);
     const handoff = '<div class="handoff"><a class="btn" href="quote.html" target="_blank">' + (j.quote_no ? 'Open ' + esc(j.quote_no) + ' in quote.html ↗' : 'Write it up in quote.html ↗') + '</a>' +
-      (j.stage === 'lead' ? '<button class="btn pri" id="markSent"' + (t.price ? '' : ' disabled title="Add a price first"') + '>Mark quote sent</button>' : '') + '</div>';
+      (setup ? '<button class="btn" id="setupCancel">Cancel</button><button class="btn pri" id="setupGo">Set up job</button>'
+        : j.stage === 'lead' ? '<button class="btn pri" id="markSent"' + (t.price ? '' : ' disabled title="Add a price first"') + '>Mark quote sent</button>' : '') + '</div>';
     const follows = j.log.filter(l => l.kind === 'follow_up').slice().sort((a, b) => (a.due - b.due) || a.entry_date.localeCompare(b.entry_date) || (a.created_at || '').localeCompare(b.created_at || ''));
+    if (setup) return sec('Quote', 'the lines this job was sold on', head + rows + '<a class="qadd">+ Add line</a>' + tot + profit + terms + handoff);
     return sec('Quote', j.quote_no ? esc(j.quote_no) + (j.quote_sent_on ? ' · sent ' + md(j.quote_sent_on) : '') : j.quote_sent_on ? 'sent ' + md(j.quote_sent_on) : 'draft · not sent yet',
         head + rows + (edit ? '<a class="qadd">+ Add line</a>' : '') + tot + profit + coNote + terms + handoff) +
       (j.stage !== 'lead' ? sec('Follow-ups', j.stage === 'quoted' ? '<a data-addnote="follow">+ Note</a>' : '', follows.length ? logList(follows) : '<span class="q">No follow-ups yet.</span>') : '');
@@ -903,7 +933,7 @@ const STAGE_VIEW = {
     let L = '', Rt = '';
     const allDone = j.tasks.length && j.tasks.every(x => x.done);
     L += sec('Tasks', null, '<ul class="scope steps">' +
-        (j.work_done_on ? '<div class="alldone">Work done ' + md(j.work_done_on) + (j.signoff ? ' · <span>' + esc(j.signoff) + '</span>' : '') + '</div>'
+        (j.work_done_on ? '<div class="alldone">Work done ' + md(j.work_done_on) + (j.signoff ? ' · <span>' + esc(j.signoff) + '</span>' : '') + (live ? ' <a data-undodone style="margin-left:auto;font-weight:400;font-size:11.5px">undo</a>' : '') + '</div>'
           : live && allDone ? '<div class="alldone">Every task is done. <button class="btn pri" id="markDone">Mark work done</button><span>then collect the final payment</span></div>' : '') +
         j.tasks.map((x, i) => stepRow(j, x, i, live && !j.work_done_on)).join('') + '</ul>' +
         (live && !j.work_done_on ? '<a class="qadd sadd" data-addnote="task">+ Add task</a><span class="q" style="margin-left:8px">for work that isn’t a billed line, e.g. an inspection</span>' : ''));
@@ -932,9 +962,15 @@ const UPCOMING = {
 function openDrawer(id) {
   selected = id; nj = null; ED = null;
   viewStage = sel().stage;
+  SETUP = null; EDITING = false; RELINK = false;
   renderJobs(); renderDrawer(); showDrawer();
-  history.replaceState(null, '', '?job=' + id);
+  if (new URLSearchParams(location.search).get('job') !== id) history.pushState({ job:id }, '', '?job=' + id);
 }
+window.addEventListener('popstate', () => {   // browser Back/Forward between the board and a job
+  const id = new URLSearchParams(location.search).get('job');
+  if (id && JOBS.some(j => j.id === id)) { if (id !== selected) openDrawer(id); }
+  else if (selected || nj) closeDrawer();
+});
 function sumLine(j) {
   if (j.from_qbo) return paid(j) ? '<div class="sumline"><span>Collected <b class="g">' + fmt(paid(j)) + '</b></span></div>' : '';
   const k = contract(j);
@@ -944,6 +980,17 @@ function sumLine(j) {
   return '<div class="sumline"><span>Contract <b>' + fmt(k) + '</b></span><span>Paid <b class="g">' + fmt(p) + '</b></span>' +
     (k > p ? '<span>To go <b>' + fmt(k - p) + '</b></span>' : '') +
     (j.target_done && !j.work_done_on ? '<span>Target done <b>' + dmd(j.target_done) + '</b></span>' : '') + '</div>';
+}
+function editJobHtml(j) {   // client details, the inquiry, the target date — and delete for a job entered by mistake
+  const f = (id, label, v, ph, type) => '<label>' + label + '<input id="' + id + '"' + (type ? ' type="' + type + '"' : '') + ' value="' + esc(v || '') + '"' + (ph ? ' placeholder="' + ph + '"' : '') + '></label>';
+  return '<div class="nf editjob">' +
+    '<div class="nf2">' + f('ejName', 'Client', j.client_name) + f('ejAddr', 'Job address', j.address) + '</div>' +
+    '<div class="nf2">' + f('ejPhone', 'Phone', j.phone) + f('ejEmail', 'Email', j.email) + '</div>' +
+    (j.from_qbo ? '' : '<div class="nf2">' + f('ejSource', 'How they found us', j.source) + f('ejBudget', 'Budget they mentioned', j.budget) + '</div>' +
+      '<label>What they want<textarea id="ejAsk" rows="2">' + esc(j.ask || '') + '</textarea></label>' +
+      (j.stage === 'active' ? '<div class="nf2">' + f('ejTarget', 'Target done', j.target_done, '', 'date') + '<span></span></div>' : '')) +
+    '<div class="ej-acts">' + (j.from_qbo ? '<span></span>' : '<button class="btn danger" data-ejdel>Delete job</button>') +
+      '<button class="btn" data-ejcancel>Cancel</button><button class="btn pri" data-ejsave>Save</button></div></div>';
 }
 function render() { renderJobs(); if (selected && sel()) renderDrawer(); else if (selected) closeDrawer(); }
 function renderDrawer() {
@@ -958,7 +1005,7 @@ function renderDrawer() {
     (['lead', 'quoted'].includes(j.stage) && !j.from_qbo ? '<button class="topbar-lost" onclick="openLost()">Mark lost</button>' : '');
   let h = '<div class="dw-h jh"><div class="jh-title">' + esc(j.client_name) + '</div>' +
     '<div class="jh-sub"><span>' + esc(j.address || '') + '</span>' + (j.phone ? '<a href="tel:' + esc(j.phone.replace(/[^\d+]/g, '')) + '">' + esc(j.phone) + '</a>' : '') + (j.email ? '<a href="mailto:' + esc(j.email) + '">' + esc(j.email) + '</a>' : '') +
-      (j.from_qbo ? '<span class="jh-tag">from QuickBooks</span>' : '') + '</div>' + sumLine(j) + '</div>';
+      (j.from_qbo ? '<span class="jh-tag">from QuickBooks</span>' : '') + (EDITING ? '' : '<a class="jh-edit" data-editjob>Edit details</a>') + '</div>' + sumLine(j) + (EDITING ? editJobHtml(j) : '') + '</div>';
 
   const vIdx = rail.findIndex(s => s.k === viewStage), stage = rail[vIdx];
   const drafting = stage.k === 'quoted' && j.stage === 'lead';
@@ -1013,7 +1060,8 @@ function seditHtml(x, i) {
 }
 function seInner() {
   const x = ED.x;
-  return '<span class="se-cal">' + calHtml(x, ED.wk) + '</span>' + whoHtml() +
+  return '<span class="se-top"><input class="se-name" value="' + esc(x.name) + '" title="Task name"><button class="btn danger" data-sedel>Delete task</button></span>' +
+    '<span class="se-cal">' + calHtml(x, ED.wk) + '</span>' + whoHtml() +
     '<span class="se-row">Sub <input class="se-sub" value="' + esc(x.sub_name || '') + '" placeholder="e.g. Rios Plumbing"> charges $<input class="se-subamt" inputmode="numeric" value="' + (x.sub_cost || '') + '" placeholder="0"><b class="se-cost">' + seCost(x) + '</b>' +
     '<button class="btn" data-secancel>Cancel</button><button class="btn pri se-ok">Save</button></span>';
 }
@@ -1048,7 +1096,7 @@ function seCost(x) {
   return n + (n > 1 ? ' days · ' : ' day · ') + (parts.length ? parts.join(' + ') + (parts.length > 1 ? ' = ' + fmt(taskCost(x)) : '') : 'no one assigned');
 }
 async function saveTaskSchedule(x) {
-  must(await sb.from('side_job_tasks').update({ sub_name: x.sub_name || null, sub_cost: x.sub_name && x.sub_cost ? x.sub_cost : null, along:false }).eq('id', x.id), 'task');
+  must(await sb.from('side_job_tasks').update({ name: x.name, sub_name: x.sub_name || null, sub_cost: x.sub_name && x.sub_cost ? x.sub_cost : null, along:false }).eq('id', x.id), 'task');
   must(await sb.from('side_job_task_days').delete().eq('task_id', x.id), 'task days');
   if (x.dates.length) must(await sb.from('side_job_task_days').insert(x.dates.map(d => ({ task_id:x.id, work_date:d, worker_ids:dayCrew(x, d) }))), 'task days');
 }
@@ -1056,6 +1104,79 @@ async function saveTaskSchedule(x) {
 // ---------- job page clicks ----------
 document.getElementById('drawer').addEventListener('click', e => {
   const j = sel(); if (!j) return;
+  // #9 set up a QuickBooks-only job
+  if (e.target.closest('[data-setup]')) { SETUP = j.id; ensureDraft(j); renderDrawer(); const q = document.querySelector('#drawer .qh'); if (q) q.focus(); return; }
+  if (e.target.id === 'setupCancel') { SETUP = null; renderDrawer(); return; }
+  if (e.target.id === 'setupGo') {
+    clearTimeout(qTimer);
+    const lines = (j.quote_lines || []).filter(l => (l.headline || '').trim()).map(l => ({ headline:l.headline.trim(), cost:num(l.cost), price:num(l.price), declined:false }));
+    if (!lines.length) { toast('Add at least one line with a headline.'); return; }
+    const start = (j.money && j.money.first) || j.came_in, target = (document.getElementById('setupTarget') || {}).value || null;
+    SETUP = null;
+    write('set up', async () => {
+      must(await sb.from('side_jobs').update({ from_qbo:false, stage:'active', won_on:start, quote_sent_on:start, quote_lines:lines, payment_terms:j.payment_terms || null,
+        quote_no:j.quote_no || null, target_done:target, updated_at:new Date().toISOString() }).eq('id', j.id));
+      must(await sb.from('side_job_tasks').insert(lines.map((l, i) => ({ job_id:j.id, name:l.headline, sort_order:i }))));
+      must(await sb.from('side_job_log').insert({ job_id:j.id, kind:'note', entry_date:TODAY, body:'Set up here from its QuickBooks customer — ' + lines.length + ' line' + (lines.length === 1 ? '' : 's') + '.', created_by:uid() }));
+    }).then(() => { viewStage = 'active'; renderDrawer(); });
+    return;
+  }
+  // #1/#4/#7 edit details, delete a job
+  if (e.target.closest('[data-editjob]')) { EDITING = true; renderDrawer(); document.getElementById('ejName').focus(); return; }
+  if (e.target.closest('[data-ejcancel]')) { EDITING = false; renderDrawer(); return; }
+  if (e.target.closest('[data-ejsave]')) {
+    const v = id => { const el = document.getElementById(id); return el ? el.value.trim() : undefined; };
+    if (!v('ejName')) { document.getElementById('ejName').focus(); return; }
+    const patch = { client_name:v('ejName'), address:v('ejAddr') || null, phone:v('ejPhone') || null, email:v('ejEmail') || null, updated_at:new Date().toISOString() };
+    if (!j.from_qbo) Object.assign(patch, { source:v('ejSource') || null, budget:v('ejBudget') || null, ask:v('ejAsk') || null });
+    if (v('ejTarget') !== undefined) patch.target_done = v('ejTarget') || null;
+    EDITING = false;
+    write('details', async () => must(await sb.from('side_jobs').update(patch).eq('id', j.id)));
+    return;
+  }
+  if (e.target.closest('[data-ejdel]')) {
+    if (!confirm('Delete ' + j.client_name + '? Its quote, tasks and log are deleted too. This can’t be undone.')) return;
+    EDITING = false;
+    write('delete job', async () => must(await sb.from('side_jobs').delete().eq('id', j.id))).then(closeDrawer);
+    return;
+  }
+  // #5 undo work done
+  if (e.target.closest('[data-undodone]')) {
+    if (!confirm('Mark the work as not done yet?')) return;
+    write('undo work done', async () => must(await sb.from('side_jobs').update({ work_done_on:null, updated_at:new Date().toISOString() }).eq('id', j.id)));
+    return;
+  }
+  // #6 change the QuickBooks customer
+  const rl = e.target.closest('[data-relink]');
+  if (rl) { RELINK = rl.dataset.relink === '1'; renderDrawer(); return; }
+  // #3 edit or remove a log entry
+  const lr = e.target.closest('[data-log]');
+  if (lr && !e.target.closest('a')) {
+    const l = j.log.find(x => x.id === lr.dataset.log); if (!l) return;
+    document.querySelectorAll('#drawer [data-logedit]').forEach(x => x.remove());
+    lr.insertAdjacentHTML('afterend', logEditHtml(l)); lr.nextElementSibling.querySelector('.le-t').focus(); return;
+  }
+  const le = e.target.closest('[data-logedit]');
+  if (le) {
+    const l = j.log.find(x => x.id === le.dataset.logedit), v = c => ((le.querySelector(c) || {}).value || '').trim();
+    if (e.target.closest('[data-lecancel]')) { le.remove(); return; }
+    if (e.target.closest('[data-ledel]')) {
+      const co = l.kind === 'change_order';
+      if (!confirm(co ? 'Remove CO-' + l.co_no + '? Its price comes off the contract and its task is deleted.' : 'Remove this entry?')) return;
+      write('remove entry', async () => {
+        must(await sb.from('side_job_log').delete().eq('id', l.id));
+        if (co) must(await sb.from('side_job_tasks').delete().eq('job_id', j.id).eq('co_no', l.co_no));
+      }); return;
+    }
+    if (e.target.closest('[data-lesave]')) {
+      if (!v('.le-t')) { le.querySelector('.le-t').focus(); return; }
+      const patch = { entry_date:v('.le-d') || l.entry_date, body:v('.le-t') };
+      if (l.kind === 'material') patch.material_status = v('.le-s') || null;
+      if (l.kind === 'change_order') { patch.price = num(v('.le-p')); patch.cost = num(v('.le-c')); }
+      write('edit entry', async () => must(await sb.from('side_job_log').update(patch).eq('id', l.id)));
+    }
+    return;
+  }
   if (e.target.closest('[data-writequote]')) { viewStage = 'quoted'; ensureDraft(j); renderDrawer(); const q = document.querySelector('#drawer .qh'); if (q) q.focus(); return; }
   const ck = e.target.closest('.steps .ck[data-si]');
   if (ck) { const x = j.tasks[+ck.dataset.si]; write('task', async () => must(await sb.from('side_job_tasks').update({ done: !x.done }).eq('id', x.id))); return; }
@@ -1068,8 +1189,9 @@ document.getElementById('drawer').addEventListener('click', e => {
   if (e.target.closest('[data-review]')) { write('review', async () => must(await sb.from('side_jobs').update({ review_requested_on:TODAY }).eq('id', j.id))); return; }
   if (e.target.closest('[data-archive]')) { write('archive', async () => must(await sb.from('side_jobs').update({ archived_at:new Date().toISOString() }).eq('id', j.id))).then(closeDrawer); return; }
   if (e.target.id === 'qboLink') {
-    const v = document.getElementById('qboCust').value; if (!v) return;
-    write('link', async () => must(await sb.from('side_jobs').update({ qbo_customer_id:v, updated_at:new Date().toISOString() }).eq('id', j.id))); return;
+    const v = document.getElementById('qboCust').value; if (!v && !RELINK) return;
+    RELINK = false;
+    write('link', async () => must(await sb.from('side_jobs').update({ qbo_customer_id:v || null, updated_at:new Date().toISOString() }).eq('id', j.id))); return;
   }
   if (e.target.id === 'markSent') { markSent(j); return; }
   // change order
@@ -1106,11 +1228,16 @@ document.getElementById('drawer').addEventListener('click', e => {
     if (rm) { x.crewByDay[rm.dataset.d] = dayCrew(x, rm.dataset.d).filter(w => w !== rm.dataset.w); redraw(); return; }
     if (e.target.closest('.samecrew')) { const c = dayCrew(x, x.dates[0]); x.dates.forEach(d => x.crewByDay[d] = c.slice()); redraw(); return; }
     if (e.target.closest('[data-secancel]')) { ED = null; ed.closest('.sub').innerHTML = schedTxt(j, j.tasks[+ed.closest('.sub').dataset.si]); return; }
-    if (e.target.closest('.se-ok')) { if (!x.dates.length && !x.sub_name) return; ED = null; write('schedule', () => saveTaskSchedule(x)); }
+    if (e.target.closest('[data-sedel]')) {
+      if (!confirm('Delete the task “' + x.name + '”? Its days and crew go with it.')) return;
+      ED = null; write('delete task', async () => must(await sb.from('side_job_tasks').delete().eq('id', x.id))); return;
+    }
+    if (e.target.closest('.se-ok')) { if (!x.name.trim()) { ed.querySelector('.se-name').focus(); return; } ED = null; write('schedule', () => saveTaskSchedule(x)); }
     return;
   }
 });
 document.getElementById('drawer').addEventListener('input', e => {   // sub name / price → live cost line
+  if (e.target.matches('.se-name') && ED) { ED.x.name = e.target.value; return; }
   if (!e.target.matches('.se-sub, .se-subamt') || !ED) return;
   const box = e.target.closest('.sedit');
   ED.x.sub_name = box.querySelector('.se-sub').value.trim(); ED.x.sub_cost = num(box.querySelector('.se-subamt').value);
@@ -1277,7 +1404,8 @@ function showDrawer() { document.getElementById('boardView').hidden = true; docu
 function closeDrawer() {
   selected = null; nj = null; ED = null;
   document.getElementById('detailView').hidden = true; document.getElementById('boardView').hidden = false;
-  history.replaceState(null, '', location.pathname);
+  SETUP = null; EDITING = false; RELINK = false;
+  if (location.search) history.pushState(null, '', location.pathname);
   renderJobs();
 }
 document.addEventListener('keydown', e => {
