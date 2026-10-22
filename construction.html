@@ -67,6 +67,11 @@ h2 { font-size:14.5px; font-weight:600; }
 .sh .act { margin-left:auto; }
 .datenav { display:inline-flex; align-items:center; gap:5px; }
 .datenav button { padding:3px 9px; font-size:11.5px; }
+.pg { font:inherit; font-size:13px; line-height:1; padding:1px 6px 3px; border:1px solid var(--border);
+  border-radius:4px; background:var(--bg); color:var(--text-3); cursor:pointer; }
+.pg:hover { border-color:var(--border-hover); color:var(--text); }
+.hdnav { display:flex; align-items:center; justify-content:flex-end; padding-right:6px; }
+.hdnav.end { justify-content:center; padding:0; }
 .cur { font-size:12.5px; font-weight:600; min-width:126px; text-align:center; color:var(--text-2); }
 .card { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg);
   padding:12px 14px; overflow-x:auto; }
@@ -290,6 +295,9 @@ let deals=[], propByMls={}, tpl=[], milestones=[], workers=[], roster=[], skills
 const VIEW_KEY='backstage.construction.view';
 function savedView(){try{const v=localStorage.getItem(VIEW_KEY);return (v==='1w'||v==='2w'||v==='full')?v:'2w';}catch(e){return '2w';}}
 let sel=TODAY, view=savedView(), collapsed={}, ovCtx=null;
+// Days the dated views are paged away from today, a week per arrow click. Not
+// remembered: every load opens on the current week.
+let shift=0;
 // Colour says WHICH KIND OF WORK — the same language the project page's build
 // schedule speaks: structural purple, finishes green, closeout grey. These are
 // the very same four pairs as before; they were just keyed to the build's sort
@@ -500,15 +508,14 @@ function busyOn(wid,day){return assigns.filter(a=>a.worker_id===wid&&a.work_date
 const FULL=0.9999, OVER=1.0001;
 // A few days of lead-in before today. The board is a planning surface, so the
 // forward horizon stays a full two weeks — the lookback is added, not traded
-// against it. Deliberately a fixed window rather than a scrollable history:
-// "what did we actually get done" is always a question about the last few
-// days, and paging would put a where-am-I state on a glance surface.
+// against it. The ‹ › arrows page the whole window a week at a time (shift), for
+// back-filling a day that has already slid out of the lookback.
 const LOOKBACK=4;
 // Forward horizon of each dated view. One week is the crew-assignment week;
 // two weeks is the planning window. Both keep the same lookback.
 const HORIZON={'1w':7,'2w':14};
 function days(){
-  if(HORIZON[view])return Array.from({length:LOOKBACK+HORIZON[view]},(_,i)=>addDays(TODAY,i-LOOKBACK));
+  if(HORIZON[view]){const a=addDays(TODAY,shift);return Array.from({length:LOOKBACK+HORIZON[view]},(_,i)=>addDays(a,i-LOOKBACK));}
   let last=TODAY;
   for(const dl of deals){const f=finishOf(dl); if(f&&f>last)last=f;}
   const n=Math.max(13, diff(TODAY,last)||13);
@@ -518,17 +525,20 @@ function days(){
 function render(){
   const D=days(), N=D.length;
   const colw=view==='1w'?56:view==='2w'?34:19;
-  const gt=`grid-template-columns:196px repeat(${N},minmax(${colw}px,1fr))`;
+  // Dated views carry a narrow trailing column for the › arrow; every row shares gt.
+  const paged=view!=='full';
+  const gt=`grid-template-columns:196px repeat(${N},minmax(${colw}px,1fr))${paged?' 26px':''}`;
   document.getElementById('hsub').textContent=
     '('+deals.length+(deals.length===1?' build':' builds')+' · '+ourDeals().length+' on our crew'+(sideJobs.length?' · '+sideJobs.length+(sideJobs.length===1?' side project':' side projects'):'')+')';
   for(const [id,v] of [['v1w','1w'],['v2w','2w'],['vfull','full']])
     document.getElementById(id).classList.toggle('on',view===v);
   if(!deals.length&&!sideJobs.length){document.getElementById('page').innerHTML='<div class="empty">No builds under construction.</div>';return;}
 
-  let hd=`<div class="r" style="${gt}"><span class="lb"></span>`;
+  let hd=`<div class="r" style="${gt}"><span class="${paged?'hdnav':'lb'}">${paged?'<button class="pg" onclick="page(-1)" title="Earlier week">&lsaquo;</button>':''}</span>`;
   for(const x of D){const dow=d(x).getDay();
     const lab=x===TODAY?'today':((view!=='full'||dow===1)?md(x):'');
     hd+=`<span class="hd${dow===0?' sun':''}${x===TODAY?' t0':''}"><em>${DOW[dow]}</em>${lab}</span>`;}
+  if(paged)hd+='<span class="hdnav end"><button class="pg" onclick="page(1)" title="Later week">&rsaquo;</button></span>';
   hd+='</div>';
 
   let body='';
@@ -740,9 +750,10 @@ function render(){
       <button class="addb" id="nwAdd" style="justify-self:start">+ Add to roster</button></div>`;
 
   document.getElementById('page').innerHTML=`
-    <div class="sh"><h2>${view==='1w'?'The next week':view==='2w'?'The next two weeks':'Full runway'}</h2>
-      <span class="sub">${view==='full'?'the committed plan, out to the last trade':'plus the last four days — every day is clickable, inside the plan or not'}</span></div>
-    <div class="card"><div style="min-width:${196+N*colw}px">${hd}${body}${ld}${ac}</div></div>
+    <div class="sh"><h2>${view==='full'?'Full runway':shift?md(D[0])+' – '+md(D[N-1]):view==='1w'?'The next week':'The next two weeks'}</h2>
+      <span class="sub">${view==='full'?'the committed plan, out to the last trade':shift?'paged '+(shift<0?'back':'ahead')+' from today — every day is clickable':'plus the last four days — every day is clickable, inside the plan or not'}</span>
+      ${paged&&shift?'<button class="btn" style="padding:2px 9px;font-size:11.5px" onclick="page(0)">Back to today</button>':''}</div>
+    <div class="card"><div style="min-width:${196+N*colw+(paged?26:0)}px">${hd}${body}${ld}${ac}</div></div>
     <div class="cols">
       <div>
         <div class="sh"><h2>Who goes where</h2><span class="sub">${dayCost?money(dayCost)+' in crew labour':''}</span>
@@ -876,8 +887,10 @@ async function addWorker(){
 function toggleCollapse(id){collapsed[id]=!collapsed[id];render();}
 async function step(n){sel=addDays(sel,n);await loadAssignments();render();}
 async function goDay(x){sel=x;await loadAssignments();render();}
+// ‹ › on the grid: a week per click; 0 snaps back to the current week.
+async function page(n){shift=n?shift+n*7:0;await loadAssignments();render();}
 async function setView(v){view=v;try{localStorage.setItem(VIEW_KEY,v);}catch(e){}await loadAssignments();render();}
-window.toggleCollapse=toggleCollapse; window.step=step; window.goDay=goDay;
+window.toggleCollapse=toggleCollapse; window.step=step; window.goDay=goDay; window.page=page;
 
 // Re-plan: push the remaining schedule so the earliest open trade starts on the
 // chosen date. The baseline (due_date) is untouched, so how far behind the
