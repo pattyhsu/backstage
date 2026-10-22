@@ -3034,7 +3034,9 @@ function mapRowToListing(r){
 // on detail open via ensureDetailRemarks(). select('*') here pulled ~3.9MB /
 // 6-24s for ~800 unread rows; this list is ~2MB.
 const LIST_COLS='address,agent_broker,agent_dre,agent_email,agent_name,agent_office_phone,agent_phone,baths,beds,broker_dre,change_date,change_type,city,condition_tier,value_driver_rooms_updated,condition_overridden,contact_name,contact_phone,elementary_rating,elementary_school,gate_code,high_rating,high_school,is_dotty,latitude,list_date,list_price,lockbox_location,lockbox_type,locked_arv,locked_construction,longitude,lot_size,middle_rating,middle_school,mls,mls_area,mls_area_name,notes,occupancy,occupant_type,photo_count,pool,ppsf,remarks,sale_type,sqft,stage,year_built,zip,imported_at';
-async function loadListings(status){
+// waitFor (init only): a promise to settle before mapping/render — the rehab
+// config, fetched in parallel with this query since render() reads CONST_CATEGORIES.
+async function loadListings(status,waitFor){
   // Wholesaler leads: synthetic OFFMKT-<uuid8> rows with change_type='off_market'.
   // Two views: 'archived' (stage='archived') and default 'all' (everything else).
   let query=sb.from('properties').select(LIST_COLS).like('mls','OFFMKT-%').eq('change_type','off_market').order('imported_at',{ascending:false}).limit(2000);
@@ -3044,7 +3046,7 @@ async function loadListings(status){
   // and fresh wholesaler leads have stage=NULL — so include NULL explicitly.
   else query=query.or('stage.is.null,stage.neq.archived');
   try{
-    let{data,error}=await query;if(error)throw error;
+    let{data,error}=await query;if(waitFor)await waitFor;if(error)throw error;
     listings=(data||[]).map(mapRowToListing);
     active=null;render();
     updateStageCounts();  // refresh tab counts once per data load (moved out of render())
@@ -3188,8 +3190,9 @@ async function handleDeepLink(){
   await window.authGate();
   if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
   window.renderSidebar('wholesaler');
-  await loadRehabConfig();
-  await loadListings('all');
+  // Rehab config + listings query in parallel; loadListings waits for the
+  // config (never rejects) before its first render.
+  await loadListings('all',loadRehabConfig());
   render();
   // Deep-link runs once, after the initial listings + render are in place.
   handleDeepLink();

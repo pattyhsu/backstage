@@ -606,7 +606,16 @@ async function write(what, fn) {
 
 async function loadAll() {
   const lo = TODAY, hi = addDays(TODAY, 180);
-  const [jobs, tasks, days, log, money, pays, workers, assigns] = await Promise.all([
+  // Flip schedule chain (assignments → deals → properties) starts its follow-ups as soon as assignments land,
+  // alongside the other reads; errors are only checked below, in the same order as before.
+  const flipQ = sb.from('deal_work_assignments').select('deal_id, work_date, worker_id').gte('work_date', lo).lte('work_date', hi).then(async assigns => {
+    const dealIds = assigns.error ? [] : [...new Set(assigns.data.map(a => a.deal_id))];
+    const dealsR = dealIds.length ? await sb.from('deals').select('id, buy_side_mls').in('id', dealIds) : null;
+    const mlss = dealsR && !dealsR.error ? dealsR.data.map(d => d.buy_side_mls).filter(Boolean) : [];
+    const propsR = mlss.length ? await sb.from('properties').select('mls, address').in('mls', mlss) : null;
+    return { assigns, dealIds, dealsR, propsR };
+  });
+  const [jobs, tasks, days, log, money, pays, workers, { assigns, dealIds, dealsR, propsR }] = await Promise.all([
     sb.from('side_jobs').select('*').order('came_in', { ascending:false }),
     sb.from('side_job_tasks').select('*').order('sort_order'),
     sb.from('side_job_task_days').select('task_id, work_date, worker_ids'),
@@ -614,18 +623,17 @@ async function loadAll() {
     sb.from('side_project_money_v1').select('qbo_customer_id, customer_name, year, income, labor, materials, soft, other, first_date, last_date'),
     sb.from('side_project_payments_v1').select('qbo_customer_id, txn_date, amount, deposited_to, description').order('txn_date'),
     sb.from('workers').select('id, name, daily_rate, active').order('name'),
-    sb.from('deal_work_assignments').select('deal_id, work_date, worker_id').gte('work_date', lo).lte('work_date', hi),
+    flipQ,
   ]);
   [jobs, tasks, days, log, money, pays, workers, assigns].forEach((r, i) => must(r, ['side_jobs', 'tasks', 'task days', 'log', 'money', 'payments', 'workers', 'flip schedule'][i]));
   WORKERS = workers.data.filter(w => w.active);
   WBY = Object.fromEntries(workers.data.map(w => [w.id, w]));
   // Flip labels: deal → buy-side MLS → property street
-  const dealIds = [...new Set(assigns.data.map(a => a.deal_id))];
   let label = {};
   if (dealIds.length) {
-    const deals = must(await sb.from('deals').select('id, buy_side_mls').in('id', dealIds), 'deals');
+    const deals = must(dealsR, 'deals');
     const mlss = deals.map(d => d.buy_side_mls).filter(Boolean);
-    const props = mlss.length ? must(await sb.from('properties').select('mls, address').in('mls', mlss), 'properties') : [];
+    const props = mlss.length ? must(propsR, 'properties') : [];
     const addr = Object.fromEntries(props.map(p => [p.mls, p.address]));
     label = Object.fromEntries(deals.map(d => [d.id, titleCase((addr[d.buy_side_mls] || 'a flip').replace(/^\d+\s+/, ''))]));
   }

@@ -311,8 +311,18 @@ const NEUTRAL=['#D8D7D0','#4A4945'];
 function colOf(key){return CAT[tplOf(key).category]||NEUTRAL;}
 
 async function loadAll(){
-  const {data:cr}=await sb.from('crews').select('id, name, kind, active');
-  crews=cr||[];
+  // Reads that need nothing from each other go out together; only the ones
+  // keyed off the deal list wait for it. Nothing renders until all are in.
+  const pCr=sb.from('crews').select('id, name, kind, active').then(({data:cr})=>{crews=cr||[];});
+  const pTpl=sb.from('escrow_milestone_templates')
+    .select('milestone_key, display_name, default_offset_days, default_duration_days, default_crew_size, category, display_order')
+    .eq('template_key','construction_v2').order('display_order').then(({data:t})=>{tpl=t||[];});
+  const pW=sb.from('workers').select('id, name, daily_rate, active').order('name').then(({data:w})=>{
+    roster=w||[];
+    workers=roster.filter(x=>x.active);
+  });
+  const pSk=sb.from('worker_trades').select('id, worker_id, milestone_key').then(({data:sk})=>{skills=sk||[];});
+  const pSide=loadSideJobs();
   // Selling deals are loaded too: a house in its sale escrow is off the build
   // board unless our crew has an escrow fix booked on it.
   const {data:dl}=await sb.from('deals')
@@ -321,38 +331,28 @@ async function loadAll(){
   fixable=(dl||[]).filter(x=>x.phase==='selling'||startOf(x));
 
   const mlss=fixable.map(x=>x.buy_side_mls).filter(Boolean);
-  if(mlss.length){
-    const {data:p}=await sb.from('properties').select('mls, address, city').in('mls',mlss);
-    propByMls={}; for(const r of (p||[]))propByMls[r.mls]=r;
-  }
-  const {data:t}=await sb.from('escrow_milestone_templates')
-    .select('milestone_key, display_name, default_offset_days, default_duration_days, default_crew_size, category, display_order')
-    .eq('template_key','construction_v2').order('display_order');
-  tpl=t||[];
-
   const ids=fixable.map(x=>x.id);
   milestones=[];
-  if(ids.length){
-    const {data:m}=await sb.from('deal_milestones')
+  await Promise.all([
+    mlss.length&&sb.from('properties').select('mls, address, city').in('mls',mlss).then(({data:p})=>{
+      propByMls={}; for(const r of (p||[]))propByMls[r.mls]=r;
+    }),
+    ids.length&&sb.from('deal_milestones')
       .select('id, deal_id, milestone_key, display_name, due_date, completed, not_applicable, planned_start, planned_end, notes')
-      .in('deal_id',ids);
-    milestones=m||[];
-    const {data:c}=await sb.from('v_deal_cost_breakdown')
-      .select('deal_id, rehab_budget, rehab_actual').in('deal_id',ids);
-    costs={}; for(const r of (c||[]))costs[r.deal_id]=r;
-  }
+      .in('deal_id',ids).then(({data:m})=>{milestones=m||[];}),
+    ids.length&&sb.from('v_deal_cost_breakdown')
+      .select('deal_id, rehab_budget, rehab_actual').in('deal_id',ids).then(({data:c})=>{
+        costs={}; for(const r of (c||[]))costs[r.deal_id]=r;
+      }),
+    pCr, pTpl]);   // bookedFix / isOurs below read tpl, milestones and crews
   deals=fixable.filter(x=>x.phase==='under_construction'||bookedFix(x))
     .sort((a,b)=>(startOf(a)||'')<(startOf(b)||'')?-1:1);
   fixable.sort((a,b)=>addrOf(a)<addrOf(b)?-1:1);
   // A sub's build stays folded — unless our crew is going back to it.
   deals.forEach(x=>{ if(!(x.id in collapsed))collapsed[x.id]=!isOurs(x)&&!bookedFix(x); });
-  const {data:w}=await sb.from('workers').select('id, name, daily_rate, active').order('name');
-  roster=w||[];
-  workers=roster.filter(x=>x.active);
-  const {data:sk}=await sb.from('worker_trades').select('id, worker_id, milestone_key');
-  skills=sk||[];
-  await loadSideJobs();
-  await loadAssignments();
+  // Assignments last: in the full view days() runs out to the last trade's
+  // finish, which needs deals, milestones and tpl in place.
+  await Promise.all([loadAssignments(), pW, pSk, pSide]);
 }
 // Side projects (side-projects.html): jobs for other homeowners, staffed from the
 // same roster. Read-only here — their days and crew are picked on the job's page

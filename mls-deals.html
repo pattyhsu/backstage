@@ -3307,7 +3307,7 @@ function mapRowToListing(r){
 // on detail open via ensureDetailRemarks(). select('*') here pulled ~3.9MB /
 // 6-24s for ~800 unread rows; this list is ~2MB.
 const LIST_COLS='address,agent_broker,agent_dre,agent_email,agent_name,agent_office_phone,agent_phone,baths,beds,broker_dre,change_date,change_type,city,condition_tier,value_driver_rooms_updated,condition_overridden,contact_name,contact_phone,elementary_rating,elementary_school,gate_code,high_rating,high_school,is_dotty,latitude,list_date,list_price,lockbox_location,lockbox_type,locked_arv,locked_construction,longitude,lot_size,middle_rating,middle_school,mls,mls_area,mls_area_name,notes,occupancy,occupant_type,photo_count,pool,ppsf,remarks,sale_type,sqft,stage,year_built,zip,imported_at';
-async function loadListings(status){
+async function loadListings(status,gate){
   let query=sb.from('properties').select(LIST_COLS).not('mls','is',null).not('mls','like','OFFMKT-%').neq('change_type','sold').order('imported_at',{ascending:false}).limit(2000);
   if(status==='unread')query=query.eq('stage','unread').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
   else if(status==='archived')query=query.or(`stage.eq.archived,list_price.gt.${MAX_LIST_PRICE}`);
@@ -3315,7 +3315,11 @@ async function loadListings(status){
   else if(status&&status!=='all')query=query.eq('stage',status);
   else query=query.not('stage','in','("archived","off_market_lead")').or(`list_price.is.null,list_price.lte.${MAX_LIST_PRICE}`);
   try{
-    let{data,error}=await query;if(error)throw error;
+    let{data,error}=await query;
+    // Initial load passes the in-flight loadRehabConfig() promise as `gate` so the
+    // config fetch overlaps the listings query but still lands before render().
+    if(gate)await gate;
+    if(error)throw error;
     // Address-relist filter: if viewing off-market, hide rows whose address has
     // a newer listing (any non-cancelled/expired/withdrawn status) under a different MLS#.
     if(status==='off_market_lead'&&data&&data.length){
@@ -3488,8 +3492,12 @@ async function handleDeepLink(){
   await window.authGate();
   if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
   window.renderSidebar('deals');
-  await loadRehabConfig();
-  await loadListings('unread');
+  // Rehab config + regime badges don't depend on the listings query — start them
+  // now so they overlap it instead of costing extra round-trips up front.
+  const rehabP=loadRehabConfig();
+  loadRegimeBadges();
+  await loadListings('unread',rehabP);
+  await rehabP;  // already settled on the success path; covers a failed listings query
   render();
   // Deep-link runs once, after the initial listings + render are in place.
   handleDeepLink();
