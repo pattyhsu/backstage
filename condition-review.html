@@ -428,7 +428,29 @@ async function init(){
   await Promise.all([loadCards(),updateStats(),populateCityDropdown()]);
 }
 
+// Disk IO: every query on this page scans the whole properties table (~5s each),
+// and the page was the #2 reader on the Oct 2026 Disk IO alert. So the slow-moving
+// numbers are remembered instead of re-derived on every load / filter click.
+// Storage can be blocked (private window) — then it just behaves as before.
+function lsGet(k){try{return JSON.parse(localStorage.getItem(k)||'null');}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+const CITIES_KEY='cr_cities_v1', CITIES_TTL_MS=24*3600*1000;   // a new city appears maybe weekly
+const UNREV_KEY='cr_unreviewed_v1', UNREV_TTL_MS=15*60*1000;   // kept current by bumpUnreviewed meanwhile
+const COUNT_TTL_MS=10*60*1000;
+// Card counts per filter set, for this page session. Dropped whenever a card
+// changes (refreshCard) since a review can move a row in or out of a filter.
+const countCache=new Map();
+function countKey(){
+  const ck=id=>document.getElementById(id).checked;
+  return JSON.stringify([filters,ck('fUnreviewed'),ck('fStarred'),ck('fDesigner'),ck('fMultiUnit')]);
+}
+
 async function populateCityDropdown(){
+  const cached=lsGet(CITIES_KEY);
+  if(cached&&Array.isArray(cached.cities)){
+    renderCityDropdown(cached.cities);
+    if(Date.now()-cached.at<CITIES_TTL_MS)return;
+  }
   // Distinct scored-row cities via RPC (Postgres does the DISTINCT) instead of
   // pulling one row per scored property into the browser to dedupe ~30 strings.
   // Fall back to the direct scan if the RPC isn't available.
@@ -437,6 +459,10 @@ async function populateCityDropdown(){
   if(!data){const f=await sb.from('properties').select('city').not('condition_tier','is',null).not('city','is',null);data=f.data;}
   if(!data)return;
   const cities=[...new Set(data.map(r=>r.city))].filter(Boolean).sort();
+  lsSet(CITIES_KEY,{cities,at:Date.now()});
+  renderCityDropdown(cities);
+}
+function renderCityDropdown(cities){
   const drop=document.getElementById('fCity-drop');
   // Always-first "All Cities" option, marked selected by default.
   // JSON.stringify produces "Cerritos" — the inner " terminates an onclick="..."
@@ -444,8 +470,11 @@ async function populateCityDropdown(){
   // escapes & < >), so we explicitly &quot;-encode the rendered call string. Browser
   // decodes back to setCityFilter("Cerritos") when reading the attribute.
   const attrSafe=s=>s.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
-  let html=`<button onclick="setCityFilter(&quot;&quot;)" class="selected">All Cities</button>`;
-  html+=cities.map(c=>`<button onclick="${attrSafe('setCityFilter('+JSON.stringify(c)+')')}">${esc(c)}</button>`).join('');
+  // A background refresh can re-render after a city was picked, so mark the
+  // current filter selected rather than always "All Cities".
+  const sel=c=>c===filters.city?' class="selected"':'';
+  let html=`<button onclick="setCityFilter(&quot;&quot;)"${sel('')}>All Cities</button>`;
+  html+=cities.map(c=>`<button onclick="${attrSafe('setCityFilter('+JSON.stringify(c)+')')}"${sel(c)}>${esc(c)}</button>`).join('');
   drop.innerHTML=html;
 }
 
@@ -556,9 +585,14 @@ function bumpUnreviewed(delta){
   const el=document.getElementById('statUnreviewed');
   const cur=parseInt(el.textContent,10);
   if(!Number.isFinite(cur)) return;   // not populated yet — leave it for updateStats
-  el.textContent=Math.max(0,cur+delta);
+  const n=Math.max(0,cur+delta);
+  el.textContent=n;
+  const c=lsGet(UNREV_KEY);
+  if(c) lsSet(UNREV_KEY,{n,at:c.at});   // keep the remembered count in step, same expiry
 }
 async function updateStats(){
+  const c=lsGet(UNREV_KEY);
+  if(c&&Date.now()-c.at<UNREV_TTL_MS){document.getElementById('statUnreviewed').textContent=c.n;return;}
   // "Unreviewed" = scored rows (a tier was assigned) that no reviewer has
   // confirmed or overridden yet — i.e. still need a manual pass. Excludes the
   // ~6k never-scored rows (null tier, never touched).
@@ -567,6 +601,7 @@ async function updateStats(){
     .not('condition_tier','is',null)
     .or('condition_overridden.is.null,condition_overridden.eq.false');
   document.getElementById('statUnreviewed').textContent=unreviewed||0;
+  if(unreviewed!=null) lsSet(UNREV_KEY,{n:unreviewed,at:Date.now()});
 }
 
 // ========== LOAD CARDS ==========
@@ -645,10 +680,10 @@ async function loadCards(){
   // The exact count is invariant across pages of the SAME filter set, and it's
   // the expensive query shape (Postgres counts every matching row). So only run
   // it on page 0 — a fresh filter/search — and reuse totalCount when paginating.
+  // It now waits for the cards instead of racing them: a result that fits on
+  // one page IS its own count, and a filter set counted in the last few minutes
+  // reuses that — both skip a full-table scan.
   const needCount=currentPage===0;
-  const countReq=needCount?Promise.resolve(applyCardFilters(
-    sb.from('properties').select('id',{count:'exact',head:true})
-  )):null;
 
   // ----- Cards: render as soon as the (light) data query returns -----
   const{data}=await dataReq;
@@ -660,7 +695,6 @@ async function loadCards(){
     document.getElementById('pagination').innerHTML='';
     document.getElementById('headerCount').textContent='(0)';
     totalCount=0;
-    if(countReq) await countReq.catch(()=>{}); // consume the in-flight count (page 0 only)
     return;
   }
 
@@ -680,10 +714,18 @@ async function loadCards(){
   });
 
   // ----- Count: only refreshed on page 0; later pages reuse totalCount -----
-  if(countReq){
-    const{count}=await countReq;
-    if(seq!==loadSeq) return;
-    totalCount=count||0;
+  if(needCount){
+    const key=countKey(), hit=countCache.get(key);
+    let n;
+    if(data.length<ps) n=data.length;   // whole result is on screen
+    else if(hit&&Date.now()-hit.at<COUNT_TTL_MS) n=hit.n;
+    else {
+      const{count}=await applyCardFilters(sb.from('properties').select('id',{count:'exact',head:true}));
+      if(seq!==loadSeq) return;
+      n=count||0;
+    }
+    countCache.set(key,{n,at:Date.now()});
+    totalCount=n;
     document.getElementById('headerCount').textContent=`(${totalCount})`;
   }
   renderPagination();
@@ -810,6 +852,7 @@ function renderCard(p){
 // ========== OVERRIDE ==========
 // Re-render a single card in place from the (already-updated) cardData row.
 function refreshCard(id){
+  countCache.clear();   // the row may have left or joined a filter set
   const p=cardData[id];
   const el=document.querySelector(`.prop-card[data-id="${id}"]`);
   if(p&&el) el.outerHTML=renderCard(p);
