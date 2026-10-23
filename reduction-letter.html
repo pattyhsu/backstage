@@ -356,7 +356,12 @@ async function submitJob(){
     }).select();
     if(insErr)throw new Error('Could not queue the job: '+(insErr.message||'unknown'));
 
-    // 3. Poll for the letter (the mini daemon does the work).
+    // 3. Wake the mini daemon. It no longer polls the table every minute (Disk
+    // IO); this ping is how it learns of the job. Fire-and-forget: if it fails,
+    // the daemon's 30-min backstop sweep still picks the job up.
+    wakeDaemon();
+
+    // 4. Poll for the letter (the mini daemon does the work).
     setPhase('Reading the reports…');
     pollJob(jobId);
   }catch(err){
@@ -364,6 +369,14 @@ async function submitJob(){
     submitting=false;
     document.getElementById('gen-btn').disabled=false;
   }
+}
+
+async function wakeDaemon(){
+  try{
+    const token=(await sb.auth.getSession())?.data?.session?.access_token;
+    if(!token)return;
+    await fetch('https://recompute.dottyhomes.com/wake/reduction-letter',{method:'POST',headers:{'Authorization':'Bearer '+token}});
+  }catch(e){console.warn('[reduction-letter] wake failed; backstop sweep will pick the job up',e);}
 }
 
 function pollJob(jobId){
