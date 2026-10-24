@@ -832,7 +832,7 @@ function qboSyncState() {
   const r = QBO_SYNC.req || {}, runs = QBO_SYNC.runs || [], lastOk = runs.find(x => x.status === 'ok'), now = Date.now();
   const reqT = _qsT(r.sync_requested_at), startT = _qsT(r.sync_started_at);
   const nightlyRunning = runs.find(x => x.status === 'running' && now - _qsT(x.started_at) < 30 * 60000);
-  if (reqT && (!startT || startT < reqT)) return { state: now - reqT > 5 * 60000 ? 'stuck' : 'requested', lastOk, reqT };
+  if (reqT && (!startT || startT < reqT)) return { state: now - reqT > 10 * 60000 ? 'stuck' : 'requested', lastOk, reqT };   // the mini polls every 5 min
   if (startT) {
     const run = runs.slice().reverse().find(x => _qsT(x.started_at) >= startT - QS_CLOCK_SLACK_MS);
     if (!run) { if (now - startT < 10 * 60000) return { state:'running', lastOk }; }
@@ -847,7 +847,7 @@ function qboSyncInner() {
   if (!QBO_SYNC.req) return '<span class="qs-msg">QBO sync status…</span>';
   const st = qboSyncState(), last = st.lastOk ? 'QBO last synced ' + _qsAgo(st.lastOk.ended_at) : 'QBO not synced yet';
   let msg = last, cls = '', btn = true, label = 'Sync QBO now';
-  if (st.state === 'requested') { msg = 'Requested — waiting for the Mac mini (up to a minute)…'; btn = false; label = 'Requested'; }
+  if (st.state === 'requested') { msg = 'Requested — waiting for the Mac mini (up to 5 minutes)…'; btn = false; label = 'Requested'; }
   else if (st.state === 'running') { msg = st.nightly ? 'Nightly QBO sync running…' : 'Syncing QuickBooks… usually 1–2 min'; btn = false; label = 'Syncing…'; }
   else if (st.state === 'stuck') { msg = 'The Mac mini hasn’t finished this — it may be asleep. The 04:00 sync will still run. ' + last; cls = 'warn'; btn = false; label = 'Waiting'; }
   else if (st.state === 'done') {

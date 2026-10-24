@@ -21,8 +21,6 @@
      tabs + stats stay pinned over the long card list. */
   .cond-tabs { position:sticky; top:0; z-index:200; flex-wrap:wrap; align-items:center; }
   .tab-count { color:var(--text-4); font-weight:400; font-size:12px; }
-  .cond-stats { margin-left:auto; display:flex; align-items:center; gap:13px; font-size:12px; color:var(--text-3); padding-left:16px; }
-  .cond-stats strong { color:var(--accent); font-weight:600; }
   a.tab, a.tab:hover { text-decoration:none; }
 
   /* Filter bar */
@@ -256,9 +254,6 @@
   <a class="tab" href="import.html#import">Import CSV</a>
   <a class="tab" href="import.html#geocode">Geocode</a>
   <a class="tab" href="import.html#schools">Missing Schools</a>
-  <div class="cond-stats">
-    <span style="color:var(--red)"><strong id="statUnreviewed">0</strong> unreviewed</span>
-  </div>
 </div>
 
 <div class="filter-bar">
@@ -422,10 +417,12 @@ function curPageSize(){ return filters.mlsList.length ? 500 : PAGE_SIZE; }
 
 // ========== INIT ==========
 async function init(){
-  // Fire all three in parallel — the cards are what the user is waiting on, so
-  // they no longer queue behind the dropdown + stat counts (which were 6 serial
-  // round-trips). loadCards renders as soon as its own query lands.
-  await Promise.all([loadCards(),updateStats(),populateCityDropdown()]);
+  // Both in parallel — the cards are what the user is waiting on, so they don't
+  // queue behind the dropdown. loadCards renders as soon as its own query lands.
+  // (The global "N unreviewed" badge was removed 2026-10-23: a full-table exact
+  // count on every load, the top Disk IO query, and the "Unreviewed only"
+  // filter's own count already shows the same number.)
+  await Promise.all([loadCards(),populateCityDropdown()]);
 }
 
 // Disk IO: every query on this page scans the whole properties table (~5s each),
@@ -435,7 +432,6 @@ async function init(){
 function lsGet(k){try{return JSON.parse(localStorage.getItem(k)||'null');}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 const CITIES_KEY='cr_cities_v1', CITIES_TTL_MS=24*3600*1000;   // a new city appears maybe weekly
-const UNREV_KEY='cr_unreviewed_v1', UNREV_TTL_MS=15*60*1000;   // kept current by bumpUnreviewed meanwhile
 const COUNT_TTL_MS=10*60*1000;
 // Card counts per filter set, for this page session. Dropped whenever a card
 // changes (refreshCard) since a review can move a row in or out of a filter.
@@ -576,33 +572,6 @@ document.addEventListener('keydown',e=>{
   }
 });
 
-// The "Unreviewed" badge is a global exact count (updateStats, run once on load).
-// Reviewing a card removes it from the unreviewed pool, so keep the badge in sync
-// by decrementing in place — no fresh full-table exact count after every edit.
-// It re-syncs to truth on the next full load (updateStats).
-function _isUnreviewed(p){return !!(p&&p.condition_tier!=null&&p.condition_overridden!==true);}
-function bumpUnreviewed(delta){
-  const el=document.getElementById('statUnreviewed');
-  const cur=parseInt(el.textContent,10);
-  if(!Number.isFinite(cur)) return;   // not populated yet — leave it for updateStats
-  const n=Math.max(0,cur+delta);
-  el.textContent=n;
-  const c=lsGet(UNREV_KEY);
-  if(c) lsSet(UNREV_KEY,{n,at:c.at});   // keep the remembered count in step, same expiry
-}
-async function updateStats(){
-  const c=lsGet(UNREV_KEY);
-  if(c&&Date.now()-c.at<UNREV_TTL_MS){document.getElementById('statUnreviewed').textContent=c.n;return;}
-  // "Unreviewed" = scored rows (a tier was assigned) that no reviewer has
-  // confirmed or overridden yet — i.e. still need a manual pass. Excludes the
-  // ~6k never-scored rows (null tier, never touched).
-  const{count:unreviewed}=await sb.from('properties')
-    .select('*',{count:'exact',head:true})
-    .not('condition_tier','is',null)
-    .or('condition_overridden.is.null,condition_overridden.eq.false');
-  document.getElementById('statUnreviewed').textContent=unreviewed||0;
-  if(unreviewed!=null) lsSet(UNREV_KEY,{n:unreviewed,at:Date.now()});
-}
 
 // ========== LOAD CARDS ==========
 function resetAndLoad(){currentPage=0;loadCards();}
@@ -864,7 +833,6 @@ function refreshCard(id){
 
 // T1–T4, T6: set the tier and mark reviewed.
 async function overrideTier(id,newTier){
-  const wasUnreviewed=_isUnreviewed(cardData[id]);
   const{error}=await sb.from('properties').update({
     condition_tier:newTier,
     condition_overridden:true,
@@ -873,12 +841,10 @@ async function overrideTier(id,newTier){
   if(error){console.error('Override failed:',error);return;}
   if(cardData[id]){cardData[id].condition_tier=newTier;cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
-  if(wasUnreviewed) bumpUnreviewed(-1);
 }
 
 // T5 sub-tier: set tier=5 and value_driver_rooms_updated (2/1/0, or null for U).
 async function setT5(id,val){
-  const wasUnreviewed=_isUnreviewed(cardData[id]);
   const{error}=await sb.from('properties').update({
     condition_tier:5,
     value_driver_rooms_updated:val,
@@ -888,17 +854,14 @@ async function setT5(id,val){
   if(error){console.error('T5 override failed:',error);return;}
   if(cardData[id]){cardData[id].condition_tier=5;cardData[id].value_driver_rooms_updated=val;cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
-  if(wasUnreviewed) bumpUnreviewed(-1);
 }
 
 // Confirm AI tier as-is — flip condition_overridden without changing the tier.
 async function markReviewed(id){
-  const wasUnreviewed=_isUnreviewed(cardData[id]);
   const{error}=await sb.from('properties').update({condition_overridden:true,condition_confidence:null}).eq('id',id);
   if(error){console.error('Mark reviewed failed:',error);return;}
   if(cardData[id]){cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
-  if(wasUnreviewed) bumpUnreviewed(-1);
 }
 
 // Uncategorize / de-select — clear the tier (no gradeable condition) and mark
@@ -906,7 +869,6 @@ async function markReviewed(id){
 // doesn't linger. Leaves the row visible until reload; afterwards it's found
 // under the "Uncategorized" filter.
 async function clearTier(id){
-  const wasUnreviewed=_isUnreviewed(cardData[id]);
   const{error}=await sb.from('properties').update({
     condition_tier:null,
     value_driver_rooms_updated:null,
@@ -916,7 +878,6 @@ async function clearTier(id){
   if(error){console.error('Clear tier failed:',error);return;}
   if(cardData[id]){cardData[id].condition_tier=null;cardData[id].value_driver_rooms_updated=null;cardData[id].condition_overridden=true;cardData[id].condition_confidence=null;}
   refreshCard(id);
-  if(wasUnreviewed) bumpUnreviewed(-1);
 }
 
 // Design-reference star — pure curation flag, INDEPENDENT of the condition
