@@ -109,7 +109,7 @@ body { overflow:hidden; height:100vh; }
 
 /* === THE PAPER (also the print surface) === */
 .paper {
-  width:760px; min-height:983px;            /* ~8.5×11 at 96dpi minus margins */
+  width:760px; min-height:var(--paper-min-h, 983px);   /* page height at 96dpi minus margins; set by setPageSize() */
   background:#fff; color:var(--doc-ink);
   box-shadow:0 4px 24px rgba(0,0,0,.14);
   font-family:var(--doc-sans); font-size:13px; line-height:1.5;
@@ -190,8 +190,9 @@ table.doc-table td.num { text-align:right; white-space:nowrap; width:104px; font
   /* Print the document EXACTLY as the on-screen preview shows it: the colored
      band bleeds to the page edges (no white frame) and the paper fills the whole
      page so the footer stays pinned to the bottom. @page margin:0 also suppresses
-     Chrome's auto header/footer (date/title/URL/page-number). */
-  @page { size:letter; margin:0; }
+     Chrome's auto header/footer (date/title/URL/page-number). The @page rule
+     itself lives in #page-rule, written by setPageSize() — @page can't be
+     toggled with a class. */
   html, body { height:auto; overflow:visible; background:#fff; margin:0; padding:0; }
   .app-shell { display:block; height:auto; margin:0; padding:0; }
   .bs-sidebar, .q-hdr, .q-editor, .main-content > .q-hdr { display:none !important; }
@@ -209,6 +210,7 @@ table.doc-table td.num { text-align:right; white-space:nowrap; width:104px; font
   .doc-pay, .doc-foot { page-break-inside:avoid; }
 }
 </style>
+<style id="page-rule">@page { size:letter; margin:0; }</style>
 </head>
 <body>
 
@@ -290,6 +292,15 @@ table.doc-table td.num { text-align:right; white-space:nowrap; width:104px; font
       <div class="sec-label">Footer note <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-4)">(optional)</span></div>
       <div class="fld">
         <textarea id="f-foot" rows="2" oninput="render()" placeholder="e.g. 50% deposit due on acceptance, balance on completion. Quote valid 30 days."></textarea>
+      </div>
+
+      <div class="sec-label">Paper</div>
+      <div class="fld">
+        <select id="f-paper" onchange="setPageSize()">
+          <option value="letter">Letter — 8.5 × 11</option>
+          <option value="legal">Legal — 8.5 × 14</option>
+        </select>
+        <div class="hint">Print / Save PDF uses this size. Legal fits ~3 more inches of line items per page.</div>
       </div>
 
     </div>
@@ -629,6 +640,23 @@ function syncSecondDate(){
     document.getElementById('f-type').value==='invoice' ? dateISO : plusMonthsISO(dateISO,1);
 }
 
+// ========== PAPER SIZE ==========
+// Letter (11in) vs Legal (14in). @page can't be toggled with a class, so the
+// rule is rewritten into #page-rule. The choice is remembered per browser.
+const PAGE_PX={letter:1056, legal:1344};   // inches x 96dpi
+function setPageSize(){
+  const size=document.getElementById('f-paper').value||'letter';
+  document.getElementById('page-rule').textContent=`@page { size:${size}; margin:0; }`;
+  document.documentElement.style.setProperty('--paper-min-h', (PAGE_PX[size]-73)+'px');
+  try{ localStorage.setItem('quote.paper', size); }catch(e){}
+}
+function initPageSize(){
+  let size='letter';
+  try{ size=localStorage.getItem('quote.paper')||'letter'; }catch(e){}
+  document.getElementById('f-paper').value = PAGE_PX[size] ? size : 'letter';
+  setPageSize();
+}
+
 // ========== RESET ==========
 function resetForm(){
   if(!confirm('Clear this document and start over?'))return;
@@ -655,6 +683,7 @@ function initDates(){
   await window.authGate();
   if(!window.CURRENT_USER_ROLE)return;  // authGate redirected; abort
   window.renderSidebar('quote');
+  initPageSize();
   initDates();
   addItem();  // start with one empty line item; calls render()
 })();
