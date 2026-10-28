@@ -75,6 +75,7 @@ body { overflow:hidden; height:100vh; }
 .q-hdr h1 { font-size:14px; font-weight:700; letter-spacing:-.3px; color:var(--accent); margin:0; }
 .q-hdr h1 span { color:var(--text-3); font-weight:400; margin-left:6px; }
 .q-actions { display:flex; gap:8px; }
+.q-paper { font-size:12.5px; font-weight:600; padding:7px 10px; border-radius:var(--radius); border:1px solid var(--border-strong); background:var(--bg); color:var(--text-2); cursor:pointer; }
 .btn { font-size:12.5px; font-weight:600; padding:7px 14px; border-radius:var(--radius); border:1px solid var(--border-strong); background:var(--bg); color:var(--text-2); cursor:pointer; transition:all .12s; }
 .btn:hover { border-color:var(--border-hover); background:var(--bg-page); }
 .btn-primary { background:var(--doc-navy); border-color:var(--doc-navy); color:#fff; }
@@ -225,6 +226,10 @@ table.doc-table td.num { text-align:right; white-space:nowrap; width:104px; font
     <h1>Quote Generator <span>fill in &amp; print to PDF</span></h1>
     <div class="q-actions">
       <button class="btn" onclick="resetForm()">Clear</button>
+      <select id="f-paper" class="q-paper" onchange="setPageSize()" title="Paper size for Print / Save PDF">
+        <option value="letter">Letter 8.5 × 11</option>
+        <option value="legal">Legal 8.5 × 14</option>
+      </select>
       <button class="btn btn-primary" onclick="window.print()">Print / Save PDF</button>
     </div>
   </div>
@@ -292,15 +297,6 @@ table.doc-table td.num { text-align:right; white-space:nowrap; width:104px; font
       <div class="sec-label">Footer note <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-4)">(optional)</span></div>
       <div class="fld">
         <textarea id="f-foot" rows="2" oninput="render()" placeholder="e.g. 50% deposit due on acceptance, balance on completion. Quote valid 30 days."></textarea>
-      </div>
-
-      <div class="sec-label">Paper</div>
-      <div class="fld">
-        <select id="f-paper" onchange="setPageSize()">
-          <option value="letter">Letter — 8.5 × 11</option>
-          <option value="legal">Legal — 8.5 × 14</option>
-        </select>
-        <div class="hint">Print / Save PDF uses this size. Legal fits ~3 more inches of line items per page.</div>
       </div>
 
     </div>
