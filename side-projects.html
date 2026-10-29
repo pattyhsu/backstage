@@ -257,9 +257,6 @@ h2 { font-size:14.5px; font-weight:600; }
 .qx { border:none; background:none; color:var(--text-4); cursor:pointer; font-size:15px; line-height:1; padding:0; }
 .qx:hover { color:var(--red); }
 .qhw { display:flex; gap:8px; align-items:center; min-width:0; }
-.qdl { display:flex; gap:4px; align-items:center; font-size:10.5px; color:var(--text-4); white-space:nowrap; cursor:pointer; }
-.qdl input { width:auto !important; margin:0; }
-.ql.isdec .qh { color:var(--text-4); text-decoration:line-through; }
 .qadd { display:inline-block; font-size:11.5px; color:var(--accent); cursor:pointer; margin:6px 0 2px; }
 .qtot { border-top:1px solid var(--border); margin-top:6px; padding-top:8px; font-weight:600; }
 .qsum { display:flex; justify-content:space-between; align-items:baseline; margin-top:8px; padding:8px 10px; background:var(--green-bg); border-radius:var(--radius-sm); font-size:12.5px; color:var(--text-2); }
@@ -269,7 +266,7 @@ h2 { font-size:14.5px; font-weight:600; }
 .qterms select, .qterms input { text-transform:none; letter-spacing:0; font-weight:400; }
 .handoff { display:flex; gap:12px; align-items:center; margin-top:12px; padding:10px 12px; background:var(--bg-page); border-radius:var(--radius); }
 .handoff .btn { flex-shrink:0; text-decoration:none; }
-.handoff span { font-size:11.5px; color:var(--text-3); line-height:1.45; }
+.handoff span { flex:1; font-size:11.5px; color:var(--text-3); line-height:1.45; }
 .handoff b { font-weight:600; color:var(--text-2); }
 .nf label { display:flex; flex-direction:column; gap:4px; font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:var(--text-4); margin-bottom:10px; }
 .nf label.bare { margin-bottom:8px; }
@@ -978,8 +975,8 @@ const STAGE_VIEW = {
     const val = v => v == null ? '' : v, lc = l => lLab(l) + num(l.material);
     const tags = l => (l.co_no ? ' <span class="tagco">CO-' + l.co_no + '</span>' : '');
     const rows = L.map((l, i) => edit
-      ? '<div class="ql' + (qedit && l.declined ? ' isdec' : '') + '" data-i="' + i + '"><span class="qhw"><input class="qh" value="' + esc(l.headline || '') + '" placeholder="e.g. Tile — shower walls + floor">' + tags(l) +
-        (qedit ? '<label class="qdl" title="The client said no to this line — it stays on the quote, out of the contract"><input type="checkbox" class="qd"' + (l.declined ? ' checked' : '') + '>declined</label>' : '') + '</span>' +
+      ? '<div class="ql" data-i="' + i + '"><span class="qhw"><input class="qh" value="' + esc(l.headline || '') + '" placeholder="e.g. Tile — shower walls + floor">' + tags(l) +
+        '</span>' +
         '<input class="qn qp" inputmode="numeric" value="' + val(l.price) + '" placeholder="0">' +
         '<input class="qn qlab" inputmode="numeric" value="' + val(l.labor != null ? l.labor : l.cost) + '" placeholder="0">' +
         '<input class="qn qmat" inputmode="numeric" value="' + val(l.material) + '" placeholder="0">' +
@@ -1202,7 +1199,7 @@ async function saveTaskSchedule(x) {
 // ---------- job page clicks ----------
 document.getElementById('drawer').addEventListener('click', e => {
   const j = sel(); if (!j) return;
-  // edit a won quote: lines, declined, terms, dates — saved on Save, thrown away on Cancel
+  // edit a won quote: lines, terms, dates — saved on Save, thrown away on Cancel
   if (e.target.closest('[data-qedit]')) { QEDIT = j.id; j.qdraft = j.tasks.concat(j.declinedTasks).map(taskLine); viewStage = 'quoted'; renderDrawer(); return; }
   if (e.target.id === 'qeCancel') { QEDIT = null; loadAll().then(render); return; }
   if (e.target.id === 'qeSave') {
@@ -1409,7 +1406,6 @@ function qRecalc() {
   document.querySelectorAll('#drawer .ql[data-i]').forEach(r => {
     const l = L[+r.dataset.i], n = c => { const x = r.querySelector(c).value.trim(); return x === '' ? null : num(x); };
     l.headline = r.querySelector('.qh').value; l.price = n('.qp'); l.labor = n('.qlab'); l.material = n('.qmat'); delete l.cost;
-    const qd = r.querySelector('.qd'); if (qd) { l.declined = qd.checked; r.classList.toggle('isdec', qd.checked); }
     r.querySelector('.qm').innerHTML = mTxt(num(l.price), lLab(l) + num(l.material));
   });
   const t = qTotals(L);
