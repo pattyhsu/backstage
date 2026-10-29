@@ -976,7 +976,7 @@ const STAGE_VIEW = {
     const setup = mode === 'setup', qedit = QEDIT === j.id, L = qRows(j), edit = setup || qedit || j.stage === 'lead' || j.stage === 'quoted', t = qTotals(L);
     const head = '<div class="ql qhd"><span>Headline</span><span>Price</span><span>Labor</span><span>Materials</span><span>Margin</span><span></span></div>';
     const val = v => v == null ? '' : v, lc = l => lLab(l) + num(l.material);
-    const tags = l => (l.co_no ? ' <span class="tagco">CO-' + l.co_no + '</span>' : '') + (l.not_billed && !num(l.price) ? '<span class="tflag">not billed</span>' : '');
+    const tags = l => (l.co_no ? ' <span class="tagco">CO-' + l.co_no + '</span>' : '');
     const rows = L.map((l, i) => edit
       ? '<div class="ql' + (qedit && l.declined ? ' isdec' : '') + '" data-i="' + i + '"><span class="qhw"><input class="qh" value="' + esc(l.headline || '') + '" placeholder="e.g. Tile — shower walls + floor">' + tags(l) +
         (qedit ? '<label class="qdl" title="The client said no to this line — it stays on the quote, out of the contract"><input type="checkbox" class="qd"' + (l.declined ? ' checked' : '') + '>declined</label>' : '') + '</span>' +
@@ -1124,8 +1124,6 @@ document.getElementById('stageTabs').addEventListener('click', e => { const b = 
 function stepRow(j, x, i, live) {   // one line per task: name + flags, then quoted price · labor projected · materials projected
   const crew = crewOf(x), clash = !x.done ? crew.map(w => busyFor(j.id, x, w)).filter(Boolean) : [];
   const flags = (x.co_no ? ' <span class="tagco">CO-' + x.co_no + '</span>' : '') +
-    (x.not_billed ? '<span class="tflag">not billed</span>' : '') +
-    (!x.dates.length && !x.along && !x.done ? '<span class="tflag warn">not scheduled</span>' : '') +
     (clash.length ? '<span class="tflag warn" title="' + esc(clash.join(' · ')) + '">⚠ crew double-booked</span>' : '');
   const lp = x.labor_est, sched = taskCost(x), mp = x.material_est;
   const box = (f, v, ph, title) => '<input class="tmat" data-f="' + f + '" data-ti="' + i + '" inputmode="numeric" value="' + (v != null ? fmt(v) : '') + '" placeholder="' + ph + '" title="' + title + '">';
