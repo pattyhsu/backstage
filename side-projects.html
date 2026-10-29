@@ -290,10 +290,12 @@ h2 { font-size:14.5px; font-weight:600; }
 .nf-err { margin-right:auto; font-size:12px; color:var(--red); }
 .scope.steps li { align-items:flex-start; padding:5px 0; border-bottom:1px dashed var(--border); }
 .scope.steps li:last-child { border-bottom:none; }
-/* task table: name + three money columns; the days/crew editor opens under the row */
+/* task table: name + four money columns (labor actual greyed); the days/crew editor opens under the row */
 .scope.steps li { flex-wrap:wrap; align-items:center; }
-.scope.steps .tc { width:82px; flex-shrink:0; text-align:right; font-family:var(--mono); font-size:11.5px; color:var(--text-2); }
+.scope.steps .tc { width:74px; flex-shrink:0; text-align:right; font-family:var(--mono); font-size:11.5px; color:var(--text-2); }
 .scope.steps .tc.dim { color:var(--text-4); }
+.scope.steps .tc.act { align-self:stretch; display:flex; align-items:center; justify-content:flex-end; background:var(--bg-alt); color:var(--text-3); padding:0 6px; margin:-5px 0; }
+.scope.steps li.thead .tc.act, .scope.steps li.tfoot .tc.act { margin:0; color:var(--text-3); }
 .scope.steps li.thead { border-bottom:1px solid var(--border); padding:0 0 4px; }
 .scope.steps li.thead .t, .scope.steps li.thead .tc { font-family:var(--sans); font-size:9.5px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:var(--text-4); line-height:1.25; }
 .scope.steps li.thead .ckx, .scope.steps li.tfoot .ckx { width:14px; flex-shrink:0; }
@@ -304,8 +306,9 @@ h2 { font-size:14.5px; font-weight:600; }
 .tflag { font-size:9.5px; font-weight:600; color:var(--text-4); margin-left:6px; }
 .tflag.warn { color:var(--amber); }
 .trackline { font-size:11.5px; color:var(--text-3); margin-top:8px; }
+.trackline.dim { color:var(--text-4); margin-top:4px; }
 .trackline b { font-family:var(--mono); font-weight:600; color:var(--text); } .trackline .r { color:var(--red); } .trackline .g { color:var(--green); }
-.scope.steps input.tmat { width:82px; flex-shrink:0; text-align:right; font-family:var(--mono); font-size:11.5px; color:var(--text-2); border:1px solid transparent; border-radius:4px; background:transparent; padding:3px 4px; }
+.scope.steps input.tmat { width:74px; flex-shrink:0; text-align:right; font-family:var(--mono); font-size:11.5px; color:var(--text-2); border:1px solid transparent; border-radius:4px; background:transparent; padding:3px 4px; }
 .scope.steps input.tmat:hover { border-color:var(--border); background:var(--bg); }
 .scope.steps input.tmat:focus { outline:none; border-color:var(--accent); background:var(--bg); box-shadow:0 0 0 3px var(--accent-dim2); }
 .scope.steps input.tmat::placeholder { color:var(--text-4); }
@@ -696,6 +699,8 @@ const crewOf = x => [...new Set(x.dates.flatMap(d => dayCrew(x, d)))];
 const crewCost = x => x.dates.reduce((a, d) => a + dayCrew(x, d).reduce((b, w) => b + rateOf(w), 0), 0);
 const taskCost = x => crewCost(x) + (x.sub_name && x.sub_cost ? +x.sub_cost : 0);   // what the task costs us in people: crew days + the sub's price
 const laborProj = x => x.labor_est != null ? +x.labor_est : taskCost(x);   // a typed labor number wins; otherwise the crew schedule's
+const laborActual = x => x.dates.filter(d => d <= TODAY).reduce((a, d) => a + dayCrew(x, d).reduce((b, w) => b + rateOf(w), 0), 0) +   // crew days already worked
+  (x.done && x.sub_name && x.sub_cost ? +x.sub_cost : 0);   // + the sub, once the task is done
 const taskPrice = x => x.price != null ? +x.price : null;   // what the client pays for this task; none on a not-billed one
 // a task as a quote line, for the Quoted tab
 const taskLine = x => ({ id:x.id, headline:x.name, price:x.price, labor:laborProj(x), material:x.material_est, declined:x.declined, not_billed:x.not_billed, co_no:x.co_no });
@@ -1115,7 +1120,7 @@ document.getElementById('stageTabs').addEventListener('click', e => { const b = 
   viewStage = b.dataset.k; ED = null; renderDrawer(); });
 
 // ---------- tasks: days + crew per day ----------
-function stepRow(j, x, i, live) {   // one line per task: name + flags, then quoted price · labor projected · materials projected
+function stepRow(j, x, i, live) {   // one line per task: name + flags, then quoted price · labor projected · labor actual · materials projected
   const crew = crewOf(x), clash = !x.done ? crew.map(w => busyFor(j.id, x, w)).filter(Boolean) : [];
   const flags = (x.co_no ? ' <span class="tagco">CO-' + x.co_no + '</span>' : '') +
     (clash.length ? '<span class="tflag warn" title="' + esc(clash.join(' · ')) + '">⚠ crew double-booked</span>' : '');
@@ -1127,19 +1132,21 @@ function stepRow(j, x, i, live) {   // one line per task: name + flags, then quo
     cell(taskPrice(x)) +
     (live ? box('labor_est', lp, sched ? fmt(sched) : '$ add', sched ? 'From the crew schedule (' + fmt(sched) + '). Type a number to use yours instead; clear it to go back.' : 'Labor you expect this task to need')
       : cell(laborProj(x))) +
+    '<span class="tc act" title="Crew days already worked × day rate, plus the sub once the task is done">' + fmt(laborActual(x)) + '</span>' +
     (live ? box('material_est', mp, '$ add', 'Materials you expect this task to need') : cell(mp)) +
     '</li>';
 }
 function taskTable(j, live) {
-  const sum = f => j.tasks.reduce((a, x) => a + (f(x) || 0), 0), qp = sum(taskPrice), lp = sum(laborProj), mp = sum(x => +x.material_est || 0);
-  return '<li class="thead"><span class="ckx"></span><span class="t">Task</span><span class="tc">Quoted to client</span><span class="tc">Labor projected</span><span class="tc">Materials projected</span></li>' +
+  const sum = f => j.tasks.reduce((a, x) => a + (f(x) || 0), 0), qp = sum(taskPrice), lp = sum(laborProj), la = sum(laborActual), mp = sum(x => +x.material_est || 0);
+  return '<li class="thead"><span class="ckx"></span><span class="t">Task</span><span class="tc">Quoted to client</span><span class="tc">Labor projected</span><span class="tc act">Labor actual</span><span class="tc">Materials projected</span></li>' +
     j.tasks.map((x, i) => stepRow(j, x, i, live)).join('') +
-    (j.tasks.length ? '<li class="tfoot"><span class="ckx"></span><span class="t">Total</span><span class="tc">' + fmt(qp) + '</span><span class="tc">' + fmt(lp) + '</span><span class="tc">' + fmt(mp) + '</span></li>' : '');
+    (j.tasks.length ? '<li class="tfoot"><span class="ckx"></span><span class="t">Total</span><span class="tc">' + fmt(qp) + '</span><span class="tc">' + fmt(lp) + '</span><span class="tc act">' + fmt(la) + '</span><span class="tc">' + fmt(mp) + '</span></li>' : '');
 }
 function onTrack(j) {   // what the job leaves us, under the task table
   const k = contract(j), cost = quotedCost(j), p = k - cost, missing = j.tasks.filter(x => x.material_est == null && !x.done).length;
   return j.tasks.length ? '<div class="trackline">Contract <b>' + fmt(k) + '</b> − labor + materials <b>' + fmt(cost) + '</b> = <span class="' + (p < 0 ? 'r' : 'g') + '">' + fmt(p) + ' profit' + (k ? ' · ' + pct(Math.round(p / k * 100)) : '') + '</span>' +
-    (missing ? ' <span class="dim">· ' + missing + ' task' + (missing === 1 ? '' : 's') + ' without a materials number</span>' : '') + '</div>' : '';
+    (missing ? ' <span class="dim">· ' + missing + ' task' + (missing === 1 ? '' : 's') + ' without a materials number</span>' : '') + '</div>' +
+    '<div class="trackline dim">Labor actual is crew days already worked × day rate, plus a sub once its task is done' + (j.money ? ' · QuickBooks labor so far <b>' + fmt(j.money.labor) + '</b>' : '') + '</div>' : '';
 }
 let ED = null;   // the task being edited: { x: draft copy, i, wk }
 function seditHtml(x, i) {
