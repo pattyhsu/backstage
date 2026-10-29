@@ -373,7 +373,7 @@ async function loadSideJobs(){
   const {data:j,error}=await sb.from('side_jobs').select('id, client_name, address, target_done, work_done_on')
     .eq('stage','active').eq('from_qbo',false).is('archived_at',null);
   if(error||!j||!j.length)return;
-  const {data:t}=await sb.from('side_job_tasks').select('id, job_id, name, done, sub_name, sort_order').in('job_id',j.map(x=>x.id));
+  const {data:t}=await sb.from('side_job_tasks').select('id, job_id, name, done, sub_name, sort_order').in('job_id',j.map(x=>x.id)).eq('declined',false);
   const tids=(t||[]).map(x=>x.id);
   const {data:dd}=tids.length?await sb.from('side_job_task_days').select('task_id, work_date, worker_ids').in('task_id',tids):{data:[]};
   sideJobs=j.map(x=>({...x, tasks:(t||[]).filter(k=>k.job_id===x.id)
