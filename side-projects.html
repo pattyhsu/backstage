@@ -204,7 +204,7 @@ h2 { font-size:14.5px; font-weight:600; }
 .detail .stages { max-width:640px; }
 .detail .sp-acts { border-radius:var(--radius); }
 .dp-cols { columns:2 440px; column-gap:16px; padding:16px 0 0; }
-.dp-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px 0 0; align-items:start; }
+.dp-2 { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:16px; padding:16px 0 0; align-items:start; }
 .dp-col > .dw-s { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg); margin:0 0 16px; padding:14px 18px; display:block; }
 @media (max-width:900px) { .dp-2 { grid-template-columns:1fr; } }
 .dp-cols > .dw-s, .dp-cols > .upcoming { break-inside:avoid; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg); margin:0 0 16px; display:block; }
@@ -931,7 +931,7 @@ function spentHtml(j) {
   const change = ' · <a data-relink="1" title="' + esc((j.money && j.money.name) || '') + '">change customer</a>';
   if (!total) return sec('Spent to date', (j.work_done_on ? 'none' : 'no expenses yet') + change, sync + '<div class="sp-empty">' + (j.work_done_on ? 'No costs tagged to this customer in QuickBooks.' : 'Nothing tagged to this customer in QuickBooks yet. It syncs nightly at 04:00.') + '</div>');
   const ledger = B.map(([n, c, v]) => '<div class="led-grp"><div class="led-head"><span class="led-sw" style="background:' + c + '"></span><span class="led-name">' + n + '</span><span class="led-pct">' + Math.round(v / total * 100) + '%</span><span class="led-sub">' + fmt(v) + '</span></div></div>').join('');
-  return sec('Spent to date', 'actual, from QuickBooks · ' + fmt(total) + change, sync +
+  return sec('Spent to date', 'QuickBooks ' + fmt(total) + change, sync +
     '<div class="comp-bar">' + B.map(([, c, v]) => '<div class="comp-seg" style="background:' + c + ';flex:' + Math.max(1, Math.round(v)) + '"></div>').join('') + '</div>' + ledger);
 }
 function progressHtml(j) {   // tasks done and money spent against the quoted cost, plus what it leaves us
