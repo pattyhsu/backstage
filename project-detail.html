@@ -2058,7 +2058,14 @@ function constructionState(){
   // project forever and drown the trade that's actually holding things up.
   // The Construction hub computes it the same way — the two must agree.
   const tplCat=new Map(constructionTemplate.map(t=>[t.milestone_key, t.category]));
-  const applicable=ms.filter(m=>!m.not_applicable && tplCat.get(m.milestone_key)!=='procurement');
+  // The build is the three banded categories the grid actually draws. The
+  // escrow_fix row is in the same template but sits at day 58 — a repair asked
+  // for during the RESALE escrow, weeks after staging, on a house we've already
+  // finished. Leaving it in stretched the window a month past the last trade
+  // and called it "a 58-day schedule". The Construction hub draws the same line.
+  const isBuild=key=>{const c=tplCat.get(key);return c!=='procurement' && c!=='escrow_fix';};
+  const buildMs=ms.filter(m=>isBuild(m.milestone_key));
+  const applicable=buildMs.filter(m=>!m.not_applicable);
   const done=applicable.filter(m=>m.completed);
   // Falls through to the projected close, so the build can be laid out while
   // we're still in escrow — which is the only way the long-lead orders (windows
@@ -2068,11 +2075,14 @@ function constructionState(){
   const start=d.construction_start_date||d.actual_close_date||d.target_close_date||null;
   const projected=!d.construction_start_date && !d.actual_close_date && !!d.target_close_date;
   // Prefer the committed plan's last day; fall back to the last baseline date.
-  const plannedEnds=ms.map(m=>m.planned_end).filter(Boolean).sort();
+  // Both read the build rows only, so the window ends on the last trade —
+  // staging, on the stock template — and not on the post-sale fix.
+  const plannedEnds=buildMs.map(m=>m.planned_end).filter(Boolean).sort();
+  const dueDates=buildMs.map(m=>m.due_date).filter(Boolean).sort();
   const lastDue=plannedEnds.length?plannedEnds[plannedEnds.length-1]
-    :(ms.length?ms[ms.length-1].due_date:null);
+    :(dueDates.length?dueDates[dueDates.length-1]:null);
   const target=d.construction_complete_date||lastDue;
-  const anyPlanned=ms.some(m=>m.planned_start);
+  const anyPlanned=buildMs.some(m=>m.planned_start);
   const totalDays=(start&&target)?daysBetween(start,target):null;
   const elapsed=start?daysBetween(start,today):null;
   const open=applicable.filter(m=>!m.completed && m.due_date)
@@ -2081,9 +2091,9 @@ function constructionState(){
   const slip=(oldestOpen && oldestOpen.due_date<today)?daysBetween(oldestOpen.due_date,today):0;
   const overdue=applicable.filter(m=>!m.completed && m.due_date && m.due_date<today).length;
   // n/a count is of the BUILD rows only. Deriving it as ms.length - applicable
-  // .length would silently include the five order items, which are excluded
-  // for being procurement, not for being inapplicable.
-  const naCount=ms.filter(m=>m.not_applicable && tplCat.get(m.milestone_key)!=='procurement').length;
+  // .length would silently include the five order items and the escrow fix,
+  // which are excluded for being someone else's list, not for being inapplicable.
+  const naCount=buildMs.filter(m=>m.not_applicable).length;
   return {
     ms, applicable, done, start, target, totalDays, elapsed, oldestOpen, slip, overdue, anyPlanned,
     naCount, projected,
