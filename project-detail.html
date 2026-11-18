@@ -2060,7 +2060,13 @@ function constructionState(){
   const tplCat=new Map(constructionTemplate.map(t=>[t.milestone_key, t.category]));
   const applicable=ms.filter(m=>!m.not_applicable && tplCat.get(m.milestone_key)!=='procurement');
   const done=applicable.filter(m=>m.completed);
-  const start=d.construction_start_date||d.actual_close_date||null;
+  // Falls through to the projected close, so the build can be laid out while
+  // we're still in escrow — which is the only way the long-lead orders (windows
+  // day 0, cabinets day 2) get placed before we own the house. `projected` says
+  // the whole schedule hangs off a date that hasn't happened yet; the DB
+  // re-anchors every open trade the moment a real one lands, so these move.
+  const start=d.construction_start_date||d.actual_close_date||d.target_close_date||null;
+  const projected=!d.construction_start_date && !d.actual_close_date && !!d.target_close_date;
   // Prefer the committed plan's last day; fall back to the last baseline date.
   const plannedEnds=ms.map(m=>m.planned_end).filter(Boolean).sort();
   const lastDue=plannedEnds.length?plannedEnds[plannedEnds.length-1]
@@ -2080,7 +2086,7 @@ function constructionState(){
   const naCount=ms.filter(m=>m.not_applicable && tplCat.get(m.milestone_key)!=='procurement').length;
   return {
     ms, applicable, done, start, target, totalDays, elapsed, oldestOpen, slip, overdue, anyPlanned,
-    naCount,
+    naCount, projected,
     // With a committed plan, the plan's end is the projection. Only an
     // un-planned build extrapolates from the baseline.
     projFinish: (anyPlanned || !target || slip<=0) ? target : addDays(target, slip),
@@ -2161,6 +2167,7 @@ function renderConstructionSection(){
 
   return `
     <div class="phase-hide" id="constructionSect">
+      ${st.projected?`<div class="preview-banner"><div class="pb-txt"><b>Projected build</b> · laid out from the ${fmtNum(d.target_close_date)} target close, because escrow hasn't closed yet. Order the long-lead items off this; every open trade re-dates itself the day the real close lands.</div></div>`:''}
       <div class="constr-cols">
 
         <!-- LEFT · dates + status bars + the milestone schedule -->
@@ -2180,7 +2187,7 @@ function renderConstructionSection(){
             </div>
             <div class="sect-h"><h2>Construction</h2><span class="sub">how far in · how far behind · how much spent</span></div>
             <div class="et-grid" style="margin-bottom:16px;grid-template-columns:1fr 1fr 1fr">
-              <div class="et-cell"><div class="et-lbl">Started</div><div class="et-val" data-deal-field="construction_start_date" data-deal-type="date">${d.construction_start_date||'—'}</div><div class="et-aux">day of close</div></div>
+              <div class="et-cell"><div class="et-lbl">Started</div><div class="et-val${st.projected?' dim':''}" data-deal-field="construction_start_date" data-deal-type="date">${d.construction_start_date||(st.projected?d.target_close_date:null)||'—'}</div><div class="et-aux">${st.projected?'projected · target close':'day of close'}</div></div>
               <div class="et-cell"><div class="et-lbl">Target finish</div><div class="et-val" data-deal-field="construction_complete_date" data-deal-type="date">${d.construction_complete_date||(st.target||'—')}</div><div class="et-aux">${d.construction_complete_date?'set':'from schedule'}</div></div>
               <div class="et-cell"><div class="et-lbl">Crew</div>
                 <select class="crew-pick" id="dealCrewSelect">${crewList.map(c=>`<option value="${escapeHtml(c.id)}"${c.id===d.crew_id?' selected':''}>${escapeHtml(c.name)}</option>`).join('')}</select>
@@ -2215,7 +2222,7 @@ function renderConstructionSection(){
 
       <div class="sect">
         <div class="sect-h"><h2>Build schedule</h2><span class="sub">${st.anyPlanned?`re-planned · runs to ${fmtNum(st.target)}`:`original ${st.totalDays||36}-day schedule`} · check off as it lands</span>
-              <span class="right rp-wrap"><input type="date" id="rpDate" value="${todayStr()}">
+              <span class="right rp-wrap"><input type="date" id="rpDate" value="${st.projected?(st.start||todayStr()):todayStr()}">
                 <button class="rp-go" onclick="replanHere()">Re-plan</button>
                 ${st.anyPlanned?'<button class="rp-clr" onclick="clearPlanHere()">Clear</button>':''}</span></div>
         ${renderBuildSchedule(st)}
@@ -2251,7 +2258,7 @@ function renderOrderList(st){
 
 function renderBuildSchedule(st){
   if(!st.ms.length){
-    return `<div class="sp-empty">No construction milestones seeded. They seed automatically once the deal has a close date (Brief CC).</div>`;
+    return `<div class="sp-empty">No construction milestones seeded. They seed automatically once the deal has a date to hang them on — the target close while it's still in escrow, the real one after that (Brief CC).</div>`;
   }
   const tpl=new Map(constructionTemplate.map(t=>[t.milestone_key, t]));
   const today=todayStr();
