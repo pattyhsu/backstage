@@ -182,6 +182,10 @@ body { overflow:hidden; height:100vh; }
         <button class="btn btn-sm sp-back" id="back">← All site plans</button>
         <div class="sp-title"><h2 id="jAddr"></h2><span class="chip" id="jChip"></span></div>
         <p class="sp-msg" id="jMsg"></p>
+        <div class="sp-row" id="pdfKeep" hidden style="margin-top:0">
+          <a class="btn btn-sm" id="lastPdf" target="_blank" rel="noopener">Download the last PDF</a>
+          <button class="btn btn-sm" id="keepPdf">Keep the PDF (cancel the change)</button>
+        </div>
 
         <div id="vWait" class="sp-wait" hidden><div class="spin"></div><div id="waitText"></div></div>
 
@@ -385,6 +389,14 @@ async function render(row){
   $('jChip').textContent = lab; $('jChip').className = 'chip ' + cls;
   $('jMsg').textContent = row.message || '';
   for(const v of ['vWait','vEdit','vCheck','vDone','vFailed']) $(v).hidden = true;
+  // a job that has a PDF keeps it downloadable whatever it is doing now
+  const pdf = row.files && row.files.pdf;
+  $('pdfKeep').hidden = !pdf || row.status === 'done';
+  if(pdf && row.status !== 'done'){
+    $('lastPdf').textContent = `Download the last PDF (v${row.pdf_version})`;
+    $('lastPdf').href = await signed(pdf, { download: pdf.split('/').pop() }) || '#';
+    $('keepPdf').hidden = row.status !== 'markup';
+  }
   if(WAIT_TEXT[row.status]){
     let t = WAIT_TEXT[row.status];
     const age = (Date.now() - new Date(row.updated_at)) / 1000;
@@ -417,7 +429,8 @@ async function render(row){
 $('back').onclick = ()=>{ document.querySelector('.sp-work').classList.remove('job-open'); history.replaceState(null, '', location.pathname); loadJobs(); };
 $('approve').onclick = ()=> setStatus({ status:'approved', stories: $('stories').value ? +$('stories').value : null });
 $('redraw').onclick  = ()=> setStatus({ status:'markup' });
-$('change').onclick  = ()=> setStatus({ status:'markup' });
+$('change').onclick  = ()=>{ if(confirm('Go back to the drawing to change this site plan? The current PDF stays downloadable, and "Keep the PDF" undoes this.')) setStatus({ status:'markup' }); };
+$('keepPdf').onclick = ()=> setStatus({ status:'done' });
 $('retry').onclick   = ()=> setStatus({ status:'queued' });
 $('backEdit').onclick= ()=> setStatus({ status:'markup' });
 
