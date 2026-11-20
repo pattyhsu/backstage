@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Site Plans — Backstage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="backstage.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="sidebar.js?v=20261120"></script>
+<script src="feedback.js?v=20260901b"></script>
+<style>
+/* Shared shell + sidebar tokens: same block as quote.html / pipeline.html */
+body { overflow:hidden; height:100vh; }
+
+.app-shell { display:flex; height:100vh; }
+
+/* --- Sidebar (identical token block to pipeline.html) --- */
+.bs-sidebar { width:230px; background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; transition:width .2s; }
+.bs-sidebar.collapsed { width:56px; }
+.bs-sidebar.collapsed .side-brand span, .bs-sidebar.collapsed .side-section-label, .bs-sidebar.collapsed .side-label, .bs-sidebar.collapsed .side-user-name, .bs-sidebar.collapsed .lock-btn { display:none; }
+.bs-sidebar.collapsed .side-brand { justify-content:center; padding:20px 0 18px; }
+.bs-sidebar.collapsed .side-item { justify-content:center; padding:10px 0; margin:0 8px 1px; }
+.bs-sidebar.collapsed .side-section { padding:12px 0 0; }
+.bs-sidebar.collapsed .side-footer { justify-content:center; padding:16px 0; }
+.bs-sidebar.collapsed .side-user { justify-content:center; }
+.side-brand { padding:20px 20px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.side-mark { width:26px; height:26px; border-radius:7px; background:var(--text); display:grid; place-items:center; font-weight:700; font-size:11px; color:#fff; }
+.side-brand span { font-size:14px; font-weight:600; color:var(--text); }
+.side-section { padding:6px 10px 0; }
+.side-section-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); padding:0 8px; margin-bottom:2px; }
+.side-item { display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:var(--radius); cursor:pointer; transition:all .12s; margin-bottom:0; text-decoration:none; line-height:1.3; }
+.side-item:hover { background:var(--bg-page); text-decoration:none; }
+.side-item.active { background:var(--bg-alt); }
+.side-item.active .side-icon svg { stroke:var(--text); }
+.side-item.active .side-label { color:var(--text); font-weight:600; }
+.side-icon { width:18px; height:18px; display:grid; place-items:center; }
+.side-icon svg { width:16px; height:16px; stroke:var(--text-4); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.side-label { font-size:13px; font-weight:500; color:var(--text-3); }
+.side-item.disabled { opacity:.35; pointer-events:none; }
+.side-footer { margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.side-user { display:flex; align-items:center; gap:9px; }
+.side-avatar { width:26px; height:26px; border-radius:50%; background:var(--bg-alt); display:grid; place-items:center; font-size:11px; font-weight:600; color:var(--text-3); }
+.side-user-name { font-size:13px; font-weight:500; color:var(--text-3); }
+.lock-btn { background:none; border:none; cursor:pointer; padding:4px; color:var(--text-4); }
+.lock-btn:hover { color:var(--text); }
+.collapse-btn { background:none; border:none; cursor:pointer; padding:6px 12px; color:var(--text-4); font-size:14px; }
+.collapse-btn:hover { color:var(--text); }
+.main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
+
+/* === SITE PLANS — local layout === */
+:root{ --house:#2f6bff; --patio:#8fb0ff; --concrete:#e5383b; --landscape:#2fa84f; --sidewalk:#c9ccc4; --curb:#ff9f1c; --lot:#ffd23f; }
+.sp-hdr{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:18px 24px 12px; border-bottom:1px solid var(--border); }
+.sp-hdr h1{ font-size:18px; font-weight:600; margin:0; }
+.sp-hdr h1 span{ font-size:13px; font-weight:400; color:var(--text-4); margin-left:8px; }
+.sp-work{ flex:1; display:grid; grid-template-columns:340px minmax(0,1fr); min-height:0; }
+.sp-left{ border-right:1px solid var(--border); overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; background:var(--bg-page); }
+.sp-right{ overflow-y:auto; padding:16px 20px 24px; min-width:0; }
+.sp-card{ background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px; }
+.sp-lbl{ font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text-4); margin:0 0 8px; }
+.sp-addr{ position:relative; }
+.sp-addr input, .sp-card textarea{ width:100%; box-sizing:border-box; border:1px solid var(--border); border-radius:var(--radius); padding:9px 10px; font:inherit; background:var(--bg); }
+.sp-card textarea{ min-height:56px; resize:vertical; margin-top:8px; }
+.sp-sugg{ position:absolute; left:0; right:0; top:100%; z-index:30; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-md); margin-top:4px; }
+.sp-sugg div{ padding:8px 10px; cursor:pointer; font-size:13px; }
+.sp-sugg div:hover{ background:var(--bg-alt); }
+.sp-sugg small{ display:block; color:var(--text-4); font-size:11.5px; }
+.sp-picked{ font-size:12.5px; color:var(--text-3); margin-top:8px; line-height:1.5; }
+.sp-picked b{ color:var(--text); }
+.sp-gen{ width:100%; margin-top:10px; }
+.sp-hint{ font-size:12px; color:var(--text-4); margin:8px 0 0; line-height:1.45; }
+.sp-jobs{ display:flex; flex-direction:column; }
+.sp-job{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:9px 8px; border-radius:var(--radius); cursor:pointer; }
+.sp-job:hover{ background:var(--bg-alt); }
+.sp-job.on{ background:var(--bg-alt); }
+.sp-job b{ display:block; font-size:13px; font-weight:600; }
+.sp-job small{ color:var(--text-4); font-size:11.5px; }
+.chip{ font-size:11px; font-weight:600; padding:3px 8px; border-radius:999px; white-space:nowrap; }
+.chip.wait{ background:var(--blue-bg); color:var(--blue); }
+.chip.you{ background:var(--amber-bg); color:var(--amber); }
+.chip.ok{ background:var(--green-bg); color:var(--green); }
+.chip.bad{ background:var(--red-bg); color:var(--red); }
+.sp-empty{ color:var(--text-4); padding:60px 20px; text-align:center; }
+.sp-title{ display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 12px; margin:0 0 4px; }
+.sp-title h2{ font-size:17px; margin:0; }
+.sp-msg{ font-size:13px; color:var(--text-3); margin:0 0 12px; }
+.sp-wait{ display:flex; gap:12px; align-items:center; padding:30px 0; color:var(--text-3); }
+.spin{ width:18px; height:18px; border:2px solid var(--border); border-top-color:var(--text); border-radius:50%; animation:spin 1s linear infinite; }
+@keyframes spin{ to{ transform:rotate(360deg) } }
+.sp-row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:12px 0; }
+.sp-img{ max-width:100%; border:1px solid var(--border); border-radius:var(--radius); display:block; }
+.sp-areas{ display:grid; grid-template-columns:auto auto; gap:2px 16px; font-size:13px; margin:10px 0; width:max-content; }
+.sp-areas span{ color:var(--text-4); }
+.sp-areas b{ font-family:var(--mono); font-weight:500; text-align:right; }
+.sp-pre{ white-space:pre-wrap; font-family:var(--mono); font-size:12px; background:var(--bg-inset); padding:10px; border-radius:var(--radius); max-height:260px; overflow:auto; }
+/* editor */
+.ed{ display:grid; grid-template-columns:200px minmax(0,1fr); gap:14px; align-items:start; }
+.ed-rail{ display:flex; flex-direction:column; gap:10px; position:sticky; top:0; }
+.legend{ display:flex; flex-direction:column; gap:5px; }
+.sw{ display:flex; align-items:center; gap:8px; width:100%; padding:7px 9px; border:1.5px solid var(--border); border-radius:8px; background:var(--bg); text-align:left; font:inherit; font-size:13px; cursor:pointer; }
+.sw i{ width:16px; height:16px; border-radius:4px; flex-shrink:0; }
+.sw i.patio{ background:repeating-linear-gradient(45deg,var(--patio) 0 3px,transparent 3px 6px); border:2px dashed var(--house); }
+.sw[aria-pressed="true"]{ border-color:var(--text); background:var(--bg-alt); font-weight:600; }
+.tools{ display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+.tool{ padding:7px 4px; border:1.5px solid var(--border); border-radius:8px; background:var(--bg); font:inherit; font-size:12.5px; cursor:pointer; }
+.tool[aria-pressed="true"]{ border-color:var(--text); background:var(--bg-alt); font-weight:600; }
+.zoom{ display:flex; align-items:center; gap:6px; }
+.zoom button{ width:30px; height:30px; border:1.5px solid var(--border); border-radius:8px; background:var(--bg); cursor:pointer; }
+.zoom span{ font-family:var(--mono); font-size:12px; min-width:30px; text-align:center; }
+.check{ display:flex; gap:7px; align-items:center; font-size:12.5px; color:var(--text-3); }
+.viewport{ position:relative; overflow:auto; border-radius:var(--radius); border:1px solid var(--border); background:#111; height:calc(100vh - 250px); min-height:320px; }
+.stage{ position:relative; margin:0 auto; }
+.stage canvas,.stage svg{ position:absolute; inset:0; width:100%; height:100%; }
+.stage img{ display:block; width:100%; height:auto; user-select:none; -webkit-user-drag:none; }
+.stage.paint{ touch-action:none; cursor:crosshair; }
+.stage.move{ touch-action:pan-x pan-y; cursor:grab; }
+.panel{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px; font-size:13px; }
+.panel > span{ flex:1; min-width:150px; color:var(--text-3); }
+.panel input{ border:1px solid var(--border); border-radius:6px; padding:5px 8px; font-family:var(--mono); width:100px; }
+.ed-bar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
+.ed-status{ flex:1; min-width:180px; font-size:13px; color:var(--text-3); }
+.ed-status.ok{ color:var(--green); } .ed-status.bad{ color:var(--red); }
+[hidden]{ display:none !important; }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+<div class="bs-sidebar" id="bsSidebar"></div>
+
+<div class="main-content">
+  <div class="sp-hdr">
+    <h1>Site Plans <span>county data → you edit the first draft → ARCH D PDF</span></h1>
+  </div>
+
+  <div class="sp-work">
+    <aside class="sp-left">
+      <div class="sp-card">
+        <p class="sp-lbl">New site plan</p>
+        <div class="sp-addr">
+          <input id="addr" type="text" placeholder="Address, e.g. 13353 Beach St, Cerritos" autocomplete="off">
+          <div class="sp-sugg" id="sugg" hidden></div>
+        </div>
+        <div class="sp-picked" id="picked" hidden></div>
+        <textarea id="newNotes" placeholder="Notes (optional), e.g. one story; left side yard is 5'-0&quot; taped"></textarea>
+        <button class="btn btn-primary sp-gen" id="gen" disabled>Generate site plan</button>
+        <p class="sp-hint">The Mac mini pulls the county lot line and the photo and draws a first version for you to fix. LA and Orange County only.</p>
+      </div>
+      <div class="sp-card">
+        <p class="sp-lbl">Site plans</p>
+        <div class="sp-jobs" id="jobs"><div class="sp-hint">Loading…</div></div>
+      </div>
+    </aside>
+
+    <section class="sp-right">
+      <div id="vEmpty" class="sp-empty">Pick an address on the left, or open a site plan from the list.</div>
+
+      <div id="vJob" hidden>
+        <div class="sp-title"><h2 id="jAddr"></h2><span class="chip" id="jChip"></span></div>
+        <p class="sp-msg" id="jMsg"></p>
+
+        <div id="vWait" class="sp-wait" hidden><div class="spin"></div><div id="waitText"></div></div>
+
+        <div id="vEdit" hidden>
+          <div class="ed">
+            <div class="ed-rail">
+              <div class="legend" id="legend">
+                <button class="sw" data-kind="house" aria-pressed="true"><i style="background:var(--house)"></i>House / garage</button>
+                <button class="sw" data-kind="patio" aria-pressed="false"><i class="patio"></i>Covered patio</button>
+                <button class="sw" data-kind="concrete" aria-pressed="false"><i style="background:var(--concrete)"></i>Concrete</button>
+                <button class="sw" data-kind="landscape" aria-pressed="false"><i style="background:var(--landscape)"></i>Landscape</button>
+                <button class="sw" data-kind="sidewalk" aria-pressed="false"><i style="background:var(--sidewalk)"></i>Sidewalk</button>
+                <button class="sw" data-kind="curb" aria-pressed="false"><i style="height:4px;border-radius:2px;background:var(--curb)"></i>Curb (a line)</button>
+              </div>
+              <div class="tools" id="tools">
+                <button class="tool" data-tool="draw" aria-pressed="true">Draw</button>
+                <button class="tool" data-tool="erase" aria-pressed="false">Erase</button>
+                <button class="tool" data-tool="measure" aria-pressed="false">Measure</button>
+                <button class="tool" data-tool="move" aria-pressed="false">Move</button>
+                <button class="tool" data-tool="paint" aria-pressed="false">Paint</button>
+              </div>
+              <div class="zoom"><button id="zOut" aria-label="Zoom out">−</button><span id="zLvl">1×</span><button id="zIn" aria-label="Zoom in">+</button></div>
+              <label class="check"><input type="checkbox" id="snap" checked> Snap edges square</label>
+              <label class="check"><input type="checkbox" id="showCuts"> Show paint blocks</label>
+              <p class="sp-hint" style="margin:0"><b>Draw</b>: tap corners, tap the first again to close. Drag a corner, or the square in the middle of an edge, to move it. <b>Erase</b>: tap a shape. Blank inside the lot = landscape.</p>
+              <button class="btn btn-sm" id="restart">Start over from the first draft</button>
+            </div>
+            <div style="min-width:0">
+              <div class="viewport" id="viewport">
+                <div class="stage paint" id="stage">
+                  <img id="photo" alt="Aerial photo of the lot" draggable="false" crossorigin="anonymous">
+                  <canvas id="cPaint"></canvas>
+                  <canvas id="cCuts" hidden></canvas>
+                  <svg id="vec" preserveAspectRatio="none"></svg>
+                </div>
+              </div>
+              <div class="panel" id="penPanel">
+                <span id="penInfo">Tap the corners.</span>
+                <button class="btn btn-sm" id="penUndo">Remove last corner</button>
+                <button class="btn btn-sm" id="penCancel">Cancel</button>
+                <button class="btn btn-sm btn-primary" id="penDone" disabled>Done</button>
+              </div>
+              <div class="panel" id="dimPanel" hidden>
+                <span id="dimInfo">Tap the first point.</span>
+                <input id="dimText" placeholder="5'-0&quot;" hidden aria-label="Taped length">
+                <button class="btn btn-sm" id="dimCancel">Cancel</button>
+                <button class="btn btn-sm btn-primary" id="dimAdd" hidden>Add</button>
+              </div>
+              <textarea id="note" placeholder="Notes for this drawing (optional)" style="width:100%;box-sizing:border-box;margin-top:8px;border:1px solid var(--border);border-radius:var(--radius);padding:8px;font:inherit;min-height:44px"></textarea>
+              <div class="ed-bar">
+                <button class="btn" id="undo">Undo</button>
+                <span class="ed-status" id="status"></span>
+                <button class="btn btn-primary" id="send" disabled>Send for line check</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="vCheck" hidden>
+          <div class="sp-areas" id="areas"></div>
+          <div class="sp-row">
+            <label class="check">House is
+              <select id="stories"><option value="">(leave off)</option><option value="1">1 story</option><option value="2">2 stories</option></select></label>
+            <button class="btn btn-primary" id="approve">Approve → make the PDF</button>
+            <button class="btn" id="redraw">Fix the drawing</button>
+          </div>
+          <img class="sp-img" id="lcImg" alt="Line check">
+        </div>
+
+        <div id="vDone" hidden>
+          <div class="sp-row">
+            <a class="btn btn-primary" id="dl" target="_blank" rel="noopener">Download PDF</a>
+            <button class="btn" id="change">Request a change</button>
+          </div>
+          <img class="sp-img" id="pvImg" alt="Sheet preview">
+        </div>
+
+        <div id="vFailed" hidden>
+          <pre class="sp-pre" id="failMsg"></pre>
+          <div class="sp-row">
+            <button class="btn btn-primary" id="retry">Retry</button>
+            <button class="btn" id="backEdit">Back to the drawing</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</div>
+
+<script>
+const SUPABASE_URL='https://pwrnywsojomrygsiezzi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3cm55d3Nvam9tcnlnc2llenppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzE1OTMsImV4cCI6MjA4OTgwNzU5M30.tGewn18t-6dN_bMXjC-Z820zFYvL1VUu3BDhfW1ZoNk';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+
+// ========== SITE PLANS ==========
+// Rows: public.site_plan_jobs (RLS: owner/worker). Files: private bucket site-plans/<id>/.
+// The Mac mini worker (floor plans/Site Plan App/worker/worker.py) moves queued -> markup,
+// sent -> line_check, approved -> done. This page only inserts and makes the moves
+// markup->sent, line_check->approved, line_check/done/failed->markup, failed->queued.
+const BUCKET = 'site-plans';
+const GEO = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtTime = t => t ? new Date(t).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}) : '';
+const STATUS = {
+  queued:['Getting data','wait'], gathering:['Getting data','wait'], markup:['Your edits','you'],
+  sent:['Making line check','wait'], checking:['Making line check','wait'], line_check:['Check the lines','you'],
+  approved:['Making PDF','wait'], drawing:['Making PDF','wait'], done:['PDF ready','ok'], failed:['Failed','bad'],
+};
+const WAIT_TEXT = {
+  queued:'Waiting for the Mac mini to pick this up…', gathering:'Getting the county lot, the photo and a first draft (about a minute)…',
+  sent:'Waiting for the Mac mini…', checking:'Turning your shapes into plan lines…',
+  approved:'Waiting for the Mac mini…', drawing:'Drawing the sheet and printing the PDF…',
+};
+let jobs = [], current = null, picked = null;
+
+async function signed(path, opts){
+  if(!path) return null;
+  const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(path, 3600, opts);
+  return error ? null : data.signedUrl;
+}
+
+/* ---------- address search ---------- */
+let suggT = null, suggSeq = 0;
+$('addr').addEventListener('input', ()=>{
+  clearTimeout(suggT); picked = null; $('gen').disabled = true; $('picked').hidden = true;
+  const q = $('addr').value.trim(); if(q.length < 4){ $('sugg').hidden = true; return; }
+  suggT = setTimeout(async ()=>{
+    const seq = ++suggSeq;
+    try{
+      const r = await (await fetch(`${GEO}/suggest?f=json&countryCode=USA&category=Address&maxSuggestions=6&location=-118.0,33.85&text=${encodeURIComponent(q)}`)).json();
+      if(seq !== suggSeq) return;
+      const hits = (r.suggestions||[]).filter(s=>!s.isCollection);
+      $('sugg').innerHTML = hits.map(s=>{ const [a,...rest] = s.text.replace(/, USA$/,'').split(', ');
+        return `<div data-key="${esc(s.magicKey)}" data-text="${esc(s.text)}">${esc(a)}<small>${esc(rest.join(', '))}</small></div>`; }).join('');
+      $('sugg').hidden = !hits.length;
+    }catch(e){ $('sugg').hidden = true; }
+  }, 250);
+});
+$('sugg').addEventListener('click', async e=>{
+  const d = e.target.closest('[data-key]'); if(!d) return;
+  $('sugg').hidden = true; $('addr').value = d.dataset.text.replace(/, USA$/,'');
+  try{
+    const g = await (await fetch(`${GEO}/findAddressCandidates?f=json&outSR=4326&maxLocations=1&outFields=StAddr,City,Subregion,Postal&magicKey=${encodeURIComponent(d.dataset.key)}&SingleLine=${encodeURIComponent(d.dataset.text)}`)).json();
+    const c = g.candidates && g.candidates[0]; if(!c) throw new Error('not found');
+    const at = c.attributes || {}, county = at.Subregion || '';
+    const ok = /Los Angeles|Orange/i.test(county);
+    picked = ok ? { address: $('addr').value, lat: c.location.y, lon: c.location.x } : null;
+    $('picked').innerHTML = ok ? `<b>${esc(at.StAddr || $('addr').value)}</b>, ${esc(at.City||'')} · ${esc(county)}`
+                               : `<b style="color:var(--red)">${esc(county || 'Unknown county')}</b>: only LA and Orange County addresses work for now.`;
+    $('picked').hidden = false; $('gen').disabled = !ok;
+  }catch(e){ $('picked').innerHTML = 'Could not find that address.'; $('picked').hidden = false; }
+});
+$('gen').addEventListener('click', async ()=>{
+  if(!picked) return;
+  $('gen').disabled = true;
+  const { data, error } = await sb.from('site_plan_jobs')
+    .insert({ address: picked.address, lat: picked.lat, lon: picked.lon, notes: $('newNotes').value.trim() || null })
+    .select().single();
+  if(error){ alert('Could not start it: ' + error.message); $('gen').disabled = false; return; }
+  $('addr').value = ''; $('newNotes').value = ''; $('picked').hidden = true; picked = null;
+  await loadJobs(); openJob(data.id);
+});
+
+/* ---------- job list + polling ---------- */
+async function loadJobs(){
+  const { data, error } = await sb.from('site_plan_jobs')
+    .select('id,address,status,updated_at,created_at,parcel_id,county').order('created_at', {ascending:false}).limit(60);
+  if(error){ $('jobs').innerHTML = `<div class="sp-hint">${esc(error.message)}</div>`; return; }
+  jobs = data;
+  $('jobs').innerHTML = jobs.length ? jobs.map(j=>{ const [lab, cls] = STATUS[j.status] || [j.status,''];
+    return `<div class="sp-job${current && current.id===j.id ? ' on':''}" data-id="${j.id}"><div><b>${esc(j.address.split(',')[0])}</b>
+      <small>${esc(j.address.split(',').slice(1,2).join('').trim())}${j.parcel_id ? ' · ' + esc(j.parcel_id) : ''} · ${fmtTime(j.created_at)}</small></div>
+      <span class="chip ${cls}">${esc(lab)}</span></div>`; }).join('')
+    : '<div class="sp-hint">None yet.</div>';
+}
+$('jobs').addEventListener('click', e=>{ const d = e.target.closest('[data-id]'); if(d) openJob(d.dataset.id); });
+
+async function fetchJob(id){
+  const { data, error } = await sb.from('site_plan_jobs').select('*').eq('id', id).single();
+  return error ? null : data;
+}
+async function openJob(id){
+  const row = await fetchJob(id); if(!row) return;
+  current = row; history.replaceState(null, '', '#' + id);
+  await render(row); loadJobs();
+}
+async function setStatus(fields){
+  const { data, error } = await sb.from('site_plan_jobs').update(fields).eq('id', current.id).select().single();
+  if(error){ alert(error.message); return null; }
+  current = data; await render(data); loadJobs(); return data;
+}
+
+async function render(row){
+  $('vEmpty').hidden = true; $('vJob').hidden = false;
+  $('jAddr').textContent = row.address;
+  const [lab, cls] = STATUS[row.status] || [row.status, ''];
+  $('jChip').textContent = lab; $('jChip').className = 'chip ' + cls;
+  $('jMsg').textContent = row.message || '';
+  for(const v of ['vWait','vEdit','vCheck','vDone','vFailed']) $(v).hidden = true;
+  if(WAIT_TEXT[row.status]){
+    let t = WAIT_TEXT[row.status];
+    const age = (Date.now() - new Date(row.updated_at)) / 1000;
+    if(['queued','sent','approved'].includes(row.status) && age > 120) t += ' It has been waiting over 2 minutes: is the Mac mini on?';
+    $('waitText').textContent = t; $('vWait').hidden = false; return;
+  }
+  if(row.status === 'markup'){ $('vEdit').hidden = false; await Editor.open(row); return; }
+  if(row.status === 'line_check'){
+    const a = row.areas || {};
+    const n = v => v==null ? '—' : Number(v).toLocaleString();
+    $('areas').innerHTML = `<span>House</span><b>${n(a.house)} sf</b><span>Covered patio</span><b>${n(a.patio)} sf</b>
+      <span>Concrete</span><b>${n(a.concrete)} sf</b><span>Landscape</span><b>${n(a.landscape)} sf</b>
+      <span>Lot</span><b>${n(a.lot)} sf</b><span>Lot coverage</span><b>${a.coverage_pct ?? '—'}%</b>`;
+    $('stories').value = row.stories || '';
+    $('lcImg').src = await signed(row.files && row.files.line_check) || '';
+    $('vCheck').hidden = false; return;
+  }
+  if(row.status === 'done'){
+    const f = row.files || {};
+    $('dl').href = await signed(f.pdf, { download: f.pdf ? f.pdf.split('/').pop() : true }) || '#';
+    $('pvImg').src = await signed(f.preview) || '';
+    $('vDone').hidden = false; return;
+  }
+  if(row.status === 'failed'){
+    $('failMsg').textContent = row.message || 'Something went wrong.';
+    $('backEdit').hidden = !row.prefill;
+    $('vFailed').hidden = false;
+  }
+}
+$('approve').onclick = ()=> setStatus({ status:'approved', stories: $('stories').value ? +$('stories').value : null });
+$('redraw').onclick  = ()=> setStatus({ status:'markup' });
+$('change').onclick  = ()=> setStatus({ status:'markup' });
+$('retry').onclick   = ()=> setStatus({ status:'queued' });
+$('backEdit').onclick= ()=> setStatus({ status:'markup' });
+
+setInterval(async ()=>{                      // the worker moves things along: follow it
+  if(document.hidden) return;
+  await loadJobs();
+  if(current && current.status !== 'markup'){
+    const row = await fetchJob(current.id);
+    if(row && (row.status !== current.status || row.updated_at !== current.updated_at)){ current = row; render(row); }
+    else if(row && WAIT_TEXT[row.status]) render(row);
+  }
+}, 6000);
+
+/* ---------- the editor (the Draw page, saving to Supabase) ---------- */
+const Editor = (()=>{
+const KINDS = {house:'house', patio:'covered patio', concrete:'concrete', landscape:'landscape', sidewalk:'sidewalk', curb:'curb line'};
+const COLORS = {house:[47,107,255], patio:[143,176,255], concrete:[229,56,59], landscape:[47,168,79], sidewalk:[201,204,196]};
+const DRAW_ORDER = ['sidewalk','concrete','landscape','patio','house','curb'];
+const isLine = kd => kd==='curb';
+const ALPHA = 128, TAN = Math.tan(8*Math.PI/180);
+const status = (t, cls='') => { const s=$('status'); s.textContent=t; s.className='ed-status '+cls; };
+let row = null, meta, W, H, ids, pix = [], bbox = [], state = {regions:{}, polys:[], dims:[], note:''};
+let kind = 'house', tool = 'draw', zoom = 1, undoStack = [], pen = [], dim = [];
+let ghost = null, gesture = null, U = [1,0], V = [0,1], draftKey = '';
+const paintCtx = $('cPaint').getContext('2d');
+let paintImg;
+
+async function open(r){
+  if(row && row.id === r.id && meta) return;          // already open: keep the edits
+  row = r; meta = r.frame; W = meta.width; H = meta.height; draftKey = 'sp-draft:' + r.id;
+  undoStack = []; pen = []; dim = []; ghost = null; gesture = null;
+  status('Loading the photo…'); $('send').disabled = true;
+  setAxes();
+  const [aUrl, rUrl] = await Promise.all([signed(r.files.aerial), signed(r.files.regions)]);
+  const photo = $('photo');
+  await new Promise((ok, bad)=>{ photo.onload=ok; photo.onerror=bad; photo.src=aUrl; });
+  const rimg = new Image(); rimg.crossOrigin = 'anonymous';
+  await new Promise((ok,bad)=>{ rimg.onload=ok; rimg.onerror=bad; rimg.src=rUrl; });
+  const c = document.createElement('canvas'); c.width=W; c.height=H;
+  const cx = c.getContext('2d', {willReadFrequently:true}); cx.drawImage(rimg,0,0);
+  const d = cx.getImageData(0,0,W,H).data;
+  ids = new Uint32Array(W*H); pix = []; bbox = [];
+  const n = meta.regions, count = new Uint32Array(n);
+  for(let i=0;i<W*H;i++){ const v = d[i*4] + 256*d[i*4+1]; ids[i]=v; count[v]++; }
+  for(let q=0;q<n;q++){ pix[q]=new Uint32Array(count[q]); bbox[q]=[W,H,0,0]; }
+  const fill = new Uint32Array(n);
+  for(let i=0;i<W*H;i++){ const q=ids[i]; pix[q][fill[q]++]=i; const x=i%W,y=(i/W)|0, b=bbox[q];
+    if(x<b[0])b[0]=x; if(y<b[1])b[1]=y; if(x>b[2])b[2]=x; if(y>b[3])b[3]=y; }
+  for(const cv of [$('cPaint'),$('cCuts')]){ cv.width=W; cv.height=H; }
+  drawCuts();
+  $('vec').setAttribute('viewBox', `0 0 ${W} ${H}`);
+  // start from: this browser's unsent draft > what was sent last > the worker's first draft
+  let draft = null; try{ draft = JSON.parse(localStorage.getItem(draftKey) || 'null'); }catch(e){}
+  const base = (r.markup && r.markup.state) || r.prefill || {};
+  state = normal(draft || base);
+  $('note').value = state.note || '';
+  repaintAll(); setZoom(1); setTool('draw');
+  $('send').disabled = false;
+  status(draft ? 'Your unsent edits are back. Keep going, then Send.' : r.markup ? 'This is what you sent last time. Fix it, then Send again.'
+                : 'First draft: house from the county roof outline, concrete from the photo. Fix anything wrong, then Send.');
+}
+function normal(s){ s = structuredClone(s || {}); s.regions = s.regions || {}; s.polys = s.polys || []; s.dims = s.dims || []; s.note = s.note || ''; return s; }
+
+function setAxes(){
+  let best = 0; const L = meta.lot_px;
+  for(let i=0;i<L.length;i++){ const a=L[i], b=L[(i+1)%L.length], d=Math.hypot(b[0]-a[0], b[1]-a[1]);
+    if(d>best){ best=d; U=[(b[0]-a[0])/d, (b[1]-a[1])/d]; } }
+  V = [-U[1], U[0]];
+}
+const toUV = p => [p[0]*U[0]+p[1]*U[1], p[0]*V[0]+p[1]*V[1]];
+const fromUV = q => [q[0]*U[0]+q[1]*V[0], q[0]*U[1]+q[1]*V[1]];
+const dist = (a,b) => Math.hypot(a[0]-b[0], a[1]-b[1]);
+const r1 = v => Math.round(v*10)/10;
+const k = () => W / $('stage').clientWidth;
+function rings(){ const out = state.polys.map((p,i)=>({pts:p.pts, i, open:isLine(p.kind)})); out.push({pts:meta.lot_px, i:-1}); return out; }
+function nearestVertex(p, thr, skip){
+  let best = null, bd = thr;
+  for(const r of rings()) r.pts.forEach((q,j)=>{ if(skip && skip.i===r.i && skip.j===j) return;
+    const d = dist(p,q); if(d<bd){ bd=d; best={p:[q[0],q[1]], i:r.i, j}; } });
+  return best;
+}
+function nearestEdge(p, thr, skipPoly){
+  let best = null, bd = thr;
+  for(const r of rings()){ if(r.i===skipPoly) continue; const n = r.pts.length;
+    for(let j=0;j<(r.open ? n-1 : n);j++){ const a=r.pts[j], b=r.pts[(j+1)%n], ex=b[0]-a[0], ey=b[1]-a[1], L2=ex*ex+ey*ey; if(!L2) continue;
+      const t = Math.max(0, Math.min(1, ((p[0]-a[0])*ex+(p[1]-a[1])*ey)/L2)), q=[a[0]+t*ex, a[1]+t*ey], d=dist(p,q);
+      if(d<bd){ bd=d; best={a, b, proj:q}; } } }
+  return best;
+}
+function intersect(p, d, a, b){
+  const e=[b[0]-a[0], b[1]-a[1]], den=d[0]*e[1]-d[1]*e[0]; if(Math.abs(den)<1e-9) return null;
+  const t=((a[0]-p[0])*e[1]-(a[1]-p[1])*e[0])/den; return [p[0]+t*d[0], p[1]+t*d[1]];
+}
+const snapOn = () => $('snap').checked;
+function snapNew(p){
+  const thr = 14*k();
+  if(!isLine(kind) && pen.length>=3 && dist(p, pen[0]) < thr*1.3) return {p:pen[0], close:true};
+  const v = nearestVertex(p, thr); if(v) return {p:v.p, close:false};
+  let uv = toUV(p), fixU = false, fixV = false;
+  if(snapOn() && pen.length){
+    const P = toUV(pen[pen.length-1]), du = uv[0]-P[0], dv = uv[1]-P[1];
+    if(Math.abs(dv) <= TAN*Math.abs(du)){ uv[1]=P[1]; fixV=true; }
+    else if(Math.abs(du) <= TAN*Math.abs(dv)){ uv[0]=P[0]; fixU=true; }
+    if(pen.length>=2){ const F = toUV(pen[0]);
+      if(fixV && Math.abs(uv[0]-F[0]) < thr){ uv[0]=F[0]; fixU=true; }
+      else if(fixU && Math.abs(uv[1]-F[1]) < thr){ uv[1]=F[1]; fixV=true; } }
+  }
+  let q = fromUV(uv);
+  if(!(fixU && fixV)){
+    const e = nearestEdge(q, thr);
+    if(e){ if(fixU || fixV){ const x = intersect(q, fixV ? U : V, e.a, e.b); if(x && dist(x,q) < thr*1.5) q = x; }
+           else q = e.proj; }
+  }
+  return {p:q.map(r1), close:false};
+}
+function snapDrag(i, j, p){
+  const v = nearestVertex(p, 12*k(), {i, j}); if(v) return v.p;
+  const pts = state.polys[i].pts, n = pts.length; let q = toUV(p);
+  if(snapOn()) for(const N of [toUV(pts[(j-1+n)%n]), toUV(pts[(j+1)%n])]){ const du=q[0]-N[0], dv=q[1]-N[1];
+    if(Math.abs(dv) <= TAN*Math.abs(du)) q[1]=N[1]; else if(Math.abs(du) <= TAN*Math.abs(dv)) q[0]=N[0]; }
+  return fromUV(q).map(r1);
+}
+function nearestMid(p, thr){
+  let best = null, bd = thr;
+  state.polys.forEach((poly, i)=>{ const n = poly.pts.length; for(let j=0;j<(isLine(poly.kind) ? n-1 : n);j++){ const a=poly.pts[j], b=poly.pts[(j+1)%n];
+    if(dist(a,b) < 4*thr) continue; const m=[(a[0]+b[0])/2, (a[1]+b[1])/2], d=dist(p,m);
+    if(d<bd){ bd=d; best={i, j, a0:[...a], b0:[...b]}; } } });
+  return best;
+}
+function dragEdge(g, p0, p){
+  const pts = state.polys[g.i].pts, n = pts.length, ex=g.b0[0]-g.a0[0], ey=g.b0[1]-g.a0[1], L=Math.hypot(ex,ey);
+  const nx=-ey/L, ny=ex/L; let d = (p[0]-p0[0])*nx + (p[1]-p0[1])*ny;
+  const m = [(g.a0[0]+g.b0[0])/2 + d*nx, (g.a0[1]+g.b0[1])/2 + d*ny];
+  const v = nearestVertex(m, 10*k(), {i:g.i, j:-1}), e = !v && nearestEdge(m, 10*k(), g.i);
+  if(e){ const q = e.proj; const d2 = (q[0]-(g.a0[0]+g.b0[0])/2)*nx + (q[1]-(g.a0[1]+g.b0[1])/2)*ny;
+         if(Math.abs(d2-d) < 10*k()) d = d2; }
+  pts[g.j] = [r1(g.a0[0]+d*nx), r1(g.a0[1]+d*ny)]; pts[(g.j+1)%n] = [r1(g.b0[0]+d*nx), r1(g.b0[1]+d*ny)];
+}
+function nearLine(p, pts, thr){
+  for(let j=1;j<pts.length;j++){ const a=pts[j-1], b=pts[j], ex=b[0]-a[0], ey=b[1]-a[1], L2=ex*ex+ey*ey||1;
+    const t=Math.max(0,Math.min(1,((p[0]-a[0])*ex+(p[1]-a[1])*ey)/L2)); if(dist(p,[a[0]+t*ex,a[1]+t*ey]) < thr) return true; }
+  return false;
+}
+function insidePoly(p, pts){
+  let c = false; for(let i=0, j=pts.length-1; i<pts.length; j=i++){ const a=pts[i], b=pts[j];
+    if(((a[1]>p[1]) !== (b[1]>p[1])) && (p[0] < (b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1]) + a[0])) c = !c; }
+  return c;
+}
+function areaSf(pts){ let s=0; for(let i=0;i<pts.length;i++){ const a=pts[i], b=pts[(i+1)%pts.length]; s += a[0]*b[1]-b[0]*a[1]; }
+  return Math.abs(s)/2/(meta.px_per_ft**2); }
+
+function drawCuts(){
+  const cx = $('cCuts').getContext('2d'), im = cx.createImageData(W,H), o = im.data;
+  for(let y=0;y<H-1;y++) for(let x=0;x<W-1;x++){ const i=y*W+x;
+    if(ids[i]!==ids[i+1] || ids[i]!==ids[i+W]){ const q=i*4; o[q]=255;o[q+1]=255;o[q+2]=230;o[q+3]=95; } }
+  cx.putImageData(im,0,0);
+}
+function paintRegion(r, kd){
+  const p = pix[r], o = paintImg.data, col = kd ? COLORS[kd] : null;
+  for(let j=0;j<p.length;j++){ const q=p[j]*4;
+    if(col){ o[q]=col[0];o[q+1]=col[1];o[q+2]=col[2];o[q+3]=ALPHA; } else o[q+3]=0; }
+  const b = bbox[r]; paintCtx.putImageData(paintImg,0,0,b[0],b[1],b[2]-b[0]+1,b[3]-b[1]+1);
+}
+function repaintAll(){
+  paintImg = paintCtx.createImageData(W,H);
+  for(const [r,kd] of Object.entries(state.regions)){ const p=pix[+r], col=COLORS[kd]||COLORS.house, o=paintImg.data; if(!p) continue;
+    for(let j=0;j<p.length;j++){ const q=p[j]*4; o[q]=col[0];o[q+1]=col[1];o[q+2]=col[2];o[q+3]=ALPHA; } }
+  paintCtx.putImageData(paintImg,0,0); drawVec();
+}
+const css = n => getComputedStyle(document.documentElement).getPropertyValue('--'+n).trim();
+const pts2 = pts => pts.map(q=>q.join(',')).join(' ');
+function ftIn(ft){ const i = Math.round(ft*12); return `${Math.floor(i/12)}'-${i%12}"`; }
+function edgeLabel(a, b, fs){
+  const ft = dist(a,b)/meta.px_per_ft; if(ft < 1.5) return '';
+  const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+  return `<text x="${mx}" y="${my}" dy="${fs*.35}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="${fs}" font-weight="600" fill="#fff" stroke="#000" stroke-width="${fs*.25}" paint-order="stroke">${ftIn(ft)}</text>`;
+}
+function drawVec(){
+  if(!meta) return;
+  const s = k(), sw = 2.2*Math.max(1, s), fs = 13*Math.max(1, s), lot = pts2(meta.lot_px);
+  let h = `<defs><mask id="land"><rect width="${W}" height="${H}" fill="#fff"/>` +
+          state.polys.filter(p=>p.kind!=='landscape' && !isLine(p.kind)).map(p=>`<polygon points="${pts2(p.pts)}" fill="#000"/>`).join('') + `</mask>
+          <pattern id="hatch" width="${10*s}" height="${10*s}" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="${10*s}" stroke="${css('patio')}" stroke-width="${3*s}"/></pattern></defs>`;
+  h += `<polygon points="${lot}" fill="${css('landscape')}" fill-opacity=".38" mask="url(#land)"/>`;
+  h += `<polygon points="${lot}" fill="none" stroke="#000" stroke-width="${sw+2}" opacity=".5"/>
+        <polygon points="${lot}" fill="none" stroke="${css('lot')}" stroke-width="${sw}" stroke-dasharray="${sw*6} ${sw*3} ${sw} ${sw*3}"/>`;
+  const order = state.polys.map((p,i)=>i).sort((a,b)=>DRAW_ORDER.indexOf(state.polys[a].kind)-DRAW_ORDER.indexOf(state.polys[b].kind));
+  for(const i of order){ const p = state.polys[i], c = css(p.kind)||css('house');
+    if(isLine(p.kind)) h += `<polyline points="${pts2(p.pts)}" fill="none" stroke="#000" stroke-width="${sw*2.4}" opacity=".45"/><polyline points="${pts2(p.pts)}" fill="none" stroke="${c}" stroke-width="${sw*1.4}" stroke-linejoin="round"/>`;
+    else if(p.kind==='sidewalk') h += `<polygon points="${pts2(p.pts)}" fill="${c}" fill-opacity=".45" stroke="${c}" stroke-width="${sw}"/>`;
+    else if(p.kind==='patio') h += `<polygon points="${pts2(p.pts)}" fill="url(#hatch)" stroke="${css('house')}" stroke-width="${sw}" stroke-dasharray="${sw*4} ${sw*2.5}"/>`;
+    else h += `<polygon points="${pts2(p.pts)}" fill="${c}" fill-opacity=".3" stroke="${c}" stroke-width="${sw}" stroke-linejoin="round"/>`; }
+  if(tool==='draw' && !pen.length) for(const p of state.polys){ const c = p.kind==='patio' ? css('house') : css(p.kind);
+    h += p.pts.map(q=>`<circle cx="${q[0]}" cy="${q[1]}" r="${sw*1.7}" fill="#fff" stroke="${c}" stroke-width="${sw*.8}"/>`).join('');
+    h += p.pts.map((a,j)=>{ if(isLine(p.kind) && j===p.pts.length-1) return ''; const b=p.pts[(j+1)%p.pts.length]; if(dist(a,b) < 64*s) return '';
+      return `<rect x="${(a[0]+b[0])/2-sw*1.3}" y="${(a[1]+b[1])/2-sw*1.3}" width="${sw*2.6}" height="${sw*2.6}" fill="${c}" stroke="#fff" stroke-width="${sw*.6}"/>`; }).join(''); }
+  if(gesture && gesture.dragging){ const g = gesture.hit || gesture.edge, p = state.polys[g.i], n = p.pts.length, j = g.j;
+    h += edgeLabel(p.pts[(j-1+n)%n], p.pts[j], fs) + edgeLabel(p.pts[j], p.pts[(j+1)%n], fs) + edgeLabel(p.pts[(j+1)%n], p.pts[(j+2)%n], fs); }
+  if(pen.length || ghost){ const c = kind==='patio' ? css('house') : css(kind);
+    if(pen.length) h += `<polyline points="${pts2(pen)}" fill="none" stroke="${c}" stroke-width="${sw*1.2}"/>`;
+    if(pen.length && ghost) h += `<line x1="${pen[pen.length-1][0]}" y1="${pen[pen.length-1][1]}" x2="${ghost.p[0]}" y2="${ghost.p[1]}" stroke="${c}" stroke-width="${sw}" stroke-dasharray="${sw*3} ${sw*2}"/>`;
+    h += pen.map((q,j)=>`<circle cx="${q[0]}" cy="${q[1]}" r="${sw*(j===0&&ghost&&ghost.close?3.2:2)}" fill="${c}" stroke="#fff" stroke-width="${sw*.7}"/>`).join('');
+    if(ghost && !ghost.close) h += `<circle cx="${ghost.p[0]}" cy="${ghost.p[1]}" r="${sw*2}" fill="none" stroke="#fff" stroke-width="${sw*.8}"/>`;
+    for(let j=1;j<pen.length;j++) h += edgeLabel(pen[j-1], pen[j], fs);
+    if(pen.length && ghost) h += edgeLabel(pen[pen.length-1], ghost.p, fs);
+  }
+  for(const d of state.dims.concat(dim.length?[{a:dim[0],b:dim[1]||dim[0],text:''}]:[])){
+    const [a,b]=[d.a,d.b], mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+    h += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#fff" stroke-width="${sw}"/>
+          <circle cx="${a[0]}" cy="${a[1]}" r="${sw*1.8}" fill="#fff"/><circle cx="${b[0]}" cy="${b[1]}" r="${sw*1.8}" fill="#fff"/>` +
+         (d.text?`<text x="${mx}" y="${my-fs*.6}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="${fs*1.1}" font-weight="600" fill="#fff" stroke="#000" stroke-width="${fs*.25}" paint-order="stroke">${esc(d.text)}</text>`:'');
+  }
+  $('vec').innerHTML = h;
+}
+
+const ZOOMS = [1, 1.5, 2, 3, 4];
+function setZoom(z){
+  zoom = z; const vp = $('viewport'), fitW = Math.min(vp.clientWidth, vp.clientHeight * W / H);
+  $('stage').style.width = (fitW*z)+'px';
+  $('zLvl').textContent = z+'×'; drawVec();
+}
+$('zIn').onclick = ()=>{ const i=ZOOMS.indexOf(zoom); if(i<ZOOMS.length-1) setZoom(ZOOMS[i+1]); };
+$('zOut').onclick = ()=>{ const i=ZOOMS.indexOf(zoom); if(i>0) setZoom(ZOOMS[i-1]); };
+addEventListener('resize', ()=> meta && !$('vEdit').hidden && setZoom(zoom));
+
+const HINT = {
+  draw: () => isLine(kind) ? 'Tap along the curb (the edge of the road), then press Done.' : `Tap the corners of the ${KINDS[kind]}. Tap the first corner again to close it.`,
+  paint: () => `Tap or drag over the blocks to paint them ${KINDS[kind]}.`,
+  erase: () => 'Tap a shape to delete it.',
+  measure: () => 'Tap two points, then type the taped length.',
+  move: () => 'Drag to scroll the photo.',
+};
+$('legend').addEventListener('click', e=>{
+  const b = e.target.closest('[data-kind]'); if(!b) return; kind = b.dataset.kind;
+  document.querySelectorAll('.sw[data-kind]').forEach(x=>x.setAttribute('aria-pressed', x===b));
+  if(tool!=='draw' && tool!=='paint') setTool('draw'); else { updPen(); status(HINT[tool]()); drawVec(); }
+});
+$('tools').addEventListener('click', e=>{ const b=e.target.closest('[data-tool]'); if(b) setTool(b.dataset.tool); });
+function setTool(t){
+  tool = t; pen = []; dim = []; ghost = null;
+  document.querySelectorAll('.tool').forEach(x=>x.setAttribute('aria-pressed', x.dataset.tool===t));
+  $('stage').className = 'stage ' + (t==='move' ? 'move' : 'paint');
+  $('penPanel').hidden = t!=='draw'; $('dimPanel').hidden = t!=='measure';
+  showCuts(); resetDimPanel(); updPen(); drawVec(); if(meta) status(HINT[t]());
+}
+function showCuts(){ $('cCuts').hidden = !($('showCuts').checked && (tool==='paint' || tool==='erase')); }
+$('showCuts').onchange = showCuts;
+$('note').addEventListener('input', ()=>{ state.note = $('note').value; saveDraft(); });
+
+const stage = $('stage');
+function toPx(e){ const r = stage.getBoundingClientRect(); return [ (e.clientX-r.left)/r.width*W, (e.clientY-r.top)/r.height*H ]; }
+let painting = false, last = null, strokeChanged = false;
+stage.addEventListener('pointerdown', e=>{
+  if(tool==='move' || !meta) return;
+  const p = toPx(e);
+  if(tool==='measure'){ onDimTap(p.map(r1)); return; }
+  e.preventDefault(); stage.setPointerCapture(e.pointerId);
+  if(tool==='draw'){
+    let hit = pen.length ? null : nearestVertex(p, 16*k()); if(hit && hit.i<0) hit = null;
+    const edge = (pen.length || hit) ? null : nearestMid(p, 16*k());
+    gesture = {start:[e.clientX, e.clientY], p0:p, hit, edge, dragging:false};
+    ghost = snapNew(p); drawVec(); return;
+  }
+  if(tool==='erase'){
+    for(const i of state.polys.map((_,i)=>i).reverse()) if(isLine(state.polys[i].kind) ? nearLine(p, state.polys[i].pts, 12*k()) : insidePoly(p, state.polys[i].pts)){
+      pushUndo(); const gone = state.polys.splice(i,1)[0]; drawVec(); saveDraft();
+      status(`Deleted a ${KINDS[gone.kind]} shape. Undo brings it back.`); return; }
+  }
+  pushUndo(); painting = true; strokeChanged = false; last = p; brush(p);
+});
+stage.addEventListener('pointermove', e=>{
+  if(!meta) return;
+  const p = toPx(e);
+  if(tool==='draw'){
+    if(gesture){
+      if((gesture.hit || gesture.edge) && !gesture.dragging && Math.hypot(e.clientX-gesture.start[0], e.clientY-gesture.start[1]) > 6){
+        gesture.dragging = true; ghost = null; pushUndo(); }
+      if(gesture.dragging && gesture.hit){ const {i, j} = gesture.hit; state.polys[i].pts[j] = snapDrag(i, j, p); drawVec(); return; }
+      if(gesture.dragging && gesture.edge){ dragEdge(gesture.edge, gesture.p0, p); drawVec(); return; }
+      ghost = snapNew(p); drawVec(); return;
+    }
+    if(e.pointerType==='mouse' && pen.length){ ghost = snapNew(p); drawVec(); }
+    return;
+  }
+  if(!painting) return;
+  const dx=p[0]-last[0], dy=p[1]-last[1], steps = Math.max(1, Math.ceil(Math.hypot(dx,dy)/4));
+  for(let s=1;s<=steps;s++) brush([last[0]+dx*s/steps, last[1]+dy*s/steps]);
+  last = p;
+});
+function endPointer(e, cancelled){
+  if(tool==='draw' && gesture){
+    const g = gesture; gesture = null;
+    if(g.dragging){ ghost = null; saveDraft(); drawVec(); return; }
+    if(cancelled){ ghost = null; drawVec(); return; }
+    const s = ghost || snapNew(toPx(e));
+    if(s.close) closePen();
+    else if(!pen.length || dist(s.p, pen[pen.length-1]) > 0.5) pen.push(s.p);
+    ghost = (e.pointerType==='mouse' && pen.length) ? s : null;
+    updPen(); drawVec(); return;
+  }
+  if(!painting) return; painting=false;
+  if(!strokeChanged) undoStack.pop(); else saveDraft();
+}
+stage.addEventListener('pointerup', e=>endPointer(e, false));
+stage.addEventListener('pointercancel', e=>endPointer(e, true));
+stage.addEventListener('pointerleave', e=>{ if(e.pointerType==='mouse' && !gesture && ghost){ ghost=null; drawVec(); } });
+function brush(p){
+  const x=Math.floor(p[0]), y=Math.floor(p[1]); if(x<0||y<0||x>=W||y>=H) return;
+  if(tool!=='erase' && isLine(kind)) return;
+  const r = ids[y*W+x], want = tool==='erase' ? undefined : kind;
+  if(state.regions[r] === want) return;
+  if(want) state.regions[r] = want; else delete state.regions[r];
+  paintRegion(r, want); strokeChanged = true;
+}
+function updPen(){
+  const need = isLine(kind) ? 2 : 3;
+  $('penInfo').textContent = isLine(kind) && pen.length ? `curb line: ${pen.length} point${pen.length>1?'s':''}` + (pen.length>=2 ? ' · keep tapping along the curb, then Done' : '')
+                         : pen.length ? `${KINDS[kind]}: ${pen.length} corner${pen.length>1?'s':''}` + (pen.length>=3 ? ' · tap the first corner or Done' : '')
+                                        : `Drawing: ${KINDS[kind]}. Tap a corner to start, or drag a corner / edge square to move it.`;
+  $('penDone').disabled = pen.length < need; $('penUndo').disabled = !pen.length; $('penCancel').disabled = !pen.length;
+}
+function closePen(){
+  if(isLine(kind)){ if(pen.length < 2) return;
+    pushUndo(); state.polys.push({kind, pts:pen}); pen = []; ghost = null; updPen(); drawVec(); saveDraft();
+    status('Added the curb line.'); return; }
+  if(pen.length < 3) return;
+  if(snapOn()){
+    const n = pen.length, P = toUV(pen[n-2]), L = toUV(pen[n-1]), F = toUV(pen[0]), du = F[0]-L[0], dv = F[1]-L[1];
+    if(Math.abs(L[0]-P[0]) < .5 && Math.abs(dv) <= TAN*Math.abs(du)) L[1] = F[1];
+    else if(Math.abs(L[1]-P[1]) < .5 && Math.abs(du) <= TAN*Math.abs(dv)) L[0] = F[0];
+    pen[n-1] = fromUV(L).map(r1);
+  }
+  pushUndo(); state.polys.push({kind, pts:pen}); const a = areaSf(pen); pen = []; ghost = null;
+  updPen(); drawVec(); saveDraft();
+  status(`Added a ${KINDS[kind]} shape, about ${Math.round(a).toLocaleString()} sq ft. Draw the next one, or Send.`);
+}
+$('penUndo').onclick = ()=>{ pen.pop(); ghost=null; updPen(); drawVec(); };
+$('penCancel').onclick = ()=>{ pen = []; ghost=null; updPen(); drawVec(); };
+$('penDone').onclick = closePen;
+addEventListener('keydown', e=>{
+  if($('vEdit').hidden || tool!=='draw' || e.target.closest('textarea,input,select')) return;
+  if(e.key==='Escape'){ $('penCancel').click(); } else if(e.key==='Enter'){ closePen(); }
+  else if(e.key==='Backspace' && pen.length){ e.preventDefault(); $('penUndo').click(); }
+});
+function resetDimPanel(){ $('dimInfo').textContent='Tap the first point.'; $('dimText').hidden=true; $('dimAdd').hidden=true; $('dimText').value=''; }
+function onDimTap(p){
+  if(dim.length>=2) return;
+  dim.push(p); drawVec();
+  if(dim.length===1){ $('dimInfo').textContent='Tap the second point.'; }
+  else { const ft = dist(dim[0], dim[1]) / meta.px_per_ft;
+    $('dimInfo').textContent = `On the photo ≈ ${ftIn(ft)}. Taped length:`; $('dimText').hidden=false; $('dimAdd').hidden=false; $('dimText').focus(); }
+}
+$('dimCancel').onclick = ()=>{ dim=[]; resetDimPanel(); drawVec(); };
+$('dimAdd').onclick = ()=>{ const t=$('dimText').value.trim(); if(!t){ $('dimText').focus(); return; }
+  pushUndo(); state.dims.push({a:dim[0], b:dim[1], text:t}); dim=[]; resetDimPanel(); drawVec(); saveDraft(); };
+$('dimText').addEventListener('keydown', e=>{ if(e.key==='Enter') $('dimAdd').click(); });
+function pushUndo(){ undoStack.push(JSON.stringify(state)); if(undoStack.length>80) undoStack.shift(); }
+$('undo').onclick = ()=>{
+  if(pen.length){ $('penUndo').click(); return; }
+  if(!undoStack.length) return; state = JSON.parse(undoStack.pop()); $('note').value=state.note||''; repaintAll(); saveDraft(); };
+function saveDraft(){ try{ localStorage.setItem(draftKey, JSON.stringify(state)); }catch(e){} }
+$('restart').onclick = ()=>{
+  if(!row || !row.prefill) return;
+  pushUndo(); state = normal(row.prefill); $('note').value = state.note; repaintAll(); saveDraft();
+  status('Back to the first draft. Undo brings your edits back.');
+};
+$('send').onclick = async ()=>{
+  if(pen.length){ status('Finish the shape you are drawing first (tap its first corner or Done), or Cancel it.', 'bad'); return; }
+  if(!state.polys.length && !Object.keys(state.regions).length){ status('Draw at least one shape first.', 'bad'); return; }
+  const ft = p => [ +(meta.x0_ft + p[0]/meta.px_per_ft).toFixed(2), +(meta.y1_ft - p[1]/meta.px_per_ft).toFixed(2) ];
+  const body = {
+    job: meta.job, address: meta.address, sentAt: new Date().toISOString(), version: 2,
+    frame: {px_per_ft: meta.px_per_ft, x0_ft: meta.x0_ft, y1_ft: meta.y1_ft, width: W, height: H},
+    state, feet: { polys: state.polys.map(p=>({kind:p.kind, pts:p.pts.map(ft)})),
+                   dims: state.dims.map(d=>({a:ft(d.a), b:ft(d.b), text:d.text})) },
+  };
+  $('send').disabled = true; status('Sending…');
+  const r = await setStatus({ markup: body, status: 'sent' });
+  $('send').disabled = false;
+  if(r){ try{ localStorage.removeItem(draftKey); }catch(e){} row = null; meta = null; }
+  else status('Not sent. Check the connection and press Send again.', 'bad');
+};
+return { open };
+})();
+
+// ========== INIT ==========
+(async()=>{
+  await window.authGate();
+  if(!window.CURRENT_USER_ROLE) return;
+  window.renderSidebar('siteplans');
+  await loadJobs();
+  const id = location.hash.slice(1);
+  if(id && jobs.some(j=>j.id===id)) openJob(id);
+})();
+</script>
+</body>
+</html>
