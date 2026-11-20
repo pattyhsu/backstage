@@ -124,6 +124,26 @@ body { overflow:hidden; height:100vh; }
 .ed-status{ flex:1; min-width:180px; font-size:13px; color:var(--text-3); }
 .ed-status.ok{ color:var(--green); } .ed-status.bad{ color:var(--red); }
 [hidden]{ display:none !important; }
+.sp-back{ display:none; margin:0 0 10px; }
+/* phones: one thing at a time - the list, or the open job */
+@media (max-width: 820px){
+  .sp-hdr{ padding:12px 16px 8px; }
+  .sp-hdr h1 span{ display:none; }
+  .sp-work{ grid-template-columns:minmax(0,1fr); }
+  .sp-left{ border-right:0; }
+  .sp-work.job-open .sp-left{ display:none; }
+  .sp-work:not(.job-open) .sp-right{ display:none; }
+  .sp-right{ padding:12px 14px 24px; }
+  .sp-back{ display:inline-flex; }
+  .ed{ grid-template-columns:minmax(0,1fr); gap:8px; }
+  .ed-rail{ position:static; gap:6px; }
+  .legend{ flex-direction:row; flex-wrap:wrap; }
+  .sw{ width:auto; flex:1 1 auto; padding:6px 8px; font-size:12.5px; }
+  .tools{ grid-template-columns:repeat(5,1fr); }
+  .ed-rail .sp-hint, .ed-rail .check:has(#showCuts){ display:none; }
+  .viewport{ height:62vh; }
+  .sp-areas{ grid-template-columns:auto auto; }
+}
 </style>
 </head>
 <body>
@@ -159,6 +179,7 @@ body { overflow:hidden; height:100vh; }
       <div id="vEmpty" class="sp-empty">Pick an address on the left, or open a site plan from the list.</div>
 
       <div id="vJob" hidden>
+        <button class="btn btn-sm sp-back" id="back">← All site plans</button>
         <div class="sp-title"><h2 id="jAddr"></h2><span class="chip" id="jChip"></span></div>
         <p class="sp-msg" id="jMsg"></p>
 
@@ -348,6 +369,7 @@ async function fetchJob(id){
 async function openJob(id){
   const row = await fetchJob(id); if(!row) return;
   current = row; history.replaceState(null, '', '#' + id);
+  document.querySelector('.sp-work').classList.add('job-open');
   await render(row); loadJobs();
 }
 async function setStatus(fields){
@@ -392,6 +414,7 @@ async function render(row){
     $('vFailed').hidden = false;
   }
 }
+$('back').onclick = ()=>{ document.querySelector('.sp-work').classList.remove('job-open'); history.replaceState(null, '', location.pathname); loadJobs(); };
 $('approve').onclick = ()=> setStatus({ status:'approved', stories: $('stories').value ? +$('stories').value : null });
 $('redraw').onclick  = ()=> setStatus({ status:'markup' });
 $('change').onclick  = ()=> setStatus({ status:'markup' });
@@ -785,6 +808,7 @@ return { open };
   await window.authGate();
   if(!window.CURRENT_USER_ROLE) return;
   window.renderSidebar('siteplans');
+  if(matchMedia('(max-width: 820px)').matches) $('bsSidebar').classList.add('collapsed');   // phones: icons only
   await loadJobs();
   const id = location.hash.slice(1);
   if(id && jobs.some(j=>j.id===id)) openJob(id);
