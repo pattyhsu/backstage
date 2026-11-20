@@ -238,6 +238,7 @@ body { overflow:hidden; height:100vh; }
               <div class="ed-bar">
                 <button class="btn" id="undo">Undo</button>
                 <span class="ed-status" id="status"></span>
+                <span class="sp-hint" id="saved" style="margin:0"></span>
                 <button class="btn btn-primary" id="send" disabled>Send for line check</button>
               </div>
             </div>
@@ -482,15 +483,20 @@ async function open(r){
   for(const cv of [$('cPaint'),$('cCuts')]){ cv.width=W; cv.height=H; }
   drawCuts();
   $('vec').setAttribute('viewBox', `0 0 ${W} ${H}`);
-  // start from: this browser's unsent draft > what was sent last > the worker's first draft
-  let draft = null; try{ draft = JSON.parse(localStorage.getItem(draftKey) || 'null'); }catch(e){}
-  const base = (r.markup && r.markup.state) || r.prefill || {};
-  state = normal(draft || base);
+  // start from the newest of: this browser's copy, the copy saved to Backstage (any device), the first draft
+  let local = null; try{ local = JSON.parse(localStorage.getItem(draftKey) || 'null'); }catch(e){}
+  if(local && !local.savedAt) local = { savedAt: '', state: local };          // older format: a bare state
+  const server = r.markup && r.markup.state ? { savedAt: r.markup.savedAt || r.markup.sentAt || '', state: r.markup.state } : null;
+  const pickd = [local, server].filter(Boolean).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''))[0];
+  const draft = pickd && pickd === local ? local.state : null;
+  state = normal(pickd ? pickd.state : (r.prefill || {}));
+  $('saved').textContent = pickd && pickd.savedAt ? 'Saved ' + fmtTime(pickd.savedAt) : '';
   $('note').value = state.note || '';
   repaintAll(); setZoom(1); setTool('draw');
   $('send').disabled = false;
-  status(draft ? 'Your unsent edits are back. Keep going, then Send.' : r.markup ? 'This is what you sent last time. Fix it, then Send again.'
-                : 'First draft: house from the county roof outline, concrete from the photo. Fix anything wrong, then Send.');
+  status(!pickd ? 'First draft: house from the county roof outline, concrete from the photo. Fix anything wrong, then Send.'
+         : (draft || (r.markup && r.markup.draft)) ? 'Your saved edits are back. Keep going, then Send.'
+         : 'This is what you sent last time. Fix it, then Send again.');
 }
 function normal(s){ s = structuredClone(s || {}); s.regions = s.regions || {}; s.polys = s.polys || []; s.dims = s.dims || []; s.note = s.note || ''; return s; }
 
@@ -791,7 +797,21 @@ function pushUndo(){ undoStack.push(JSON.stringify(state)); if(undoStack.length>
 $('undo').onclick = ()=>{
   if(pen.length){ $('penUndo').click(); return; }
   if(!undoStack.length) return; state = JSON.parse(undoStack.pop()); $('note').value=state.note||''; repaintAll(); saveDraft(); };
-function saveDraft(){ try{ localStorage.setItem(draftKey, JSON.stringify(state)); }catch(e){} }
+// every edit: kept in this browser at once, and saved to Backstage 2 s after the last change, so the
+// same job opened on the phone or the computer carries on from the same drawing
+let saveT = null;
+function saveDraft(){
+  const savedAt = new Date().toISOString();
+  try{ localStorage.setItem(draftKey, JSON.stringify({ savedAt, state })); }catch(e){}
+  clearTimeout(saveT); $('saved').textContent = 'Saving…';
+  const id = row && row.id;
+  saveT = setTimeout(async ()=>{
+    if(!id) return;
+    const { error } = await sb.from('site_plan_jobs').update({ markup: { draft: true, savedAt, state } })
+      .eq('id', id).eq('status', 'markup');
+    $('saved').textContent = error ? 'Not saved to Backstage (kept on this device)' : 'Saved ' + fmtTime(savedAt);
+  }, 2000);
+}
 $('restart').onclick = ()=>{
   if(!row || !row.prefill) return;
   pushUndo(); state = normal(row.prefill); $('note').value = state.note; repaintAll(); saveDraft();
@@ -802,12 +822,12 @@ $('send').onclick = async ()=>{
   if(!state.polys.length && !Object.keys(state.regions).length){ status('Draw at least one shape first.', 'bad'); return; }
   const ft = p => [ +(meta.x0_ft + p[0]/meta.px_per_ft).toFixed(2), +(meta.y1_ft - p[1]/meta.px_per_ft).toFixed(2) ];
   const body = {
-    job: meta.job, address: meta.address, sentAt: new Date().toISOString(), version: 2,
+    job: meta.job, address: meta.address, sentAt: new Date().toISOString(), savedAt: new Date().toISOString(), version: 2,
     frame: {px_per_ft: meta.px_per_ft, x0_ft: meta.x0_ft, y1_ft: meta.y1_ft, width: W, height: H},
     state, feet: { polys: state.polys.map(p=>({kind:p.kind, pts:p.pts.map(ft)})),
                    dims: state.dims.map(d=>({a:ft(d.a), b:ft(d.b), text:d.text})) },
   };
-  $('send').disabled = true; status('Sending…');
+  $('send').disabled = true; status('Sending…'); clearTimeout(saveT);
   const r = await setStatus({ markup: body, status: 'sent' });
   $('send').disabled = false;
   if(r){ try{ localStorage.removeItem(draftKey); }catch(e){} row = null; meta = null; }
