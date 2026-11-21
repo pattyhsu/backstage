@@ -286,6 +286,7 @@ body { overflow:hidden; height:100vh; }
               <div class="ed-plan-h"><b>Plan</b><span>updates as you draw</span></div>
               <svg id="planSvg" preserveAspectRatio="xMidYMid meet" style="overflow:hidden"></svg>
               <div class="sp-areas" id="planAreas"></div>
+              <p class="ed-status bad" style="margin:0" id="planWarn" hidden></p>
               <p class="sp-hint" style="margin:0" id="planNote">Lengths are off the photo, ±1-2 ft until taped.</p>
             </div>
           </div>
@@ -772,6 +773,14 @@ function drawPlan(){
     `<span>Coverage</span><b>${lot ? (100*(house+patio)/lot).toFixed(1) : '0'}%</b>`;
   const ew = -L[0], ns = -L[1], dir = (v, pos, neg) => Math.abs(v) < 0.05 ? '' : `${ftIn(Math.abs(v))} ${v > 0 ? pos : neg}`;
   const mv = [dir(ew, 'right', 'left'), dir(ns, 'up', 'down')].filter(Boolean).join(' and ');
+  // a building can't sit past the lot line: say so, with how far, so the lot line or the trace gets fixed before Send
+  const lp = lotPx(), segD = (q, a, b) => { const ex=b[0]-a[0], ey=b[1]-a[1], t=Math.max(0, Math.min(1, ((q[0]-a[0])*ex+(q[1]-a[1])*ey)/(ex*ex+ey*ey||1)));
+    return Math.hypot(q[0]-a[0]-t*ex, q[1]-a[1]-t*ey); };
+  let over = 0;
+  for(const p of state.polys) if(built(p.kind)) for(const q of at(p)) if(!insidePoly(q, lp))
+    over = Math.max(over, Math.min(...lp.map((a, j)=>segD(q, a, lp[(j+1)%lp.length]))) / f);
+  $('planWarn').hidden = over < 0.5;
+  $('planWarn').textContent = `A building crosses the lot line by about ${ftIn(over)}. Slide the lot line onto the fence (Lot line), or check that shape.`;
   $('planNote').textContent = (mv ? `House and patio sit ${mv} of where you traced them: the photo sees the roofs at a slight angle, so the plan moves them back onto their walls. ` : '') +
     'Lengths are off the photo, ±1-2 ft until taped.';
 }
