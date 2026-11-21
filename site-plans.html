@@ -117,6 +117,13 @@ body { overflow:hidden; height:100vh; }
 .stage img{ display:block; width:100%; height:auto; user-select:none; -webkit-user-drag:none; }
 .stage.paint{ touch-action:none; cursor:crosshair; }
 .stage.move{ touch-action:pan-x pan-y; cursor:grab; }
+.ed-main{ display:flex; gap:14px; align-items:flex-start; min-width:0; }
+.ed-main .viewport{ flex:0 0 auto; }
+.ed-side{ flex:1 1 240px; min-width:240px; max-width:420px; display:flex; flex-direction:column; }
+.ed-side .panel{ margin-top:0; margin-bottom:8px; }
+.ed-side .panel > span{ flex:1 1 100%; }
+.ed-side .ed-bar{ margin-top:8px; }
+.ed-side #send{ margin-left:auto; }
 .panel{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px; font-size:13px; }
 .panel > span{ flex:1; min-width:150px; color:var(--text-3); }
 .panel input{ border:1px solid var(--border); border-radius:6px; padding:5px 8px; font-family:var(--mono); width:100px; }
@@ -148,6 +155,8 @@ body { overflow:hidden; height:100vh; }
   .tools{ grid-template-columns:repeat(5,1fr); }
   .ed-rail .sp-hint, .ed-rail .check:has(#showCuts){ display:none; }
   .viewport{ height:62vh; }
+  .ed-main{ display:block; }
+  .ed-side{ max-width:none; min-width:0; margin-top:8px; }
   .sp-areas{ grid-template-columns:auto auto; }
 }
 </style>
@@ -219,7 +228,7 @@ body { overflow:hidden; height:100vh; }
               <p class="sp-hint" style="margin:0"><b>Draw</b>: tap corners, tap the first again to close. Drag a corner, or the square in the middle of an edge, to move it. <b>Erase</b>: tap a shape. Blank inside the lot = landscape.</p>
               <button class="btn btn-sm" id="restart">Start over from the first draft</button>
             </div>
-            <div style="min-width:0">
+            <div class="ed-main">
               <div class="viewport" id="viewport">
                 <div class="stage paint" id="stage">
                   <img id="photo" alt="Aerial photo of the lot" draggable="false" crossorigin="anonymous">
@@ -228,6 +237,7 @@ body { overflow:hidden; height:100vh; }
                   <svg id="vec" preserveAspectRatio="none"></svg>
                 </div>
               </div>
+              <div class="ed-side">
               <div class="panel" id="penPanel">
                 <span id="penInfo">Tap the corners.</span>
                 <button class="btn btn-sm" id="penUndo">Remove last corner</button>
@@ -246,6 +256,7 @@ body { overflow:hidden; height:100vh; }
                 <span class="ed-status" id="status"></span>
                 <span class="sp-hint" id="saved" style="margin:0"></span>
                 <button class="btn btn-primary" id="send" disabled>Send for line check</button>
+              </div>
               </div>
             </div>
           </div>
@@ -682,7 +693,13 @@ function drawVec(){
 
 const ZOOMS = [1, 1.5, 2, 3, 4];
 function setZoom(z){
-  zoom = z; const vp = $('viewport'), fitW = Math.min(vp.clientWidth, vp.clientHeight * W / H);
+  zoom = z; const vp = $('viewport');
+  if(matchMedia('(min-width: 821px)').matches){            // the photo box hugs the photo; the side column takes the rest
+    vp.style.height = Math.max(320, innerHeight - vp.getBoundingClientRect().top - 20) + 'px';   // down to the window's bottom
+    const avail = vp.parentElement.clientWidth - 254;
+    vp.style.width = Math.max(240, Math.min(avail, z > 1 ? avail : Math.round(vp.clientHeight * W / H) + 2)) + 'px';
+  } else { vp.style.width = ''; vp.style.height = ''; }
+  const fitW = Math.min(vp.clientWidth, vp.clientHeight * W / H);
   $('stage').style.width = (fitW*z)+'px';
   $('zLvl').textContent = z+'×'; drawVec();
 }
