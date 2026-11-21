@@ -566,6 +566,13 @@ function nearestMid(p, thr){
     if(d<bd){ bd=d; best={i, j, a0:[...a], b0:[...b]}; } } });
   return best;
 }
+function nearestSeg(p, thr){
+  let best = null, bd = thr;
+  state.polys.forEach((poly, i)=>{ const n = poly.pts.length; for(let j=0;j<(isLine(poly.kind) ? n-1 : n);j++){ const a=poly.pts[j], b=poly.pts[(j+1)%n], ex=b[0]-a[0], ey=b[1]-a[1], L2=ex*ex+ey*ey; if(!L2) continue;
+    const t=((p[0]-a[0])*ex+(p[1]-a[1])*ey)/L2; if(t<=0.03 || t>=0.97) continue;
+    const q=[a[0]+t*ex, a[1]+t*ey], d=dist(p,q); if(d<bd){ bd=d; best={i, j, q:q.map(r1)}; } } });
+  return best;
+}
 function dragEdge(g, p0, p){
   const pts = state.polys[g.i].pts, n = pts.length, ex=g.b0[0]-g.a0[0], ey=g.b0[1]-g.a0[1], L=Math.hypot(ex,ey);
   const nx=-ey/L, ny=ex/L; let d = (p[0]-p0[0])*nx + (p[1]-p0[1])*ny;
@@ -697,7 +704,8 @@ stage.addEventListener('pointerdown', e=>{
   if(tool==='draw'){
     let hit = pen.length ? null : nearestVertex(p, 16*k()); if(hit && hit.i<0) hit = null;
     const edge = (pen.length || hit) ? null : nearestMid(p, 16*k());
-    gesture = {start:[e.clientX, e.clientY], p0:p, hit, edge, dragging:false};
+    const seg = (pen.length || hit || edge) ? null : nearestSeg(p, 14*k());
+    gesture = {start:[e.clientX, e.clientY], p0:p, hit, edge, seg, dragging:false};
     ghost = snapNew(p); drawVec(); return;
   }
   if(tool==='erase'){
@@ -712,8 +720,10 @@ stage.addEventListener('pointermove', e=>{
   const p = toPx(e);
   if(tool==='draw'){
     if(gesture){
-      if((gesture.hit || gesture.edge) && !gesture.dragging && Math.hypot(e.clientX-gesture.start[0], e.clientY-gesture.start[1]) > 6){
-        gesture.dragging = true; ghost = null; pushUndo(); }
+      if((gesture.hit || gesture.edge || gesture.seg) && !gesture.dragging && Math.hypot(e.clientX-gesture.start[0], e.clientY-gesture.start[1]) > 6){
+        gesture.dragging = true; ghost = null; pushUndo();
+        if(gesture.seg){ const {i, j, q} = gesture.seg;              // new corner on that edge, dragged from here
+          state.polys[i].pts.splice(j+1, 0, q); gesture.hit = {p:q, i, j:j+1}; gesture.seg = null; } }
       if(gesture.dragging && gesture.hit){ const {i, j} = gesture.hit; state.polys[i].pts[j] = snapDrag(i, j, p); drawVec(); return; }
       if(gesture.dragging && gesture.edge){ dragEdge(gesture.edge, gesture.p0, p); drawVec(); return; }
       ghost = snapNew(p); drawVec(); return;
@@ -729,7 +739,11 @@ stage.addEventListener('pointermove', e=>{
 function endPointer(e, cancelled){
   if(tool==='draw' && gesture){
     const g = gesture; gesture = null;
-    if(g.dragging){ ghost = null; saveDraft(); drawVec(); return; }
+    if(g.dragging){ ghost = null;
+      if(g.hit){ const poly = state.polys[g.hit.i], pts = poly.pts, n = pts.length, j = g.hit.j, open = isLine(poly.kind);
+        const nb = open ? [pts[j-1], pts[j+1]] : [pts[(j-1+n)%n], pts[(j+1)%n]];
+        if(n > (open ? 2 : 3) && nb.some(q=>q && dist(q, pts[j]) < 0.5)){ pts.splice(j, 1); status('Corner removed. Undo brings it back.'); } }
+      saveDraft(); drawVec(); return; }
     if(cancelled){ ghost = null; drawVec(); return; }
     const s = ghost || snapNew(toPx(e));
     if(s.close) closePen();
@@ -755,7 +769,7 @@ function updPen(){
   const need = isLine(kind) ? 2 : 3;
   $('penInfo').textContent = isLine(kind) && pen.length ? `curb line: ${pen.length} point${pen.length>1?'s':''}` + (pen.length>=2 ? ' · keep tapping along the curb, then Done' : '')
                          : pen.length ? `${KINDS[kind]}: ${pen.length} corner${pen.length>1?'s':''}` + (pen.length>=3 ? ' · tap the first corner or Done' : '')
-                                        : `Drawing: ${KINDS[kind]}. Tap a corner to start, or drag a corner / edge square to move it.`;
+                                        : `Drawing: ${KINDS[kind]}. Tap a corner to start. Drag a corner or edge square to move it; drag from anywhere on an edge to add a corner; drop a corner onto the next one to remove it.`;
   $('penDone').disabled = pen.length < need; $('penUndo').disabled = !pen.length; $('penCancel').disabled = !pen.length;
 }
 function closePen(){
