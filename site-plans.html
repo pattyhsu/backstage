@@ -279,7 +279,7 @@ body { overflow:hidden; height:100vh; }
               <div class="ed-plan-h"><b>Plan</b><span>updates as you draw</span></div>
               <svg id="planSvg" preserveAspectRatio="xMidYMid meet" style="overflow:hidden"></svg>
               <div class="sp-areas" id="planAreas"></div>
-              <p class="sp-hint" style="margin:0">Lengths are off the photo, ±1-2 ft until taped.</p>
+              <p class="sp-hint" style="margin:0" id="planNote">Lengths are off the photo, ±1-2 ft until taped.</p>
             </div>
           </div>
         </div>
@@ -718,6 +718,9 @@ function drawVec(){
 function polyArea(pts){ let s=0; for(let i=0;i<pts.length;i++){ const a=pts[i], b=pts[(i+1)%pts.length]; s += a[0]*b[1]-b[0]*a[1]; } return Math.abs(s)/2; }
 function drawPlan(){
   const box = $('planBox'), svg = $('planSvg'); if(!meta || box.hidden) return;
+  const L = meta.lean_ft || [0, 0], f = meta.px_per_ft, built = kd => kd==='house' || kd==='patio';
+  // the plan takes the camera lean out of what sits on the roof: house + patio move by -lean (same as the sheet)
+  const at = p => built(p.kind) ? p.pts.map(q=>[q[0] - L[0]*f, q[1] + L[1]*f]) : p.pts;
   const all = meta.lot_px.concat(...state.polys.filter(p=>p.kind!=='sidewalk' && !isLine(p.kind)).map(p=>p.pts));   // fit the lot; the street runs off the edge
   let x0=Math.min(...all.map(p=>p[0])), x1=Math.max(...all.map(p=>p[0])), y0=Math.min(...all.map(p=>p[1])), y1=Math.max(...all.map(p=>p[1]));
   const pad = 0.07*Math.max(x1-x0, y1-y0); x0-=pad; y0-=pad; x1+=pad; y1+=pad;
@@ -734,8 +737,15 @@ function drawPlan(){
   };
   const edges = (pts, outside) => pts.map((a,j)=>label(a, pts[(j+1)%pts.length], pts, outside)).join('');
   let h = `<defs><pattern id="pHatch" width="${6*u}" height="${6*u}" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><line x1="0" y1="0" x2="0" y2="${6*u}" stroke="${mid}" stroke-width="${u}"/></pattern></defs>`;
+  // the strip a moved house leaves behind becomes concrete where her concrete was right there (as on the sheet)
+  const conc = state.polys.filter(p=>p.kind==='concrete'), reach = 2*(Math.abs(L[1]) + 0.25)*f;
+  if(conc.length && (L[0] || L[1])){
+    h += `<mask id="pNear" maskUnits="userSpaceOnUse" x="${x0}" y="${y0}" width="${vw}" height="${vh}">` +
+         conc.map(p=>`<polygon points="${pts2(p.pts)}" fill="#fff" stroke="#fff" stroke-width="${reach}" stroke-linejoin="round"/>`).join('') + `</mask>`;
+    h += state.polys.filter(p=>built(p.kind)).map(p=>`<polygon points="${pts2(p.pts)}" fill="${mid}" fill-opacity=".22" mask="url(#pNear)"/>`).join('');
+  }
   const order = state.polys.map((p,i)=>i).sort((a,b)=>DRAW_ORDER.indexOf(state.polys[a].kind)-DRAW_ORDER.indexOf(state.polys[b].kind));
-  for(const i of order){ const p = state.polys[i], P = pts2(p.pts);
+  for(const i of order){ const p = state.polys[i], P = pts2(at(p));
     if(p.kind==='landscape') continue;
     if(isLine(p.kind)) h += `<polyline points="${P}" fill="none" stroke="${ink}" stroke-width="${1.6*u}"/>`;
     else if(p.kind==='sidewalk') h += `<polygon points="${P}" fill="${mid}" fill-opacity=".12" stroke="${mid}" stroke-width="${u}"/>`;
@@ -744,13 +754,17 @@ function drawPlan(){
     else h += `<polygon points="${P}" fill="${css('bg-alt') || '#eee'}" stroke="${ink}" stroke-width="${2*u}" stroke-linejoin="miter"/>`; }
   h += `<polygon points="${pts2(meta.lot_px)}" fill="none" stroke="${ink}" stroke-width="${1.2*u}" stroke-dasharray="${14*u} ${4*u} ${3*u} ${4*u}"/>`;
   h += edges(meta.lot_px, true);
-  for(const p of state.polys) if(p.kind==='house' || p.kind==='patio') h += edges(p.pts, false);
+  for(const p of state.polys) if(built(p.kind)) h += edges(at(p), false);
   svg.innerHTML = h;
   const sf = pts => polyArea(pts)/(meta.px_per_ft**2), sum = kd => state.polys.filter(p=>p.kind===kd).reduce((t,p)=>t+sf(p.pts), 0);
   const lot = sf(meta.lot_px), house = sum('house'), patio = sum('patio'), n = v => Math.round(v).toLocaleString() + ' sf';
   $('planAreas').innerHTML = `<span>Lot</span><b>${n(lot)}</b><span>House / garage</span><b>${n(house)}</b>` +
     (patio ? `<span>Covered patio</span><b>${n(patio)}</b>` : '') +
     `<span>Coverage</span><b>${lot ? (100*(house+patio)/lot).toFixed(1) : '0'}%</b>`;
+  const ew = -L[0], ns = -L[1], dir = (v, pos, neg) => Math.abs(v) < 0.05 ? '' : `${ftIn(Math.abs(v))} ${v > 0 ? pos : neg}`;
+  const mv = [dir(ew, 'right', 'left'), dir(ns, 'up', 'down')].filter(Boolean).join(' and ');
+  $('planNote').textContent = (mv ? `House and patio sit ${mv} of where you traced them: the photo sees the roofs at a slight angle, so the plan moves them back onto their walls. ` : '') +
+    'Lengths are off the photo, ±1-2 ft until taped.';
 }
 
 const ZOOMS = [1, 1.5, 2, 3, 4];
