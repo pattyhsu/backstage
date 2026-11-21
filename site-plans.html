@@ -126,7 +126,12 @@ body { overflow:hidden; height:100vh; }
   .sw{ padding:6px 9px; }
   .tools{ grid-template-columns:1fr 1fr 1fr; }
 }
-.ed.has-plan{ grid-template-columns:190px auto 300px minmax(0,1fr); }
+.ed.has-plan{ grid-template-columns:190px auto minmax(0,1fr) 300px; }
+/* wide screens: tools | photo | plan | controls - the plan sits beside the photo it is drawn from */
+.ed.has-plan > .ed-rail{ grid-column:1; grid-row:1; }
+.ed.has-plan .viewport{ grid-column:2; grid-row:1; }
+.ed.has-plan .ed-plan{ grid-column:3; grid-row:1; }
+.ed.has-plan .ed-side{ grid-column:4; grid-row:1; }
 .ed-plan{ min-width:0; display:flex; flex-direction:column; gap:8px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg); padding:10px 12px; box-sizing:border-box; }
 .ed-plan-h{ display:flex; align-items:baseline; gap:10px; font-size:13px; }
 .ed-plan-h span{ color:var(--text-4); font-size:12px; }
