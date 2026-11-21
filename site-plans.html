@@ -166,7 +166,7 @@ body { overflow:hidden; height:100vh; }
   .ed-rail{ position:static; gap:6px; }
   .legend{ flex-direction:row; flex-wrap:wrap; }
   .sw{ width:auto; flex:1 1 auto; padding:6px 8px; font-size:12.5px; }
-  .tools{ grid-template-columns:repeat(5,1fr); }
+  .tools{ grid-template-columns:repeat(3,1fr); }
   .ed-rail .sp-hint, .ed-rail .check:has(#showCuts){ display:none; }
   .viewport{ height:62vh; }
   .ed-side{ margin-top:8px; }
@@ -237,6 +237,7 @@ body { overflow:hidden; height:100vh; }
                 <button class="tool" data-tool="measure" aria-pressed="false">Measure</button>
                 <button class="tool" data-tool="move" aria-pressed="false">Move</button>
                 <button class="tool" data-tool="paint" aria-pressed="false">Paint</button>
+                <button class="tool" data-tool="lot" aria-pressed="false">Lot line</button>
               </div>
               <div class="zoom"><button id="zOut" aria-label="Zoom out">−</button><span id="zLvl">1×</span><button id="zIn" aria-label="Zoom in">+</button></div>
               <label class="check"><input type="checkbox" id="snap" checked> Snap edges square</label>
@@ -259,6 +260,14 @@ body { overflow:hidden; height:100vh; }
                 <button class="btn btn-sm" id="penUndo">Remove last corner</button>
                 <button class="btn btn-sm" id="penCancel">Cancel</button>
                 <button class="btn btn-sm btn-primary" id="penDone" disabled>Done</button>
+              </div>
+              <div class="panel" id="lotPanel" hidden>
+                <span id="lotInfo"></span>
+                <button class="btn btn-sm" data-nudge="-1,0" aria-label="Move the lot line left 3 inches">←</button>
+                <button class="btn btn-sm" data-nudge="1,0" aria-label="Move the lot line right 3 inches">→</button>
+                <button class="btn btn-sm" data-nudge="0,-1" aria-label="Move the lot line up 3 inches">↑</button>
+                <button class="btn btn-sm" data-nudge="0,1" aria-label="Move the lot line down 3 inches">↓</button>
+                <button class="btn btn-sm" id="lotReset">Put it back</button>
               </div>
               <div class="panel" id="dimPanel" hidden>
                 <span id="dimInfo">Tap the first point.</span>
@@ -537,7 +546,7 @@ async function open(r){
          : (draft || (r.markup && r.markup.draft)) ? 'Your saved edits are back. Keep going, then Send.'
          : 'This is what you sent last time. Fix it, then Send again.');
 }
-function normal(s){ s = structuredClone(s || {}); s.regions = s.regions || {}; s.polys = s.polys || []; s.dims = s.dims || []; s.note = s.note || ''; return s; }
+function normal(s){ s = structuredClone(s || {}); s.regions = s.regions || {}; s.polys = s.polys || []; s.dims = s.dims || []; s.note = s.note || ''; s.lotShift = s.lotShift || [0, 0]; return s; }
 
 function setAxes(){
   let best = 0; const L = meta.lot_px;
@@ -550,7 +559,9 @@ const fromUV = q => [q[0]*U[0]+q[1]*V[0], q[0]*U[1]+q[1]*V[1]];
 const dist = (a,b) => Math.hypot(a[0]-b[0], a[1]-b[1]);
 const r1 = v => Math.round(v*10)/10;
 const k = () => W / $('stage').clientWidth;
-function rings(){ const out = state.polys.map((p,i)=>({pts:p.pts, i, open:isLine(p.kind)})); out.push({pts:meta.lot_px, i:-1}); return out; }
+// the lot line can be moved on the photo (its shape is the county's; only where it sits on the photo is a fit)
+const lotPx = () => { const t = state.lotShift || [0, 0]; return meta.lot_px.map(p=>[p[0] + t[0], p[1] + t[1]]); };
+function rings(){ const out = state.polys.map((p,i)=>({pts:p.pts, i, open:isLine(p.kind)})); out.push({pts:lotPx(), i:-1}); return out; }
 function nearestVertex(p, thr, skip){
   let best = null, bd = thr;
   for(const r of rings()) r.pts.forEach((q,j)=>{ if(skip && skip.i===r.i && skip.j===j) return;
@@ -677,7 +688,7 @@ function edgeLabel(a, b, fs){
 }
 function drawVec(){
   if(!meta) return;
-  const s = k(), sw = 2.2*Math.max(1, s), fs = 13*Math.max(1, s), lot = pts2(meta.lot_px);
+  const s = k(), sw = 2.2*Math.max(1, s), fs = 13*Math.max(1, s), lot = pts2(lotPx());
   let h = `<defs><mask id="land"><rect width="${W}" height="${H}" fill="#fff"/>` +
           state.polys.filter(p=>p.kind!=='landscape' && !isLine(p.kind)).map(p=>`<polygon points="${pts2(p.pts)}" fill="#000"/>`).join('') + `</mask>
           <pattern id="hatch" width="${10*s}" height="${10*s}" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="${10*s}" stroke="${css('patio')}" stroke-width="${3*s}"/></pattern></defs>`;
@@ -721,7 +732,7 @@ function drawPlan(){
   const L = meta.lean_ft || [0, 0], f = meta.px_per_ft, built = kd => kd==='house' || kd==='patio';
   // the plan takes the camera lean out of what sits on the roof: house + patio move by -lean (same as the sheet)
   const at = p => built(p.kind) ? p.pts.map(q=>[q[0] - L[0]*f, q[1] + L[1]*f]) : p.pts;
-  const all = meta.lot_px.concat(...state.polys.filter(p=>p.kind!=='sidewalk' && !isLine(p.kind)).map(p=>p.pts));   // fit the lot; the street runs off the edge
+  const all = lotPx().concat(...state.polys.filter(p=>p.kind!=='sidewalk' && !isLine(p.kind)).map(p=>p.pts));   // fit the lot; the street runs off the edge
   let x0=Math.min(...all.map(p=>p[0])), x1=Math.max(...all.map(p=>p[0])), y0=Math.min(...all.map(p=>p[1])), y1=Math.max(...all.map(p=>p[1]));
   const pad = 0.07*Math.max(x1-x0, y1-y0); x0-=pad; y0-=pad; x1+=pad; y1+=pad;
   const vw = x1-x0, vh = y1-y0, cw = svg.clientWidth || 1, ch = svg.clientHeight || 1, s = Math.min(cw/vw, ch/vh);
@@ -752,12 +763,12 @@ function drawPlan(){
     else if(p.kind==='concrete') h += `<polygon points="${P}" fill="${mid}" fill-opacity=".22" stroke="${mid}" stroke-width="${u}"/>`;
     else if(p.kind==='patio') h += `<polygon points="${P}" fill="url(#pHatch)" stroke="${ink}" stroke-width="${1.2*u}" stroke-dasharray="${5*u} ${3*u}"/>`;
     else h += `<polygon points="${P}" fill="${css('bg-alt') || '#eee'}" stroke="${ink}" stroke-width="${2*u}" stroke-linejoin="miter"/>`; }
-  h += `<polygon points="${pts2(meta.lot_px)}" fill="none" stroke="${ink}" stroke-width="${1.2*u}" stroke-dasharray="${14*u} ${4*u} ${3*u} ${4*u}"/>`;
-  h += edges(meta.lot_px, true);
+  h += `<polygon points="${pts2(lotPx())}" fill="none" stroke="${ink}" stroke-width="${1.2*u}" stroke-dasharray="${14*u} ${4*u} ${3*u} ${4*u}"/>`;
+  h += edges(lotPx(), true);
   for(const p of state.polys) if(built(p.kind)) h += edges(at(p), false);
   svg.innerHTML = h;
   const sf = pts => polyArea(pts)/(meta.px_per_ft**2), sum = kd => state.polys.filter(p=>p.kind===kd).reduce((t,p)=>t+sf(p.pts), 0);
-  const lot = sf(meta.lot_px), house = sum('house'), patio = sum('patio'), n = v => Math.round(v).toLocaleString() + ' sf';
+  const lot = sf(lotPx()), house = sum('house'), patio = sum('patio'), n = v => Math.round(v).toLocaleString() + ' sf';
   $('planAreas').innerHTML = `<span>Lot</span><b>${n(lot)}</b><span>House / garage</span><b>${n(house)}</b>` +
     (patio ? `<span>Covered patio</span><b>${n(patio)}</b>` : '') +
     `<span>Coverage</span><b>${lot ? (100*(house+patio)/lot).toFixed(1) : '0'}%</b>`;
@@ -793,6 +804,7 @@ const HINT = {
   erase: () => 'Tap a shape to delete it.',
   measure: () => 'Tap two points, then type the taped length.',
   move: () => 'Drag to scroll the photo.',
+  lot: () => 'Drag anywhere on the photo to slide the lot line onto the fences. Your shapes stay where they are.',
 };
 $('legend').addEventListener('click', e=>{
   const b = e.target.closest('[data-kind]'); if(!b) return; kind = b.dataset.kind;
@@ -804,7 +816,7 @@ function setTool(t){
   tool = t; pen = []; dim = []; ghost = null;
   document.querySelectorAll('.tool').forEach(x=>x.setAttribute('aria-pressed', x.dataset.tool===t));
   $('stage').className = 'stage ' + (t==='move' ? 'move' : 'paint');
-  $('penPanel').hidden = t!=='draw'; $('dimPanel').hidden = t!=='measure';
+  $('penPanel').hidden = t!=='draw'; $('dimPanel').hidden = t!=='measure'; $('lotPanel').hidden = t!=='lot'; updLot();
   showCuts(); resetDimPanel(); updPen(); drawVec(); if(meta) status(HINT[t]());
 }
 function showCuts(){ $('cCuts').hidden = !($('showCuts').checked && (tool==='paint' || tool==='erase')); }
@@ -819,6 +831,7 @@ stage.addEventListener('pointerdown', e=>{
   const p = toPx(e);
   if(tool==='measure'){ onDimTap(p.map(r1)); return; }
   e.preventDefault(); stage.setPointerCapture(e.pointerId);
+  if(tool==='lot'){ pushUndo(); gesture = {lot:true, p0:p, s0:[...state.lotShift]}; return; }
   if(tool==='draw'){
     let hit = pen.length ? null : nearestVertex(p, 16*k()); if(hit && hit.i<0) hit = null;
     const edge = (pen.length || hit) ? null : nearestMid(p, 16*k());
@@ -836,6 +849,8 @@ stage.addEventListener('pointerdown', e=>{
 stage.addEventListener('pointermove', e=>{
   if(!meta) return;
   const p = toPx(e);
+  if(tool==='lot'){ if(gesture && gesture.lot){ const g = gesture;
+      state.lotShift = [r1(g.s0[0] + p[0] - g.p0[0]), r1(g.s0[1] + p[1] - g.p0[1])]; drawVec(); updLot(); } return; }
   if(tool==='draw'){
     if(gesture){
       if((gesture.hit || gesture.edge || gesture.seg) && !gesture.dragging && Math.hypot(e.clientX-gesture.start[0], e.clientY-gesture.start[1]) > 6){
@@ -856,6 +871,9 @@ stage.addEventListener('pointermove', e=>{
   last = p;
 });
 function endPointer(e, cancelled){
+  if(tool==='lot' && gesture && gesture.lot){ const g = gesture; gesture = null;
+    if(g.s0[0]===state.lotShift[0] && g.s0[1]===state.lotShift[1]) undoStack.pop(); else saveDraft();
+    return; }
   if(tool==='draw' && gesture){
     const g = gesture; gesture = null;
     if(g.dragging){ ghost = null;
@@ -923,6 +941,18 @@ addEventListener('keydown', e=>{
   if(e.key==='Escape'){ $('penCancel').click(); } else if(e.key==='Enter'){ closePen(); }
   else if(e.key==='Backspace' && pen.length){ e.preventDefault(); $('penUndo').click(); }
 });
+function updLot(){
+  if(!meta) return; const t = state.lotShift, f = meta.px_per_ft, ew = t[0]/f, ns = -t[1]/f;
+  const dir = (v, pos, neg) => Math.abs(v) < 0.04 ? '' : `${ftIn(Math.abs(v))} ${v > 0 ? pos : neg}`;
+  const mv = [dir(ew, 'right', 'left'), dir(ns, 'up', 'down')].filter(Boolean).join(' and ');
+  $('lotInfo').textContent = 'Lot line: drag the photo, or nudge 3 inches at a time, until the yellow line sits on the fences where they meet the ground. ' +
+    (mv ? `Moved ${mv}.` : 'Not moved.');
+  $('lotReset').disabled = !mv;
+}
+$('lotPanel').addEventListener('click', e=>{ const b = e.target.closest('[data-nudge]'); if(!b || !meta) return;
+  const [dx, dy] = b.dataset.nudge.split(',').map(Number), step = 0.25*meta.px_per_ft;
+  pushUndo(); state.lotShift = [r1(state.lotShift[0] + dx*step), r1(state.lotShift[1] + dy*step)]; drawVec(); updLot(); saveDraft(); });
+$('lotReset').onclick = ()=>{ pushUndo(); state.lotShift = [0, 0]; drawVec(); updLot(); saveDraft(); };
 function resetDimPanel(){ $('dimInfo').textContent='Tap the first point.'; $('dimText').hidden=true; $('dimAdd').hidden=true; $('dimText').value=''; }
 function onDimTap(p){
   if(dim.length>=2) return;
@@ -938,7 +968,7 @@ $('dimText').addEventListener('keydown', e=>{ if(e.key==='Enter') $('dimAdd').cl
 function pushUndo(){ undoStack.push(JSON.stringify(state)); if(undoStack.length>80) undoStack.shift(); }
 $('undo').onclick = ()=>{
   if(pen.length){ $('penUndo').click(); return; }
-  if(!undoStack.length) return; state = JSON.parse(undoStack.pop()); $('note').value=state.note||''; repaintAll(); saveDraft(); };
+  if(!undoStack.length) return; state = normal(JSON.parse(undoStack.pop())); $('note').value=state.note||''; repaintAll(); updLot(); saveDraft(); };
 // every edit: kept in this browser at once, and saved to Backstage 2 s after the last change, so the
 // same job opened on the phone or the computer carries on from the same drawing
 let saveT = null;
@@ -956,18 +986,20 @@ function saveDraft(){
 }
 $('restart').onclick = ()=>{
   if(!row || !row.prefill) return;
-  pushUndo(); state = normal(row.prefill); $('note').value = state.note; repaintAll(); saveDraft();
+  pushUndo(); const keep = state.lotShift; state = normal(row.prefill); state.lotShift = keep; $('note').value = state.note; repaintAll(); saveDraft();
   status('Back to the first draft. Undo brings your edits back.');
 };
 $('send').onclick = async ()=>{
   if(pen.length){ status('Finish the shape you are drawing first (tap its first corner or Done), or Cancel it.', 'bad'); return; }
   if(!state.polys.length && !Object.keys(state.regions).length){ status('Draw at least one shape first.', 'bad'); return; }
-  const ft = p => [ +(meta.x0_ft + p[0]/meta.px_per_ft).toFixed(2), +(meta.y1_ft - p[1]/meta.px_per_ft).toFixed(2) ];
+  const t = state.lotShift || [0, 0];              // shapes are measured from the lot line where she put it on the photo
+  const ft = p => [ +(meta.x0_ft + (p[0]-t[0])/meta.px_per_ft).toFixed(2), +(meta.y1_ft - (p[1]-t[1])/meta.px_per_ft).toFixed(2) ];
   const body = {
     job: meta.job, address: meta.address, sentAt: new Date().toISOString(), savedAt: new Date().toISOString(), version: 2,
     frame: {px_per_ft: meta.px_per_ft, x0_ft: meta.x0_ft, y1_ft: meta.y1_ft, width: W, height: H},
     state, feet: { polys: state.polys.map(p=>({kind:p.kind, pts:p.pts.map(ft)})),
-                   dims: state.dims.map(d=>({a:ft(d.a), b:ft(d.b), text:d.text})) },
+                   dims: state.dims.map(d=>({a:ft(d.a), b:ft(d.b), text:d.text})),
+                   lot_shift_ft: [ +(t[0]/meta.px_per_ft).toFixed(3), +(-t[1]/meta.px_per_ft).toFixed(3) ] },
   };
   $('send').disabled = true; status('Sending…'); clearTimeout(saveT);
   const r = await setStatus({ markup: body, status: 'sent' });
