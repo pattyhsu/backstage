@@ -125,6 +125,12 @@ body { overflow:hidden; height:100vh; }
 .ed-status.ok{ color:var(--green); } .ed-status.bad{ color:var(--red); }
 [hidden]{ display:none !important; }
 .sp-back{ display:none; margin:0 0 10px; }
+/* an open job takes the whole width; the back button returns to the list */
+.sp-work.job-open{ grid-template-columns:minmax(0,1fr); }
+.sp-work.job-open .sp-left{ display:none; }
+.sp-work.job-open .sp-back{ display:inline-flex; }
+.sp-work:not(.job-open){ grid-template-columns:minmax(0,560px); }
+.sp-work:not(.job-open) .sp-right{ display:none; }
 /* phones: one thing at a time - the list, or the open job */
 @media (max-width: 820px){
   .sp-hdr{ padding:12px 16px 8px; }
