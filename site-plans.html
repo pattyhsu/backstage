@@ -117,9 +117,15 @@ body { overflow:hidden; height:100vh; }
 .stage img{ display:block; width:100%; height:auto; user-select:none; -webkit-user-drag:none; }
 .stage.paint{ touch-action:none; cursor:crosshair; }
 .stage.move{ touch-action:pan-x pan-y; cursor:grab; }
-.ed-main{ display:flex; gap:14px; align-items:flex-start; min-width:0; }
-.ed-main .viewport{ flex:0 0 auto; }
-.ed-side{ flex:1 1 240px; min-width:240px; max-width:420px; display:flex; flex-direction:column; }
+.ed-main{ display:contents; }
+.ed-side{ min-width:0; display:flex; flex-direction:column; }
+@media (min-width: 821px){
+  .ed{ grid-template-columns:190px auto 300px; justify-content:start; gap:16px; }
+  .ed-rail{ overflow-y:auto; position:static; }
+  .ed-rail .sp-hint{ display:none; }
+  .sw{ padding:6px 9px; }
+  .tools{ grid-template-columns:1fr 1fr 1fr; }
+}
 .ed-side .panel{ margin-top:0; margin-bottom:8px; }
 .ed-side .panel > span{ flex:1 1 100%; }
 .ed-side .ed-bar{ margin-top:8px; }
@@ -131,7 +137,9 @@ body { overflow:hidden; height:100vh; }
 .ed-status{ flex:1; min-width:180px; font-size:13px; color:var(--text-3); }
 .ed-status.ok{ color:var(--green); } .ed-status.bad{ color:var(--red); }
 [hidden]{ display:none !important; }
-.sp-back{ display:none; margin:0 0 10px; }
+.sp-back{ display:none; margin:0; align-self:center; }
+.sp-sub{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; margin:0 0 12px; }
+.sp-sub .sp-msg{ margin:0; }
 /* an open job takes the whole width; the back button returns to the list */
 .sp-work.job-open{ grid-template-columns:minmax(0,1fr); }
 .sp-work.job-open .sp-left{ display:none; }
@@ -155,8 +163,8 @@ body { overflow:hidden; height:100vh; }
   .tools{ grid-template-columns:repeat(5,1fr); }
   .ed-rail .sp-hint, .ed-rail .check:has(#showCuts){ display:none; }
   .viewport{ height:62vh; }
-  .ed-main{ display:block; }
-  .ed-side{ max-width:none; min-width:0; margin-top:8px; }
+  .ed-side{ margin-top:8px; }
+  .ed-rail{ max-height:none !important; }
   .sp-areas{ grid-template-columns:auto auto; }
 }
 </style>
@@ -194,12 +202,13 @@ body { overflow:hidden; height:100vh; }
       <div id="vEmpty" class="sp-empty">Pick an address on the left, or open a site plan from the list.</div>
 
       <div id="vJob" hidden>
-        <button class="btn btn-sm sp-back" id="back">← All site plans</button>
-        <div class="sp-title"><h2 id="jAddr"></h2><span class="chip" id="jChip"></span></div>
-        <p class="sp-msg" id="jMsg"></p>
-        <div class="sp-row" id="pdfKeep" hidden style="margin-top:0">
-          <a class="btn btn-sm" id="lastPdf" target="_blank" rel="noopener">Download the last PDF</a>
-          <button class="btn btn-sm" id="keepPdf">Keep the PDF (cancel the change)</button>
+        <div class="sp-title"><button class="btn btn-sm sp-back" id="back">← All site plans</button><h2 id="jAddr"></h2><span class="chip" id="jChip"></span></div>
+        <div class="sp-sub">
+          <p class="sp-msg" id="jMsg"></p>
+          <div class="sp-row" id="pdfKeep" hidden style="margin:0">
+            <a class="btn btn-sm" id="lastPdf" target="_blank" rel="noopener">Download the last PDF</a>
+            <button class="btn btn-sm" id="keepPdf">Keep the PDF (cancel the change)</button>
+          </div>
         </div>
 
         <div id="vWait" class="sp-wait" hidden><div class="spin"></div><div id="waitText"></div></div>
@@ -695,8 +704,9 @@ const ZOOMS = [1, 1.5, 2, 3, 4];
 function setZoom(z){
   zoom = z; const vp = $('viewport');
   if(matchMedia('(min-width: 821px)').matches){            // the photo box hugs the photo; the side column takes the rest
-    vp.style.height = Math.max(320, innerHeight - vp.getBoundingClientRect().top - 20) + 'px';   // down to the window's bottom
-    const avail = vp.parentElement.clientWidth - 254;
+    const h = Math.max(320, innerHeight - vp.getBoundingClientRect().top - 28);   // down to the window's bottom
+    vp.style.height = h + 'px'; document.querySelector('.ed-rail').style.maxHeight = h + 'px';
+    const avail = document.querySelector('.ed').clientWidth - 190 - 300 - 32;
     vp.style.width = Math.max(240, Math.min(avail, z > 1 ? avail : Math.round(vp.clientHeight * W / H) + 2)) + 'px';
   } else { vp.style.width = ''; vp.style.height = ''; }
   const fitW = Math.min(vp.clientWidth, vp.clientHeight * W / H);
