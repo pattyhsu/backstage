@@ -288,12 +288,14 @@ body { overflow:hidden; height:100vh; }
                 <div id="bldgRows"></div>
                 <datalist id="bldgNames"><option value="Detached garage"><option value="Accessory structure"><option value="ADU"><option value="Shed"><option value="Workshop"><option value="Pool house"></datalist>
               </div>
+              <label class="check" style="margin-bottom:8px">House is
+                <select id="edStories"><option value="">(leave off the PDF)</option><option value="1">1 story</option><option value="2">2 stories</option></select></label>
               <textarea id="note" placeholder="Notes for this drawing (optional)" style="width:100%;box-sizing:border-box;margin-top:8px;border:1px solid var(--border);border-radius:var(--radius);padding:8px;font:inherit;min-height:44px"></textarea>
               <div class="ed-bar">
                 <button class="btn" id="undo">Undo</button>
                 <span class="ed-status" id="status"></span>
                 <span class="sp-hint" id="saved" style="margin:0"></span>
-                <button class="btn btn-primary" id="send" disabled>Send for line check</button>
+                <button class="btn btn-primary" id="send" disabled>Make the PDF</button>
               </div>
               </div>
             </div>
@@ -348,8 +350,9 @@ window.sb=sb;
 // ========== SITE PLANS ==========
 // Rows: public.site_plan_jobs (RLS: owner/worker). Files: private bucket site-plans/<id>/.
 // The Mac mini worker (floor plans/Site Plan App/worker/worker.py) moves queued -> markup,
-// sent -> line_check, approved -> done. This page only inserts and makes the moves
-// markup->sent, line_check->approved, line_check/done/failed->markup, failed->queued.
+// sent -> done (drawing straight to the PDF since 2026-11-21; line_check -> approved -> done is kept for
+// older rows). This page only inserts and makes the moves markup->sent, line_check->approved,
+// line_check/done/failed->markup, failed->queued, markup->done (keep the PDF).
 const BUCKET = 'site-plans';
 const GEO = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer';
 const $ = id => document.getElementById(id);
@@ -357,12 +360,12 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;',
 const fmtTime = t => t ? new Date(t).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}) : '';
 const STATUS = {
   queued:['Getting data','wait'], gathering:['Getting data','wait'], markup:['Your edits','you'],
-  sent:['Making line check','wait'], checking:['Making line check','wait'], line_check:['Check the lines','you'],
+  sent:['Making PDF','wait'], checking:['Making PDF','wait'], line_check:['Check the lines','you'],
   approved:['Making PDF','wait'], drawing:['Making PDF','wait'], done:['PDF ready','ok'], failed:['Failed','bad'],
 };
 const WAIT_TEXT = {
   queued:'Waiting for the Mac mini to pick this up…', gathering:'Getting the county lot, the photo and a first draft (about a minute)…',
-  sent:'Waiting for the Mac mini…', checking:'Turning your shapes into plan lines…',
+  sent:'Waiting for the Mac mini…', checking:'Turning your shapes into plan lines, then drawing the PDF (about a minute)…',
   approved:'Waiting for the Mac mini…', drawing:'Drawing the sheet and printing the PDF…',
 };
 let jobs = [], current = null, picked = null;
@@ -553,12 +556,12 @@ async function open(r){
   const draft = pickd && pickd === local ? local.state : null;
   state = normal(pickd ? pickd.state : (r.prefill || {}));
   $('saved').textContent = pickd && pickd.savedAt ? 'Saved ' + fmtTime(pickd.savedAt) : '';
-  $('note').value = state.note || '';
+  $('note').value = state.note || ''; $('edStories').value = r.stories || '';
   repaintAll(); setZoom(1); setTool('draw');
   $('send').disabled = false;
-  status(!pickd ? 'First draft: house from the county roof outline, concrete from the photo. Fix anything wrong, then Send.'
-         : (draft || (r.markup && r.markup.draft)) ? 'Your saved edits are back. Keep going, then Send.'
-         : 'This is what you sent last time. Fix it, then Send again.');
+  status(!pickd ? 'First draft: house from the county roof outline, concrete from the photo. Fix anything wrong, then Make the PDF.'
+         : (draft || (r.markup && r.markup.draft)) ? 'Your saved edits are back. Keep going, then Make the PDF.'
+         : 'This is what you sent last time. Fix it, then Make the PDF again.');
 }
 function normal(s){ s = structuredClone(s || {}); s.regions = s.regions || {}; s.polys = s.polys || []; s.dims = s.dims || []; s.note = s.note || ''; s.lotShift = s.lotShift || [0, 0]; return s; }
 
@@ -868,6 +871,8 @@ function setTool(t){
 }
 function showCuts(){ $('cCuts').hidden = true; }
 $('note').addEventListener('input', ()=>{ state.note = $('note').value; saveDraft(); });
+$('edStories').onchange = ()=>{ if(row) sb.from('site_plan_jobs').update({ stories: $('edStories').value ? +$('edStories').value : null })
+  .eq('id', row.id).eq('status', 'markup').then(({error})=>{ if(!error) row.stories = $('edStories').value ? +$('edStories').value : null; }); };
 
 const stage = $('stage');
 function toPx(e){ const r = stage.getBoundingClientRect(); return [ (e.clientX-r.left)/r.width*W, (e.clientY-r.top)/r.height*H ]; }
@@ -977,7 +982,7 @@ function closePen(){
   }
   pushUndo(); state.polys.push({kind, pts:pen}); const a = areaSf(pen); pen = []; ghost = null;
   updPen(); drawVec(); saveDraft();
-  status(`Added a ${KINDS[kind]} shape, about ${Math.round(a).toLocaleString()} sq ft. Draw the next one, or Send.`);
+  status(`Added a ${KINDS[kind]} shape, about ${Math.round(a).toLocaleString()} sq ft. Draw the next one, or Make the PDF.`);
 }
 $('penUndo').onclick = ()=>{ pen.pop(); ghost=null; updPen(); drawVec(); };
 $('penCancel').onclick = ()=>{ pen = []; ghost=null; updPen(); drawVec(); };
@@ -1047,11 +1052,11 @@ $('send').onclick = async ()=>{
                    dims: state.dims.map(d=>({a:ft(d.a), b:ft(d.b), text:d.text})),
                    lot_shift_ft: [ +(t[0]/meta.px_per_ft).toFixed(3), +(-t[1]/meta.px_per_ft).toFixed(3) ] },
   };
-  $('send').disabled = true; status('Sending…'); clearTimeout(saveT);
-  const r = await setStatus({ markup: body, status: 'sent' });
+  $('send').disabled = true; status('Sending to the Mac mini…'); clearTimeout(saveT);
+  const r = await setStatus({ markup: body, stories: $('edStories').value ? +$('edStories').value : null, status: 'sent' });
   $('send').disabled = false;
   if(r){ try{ localStorage.removeItem(draftKey); }catch(e){} row = null; meta = null; }
-  else status('Not sent. Check the connection and press Send again.', 'bad');
+  else status('Not sent. Check the connection and press Make the PDF again.', 'bad');
 };
 return { open };
 })();
