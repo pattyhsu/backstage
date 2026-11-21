@@ -287,6 +287,7 @@ body { overflow:hidden; height:100vh; }
                 <b>Buildings</b>
                 <div id="bldgRows"></div>
                 <datalist id="bldgNames"><option value="Detached garage"><option value="Accessory structure"><option value="ADU"><option value="Shed"><option value="Workshop"><option value="Pool house"></datalist>
+                <datalist id="houseNames"><option value="SFD"><option value="Main house"><option value="Duplex"><option value="Triplex"></datalist>
               </div>
               <label class="check" style="margin-bottom:8px">House is
                 <select id="edStories"><option value="">(leave off the PDF)</option><option value="1">1 story</option><option value="2">2 stories</option></select></label>
@@ -681,15 +682,18 @@ function centroid(pts){ let A=0, cx=0, cy=0; for(let i=0;i<pts.length;i++){ cons
   A+=c; cx+=(a[0]+b[0])*c; cy+=(a[1]+b[1])*c; } return A ? [cx/(3*A), cy/(3*A)] : pts[0]; }
 let bldgSig = '';
 function renderBldgs(){
-  const L = bldgList(), others = L.slice(1), box = $('bldgPanel');
-  box.hidden = !others.length;
-  const sig = others.join(',') + '|' + others.map(i=>state.polys[i].label || '').join('|');
+  const L = bldgList(), box = $('bldgPanel');
+  box.hidden = !L.length;
+  const sf = i => Math.round(areaSf(state.polys[i].pts)).toLocaleString() + ' sf';
+  const sig = L.join(',') + '|' + L.map(i=>state.polys[i].label || '').join('|');
   if(sig === bldgSig || box.contains(document.activeElement)){   // only the areas change: don't rebuild under her typing
-    others.forEach((i, n)=>{ const sp = $('bldgRows').querySelectorAll('span')[n]; if(sp) sp.textContent = Math.round(areaSf(state.polys[i].pts)).toLocaleString() + ' sf'; });
+    L.forEach(i=>{ const sp = $('bldgRows').querySelector(`span[data-area="${i}"]`); if(sp) sp.textContent = sf(i); });
     return; }
   bldgSig = sig;
-  $('bldgRows').innerHTML = `<div class="bl-row"><i style="background:var(--text-4)">H</i><span>House (SFD) — the biggest shape</span></div>` +
-    others.map((i, n)=>`<div class="bl-row"><i>${n+1}</i><input list="bldgNames" data-poly="${i}" placeholder="Accessory structure" value="${esc(state.polys[i].label || '')}" aria-label="Name of building ${n+1}"><span>${Math.round(areaSf(state.polys[i].pts)).toLocaleString()} sf</span></div>`).join('');
+  $('bldgRows').innerHTML = L.map((i, n)=>{ const house = n === 0;
+    return `<div class="bl-row"><i${house ? ' style="background:var(--text-4)"' : ''}>${house ? 'H' : n}</i>` +
+      `<input list="${house ? 'houseNames' : 'bldgNames'}" data-poly="${i}" placeholder="${house ? 'SFD' : 'Accessory structure'}" value="${esc(state.polys[i].label || '')}" aria-label="${house ? 'Name of the house' : 'Name of building ' + n}">` +
+      `<span data-area="${i}">${sf(i)}</span></div>`; }).join('');
 }
 $('bldgRows').addEventListener('input', e=>{ const inp = e.target.closest('input[data-poly]'); if(!inp) return;
   const p = state.polys[+inp.dataset.poly]; if(!p) return; p.label = inp.value.trim(); bldgSig = ''; drawPlan(); saveDraft(); });
@@ -807,8 +811,8 @@ function drawPlan(){
   h += `<polygon points="${pts2(lotPx())}" fill="none" stroke="${ink}" stroke-width="${1.2*u}" stroke-dasharray="${14*u} ${4*u} ${3*u} ${4*u}"/>`;
   h += edges(lotPx(), true);
   for(const p of state.polys) if(built(p.kind)) h += edges(at(p), false);
-  bldgList().slice(1).forEach(i=>{ const p = state.polys[i], c = centroid(at(p));
-    h += `<text x="${c[0]}" y="${c[1]}" dy="${fs*.35}" text-anchor="middle" font-family="DM Sans, Arial, sans-serif" font-size="${fs*.95}" fill="${ink}" stroke="var(--bg)" stroke-width="${fs*.3}" paint-order="stroke">${esc((p.label || 'Accessory structure').toUpperCase())}</text>`; });
+  bldgList().forEach((i, n)=>{ const p = state.polys[i], c = centroid(at(p));
+    h += `<text x="${c[0]}" y="${c[1]}" dy="${fs*.35}" text-anchor="middle" font-family="DM Sans, Arial, sans-serif" font-size="${fs*.95}" fill="${ink}" stroke="var(--bg)" stroke-width="${fs*.3}" paint-order="stroke">${esc((p.label || (n ? 'Accessory structure' : 'SFD')).toUpperCase())}</text>`; });
   svg.innerHTML = h;
   const sf = pts => polyArea(pts)/(meta.px_per_ft**2), sum = kd => state.polys.filter(p=>p.kind===kd).reduce((t,p)=>t+sf(p.pts), 0);
   const lot = sf(lotPx()), house = sum('house'), patio = sum('patio'), n = v => Math.round(v).toLocaleString() + ' sf';
