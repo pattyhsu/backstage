@@ -167,7 +167,7 @@ body { overflow:hidden; height:100vh; }
   .legend{ flex-direction:row; flex-wrap:wrap; }
   .sw{ width:auto; flex:1 1 auto; padding:6px 8px; font-size:12.5px; }
   .tools{ grid-template-columns:repeat(3,1fr); }
-  .ed-rail .sp-hint, .ed-rail .check:has(#showCuts){ display:none; }
+  .ed-rail .sp-hint{ display:none; }
   .viewport{ height:62vh; }
   .ed-side{ margin-top:8px; }
   .ed-rail{ max-height:none !important; }
@@ -236,12 +236,10 @@ body { overflow:hidden; height:100vh; }
                 <button class="tool" data-tool="erase" aria-pressed="false">Erase</button>
                 <button class="tool" data-tool="measure" aria-pressed="false">Measure</button>
                 <button class="tool" data-tool="move" aria-pressed="false">Move</button>
-                <button class="tool" data-tool="paint" aria-pressed="false">Paint</button>
                 <button class="tool" data-tool="lot" aria-pressed="false">Lot line</button>
               </div>
               <div class="zoom"><button id="zOut" aria-label="Zoom out">−</button><span id="zLvl">1×</span><button id="zIn" aria-label="Zoom in">+</button></div>
               <label class="check"><input type="checkbox" id="snap" checked> Snap edges square</label>
-              <label class="check"><input type="checkbox" id="showCuts"> Show paint blocks</label>
               <p class="sp-hint" style="margin:0"><b>Draw</b>: tap corners, tap the first again to close. Drag a corner, or the square in the middle of an edge, to move it. <b>Erase</b>: tap a shape. Blank inside the lot = landscape.</p>
               <button class="btn btn-sm" id="restart">Start over from the first draft</button>
             </div>
@@ -249,7 +247,7 @@ body { overflow:hidden; height:100vh; }
               <div class="viewport" id="viewport">
                 <div class="stage paint" id="stage">
                   <img id="photo" alt="Aerial photo of the lot" draggable="false" crossorigin="anonymous">
-                  <canvas id="cPaint"></canvas>
+                  <canvas id="cPaint" hidden></canvas>
                   <canvas id="cCuts" hidden></canvas>
                   <svg id="vec" preserveAspectRatio="none"></svg>
                 </div>
@@ -800,7 +798,6 @@ addEventListener('resize', ()=> meta && !$('vEdit').hidden && setZoom(zoom));
 
 const HINT = {
   draw: () => isLine(kind) ? 'Tap along the curb (the edge of the road), then press Done.' : `Tap the corners of the ${KINDS[kind]}. Tap the first corner again to close it.`,
-  paint: () => `Tap or drag over the blocks to paint them ${KINDS[kind]}.`,
   erase: () => 'Tap a shape to delete it.',
   measure: () => 'Tap two points, then type the taped length.',
   move: () => 'Drag to scroll the photo.',
@@ -809,7 +806,7 @@ const HINT = {
 $('legend').addEventListener('click', e=>{
   const b = e.target.closest('[data-kind]'); if(!b) return; kind = b.dataset.kind;
   document.querySelectorAll('.sw[data-kind]').forEach(x=>x.setAttribute('aria-pressed', x===b));
-  if(tool!=='draw' && tool!=='paint') setTool('draw'); else { updPen(); status(HINT[tool]()); drawVec(); }
+  if(tool!=='draw') setTool('draw'); else { updPen(); status(HINT[tool]()); drawVec(); }
 });
 $('tools').addEventListener('click', e=>{ const b=e.target.closest('[data-tool]'); if(b) setTool(b.dataset.tool); });
 function setTool(t){
@@ -819,8 +816,7 @@ function setTool(t){
   $('penPanel').hidden = t!=='draw'; $('dimPanel').hidden = t!=='measure'; $('lotPanel').hidden = t!=='lot'; updLot();
   showCuts(); resetDimPanel(); updPen(); drawVec(); if(meta) status(HINT[t]());
 }
-function showCuts(){ $('cCuts').hidden = !($('showCuts').checked && (tool==='paint' || tool==='erase')); }
-$('showCuts').onchange = showCuts;
+function showCuts(){ $('cCuts').hidden = true; }
 $('note').addEventListener('input', ()=>{ state.note = $('note').value; saveDraft(); });
 
 const stage = $('stage');
@@ -844,7 +840,7 @@ stage.addEventListener('pointerdown', e=>{
       pushUndo(); const gone = state.polys.splice(i,1)[0]; drawVec(); saveDraft();
       status(`Deleted a ${KINDS[gone.kind]} shape. Undo brings it back.`); return; }
   }
-  pushUndo(); painting = true; strokeChanged = false; last = p; brush(p);
+  if(tool==='erase') status('Tap inside a shape (or on the curb line) to delete it.');
 });
 stage.addEventListener('pointermove', e=>{
   if(!meta) return;
