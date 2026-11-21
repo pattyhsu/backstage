@@ -454,7 +454,7 @@ const isLine = kd => kd==='curb';
 const ALPHA = 128, TAN = Math.tan(8*Math.PI/180);
 const status = (t, cls='') => { const s=$('status'); s.textContent=t; s.className='ed-status '+cls; };
 let row = null, meta, W, H, ids, pix = [], bbox = [], state = {regions:{}, polys:[], dims:[], note:''};
-let kind = 'house', tool = 'draw', zoom = 1, undoStack = [], pen = [], dim = [];
+let kind = 'house', tool = 'draw', zoom = 1, undoStack = [], pen = [], dim = [], lastTap = 0;
 let ghost = null, gesture = null, U = [1,0], V = [0,1], draftKey = '';
 const paintCtx = $('cPaint').getContext('2d');
 let paintImg;
@@ -562,7 +562,7 @@ function snapDrag(i, j, p){
 function nearestMid(p, thr){
   let best = null, bd = thr;
   state.polys.forEach((poly, i)=>{ const n = poly.pts.length; for(let j=0;j<(isLine(poly.kind) ? n-1 : n);j++){ const a=poly.pts[j], b=poly.pts[(j+1)%n];
-    if(dist(a,b) < 4*thr) continue; const m=[(a[0]+b[0])/2, (a[1]+b[1])/2], d=dist(p,m);
+    if(dist(a,b) < 2.25*thr) continue; const m=[(a[0]+b[0])/2, (a[1]+b[1])/2], d=dist(p,m);
     if(d<bd){ bd=d; best={i, j, a0:[...a], b0:[...b]}; } } });
   return best;
 }
@@ -572,6 +572,21 @@ function nearestSeg(p, thr){
     const t=((p[0]-a[0])*ex+(p[1]-a[1])*ey)/L2; if(t<=0.03 || t>=0.97) continue;
     const q=[a[0]+t*ex, a[1]+t*ey], d=dist(p,q); if(d<bd){ bd=d; best={i, j, q:q.map(r1)}; } } });
   return best;
+}
+// Dragging a piece of a longer straight wall: keep the rest where it is and step in/out square.
+// The piece's ends are doubled (one copy stays, one moves), so the joins are short walls at 90 degrees.
+function jogEdge(g){
+  const poly = state.polys[g.i]; if(isLine(poly.kind)) return;
+  let pts = poly.pts; const n = pts.length; if(n < 4) return;
+  pts = pts.map((_, m)=>pts[(m + g.j - 1 + n) % n]);            // the dragged edge becomes pts[1] -> pts[2]
+  const a = pts[1], b = pts[2], L = dist(a, b), ux = (b[0]-a[0])/L, uy = (b[1]-a[1])/L;
+  const straight = (p, q)=>{ const d = dist(p, q); return d > 0 && Math.abs(((q[0]-p[0])*uy - (q[1]-p[1])*ux)/d) < 0.035
+                                   && ((q[0]-p[0])*ux + (q[1]-p[1])*uy) > 0; };
+  const jogA = straight(pts[0], a), jogB = straight(b, pts[3 % n]);
+  if(!jogA && !jogB) return;
+  if(jogB) pts.splice(3, 0, [...b]);
+  if(jogA) pts.splice(1, 0, [...a]);
+  poly.pts = pts; g.j = jogA ? 2 : 1;
 }
 function dragEdge(g, p0, p){
   const pts = state.polys[g.i].pts, n = pts.length, ex=g.b0[0]-g.a0[0], ey=g.b0[1]-g.a0[1], L=Math.hypot(ex,ey);
@@ -638,7 +653,7 @@ function drawVec(){
     else h += `<polygon points="${pts2(p.pts)}" fill="${c}" fill-opacity=".3" stroke="${c}" stroke-width="${sw}" stroke-linejoin="round"/>`; }
   if(tool==='draw' && !pen.length) for(const p of state.polys){ const c = p.kind==='patio' ? css('house') : css(p.kind);
     h += p.pts.map(q=>`<circle cx="${q[0]}" cy="${q[1]}" r="${sw*1.7}" fill="#fff" stroke="${c}" stroke-width="${sw*.8}"/>`).join('');
-    h += p.pts.map((a,j)=>{ if(isLine(p.kind) && j===p.pts.length-1) return ''; const b=p.pts[(j+1)%p.pts.length]; if(dist(a,b) < 64*s) return '';
+    h += p.pts.map((a,j)=>{ if(isLine(p.kind) && j===p.pts.length-1) return ''; const b=p.pts[(j+1)%p.pts.length]; if(dist(a,b) < 36*s) return '';
       return `<rect x="${(a[0]+b[0])/2-sw*1.3}" y="${(a[1]+b[1])/2-sw*1.3}" width="${sw*2.6}" height="${sw*2.6}" fill="${c}" stroke="#fff" stroke-width="${sw*.6}"/>`; }).join(''); }
   if(gesture && gesture.dragging){ const g = gesture.hit || gesture.edge, p = state.polys[g.i], n = p.pts.length, j = g.j;
     h += edgeLabel(p.pts[(j-1+n)%n], p.pts[j], fs) + edgeLabel(p.pts[j], p.pts[(j+1)%n], fs) + edgeLabel(p.pts[(j+1)%n], p.pts[(j+2)%n], fs); }
@@ -722,6 +737,7 @@ stage.addEventListener('pointermove', e=>{
     if(gesture){
       if((gesture.hit || gesture.edge || gesture.seg) && !gesture.dragging && Math.hypot(e.clientX-gesture.start[0], e.clientY-gesture.start[1]) > 6){
         gesture.dragging = true; ghost = null; pushUndo();
+        if(gesture.edge) jogEdge(gesture.edge);
         if(gesture.seg){ const {i, j, q} = gesture.seg;              // new corner on that edge, dragged from here
           state.polys[i].pts.splice(j+1, 0, q); gesture.hit = {p:q, i, j:j+1}; gesture.seg = null; } }
       if(gesture.dragging && gesture.hit){ const {i, j} = gesture.hit; state.polys[i].pts[j] = snapDrag(i, j, p); drawVec(); return; }
@@ -743,9 +759,18 @@ function endPointer(e, cancelled){
       if(g.hit){ const poly = state.polys[g.hit.i], pts = poly.pts, n = pts.length, j = g.hit.j, open = isLine(poly.kind);
         const nb = open ? [pts[j-1], pts[j+1]] : [pts[(j-1+n)%n], pts[(j+1)%n]];
         if(n > (open ? 2 : 3) && nb.some(q=>q && dist(q, pts[j]) < 0.5)){ pts.splice(j, 1); status('Corner removed. Undo brings it back.'); } }
+      if(g.edge){ const poly = state.polys[g.edge.i];
+        poly.pts = poly.pts.filter((q, m, A)=>dist(q, A[(m+1) % A.length]) >= 0.5 || A.length <= 3); }
       saveDraft(); drawVec(); return; }
     if(cancelled){ ghost = null; drawVec(); return; }
     const s = ghost || snapNew(toPx(e));
+    if(pen.length===1 && Date.now()-lastTap < 500 && dist(s.p, pen[0]) < 12*k()){   // double-tap on an edge: add a corner there
+      const sg = nearestSeg(pen[0], 14*k());
+      if(sg){ pushUndo(); state.polys[sg.i].pts.splice(sg.j+1, 0, sg.q); pen = []; ghost = null; lastTap = 0;
+        updPen(); drawVec(); saveDraft();
+        status('Corner added. Add a second one, then drag the square between them to move just that part of the edge.'); return; }
+    }
+    lastTap = Date.now();
     if(s.close) closePen();
     else if(!pen.length || dist(s.p, pen[pen.length-1]) > 0.5) pen.push(s.p);
     ghost = (e.pointerType==='mouse' && pen.length) ? s : null;
@@ -769,7 +794,7 @@ function updPen(){
   const need = isLine(kind) ? 2 : 3;
   $('penInfo').textContent = isLine(kind) && pen.length ? `curb line: ${pen.length} point${pen.length>1?'s':''}` + (pen.length>=2 ? ' · keep tapping along the curb, then Done' : '')
                          : pen.length ? `${KINDS[kind]}: ${pen.length} corner${pen.length>1?'s':''}` + (pen.length>=3 ? ' · tap the first corner or Done' : '')
-                                        : `Drawing: ${KINDS[kind]}. Tap a corner to start. Drag a corner or edge square to move it; drag from anywhere on an edge to add a corner; drop a corner onto the next one to remove it.`;
+                                        : `Drawing: ${KINDS[kind]}. Tap a corner to start. Drag a corner or edge square to move it; double-tap an edge (or drag from it) to add a corner; two corners + drag the square between them = a step in the wall; drop a corner onto the next one to remove it.`;
   $('penDone').disabled = pen.length < need; $('penUndo').disabled = !pen.length; $('penCancel').disabled = !pen.length;
 }
 function closePen(){
